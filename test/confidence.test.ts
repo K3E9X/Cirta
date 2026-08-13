@@ -12,7 +12,7 @@ describe('confidence classification', () => {
     expect(confidenceOf(findings, 'Last modified by')).toBe('confirmed');
     expect(confidenceOf(findings, 'Company')).toBe('confirmed');
     expect(confidenceOf(findings, 'Manager')).toBe('confirmed');
-    expect(confidenceOf(findings, 'Custom properties')).toBe('confirmed');
+    expect(confidenceOf(findings, 'Custom property: ClassificationInterne')).toBe('confirmed');
   });
 
   it('treats a template path as confirmed because it carries the local username', async () => {

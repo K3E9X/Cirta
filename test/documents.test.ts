@@ -64,7 +64,8 @@ describe('PPTX', () => {
     expect(byLabel['Last modified by']).toBe('lotfi.z');
     expect(byLabel['Company']).toBe('Example SA');
     expect(byLabel['Template']).toContain('corp.potx');
-    expect(byLabel['Custom properties']).toBe('ClassificationInterne');
+    // Reported per property, with the value: the name alone carries nothing.
+    expect(byLabel['Custom property: ClassificationInterne']).toBe('Confidentiel');
     expect(byLabel['Embedded thumbnail']).toBeDefined();
   });
 

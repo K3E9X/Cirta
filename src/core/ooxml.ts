@@ -14,7 +14,9 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
+import { describeC2pa } from './c2pa.js';
 import { scanContent } from './archive.js';
+import { scanText, cleanText } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -23,6 +25,9 @@ import {
   removeElement,
   removeAttribute,
   collectAttribute,
+  collectNamedProperties,
+  collectTextContent,
+  mapTextContent,
 } from './xml.js';
 
 type Parts = Record<string, Uint8Array>;
@@ -119,6 +124,47 @@ function findSpeakerNotes(parts: Parts): number {
   ).length;
 }
 
+
+/**
+ * Parts a reader actually sees. Invisible characters are only worth reporting
+ * where they can travel with copied text; the same codepoints inside a theme or
+ * a relationship file are structural noise.
+ */
+function isBodyPart(path: string): boolean {
+  return /^word\/(document|footnotes|endnotes|comments|header\d*|footer\d*)\.xml$/.test(path) ||
+    /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/.test(path) ||
+    path === 'xl/sharedStrings.xml';
+}
+
+/**
+ * Report invisible characters carried by the document body.
+ *
+ * A zero-width space inside a paragraph survives copy/paste out of the document
+ * exactly as it would in a plain text file, so leaving the body unscanned meant
+ * the one class of marking this tool handles completely was invisible to it
+ * precisely where documents are concerned.
+ */
+function inspectBodyText(parts: Parts): Finding[] {
+  const findings: Finding[] = [];
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!isBodyPart(path)) continue;
+    const scan = scanText(collectTextContent(strFromU8(raw)));
+    for (const finding of scan.findings) {
+      findings.push({ ...finding, location: `${path} (${finding.location})` });
+    }
+    for (const payload of scan.decoded) {
+      findings.push({
+        kind: 'invisible-character',
+        confidence: 'confirmed',
+        location: path,
+        label: 'Hidden payload in document text',
+        value: payload,
+      });
+    }
+  }
+  return findings;
+}
+
 export function inspectOoxml(data: Uint8Array): InspectResult {
   const parts = unzipSync(data);
   const format = detectOoxmlFormat(parts);
@@ -159,14 +205,29 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   const custom = readText(parts, 'docProps/custom.xml');
   if (custom) {
-    const names = collectAttribute(custom, 'name');
-    findings.push({
-      kind: 'identity',
-      confidence: 'confirmed',
-      location: 'docProps/custom.xml',
-      label: 'Custom properties',
-      value: names.length ? names.join(', ') : 'present',
-    });
+    // Each property is reported with its value, not merely its name: a key
+    // called "Model" says nothing, "claude-opus-5" says everything, and only
+    // the value can feed the fingerprint pass.
+    const properties = collectNamedProperties(custom, 'property', 'name');
+    for (const { name, value } of properties) {
+      findings.push({
+        kind: 'identity',
+        confidence: 'confirmed',
+        location: `docProps/custom.xml:${name}`,
+        label: `Custom property: ${name}`,
+        value,
+      });
+    }
+    if (properties.length === 0) {
+      const names = collectAttribute(custom, 'name');
+      findings.push({
+        kind: 'identity',
+        confidence: 'confirmed',
+        location: 'docProps/custom.xml',
+        label: 'Custom properties',
+        value: names.length ? names.join(', ') : 'present',
+      });
+    }
   }
 
   const thumbnail = Object.keys(parts).find((p) => p.startsWith('docProps/thumbnail'));
@@ -249,14 +310,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   }
 
   for (const path of findC2paParts(parts)) {
-    findings.push({
-      kind: 'provenance',
-      confidence: 'confirmed',
-      location: path,
-      label: 'C2PA provenance manifest',
-      value: 'signed content credentials',
-      affectsVerifiability: true,
-    });
+    findings.push(...describeC2pa(strFromU8(parts[path]!), path));
   }
 
   // Credentials and provider-issued ids are scanned for in the body too: they
@@ -266,6 +320,8 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     if (!/\.(xml|rels|json|txt|bin)$/.test(path)) continue;
     findings.push(...scanContent(strFromU8(raw), path));
   }
+
+  findings.push(...inspectBodyText(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
 
@@ -284,6 +340,8 @@ export interface RedactOoxmlOptions {
   anonymizeAuthors?: boolean;
   /** Strip Exif/XMP/IPTC from embedded pictures. Default true. */
   stripMedia?: boolean;
+  /** Remove invisible characters from the document's visible text. Default true. */
+  cleanBodyText?: boolean;
 }
 
 /** Drop a part and the `[Content_Types].xml` override and relationship that reference it. */
@@ -327,6 +385,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     removeRsids = true,
     anonymizeAuthors = true,
     stripMedia = true,
+    cleanBodyText = true,
   } = options;
 
   const before = inspectOoxml(data);
@@ -375,6 +434,14 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
       const xml = strFromU8(raw);
       if (!xml.includes('w:author=')) continue;
       parts[path] = strToU8(xml.replace(/\sw:author="[^"]*"/g, ` w:author="${ANONYMOUS_AUTHOR}"`));
+    }
+  }
+
+  if (cleanBodyText) {
+    for (const path of Object.keys(parts)) {
+      if (!isBodyPart(path)) continue;
+      const cleaned = mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text, { normalizeSpaces: false }).text);
+      parts[path] = strToU8(cleaned);
     }
   }
 

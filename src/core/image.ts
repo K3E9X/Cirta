@@ -8,6 +8,7 @@
  */
 
 import type { Finding } from './types.js';
+import { describeC2pa } from './c2pa.js';
 
 const JPEG_SOI = 0xffd8;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -197,17 +198,18 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
     for (const segment of jpegSegments(data).segments) {
       const described = describeJpegSegment(segment);
       if (!described) continue;
+      if (described.isC2pa) {
+        findings.push(...describeC2pa(ASCII.decode(segment.body), location));
+        continue;
+      }
       findings.push({
-        kind: described.isC2pa ? 'provenance' : 'identity',
+        kind: 'identity',
         // GPS coordinates place the author somewhere specific; the rest is
         // device and capture data that is identifying but less pointed.
-        confidence: described.hasGps || described.isC2pa ? 'confirmed' : 'probable',
+        confidence: described.hasGps ? 'confirmed' : 'probable',
         location,
         label: described.label,
-        value: described.isC2pa
-          ? 'signed provenance manifest'
-          : `${segment.end - segment.start} bytes`,
-        ...(described.isC2pa ? { affectsVerifiability: true } : {}),
+        value: `${segment.end - segment.start} bytes`,
       });
     }
     return findings;
@@ -216,14 +218,7 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
   for (const chunk of pngChunks(data)) {
     if (!PNG_STRIP_CHUNKS.has(chunk.type)) continue;
     if (chunk.type === 'caBX') {
-      findings.push({
-        kind: 'provenance',
-        confidence: 'confirmed',
-        location,
-        label: 'C2PA content credentials',
-        value: 'signed provenance manifest',
-        affectsVerifiability: true,
-      });
+      findings.push(...describeC2pa(ASCII.decode(data.subarray(chunk.start, chunk.end)), location));
       continue;
     }
     findings.push({

@@ -134,6 +134,9 @@ const FIELD_LABEL: Record<string, string> = {
   'API request id': 'Identifiant de requête API',
   'Conversation id': 'Identifiant de conversation',
   'Absolute paths preserved in the archive': 'Chemins absolus conservés dans l’archive',
+  'Hidden payload in document text': 'Charge cachée dans le texte du document',
+  'Hidden payload in page text': 'Charge cachée dans le texte des pages',
+  'Tool credited by the C2PA manifest': 'Outil crédité par le manifeste C2PA',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -150,7 +153,7 @@ const VALUE_TEXT: Record<string, string> = {
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    "Métadonnées, plus un scan des flux décompressés à la recherche de secrets et d'identifiants de fournisseur. Le texte des pages n'est pas lu comme de la prose : un filigrane statistique qui s'y trouverait n'apparaîtrait pas ici.",
+    "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur, caractères invisibles). Les opérandes de chaîne PDF contiennent des codes de glyphes et non de l'Unicode : une détection dans le texte des pages est fiable, mais une absence ne prouve rien — contrairement à un DOCX, où le contrôle du corps est exact. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, plus un scan des parties à la recherche de secrets et d'identifiants de fournisseur. Si le corps contient du texte issu d'un modèle filigranant, ce signal réside dans la formulation et n'est pas affecté par le nettoyage.",
   'scope:invisible-characters-only': () =>
@@ -220,7 +223,22 @@ function exposureCard(text: string): HTMLElement {
   return node;
 }
 
-const translateLabel = (label: string) => FIELD_LABEL[label] ?? label;
+/** Some labels carry the field name, so the prefix is translated rather than the whole. */
+const LABEL_PREFIX: Array<[RegExp, string]> = [
+  [/^Custom property: /, 'Propriété personnalisée : '],
+  [/^User-defined property: /, 'Propriété utilisateur : '],
+  [/^Custom info key: /, 'Clé /Info personnalisée : '],
+  [/^Credential left in file: /, 'Secret laissé dans le fichier : '],
+];
+
+function translateLabel(label: string): string {
+  const mapped = FIELD_LABEL[label];
+  if (mapped) return mapped;
+  for (const [pattern, prefix] of LABEL_PREFIX) {
+    if (pattern.test(label)) return label.replace(pattern, prefix);
+  }
+  return label;
+}
 
 /** The core marks derived findings with an English prefix naming their source. */
 const translateLocation = (location: string) =>
@@ -239,6 +257,10 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
+  [
+    /^(.+) — asserted by the manifest, signature not verified$/,
+    (m) => `${m[1]} — déclaré par le manifeste, signature non vérifiée`,
+  ],
   [/^(.+) \(drive ([A-Za-z]):\)$/, (m) => `${m[1]} (lecteur ${m[2]} :)`],
 ];
 

@@ -31,6 +31,7 @@ export { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 export type { MarkupFormat } from './markup.js';
 export { inspectImage, stripImageMetadata, detectImageKind, hasC2pa } from './image.js';
 export { fingerprint } from './fingerprint.js';
+export { readClaimGenerator, describeC2pa } from './c2pa.js';
 export { exposure, estimateTokens, EXPOSURE_THRESHOLDS } from './exposure.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
@@ -180,9 +181,13 @@ async function noteSurvivors(result: RedactResult, hint?: string): Promise<Redac
   } catch {
     return result;
   }
-  if (survivors.length === 0) return result;
+  // Informational findings are the ones deliberately kept — typographic spaces,
+  // software names in a field that is meant to name software. Listing them as
+  // "not removed" would bury the survivors that actually matter.
+  const notable = survivors.filter((f) => f.confidence !== 'informational');
+  if (notable.length === 0) return result;
 
-  const labels = [...new Set(survivors.map((f) => f.label))];
+  const labels = [...new Set(notable.map((f) => f.label))];
   return {
     ...result,
     notes: [...result.notes, { code: 'kept:in-content', detail: labels.join(', ') }],

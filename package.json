@@ -19,7 +19,8 @@
     "dev:web": "vite",
     "cli": "node --experimental-strip-types src/cli/index.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.web.json"
+    "typecheck": "tsc -p tsconfig.web.json",
+    "verify": "npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && npm run build:web"
   },
   "dependencies": {
     "fflate": "^0.8.2",

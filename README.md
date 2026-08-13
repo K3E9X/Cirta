@@ -13,8 +13,8 @@ votre machine.
 | Support | Traité |
 |---|---|
 | PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
-| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
+| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
 | Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
@@ -74,6 +74,105 @@ rien même quand les mots y sont en clair.
 d'attribution en fin de document (`*Généré par …*`) sont détectés. Le repérage se fait sur la
 **tournure de génération**, pas sur le nom de l'éditeur, et seulement dans les dernières lignes : une
 signature est en pied de page, une mention en plein corps est de la prose.
+
+### Caractères invisibles dans le corps des documents
+
+Un espace de largeur nulle dans un paragraphe survit au copier-coller hors du document exactement
+comme dans un fichier texte. Le corps est donc scanné sur **tous** les formats, pas seulement les
+documents Office :
+
+| Format | Détection | Retrait |
+|---|---|---|
+| DOCX / PPTX / XLSX / ODT | Exacte, références numériques comprises | Oui |
+| Markdown | Exacte | Oui |
+| HTML / SVG | Exacte, texte entre balises uniquement | Oui |
+| PDF | Fiable en cas de détection, **une absence ne prouve rien** | Non — voir plus bas |
+
+Le rapport ressemble à ceci :
+
+```
+confirmed      zero-width space                  2 occurrences
+                                                 word/document.xml (U+200B)
+confirmed      Hidden payload in document text   tag characters → "ID42"
+                                                 word/document.xml
+informational  no-break space                    1 occurrence
+                                                 word/document.xml (U+00A0)
+```
+
+Trois précisions qui comptent :
+
+- **Les références numériques sont résolues.** `&#x200B;` est un espace de largeur nulle écrit
+  autrement ; ne pas le voir rendrait le contrôle trivial à contourner.
+- **Seul le texte visible est touché.** La réécriture opère entre `>` et `<` : jamais les noms de
+  balises, jamais les attributs. La structure XML reste intacte.
+- **Les parties structurelles sont ignorées.** Les mêmes codepoints dans un thème ou un fichier de
+  relations sont du bruit, pas un marquage.
+
+Les liants d'emoji et les anti-liants persans et indiens sont préservés dans le corps comme ailleurs.
+
+**Les espaces typographiques sont conservés dans les documents.** Une espace insécable avant un
+deux-points est de la typographie française correcte : la normaliser dégraderait le document. Elle
+est donc signalée en `informatif` et laissée en place — contrairement à l'onglet Texte, où le
+nettoyage d'un extrait collé les normalise. La différence est délibérée.
+
+**Le cas du PDF est plus faible, et c'est structurel.** Un opérande de chaîne PDF contient des codes
+de glyphes, pas de l'Unicode. Avec un encodage simple les deux coïncident, mais une police
+sous-ensemble intégrée les associe arbitrairement et seule sa table `ToUnicode` permet de revenir en
+arrière. Une détection est donc réelle, une absence ne prouve rien — la note de portée le dit. Et le
+retrait est impossible sans réécrire le flux de contenu, donc le rapport annonce explicitement ce
+qu'il n'a pas pu retirer :
+
+```
+Not removed: zero-width space, Hidden payload in page text.
+```
+
+Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leurs chaînes en UTF-16BE
+**sans marque d'ordre d'octets**. Lues en Latin-1, un espace de largeur nulle devient une espace
+suivie d'une tabulation verticale — le caractère recherché, détruit silencieusement. La présence d'un
+octet NUL, impossible dans une vraie chaîne mono-octet, sert donc à reconnaître cette forme.
+
+### Ce qu'un PDF peut révéler sur sa génération
+
+Sur un PDF produit par une chaîne LLM typique, le rapport ressemble à ceci :
+
+```
+confirmed  C2PA content credentials              signed provenance manifest
+confirmed  Custom info key: GeneratedBy          anthropic/claude-opus-5
+confirmed  Custom info key: RequestId            msg_01XyZaBcDeFgHiJkLmNoPqRs
+confirmed  Linux account                         lotfi
+confirmed  Session identifier                    session_01ABCdef99
+confirmed  Model identifier                      claude-opus-5 (Claude)
+confirmed  Coding agent named in metadata        Claude Code
+confirmed  Anthropic message id                  msg_01XyZaBcDeFgHiJkLmNoPqRs
+probable   Tool credited by the C2PA manifest    claude/1.0 — déclaré par le
+                                                 manifeste, signature non vérifiée
+```
+
+Le même traitement s'applique à **tous les formats**, pas seulement au PDF. La partie ouverte de
+chaque format — celle où une chaîne de génération écrit ce qu'elle veut — est lue avec ses valeurs :
+
+| Format | Partie ouverte lue |
+|---|---|
+| PDF | Toutes les clés `/Info`, y compris non standard |
+| DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
+| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur |
+| Markdown | Toutes les clés de front matter reconnues |
+| SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
+
+Une clé nommée `Model` ne dit rien ; sa valeur `claude-opus-5` dit tout — et seule la valeur alimente
+la déduction du modèle. Le manifeste C2PA est lu de la même façon dans chaque conteneur : PDF, Office,
+OpenDocument, SVG et images.
+
+**L'asymétrie est fondamentale et il faut la garder en tête.** Tout cela repose sur ce que le
+producteur a *laissé*. Ce sont des traces, pas un filigrane : une chaîne de génération propre — ou un
+passage par le nettoyage de cet outil — les fait toutes disparaître. Donc une détection est une
+preuve solide, une absence ne prouve rien du tout.
+
+**Le manifeste C2PA est lu, pas vérifié.** Sa présence est un fait sur les octets, donc `confirmé`.
+Le `claim_generator` qu'il contient est en revanche la *déclaration* du producteur : vérifier qu'elle
+est authentique demanderait de remonter une chaîne de certificats jusqu'à la liste de confiance C2PA,
+ce que Cirta ne fait pas. N'importe qui peut écrire un manifeste créditant n'importe qui — d'où le
+niveau `probable` et la mention explicite dans la valeur.
 
 ### Secrets laissés dans les fichiers
 
@@ -205,6 +304,8 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
 | Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
+| Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
+| Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |
 
 ### Le nettoyage est mesuré, pas affirmé
 
@@ -326,11 +427,21 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 140 tests
-node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
+npm run verify     # typage, 171 tests, build, scénario CLI de bout en bout, build web
+```
+
+`verify` est l'unique porte d'entrée, et c'est exactement ce que lance la CI. Les étapes sont
+enchaînées par `&&`, donc la première qui échoue arrête tout et le code de sortie remonte — un
+terminal vert et un pipeline vert ne peuvent pas être en désaccord sur ce qui a été vérifié.
+
+Les étapes individuelles restent disponibles :
+
+```bash
 npm run typecheck
+npm test
 npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
+node scripts/smoke.mjs
 ```
 
 La base d'URL du site vaut `/Cirta/` pour GitHub Pages ; utilisez `CIRTA_BASE=/ npm run build:web`
