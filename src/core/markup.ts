@@ -17,6 +17,7 @@ import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText } from './text.js';
 import { collectTextContent, mapTextContent } from './xml.js';
+import { describeC2pa } from './c2pa.js';
 import { byConfidence } from './types.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
@@ -37,16 +38,19 @@ function inspectSvg(text: string): Finding[] {
   const metadata = /<metadata[^>]*>([\s\S]*?)<\/metadata>/i.exec(text);
   if (metadata) {
     const inner = metadata[1] ?? '';
-    findings.push({
-      kind: 'provenance',
-      confidence: 'confirmed',
-      location: '<metadata>',
-      label: 'SVG metadata block',
-      value: /c2pa|contentcredentials/i.test(inner)
-        ? 'RDF block containing C2PA content credentials'
-        : `RDF/Dublin Core block, ${inner.trim().length} characters`,
-      ...(/c2pa|contentcredentials/i.test(inner) ? { affectsVerifiability: true } : {}),
-    });
+    if (/c2pa|contentcredentials/i.test(inner)) {
+      // Same treatment a manifest gets in any other container, including the
+      // tool it credits and the reminder that its signature is unchecked.
+      findings.push(...describeC2pa(inner, '<metadata>'));
+    } else {
+      findings.push({
+        kind: 'provenance',
+        confidence: 'confirmed',
+        location: '<metadata>',
+        label: 'SVG metadata block',
+        value: `RDF/Dublin Core block, ${inner.trim().length} characters`,
+      });
+    }
   }
 
   for (const namespace of EDITOR_NAMESPACES) {

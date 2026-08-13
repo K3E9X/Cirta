@@ -189,7 +189,7 @@ describe('OpenDocument', () => {
   it('reports the generator as informational and user-defined keys as confirmed', async () => {
     const { findings } = await inspectFile(makeOdt());
     expect(find(findings, 'Producing application')?.confidence).toBe('informational');
-    expect(find(findings, 'User-defined properties')?.value).toBe('Classification');
+    expect(find(findings, 'User-defined property: Classification')?.value).toBe('Confidentiel');
   });
 
   it('leaves no metadata behind after redaction', async () => {

@@ -264,3 +264,78 @@ describe('C2PA claim generator', () => {
     expect(credited?.value).toContain('signature not verified');
   });
 });
+
+describe('custom properties carry their values, not just their names', () => {
+  const zip = (parts) => zipSync(parts);
+
+  it('reports each Office custom property with its value', async () => {
+    const custom =
+      '<Properties xmlns:vt="v">' +
+      '<property name="Model" pid="2"><vt:lpwstr>claude-opus-5</vt:lpwstr></property>' +
+      '<property name="RunId" pid="3"><vt:lpwstr>session_01ABCdef99</vt:lpwstr></property>' +
+      '</Properties>';
+    const { findings } = await inspectFile(
+      zip({
+        '[Content_Types].xml': strToU8('<Types/>'),
+        'docProps/custom.xml': strToU8(custom),
+        'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      }),
+    );
+    expect(find(findings, 'Custom property: Model')?.value).toBe('claude-opus-5');
+    expect(find(findings, 'Custom property: RunId')?.value).toBe('session_01ABCdef99');
+  });
+
+  it('lets the fingerprint pass derive the model from that value', async () => {
+    // A key called "Model" says nothing; only its value names the model, which
+    // is the whole reason the value has to be reported.
+    const custom =
+      '<Properties xmlns:vt="v"><property name="Model" pid="2"><vt:lpwstr>claude-opus-5</vt:lpwstr></property></Properties>';
+    const { findings } = await inspectFile(
+      zip({
+        '[Content_Types].xml': strToU8('<Types/>'),
+        'docProps/custom.xml': strToU8(custom),
+        'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      }),
+    );
+    expect(find(findings, 'Model identifier')?.value).toContain('claude-opus-5');
+  });
+
+  it('reports OpenDocument user-defined properties with their values', async () => {
+    const meta =
+      '<office:document-meta xmlns:office="o" xmlns:meta="m"><office:meta>' +
+      '<meta:user-defined meta:name="Model">claude-opus-5</meta:user-defined>' +
+      '</office:meta></office:document-meta>';
+    const { findings } = await inspectFile(
+      zip({
+        mimetype: strToU8('application/vnd.oasis.opendocument.text'),
+        'meta.xml': strToU8(meta),
+        'content.xml': strToU8('<office:document-content/>'),
+      }),
+    );
+    expect(find(findings, 'User-defined property: Model')?.value).toBe('claude-opus-5');
+    expect(find(findings, 'Model identifier')?.value).toContain('claude-opus-5');
+  });
+
+  it('still removes them on redaction', async () => {
+    const custom =
+      '<Properties xmlns:vt="v"><property name="Model" pid="2"><vt:lpwstr>claude-opus-5</vt:lpwstr></property></Properties>';
+    const redacted = await redactFile(
+      zip({
+        '[Content_Types].xml': strToU8('<Types/>'),
+        'docProps/custom.xml': strToU8(custom),
+        'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      }),
+    );
+    expect((await inspectFile(redacted.data)).findings).toEqual([]);
+  });
+
+  it('reads the manifest an SVG carries, like any other container', async () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg"><metadata>' +
+      '<rdf:Description c2pa:claim_generator="claude/1.0"/></metadata></svg>';
+    const { findings } = await inspectFile(new TextEncoder().encode(svg));
+    const credited = find(findings, 'Tool credited by the C2PA manifest');
+    expect(credited?.value).toContain('claude/1.0');
+    expect(credited?.value).toContain('signature not verified');
+  });
+});

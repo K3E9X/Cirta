@@ -25,6 +25,7 @@ import {
   removeElement,
   removeAttribute,
   collectAttribute,
+  collectNamedProperties,
   collectTextContent,
   mapTextContent,
 } from './xml.js';
@@ -204,14 +205,29 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   const custom = readText(parts, 'docProps/custom.xml');
   if (custom) {
-    const names = collectAttribute(custom, 'name');
-    findings.push({
-      kind: 'identity',
-      confidence: 'confirmed',
-      location: 'docProps/custom.xml',
-      label: 'Custom properties',
-      value: names.length ? names.join(', ') : 'present',
-    });
+    // Each property is reported with its value, not merely its name: a key
+    // called "Model" says nothing, "claude-opus-5" says everything, and only
+    // the value can feed the fingerprint pass.
+    const properties = collectNamedProperties(custom, 'property', 'name');
+    for (const { name, value } of properties) {
+      findings.push({
+        kind: 'identity',
+        confidence: 'confirmed',
+        location: `docProps/custom.xml:${name}`,
+        label: `Custom property: ${name}`,
+        value,
+      });
+    }
+    if (properties.length === 0) {
+      const names = collectAttribute(custom, 'name');
+      findings.push({
+        kind: 'identity',
+        confidence: 'confirmed',
+        location: 'docProps/custom.xml',
+        label: 'Custom properties',
+        value: names.length ? names.join(', ') : 'present',
+      });
+    }
   }
 
   const thumbnail = Object.keys(parts).find((p) => p.startsWith('docProps/thumbnail'));

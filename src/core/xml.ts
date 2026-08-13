@@ -120,3 +120,31 @@ export function mapTextContent(xml: string, transform: (text: string) => string)
     return `>${escapeText(result)}<`;
   });
 }
+
+/**
+ * Named property values, as Office and OpenDocument both store custom fields.
+ *
+ * Reporting only the property names loses the part that matters: a key called
+ * "Model" says nothing, while its value "claude-opus-5" names the model and
+ * feeds the fingerprint pass. This is the same lesson the PDF /Info dictionary
+ * taught — the open-ended part of a format is where the telling data lands.
+ */
+export function collectNamedProperties(
+  xml: string,
+  element: string,
+  nameAttribute: string,
+): Array<{ name: string; value: string }> {
+  const e = tag(element);
+  const a = tag(nameAttribute);
+  const pattern = new RegExp(
+    `<${e}[^>]*\\s${a}="([^"]*)"[^>]*>([\\s\\S]*?)</${e}>`,
+    'g',
+  );
+  const out: Array<{ name: string; value: string }> = [];
+  for (const match of xml.matchAll(pattern)) {
+    const name = decodeEntities(match[1] ?? '').trim();
+    const value = decodeEntities((match[2] ?? '').replace(/<[^>]*>/g, '')).trim();
+    if (name && value) out.push({ name, value });
+  }
+  return out;
+}

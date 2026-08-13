@@ -223,7 +223,22 @@ function exposureCard(text: string): HTMLElement {
   return node;
 }
 
-const translateLabel = (label: string) => FIELD_LABEL[label] ?? label;
+/** Some labels carry the field name, so the prefix is translated rather than the whole. */
+const LABEL_PREFIX: Array<[RegExp, string]> = [
+  [/^Custom property: /, 'Propriété personnalisée : '],
+  [/^User-defined property: /, 'Propriété utilisateur : '],
+  [/^Custom info key: /, 'Clé /Info personnalisée : '],
+  [/^Credential left in file: /, 'Secret laissé dans le fichier : '],
+];
+
+function translateLabel(label: string): string {
+  const mapped = FIELD_LABEL[label];
+  if (mapped) return mapped;
+  for (const [pattern, prefix] of LABEL_PREFIX) {
+    if (pattern.test(label)) return label.replace(pattern, prefix);
+  }
+  return label;
+}
 
 /** The core marks derived findings with an English prefix naming their source. */
 const translateLocation = (location: string) =>

@@ -19,6 +19,7 @@ import {
   setElementText,
   removeElement,
   collectAttribute,
+  collectNamedProperties,
   collectTextContent,
   mapTextContent,
 } from './xml.js';
@@ -128,16 +129,29 @@ export function inspectOdf(data: Uint8Array): InspectResult {
       }
     }
 
-    // Arbitrary key/value pairs an author or a template can attach.
-    const userDefined = collectAttribute(meta, 'meta:name');
-    if (userDefined.length) {
+    // Arbitrary key/value pairs an author or a template can attach. Reported
+    // with their values, since that is where a model or session name lands.
+    const userDefined = collectNamedProperties(meta, 'meta:user-defined', 'meta:name');
+    for (const { name, value } of userDefined) {
       findings.push({
         kind: 'identity',
         confidence: 'confirmed',
-        location: 'meta.xml:meta:user-defined',
-        label: 'User-defined properties',
-        value: userDefined.join(', '),
+        location: `meta.xml:meta:user-defined:${name}`,
+        label: `User-defined property: ${name}`,
+        value,
       });
+    }
+    if (userDefined.length === 0) {
+      const names = collectAttribute(meta, 'meta:name');
+      if (names.length) {
+        findings.push({
+          kind: 'identity',
+          confidence: 'confirmed',
+          location: 'meta.xml:meta:user-defined',
+          label: 'User-defined properties',
+          value: names.join(', '),
+        });
+      }
     }
   }
 

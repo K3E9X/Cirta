@@ -148,6 +148,21 @@ probable   Tool credited by the C2PA manifest    claude/1.0 — déclaré par le
                                                  manifeste, signature non vérifiée
 ```
 
+Le même traitement s'applique à **tous les formats**, pas seulement au PDF. La partie ouverte de
+chaque format — celle où une chaîne de génération écrit ce qu'elle veut — est lue avec ses valeurs :
+
+| Format | Partie ouverte lue |
+|---|---|
+| PDF | Toutes les clés `/Info`, y compris non standard |
+| DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
+| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur |
+| Markdown | Toutes les clés de front matter reconnues |
+| SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
+
+Une clé nommée `Model` ne dit rien ; sa valeur `claude-opus-5` dit tout — et seule la valeur alimente
+la déduction du modèle. Le manifeste C2PA est lu de la même façon dans chaque conteneur : PDF, Office,
+OpenDocument, SVG et images.
+
 **L'asymétrie est fondamentale et il faut la garder en tête.** Tout cela repose sur ce que le
 producteur a *laissé*. Ce sont des traces, pas un filigrane : une chaîne de génération propre — ou un
 passage par le nettoyage de cet outil — les fait toutes disparaître. Donc une détection est une
@@ -412,7 +427,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 166 tests
+npm test           # 171 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/
