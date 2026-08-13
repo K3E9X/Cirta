@@ -288,12 +288,15 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   const doc = await load(data);
   const notes: Note[] = [];
 
-  // The pdf-lib setters would write empty entries that still announce which
-  // fields existed. Deleting the keys outright leaves no trace of them.
+  // Every key is removed, not just the eight standard ones: a generation
+  // pipeline writes its own, and reporting those while leaving them in place
+  // would be worse than not reporting them at all. The pdf-lib setters are
+  // avoided because they write empty entries that still announce which fields
+  // existed.
   const info = doc.context.lookup(doc.context.trailerInfo.Info);
-  if (info && 'delete' in info) {
-    const dict = info as { delete(k: PDFName): void };
-    for (const field of INFO_FIELDS) dict.delete(PDFName.of(field.key));
+  if (info && 'delete' in info && 'keys' in info) {
+    const dict = info as unknown as { delete(k: PDFName): void; keys(): PDFName[] };
+    for (const key of [...dict.keys()]) dict.delete(key);
   }
 
   if (removeXmp) {

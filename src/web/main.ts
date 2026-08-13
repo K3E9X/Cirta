@@ -165,6 +165,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne revendique ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
+  'kept:in-content': (detail) =>
+    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et réécrire le texte des pages changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
   'kept:content': (detail) =>
     `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };

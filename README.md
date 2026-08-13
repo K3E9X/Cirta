@@ -191,6 +191,40 @@ C'est de la **calibration, pas du ciblage** : cela dit ce que vaut un silence, p
 viser. Le nombre de tokens est estimé par densité de caractères, pas tokenisé — aucun tokenizer n'est
 embarqué, et le compte est donc donné sous forme de fourchette.
 
+## Ce que fait le nettoyage
+
+| Support | Retiré | Conservé délibérément |
+|---|---|---|
+| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA | Le contenu des pages |
+| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires, Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur |
+| ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
+| SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
+| HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération | JSON-LD — ce qu'indexe un moteur de recherche |
+| Markdown | Clés de front matter identifiantes ; délimiteurs retirés s'il ne reste rien dedans | Le corps, les autres clés, les lignes d'attribution |
+| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
+| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
+| ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
+| Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
+
+### Le nettoyage est mesuré, pas affirmé
+
+La détection et la suppression peuvent diverger — un champ finit par être reconnu sans être effacé —
+et c'est le pire défaut possible ici : un rapport qui liste un élément puis rend un fichier qui le
+porte encore. C'est arrivé une fois dans ce projet, avec les clés `/Info` personnalisées.
+
+Le nettoyage **ré-inspecte donc sa propre sortie** et nomme ce qui a survécu, au lieu de faire
+confiance au code de suppression :
+
+```
+Not removed: Anthropic API key. These sit in the document's own content rather
+than in a metadata field, and rewriting page text would change what the
+document says. Edit the source and regenerate — and if a credential is listed,
+rotate it.
+```
+
+Le corollaire est net : **quand aucun avertissement de ce type n'apparaît, c'est que la ré-inspection
+n'a rien trouvé** — pas que le code croit avoir bien travaillé.
+
 ### Sur le retrait des manifestes C2PA
 
 Retirer un manifeste C2PA ne rend pas un fichier « propre » — il le rend **inconnu**. Un vérificateur
@@ -292,7 +326,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 137 tests
+npm test           # 140 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

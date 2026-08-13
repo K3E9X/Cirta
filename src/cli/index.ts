@@ -225,6 +225,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Archive report. Every member was dispatched through the normal detection path; members no parser claims were scanned for credentials and provider identifiers only.',
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
+  'kept:in-content': (detail) =>
+    `Not removed: ${detail ?? 'traces inside the content'}. These sit in the document's own content rather than in a metadata field, and rewriting page text would change what the document says. Edit the source and regenerate — and if a credential is listed, rotate it.`,
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
