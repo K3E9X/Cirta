@@ -13,10 +13,17 @@ import {
   scanText,
   cleanText,
   preview,
+  type Confidence,
   type Finding,
   type Format,
   type Note,
 } from '../core/index.js';
+
+const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confirmed: 'confirmé',
+  probable: 'probable',
+  informational: 'informatif',
+};
 
 const KIND_LABEL: Record<Finding['kind'], string> = {
   identity: 'identité',
@@ -150,7 +157,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
 
   const head = el('thead');
   const headRow = el('tr');
-  for (const label of ['Type', 'Champ', 'Valeur', 'Emplacement']) {
+  for (const label of ['Niveau', 'Type', 'Champ', 'Valeur', 'Emplacement']) {
     headRow.append(el('th', undefined, label));
   }
   head.append(headRow);
@@ -159,6 +166,9 @@ function findingsTable(findings: Finding[]): HTMLElement {
   for (const finding of findings) {
     const row = el('tr');
     if (finding.affectsVerifiability) row.className = 'flagged';
+    row.append(
+      el('td', `confidence confidence-${finding.confidence}`, CONFIDENCE_LABEL[finding.confidence]),
+    );
     row.append(el('td', 'kind', KIND_LABEL[finding.kind]));
     row.append(el('td', undefined, translateLabel(finding.label)));
     row.append(el('td', 'value', preview(translateValue(finding), 120)));

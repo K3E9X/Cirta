@@ -12,7 +12,8 @@
  */
 
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
-import type { Finding, InspectResult, RedactResult, Format, Note } from './types.js';
+import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
+import { byConfidence } from './types.js';
 import {
   getElementText,
   setElementText,
@@ -23,27 +24,27 @@ import {
 
 type Parts = Record<string, Uint8Array>;
 
-const CORE_FIELDS: Array<{ tag: string; label: string; kind: Finding['kind'] }> = [
-  { tag: 'dc:creator', label: 'Author', kind: 'identity' },
-  { tag: 'cp:lastModifiedBy', label: 'Last modified by', kind: 'identity' },
-  { tag: 'dc:title', label: 'Title', kind: 'identity' },
-  { tag: 'dc:subject', label: 'Subject', kind: 'identity' },
-  { tag: 'dc:description', label: 'Description', kind: 'identity' },
-  { tag: 'cp:keywords', label: 'Keywords', kind: 'identity' },
-  { tag: 'cp:category', label: 'Category', kind: 'identity' },
-  { tag: 'cp:contentStatus', label: 'Content status', kind: 'identity' },
-  { tag: 'cp:revision', label: 'Revision number', kind: 'timestamp' },
-  { tag: 'dcterms:created', label: 'Created', kind: 'timestamp' },
-  { tag: 'dcterms:modified', label: 'Modified', kind: 'timestamp' },
+const CORE_FIELDS: Array<{ tag: string; label: string; kind: Finding['kind']; confidence: Confidence }> = [
+  { tag: 'dc:creator', label: 'Author', kind: 'identity', confidence: 'confirmed' },
+  { tag: 'cp:lastModifiedBy', label: 'Last modified by', kind: 'identity', confidence: 'confirmed' },
+  { tag: 'dc:title', label: 'Title', kind: 'identity', confidence: 'probable' },
+  { tag: 'dc:subject', label: 'Subject', kind: 'identity', confidence: 'probable' },
+  { tag: 'dc:description', label: 'Description', kind: 'identity', confidence: 'probable' },
+  { tag: 'cp:keywords', label: 'Keywords', kind: 'identity', confidence: 'probable' },
+  { tag: 'cp:category', label: 'Category', kind: 'identity', confidence: 'probable' },
+  { tag: 'cp:contentStatus', label: 'Content status', kind: 'identity', confidence: 'informational' },
+  { tag: 'cp:revision', label: 'Revision number', kind: 'timestamp', confidence: 'probable' },
+  { tag: 'dcterms:created', label: 'Created', kind: 'timestamp', confidence: 'probable' },
+  { tag: 'dcterms:modified', label: 'Modified', kind: 'timestamp', confidence: 'probable' },
 ];
 
-const APP_FIELDS: Array<{ tag: string; label: string; kind: Finding['kind'] }> = [
-  { tag: 'Application', label: 'Producing application', kind: 'provenance' },
-  { tag: 'AppVersion', label: 'Application version', kind: 'provenance' },
-  { tag: 'Company', label: 'Company', kind: 'identity' },
-  { tag: 'Manager', label: 'Manager', kind: 'identity' },
-  { tag: 'Template', label: 'Template', kind: 'environment' },
-  { tag: 'TotalTime', label: 'Total editing time', kind: 'timestamp' },
+const APP_FIELDS: Array<{ tag: string; label: string; kind: Finding['kind']; confidence: Confidence }> = [
+  { tag: 'Application', label: 'Producing application', kind: 'provenance', confidence: 'informational' },
+  { tag: 'AppVersion', label: 'Application version', kind: 'provenance', confidence: 'informational' },
+  { tag: 'Company', label: 'Company', kind: 'identity', confidence: 'confirmed' },
+  { tag: 'Manager', label: 'Manager', kind: 'identity', confidence: 'confirmed' },
+  { tag: 'Template', label: 'Template', kind: 'environment', confidence: 'confirmed' },
+  { tag: 'TotalTime', label: 'Total editing time', kind: 'timestamp', confidence: 'probable' },
 ];
 
 /** Timestamp-typed elements are removed rather than blanked; an empty
@@ -88,6 +89,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       if (value) {
         findings.push({
           kind: field.kind,
+          confidence: field.confidence,
           location: `docProps/core.xml:${field.tag}`,
           label: field.label,
           value,
@@ -103,6 +105,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       if (value && value !== '0') {
         findings.push({
           kind: field.kind,
+          confidence: field.confidence,
           location: `docProps/app.xml:${field.tag}`,
           label: field.label,
           value,
@@ -116,6 +119,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     const names = collectAttribute(custom, 'name');
     findings.push({
       kind: 'identity',
+      confidence: 'confirmed',
       location: 'docProps/custom.xml',
       label: 'Custom properties',
       value: names.length ? names.join(', ') : 'present',
@@ -126,6 +130,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   if (thumbnail) {
     findings.push({
       kind: 'identity',
+      confidence: 'probable',
       location: thumbnail,
       label: 'Embedded thumbnail',
       value: 'rendered preview of document content',
@@ -138,6 +143,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     if (rsids.length) {
       findings.push({
         kind: 'environment',
+        confidence: 'probable',
         location: 'word/settings.xml:w:rsid',
         label: 'Revision save IDs',
         value: `${rsids.length} value${rsids.length > 1 ? 's' : ''} (correlate documents edited in the same session)`,
@@ -156,6 +162,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   if (authors.size) {
     findings.push({
       kind: 'identity',
+      confidence: 'confirmed',
       location: 'tracked changes / comments',
       label: 'Comment and revision authors',
       value: [...authors].join(', '),
@@ -165,6 +172,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   for (const path of findC2paParts(parts)) {
     findings.push({
       kind: 'provenance',
+      confidence: 'confirmed',
       location: path,
       label: 'C2PA provenance manifest',
       value: 'signed content credentials',
@@ -174,7 +182,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
 
-  return { format, findings, notes };
+  return { format, findings: findings.sort(byConfidence), notes };
 }
 
 export interface RedactOoxmlOptions {

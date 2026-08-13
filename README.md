@@ -14,6 +14,17 @@ votre machine.
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature intégrée, identifiants de révision `rsid`, auteurs de commentaires et de révisions |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
 
+### Niveaux de signalement
+
+Signaler tous les champs au même poids enterre les deux lignes qui comptent sous une douzaine qui ne
+comptent pas. Chaque élément porte donc son propre niveau, et les rapports sont triés en conséquence.
+
+| Niveau | Signification | Exemples |
+|---|---|---|
+| `confirmé` | Donnée identifiante littérale, lue directement dans un champ connu | Auteur, société, responsable, chemin de modèle contenant votre nom de session, propriétés personnalisées, auteurs de commentaires, manifeste C2PA |
+| `probable` | Information réelle sur vous ou votre travail, pas nécessairement sensible | Titre, objet, horodatages, numéro de révision, temps d'édition, miniature, `rsid` |
+| `informatif` | Désigne le logiciel, pas l'auteur | Application productrice, version, espaces typographiques non-ASCII |
+
 ## Ce qu'il ne fait pas, et pourquoi
 
 **Il ne détecte ni ne retire les filigranes statistiques des modèles de langage.**
@@ -70,6 +81,9 @@ npm link          # rend la commande `cirta` disponible
 # Signaler les métadonnées portées par des fichiers
 cirta inspect rapport.pdf presentation.pptx
 
+# Auditer un dossier entier avant envoi — parcours récursif, verdict en fin de sortie
+cirta inspect ./contrats
+
 # Écrire une copie nettoyée (rapport.clean.pdf par défaut)
 cirta redact rapport.pdf
 cirta redact *.docx --in-place
@@ -107,7 +121,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 30 tests
+npm test           # 39 tests
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
@@ -115,6 +129,14 @@ npm run build:web  # site statique vers dist-web/
 
 La base d'URL du site vaut `/Cirta/` pour GitHub Pages ; utilisez `CIRTA_BASE=/ npm run build:web`
 pour un domaine personnalisé.
+
+## Références
+
+La classification par niveaux de signalement et l'audit récursif de dossier sont repris de
+[watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) (MIT), qui a introduit ces
+deux idées dans sa version 0.4.0. Ce projet ne reprend pas sa couche de retrait par régénération en
+domaine pixel : elle relève d'une catégorie différente — reconstruire une image pour détruire un
+filigrane plutôt qu'effacer un champ — et elle n'a pas d'objet pour des PDF ou des documents Office.
 
 ## Licence
 

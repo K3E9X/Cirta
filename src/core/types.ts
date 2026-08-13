@@ -23,8 +23,25 @@ export type FindingKind =
   /** Characters with no visual rendering that survive copy/paste. */
   | 'invisible-character';
 
+/**
+ * How much a finding actually tells someone who receives the file.
+ *
+ * Reporting every field at equal weight buries the two lines that matter under
+ * a dozen that do not, so each finding carries its own weight:
+ *
+ *   confirmed      Verbatim identifying data — a person, an organisation, a
+ *                  local path, a signed manifest. Read directly from a known
+ *                  field, no inference involved.
+ *   probable       Real information about you or your workflow, but not
+ *                  necessarily sensitive: titles, timestamps, revision counts.
+ *   informational  Names the software rather than the author. Worth showing,
+ *                  rarely worth worrying about.
+ */
+export type Confidence = 'confirmed' | 'probable' | 'informational';
+
 export interface Finding {
   kind: FindingKind;
+  confidence: Confidence;
   /** Where the value lives, e.g. `docProps/core.xml:dc:creator` or `/Info /Author`. */
   location: string;
   /** Human-readable field name. */
@@ -36,6 +53,17 @@ export interface Finding {
    * rather than merely removing personal data — currently only C2PA manifests.
    */
   affectsVerifiability?: boolean;
+}
+
+/** Order used when sorting a report so the most telling findings come first. */
+export const CONFIDENCE_ORDER: Record<Confidence, number> = {
+  confirmed: 0,
+  probable: 1,
+  informational: 2,
+};
+
+export function byConfidence(a: Finding, b: Finding): number {
+  return CONFIDENCE_ORDER[a.confidence] - CONFIDENCE_ORDER[b.confidence];
 }
 
 /**

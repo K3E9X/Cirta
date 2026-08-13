@@ -11,16 +11,17 @@
 
 import { PDFDocument, PDFName, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
+import { byConfidence } from './types.js';
 
 const INFO_FIELDS = [
-  { key: 'Title', label: 'Title', kind: 'identity' as const },
-  { key: 'Author', label: 'Author', kind: 'identity' as const },
-  { key: 'Subject', label: 'Subject', kind: 'identity' as const },
-  { key: 'Keywords', label: 'Keywords', kind: 'identity' as const },
-  { key: 'Creator', label: 'Creating application', kind: 'provenance' as const },
-  { key: 'Producer', label: 'Producing application', kind: 'provenance' as const },
-  { key: 'CreationDate', label: 'Created', kind: 'timestamp' as const },
-  { key: 'ModDate', label: 'Modified', kind: 'timestamp' as const },
+  { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
+  { key: 'Author', label: 'Author', kind: 'identity' as const, confidence: 'confirmed' as const },
+  { key: 'Subject', label: 'Subject', kind: 'identity' as const, confidence: 'probable' as const },
+  { key: 'Keywords', label: 'Keywords', kind: 'identity' as const, confidence: 'probable' as const },
+  { key: 'Creator', label: 'Creating application', kind: 'provenance' as const, confidence: 'informational' as const },
+  { key: 'Producer', label: 'Producing application', kind: 'provenance' as const, confidence: 'informational' as const },
+  { key: 'CreationDate', label: 'Created', kind: 'timestamp' as const, confidence: 'probable' as const },
+  { key: 'ModDate', label: 'Modified', kind: 'timestamp' as const, confidence: 'probable' as const },
 ];
 
 async function load(data: Uint8Array): Promise<PDFDocument> {
@@ -58,14 +59,14 @@ function xmpValue(xmp: string, property: string): string | undefined {
 }
 
 const XMP_FIELDS = [
-  { property: 'xmp:CreatorTool', label: 'XMP creator tool', kind: 'provenance' as const },
-  { property: 'pdf:Producer', label: 'XMP producer', kind: 'provenance' as const },
-  { property: 'dc:creator', label: 'XMP author', kind: 'identity' as const },
-  { property: 'dc:title', label: 'XMP title', kind: 'identity' as const },
-  { property: 'xmp:CreateDate', label: 'XMP created', kind: 'timestamp' as const },
-  { property: 'xmp:ModifyDate', label: 'XMP modified', kind: 'timestamp' as const },
-  { property: 'xmpMM:DocumentID', label: 'XMP document ID', kind: 'environment' as const },
-  { property: 'xmpMM:InstanceID', label: 'XMP instance ID', kind: 'environment' as const },
+  { property: 'xmp:CreatorTool', label: 'XMP creator tool', kind: 'provenance' as const, confidence: 'informational' as const },
+  { property: 'pdf:Producer', label: 'XMP producer', kind: 'provenance' as const, confidence: 'informational' as const },
+  { property: 'dc:creator', label: 'XMP author', kind: 'identity' as const, confidence: 'confirmed' as const },
+  { property: 'dc:title', label: 'XMP title', kind: 'identity' as const, confidence: 'probable' as const },
+  { property: 'xmp:CreateDate', label: 'XMP created', kind: 'timestamp' as const, confidence: 'probable' as const },
+  { property: 'xmp:ModifyDate', label: 'XMP modified', kind: 'timestamp' as const, confidence: 'probable' as const },
+  { property: 'xmpMM:DocumentID', label: 'XMP document ID', kind: 'environment' as const, confidence: 'probable' as const },
+  { property: 'xmpMM:InstanceID', label: 'XMP instance ID', kind: 'environment' as const, confidence: 'probable' as const },
 ];
 
 function looksLikeC2pa(xmp: string): boolean {
@@ -86,7 +87,13 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
         (raw as { asString?: () => string }).asString?.() ??
         raw);
       if (value.trim()) {
-        findings.push({ kind: field.kind, location: `/Info /${field.key}`, label: field.label, value });
+        findings.push({
+          kind: field.kind,
+          confidence: field.confidence,
+          location: `/Info /${field.key}`,
+          label: field.label,
+          value,
+        });
       }
     }
   }
@@ -98,6 +105,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
       if (value) {
         findings.push({
           kind: field.kind,
+          confidence: field.confidence,
           location: `/Metadata ${field.property}`,
           label: field.label,
           value,
@@ -107,6 +115,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
     if (looksLikeC2pa(xmp)) {
       findings.push({
         kind: 'provenance',
+        confidence: 'confirmed',
         location: '/Metadata',
         label: 'C2PA content credentials',
         value: 'signed provenance manifest',
@@ -121,6 +130,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
     if (resolved && 'get' in resolved && (resolved as { get(k: PDFName): unknown }).get(PDFName.of('EmbeddedFiles'))) {
       findings.push({
         kind: 'provenance',
+        confidence: 'probable',
         location: '/Names /EmbeddedFiles',
         label: 'Embedded file attachments',
         value: 'present — may carry provenance manifests or source data',
@@ -130,7 +140,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
 
   notes.push({ code: 'scope:pdf-metadata-only' });
 
-  return { format: 'pdf', findings, notes };
+  return { format: 'pdf', findings: findings.sort(byConfidence), notes };
 }
 
 export interface RedactPdfOptions {

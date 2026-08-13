@@ -190,6 +190,9 @@ export function scanText(input: string): TextScan {
     const name = EXOTIC_SPACES.get(cp) ?? describe(cp);
     findings.push({
       kind: 'invisible-character',
+      // Exotic whitespace is often ordinary typography — a non-breaking space
+      // before a colon is a French convention, not a marker.
+      confidence: EXOTIC_SPACES.has(cp) ? 'informational' : 'confirmed',
       location: `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`,
       label: name,
       value: `${count} occurrence${count > 1 ? 's' : ''}`,
