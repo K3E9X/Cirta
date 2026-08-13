@@ -15,7 +15,8 @@
  * earn their reputation for false positives.
  */
 
-import { unzipSync, strFromU8 } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { unzipGuarded } from './zip.js';
 import type { Finding } from './types.js';
 
 /**
@@ -121,7 +122,7 @@ export function walkArchive(data: Uint8Array, prefix = '', depth = 0): ArchiveMe
 
   let parts: Record<string, Uint8Array>;
   try {
-    parts = unzipSync(data);
+    parts = unzipGuarded(data);
   } catch {
     return [];
   }

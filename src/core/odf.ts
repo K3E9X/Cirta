@@ -11,7 +11,8 @@
  * file that some readers refuse.
  */
 
-import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
+import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { unzipGuarded } from './zip.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -109,7 +110,7 @@ function inspectBodyText(parts: Parts): Finding[] {
 }
 
 export function inspectOdf(data: Uint8Array): InspectResult {
-  const parts = unzipSync(data);
+  const parts = unzipGuarded(data);
   const format = detectOdfFormat(parts);
   const findings: Finding[] = [];
   const notes: Note[] = [];
@@ -199,7 +200,7 @@ function repack(parts: Parts): Uint8Array {
 
 export function redactOdf(data: Uint8Array): RedactResult {
   const before = inspectOdf(data);
-  const parts = unzipSync(data);
+  const parts = unzipGuarded(data);
   const format = detectOdfFormat(parts);
   const notes: Note[] = [];
 

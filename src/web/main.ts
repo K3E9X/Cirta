@@ -153,6 +153,10 @@ const FIELD_LABEL: Record<string, string> = {
   'Assistant or agent named in metadata': 'Assistant ou agent nommé dans les métadonnées',
   'Document generated programmatically': 'Document généré par programme',
   'Text reordering controls': 'Contrôles de réordonnancement du texte',
+  'Letters that look alike but are not': 'Lettres sosies venues d’un autre alphabet',
+  'Fullwidth letters among ASCII ones': 'Lettres pleine chasse mêlées à des ASCII',
+  'Custom XML data store': 'Magasin de données XML personnalisé',
+  'AI provenance data attributes': 'Attributs de données de provenance IA',
   'SVG metadata block': 'Bloc de métadonnées SVG',
   'Editor namespace': 'Espace de noms de l’éditeur',
   'Generator comment': 'Commentaire de génération',
@@ -211,11 +215,11 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
     "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur, caractères invisibles). Les opérandes de chaîne PDF contiennent des codes de glyphes et non de l'Unicode : une détection dans le texte des pages est fiable, mais une absence ne prouve rien — contrairement à un DOCX, où le contrôle du corps est exact. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
-    "Propriétés du document, plus un scan des parties à la recherche de secrets et d'identifiants de fournisseur. Si le corps contient du texte issu d'un modèle filigranant, ce signal réside dans la formulation et n'est pas affecté par le nettoyage.",
+    "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
   'scope:invisible-characters-only': () =>
     "Caractères invisibles uniquement. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
-    "Métadonnées du balisage uniquement. Le texte du corps n'est pas analysé : un filigrane statistique qui s'y trouverait n'apparaîtrait pas ici.",
+    "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
   'scope:image-metadata-only': () =>
     "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
   'removed:c2pa': (detail) =>
@@ -296,9 +300,31 @@ function translateLabel(label: string): string {
   return label;
 }
 
+/** Locations the core states in prose rather than as a path or a field name. */
+const LOCATION_TEXT: Record<string, string> = {
+  'mixed-script words': 'mots à alphabets mêlés',
+  'mixed-width words': 'mots à chasses mêlées',
+  'tracked changes / comments': 'suivi de modifications / commentaires',
+  'bidirectional controls': 'contrôles bidirectionnels',
+  'document body': 'corps du document',
+};
+
 /** The core marks derived findings with an English prefix naming their source. */
-const translateLocation = (location: string) =>
-  location.replace(/^derived from /, 'dérivé de ');
+const translateLocation = (location: string) => {
+  const mapped = LOCATION_TEXT[location];
+  if (mapped) return mapped;
+  // Body findings arrive as "part (location)", so the inner half needs it too.
+  const nested = /^(.+) \((.+)\)$/.exec(location);
+  if (nested?.[2] && LOCATION_TEXT[nested[2]]) return `${nested[1]} (${LOCATION_TEXT[nested[2]]})`;
+  return location.replace(/^derived from /, 'dérivé de ');
+};
+
+/** Alphabet names, which the core reports in English inside a sentence. */
+const SCRIPT_TEXT: Record<string, string> = {
+  Latin: 'latin',
+  Cyrillic: 'cyrillique',
+  Greek: 'grec',
+};
 
 /** Values the core builds by interpolating a count, matched by shape. */
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
@@ -313,6 +339,17 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
+  [
+    /^(.+) — one word mixing (\w+) and (\w+)$/,
+    (m) =>
+      `${m[1]} — un seul mot mêlant ${SCRIPT_TEXT[m[2]!] ?? m[2]} et ${SCRIPT_TEXT[m[3]!] ?? m[3]}`,
+  ],
+  [
+    /^(\d+) part\(s\) — content-control bindings, library columns or classification labels$/,
+    (m) =>
+      `${m[1]} partie(s) — liaisons de contrôles de contenu, colonnes de bibliothèque ou étiquettes de classification`,
+  ],
+  [/^(\d+) attributes? — (.+)$/, (m) => `${m[1]} attribut(s) — ${m[2]}`],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
   [
     /^(.+) — asserted by the manifest, signature not verified$/,
@@ -699,6 +736,13 @@ function setupText(): void {
     }
     for (const payload of result.decoded) {
       node.append(el('p', 'decoded', `Charge retirée — ${payload}`));
+    }
+
+    // Les lettres sosies font partie d'un mot : le nettoyage ne les touche pas.
+    // Sans cette mention, le décompte ci-dessus se lirait comme « c'est propre ».
+    if (result.kept.length) {
+      node.append(el('p', 'note note-warn', 'Trouvé mais laissé en place — à vous de trancher :'));
+      node.append(findingsTable(result.kept));
     }
 
     const foot = el('div', 'card-foot');

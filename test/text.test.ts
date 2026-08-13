@@ -158,3 +158,103 @@ describe('text reordering controls', () => {
     expect(text).toBe('const isAdmin = false;');
   });
 });
+
+describe('the binary guard', () => {
+  const bytes = (...values: number[]) => new Uint8Array(values);
+
+  // The NUL/UTF-8 pair alone let this through: an uncompressed PDF has no NUL
+  // byte and decodes cleanly, so it reached the text cleaner, which would have
+  // rewritten its string operands and handed back an unopenable file.
+  const PLAIN_PDF = '%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n';
+
+  it('refuses a PDF that contains no NUL byte and is valid UTF-8', () => {
+    const data = new TextEncoder().encode(PLAIN_PDF);
+    expect(data.includes(0)).toBe(false);
+    expect(() => new TextDecoder('utf-8', { fatal: true }).decode(data)).not.toThrow();
+    expect(() => decodeTextInput(data)).toThrow(BinaryInputError);
+    expect(() => decodeTextInput(data)).toThrow(/a PDF/);
+  });
+
+  it('names the format it recognised', () => {
+    expect(() => decodeTextInput(new TextEncoder().encode('GIF89a...'))).toThrow(/GIF/);
+    expect(() => decodeTextInput(bytes(0x7f, 0x45, 0x4c, 0x46, 0x02))).toThrow(/ELF/);
+  });
+
+  it('refuses bytes that are dense in control characters', () => {
+    // Below every signature, valid UTF-8, no NUL — only the density gives it away.
+    const noisy = new Uint8Array(200).fill(0x01);
+    expect(() => decodeTextInput(noisy)).toThrow(/control bytes/);
+  });
+
+  it('still accepts prose that happens to open with a format name', () => {
+    // "OTTO" and "RIFF" are also words. A text tool that refuses a document for
+    // starting with one has traded a corruption bug for a usability bug.
+    expect(decodeTextInput(new TextEncoder().encode('OTTO est un projet.\n'))).toContain('projet');
+    expect(decodeTextInput(new TextEncoder().encode('RIFF is a container format.\n'))).toContain(
+      'container',
+    );
+  });
+
+  it('refuses the real font when the binary structure is there', () => {
+    expect(() => decodeTextInput(bytes(0x4f, 0x54, 0x54, 0x4f, 0x00, 0x0c, 0x00, 0x80))).toThrow(
+      /OpenType/,
+    );
+  });
+});
+
+describe('format characters beyond the enumerated list', () => {
+  it('removes the ones that were missing', () => {
+    for (const [codepoint, label] of [
+      [0x034f, 'combining grapheme joiner'],
+      [0x061c, 'Arabic letter mark'],
+      [0x115f, 'Hangul filler'],
+      [0x17b4, 'Khmer inherent vowel'],
+      [0x180b, 'Mongolian free variation selector'],
+      [0xfff9, 'interlinear annotation anchor'],
+    ] as const) {
+      const input = `avant${String.fromCodePoint(codepoint)}après`;
+      expect(cleanText(input).text, label).toBe('avantaprès');
+      expect(scanText(input).findings.some((f) => f.label === label), label).toBe(true);
+    }
+  });
+
+  it('keeps format characters that a writing system needs', () => {
+    // U+0600 prefixes an Arabic numeral and U+06DD punctuates Quranic text.
+    // Both are category Cf, so a blind backstop would delete what the document
+    // says rather than a carrier hidden inside it.
+    for (const codepoint of [0x0600, 0x06dd, 0x08e2, 0x110bd, 0x1d173]) {
+      const char = String.fromCodePoint(codepoint);
+      expect(cleanText(`a${char}b`).text, `U+${codepoint.toString(16)}`).toBe(`a${char}b`);
+    }
+  });
+});
+
+describe('lookalike letters', () => {
+  const CYRILLIC_A = 'а';
+  const FULLWIDTH_A = 'Ａ';
+
+  it('reports a word that mixes two alphabets', () => {
+    const scan = scanText(`Votre p${CYRILLIC_A}ssword est expiré.`);
+    const finding = scan.findings.find((f) => f.label === 'Letters that look alike but are not');
+    expect(finding?.confidence).toBe('probable');
+    expect(finding?.value).toContain('Latin and Cyrillic');
+  });
+
+  it('leaves genuine Cyrillic alone', () => {
+    expect(scanText('Привет, как дела?').findings).toEqual([]);
+  });
+
+  it('reports fullwidth letters standing among ASCII ones', () => {
+    const scan = scanText(`${FULLWIDTH_A}dmin`);
+    expect(scan.findings.map((f) => f.label)).toContain('Fullwidth letters among ASCII ones');
+  });
+
+  it('never rewrites them, and says so rather than counting them as removed', () => {
+    const input = `p${CYRILLIC_A}ssword`;
+    const result = cleanText(input);
+    // Substituting a script is a guess about which half of the word was meant.
+    expect(result.text).toBe(input);
+    expect(result.removed).toEqual([]);
+    expect(result.kept.map((f) => f.label)).toEqual(['Letters that look alike but are not']);
+  });
+});

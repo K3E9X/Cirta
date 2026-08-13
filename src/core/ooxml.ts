@@ -11,7 +11,8 @@
  *   comments / revisions author names attached to tracked changes
  */
 
-import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
+import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { unzipGuarded } from './zip.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
 import { describeC2pa } from './c2pa.js';
@@ -230,7 +231,7 @@ function inspectBodyText(parts: Parts): Finding[] {
 }
 
 export function inspectOoxml(data: Uint8Array): InspectResult {
-  const parts = unzipSync(data);
+  const parts = unzipGuarded(data);
   const format = detectOoxmlFormat(parts);
   const findings: Finding[] = [];
   const notes: Note[] = [];
@@ -292,6 +293,23 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
         value: names.length ? names.join(', ') : 'present',
       });
     }
+  }
+
+  // customXml is a second, less-known property store. Word puts content-control
+  // data bindings there, SharePoint and DMS integrations put library columns and
+  // classification labels, and it is where a tool that wants to stamp a document
+  // without touching docProps writes instead. It is not the visible body, so
+  // unlike hyperlinks or speaker notes it can be removed outright.
+  const customXml = Object.keys(parts).filter((p) => p.startsWith('customXml/') && p.endsWith('.xml'));
+  if (customXml.length) {
+    const items = customXml.filter((p) => /\/item\d*\.xml$/.test(p));
+    findings.push({
+      kind: 'identity',
+      confidence: 'probable',
+      location: 'customXml/',
+      label: 'Custom XML data store',
+      value: `${items.length || customXml.length} part(s) — content-control bindings, library columns or classification labels`,
+    });
   }
 
   const thumbnail = Object.keys(parts).find((p) => p.startsWith('docProps/thumbnail'));
@@ -409,27 +427,57 @@ export interface RedactOoxmlOptions {
   cleanBodyText?: boolean;
 }
 
-/** Drop a part and the `[Content_Types].xml` override and relationship that reference it. */
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Resolve an OPC relationship target against the part that declares it.
+ *
+ * A `.rels` file at `word/_rels/document.xml.rels` describes `word/document.xml`,
+ * so its targets resolve against `word/` — which is why the same part is reached
+ * as `../customXml/item1.xml` from there and as `customXml/item1.xml` from the
+ * package root. Comparing raw strings gets this wrong in both directions.
+ */
+function resolveTarget(relsPath: string, target: string): string {
+  if (target.startsWith('/')) return target.slice(1);
+  const base = relsPath.replace(/_rels\/[^/]*\.rels$/, '');
+  const segments: string[] = [];
+  for (const segment of (base + target).split('/')) {
+    if (segment === '.' || segment === '') continue;
+    if (segment === '..') segments.pop();
+    else segments.push(segment);
+  }
+  return segments.join('/');
+}
+
+/**
+ * Drop a part, its `[Content_Types].xml` override, and every relationship
+ * pointing at it.
+ *
+ * The relationship sweep covers all `.rels` parts rather than just the package
+ * root: a dangling relationship is not a cosmetic leftover — Word treats a
+ * target it cannot resolve as a damaged file and offers to repair it.
+ */
 function removePart(parts: Parts, path: string): void {
   delete parts[path];
 
   const types = readText(parts, '[Content_Types].xml');
   if (types) {
-    const cleaned = types.replace(
-      new RegExp(`<Override[^>]*PartName="/${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*/>`, 'g'),
-      '',
+    parts['[Content_Types].xml'] = strToU8(
+      types.replace(new RegExp(`<Override[^>]*PartName="/${escapeRegExp(path)}"[^>]*/>`, 'g'), ''),
     );
-    parts['[Content_Types].xml'] = strToU8(cleaned);
   }
 
-  const rels = readText(parts, '_rels/.rels');
-  if (rels) {
-    const target = path.replace(/^docProps\//, '');
-    const cleaned = rels.replace(
-      new RegExp(`<Relationship[^>]*Target="[^"]*${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*/>`, 'g'),
-      '',
-    );
-    parts['_rels/.rels'] = strToU8(cleaned);
+  for (const relsPath of Object.keys(parts)) {
+    if (!relsPath.endsWith('.rels')) continue;
+    const xml = readText(parts, relsPath)!;
+    const cleaned = xml.replace(/<Relationship\b[^>]*\/>/g, (element) => {
+      const target = /\sTarget="([^"]*)"/.exec(element)?.[1];
+      if (target === undefined) return element;
+      // An external target is a URL, not a part; leave it alone.
+      if (/\sTargetMode="External"/.test(element)) return element;
+      return resolveTarget(relsPath, target) === path ? '' : element;
+    });
+    if (cleaned !== xml) parts[relsPath] = strToU8(cleaned);
   }
 }
 
@@ -454,7 +502,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   } = options;
 
   const before = inspectOoxml(data);
-  const parts = unzipSync(data);
+  const parts = unzipGuarded(data);
   const format = detectOoxmlFormat(parts);
   const notes: Note[] = [];
 
@@ -477,6 +525,13 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   }
 
   if (parts['docProps/custom.xml']) removePart(parts, 'docProps/custom.xml');
+
+  // The whole customXml tree goes, including the itemProps parts that name each
+  // store's schema. Word regenerates the bindings it still needs; what stays
+  // behind otherwise is a property store the author never sees in the UI.
+  for (const path of Object.keys(parts).filter((p) => p.startsWith('customXml/'))) {
+    removePart(parts, path);
+  }
 
   if (removeThumbnail) {
     const thumbnail = Object.keys(parts).find((p) => p.startsWith('docProps/thumbnail'));

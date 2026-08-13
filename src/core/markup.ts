@@ -13,6 +13,7 @@
  */
 
 import type { Finding } from './types.js';
+import { preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText } from './text.js';
@@ -161,6 +162,20 @@ function inspectHtml(text: string): Finding[] {
     }
   }
 
+  // `data-ai-*` attributes are how a generator marks up individual elements it
+  // produced. They are invisible to a reader, carry no styling or behaviour, and
+  // survive every copy-paste of the markup.
+  const dataAi = [...text.matchAll(/\sdata-ai[\w-]*\s*=\s*["'][^"']*["']/gi)].map((m) => m[0].trim());
+  if (dataAi.length) {
+    findings.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'data-ai* attributes',
+      label: 'AI provenance data attributes',
+      value: `${dataAi.length} attribute${dataAi.length > 1 ? 's' : ''} — ${preview(dataAi.join(' '), 80)}`,
+    });
+  }
+
   // JSON-LD is indexed by search engines; it is content, so it is reported only.
   const jsonLd = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i.exec(text);
   if (jsonLd?.[1]?.trim()) {
@@ -185,6 +200,9 @@ function redactHtml(text: string): string {
     });
   }
   out = out.replace(COMMENT, (full, body: string) => (GENERATOR_HINT.test(body) ? '' : full));
+  // Unlike JSON-LD, a data-ai-* attribute changes nothing a reader or a search
+  // engine sees, so there is nothing to weigh against removing it.
+  out = out.replace(/\sdata-ai[\w-]*\s*=\s*["'][^"']*["']/gi, '');
   // JSON-LD stays: removing it changes how the page is indexed.
   return out;
 }

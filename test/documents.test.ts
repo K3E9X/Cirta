@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { unzipSync, strFromU8 } from 'fflate';
-import { inspectFile, redactFile, detectFormat, UnsupportedFormatError } from '../src/core/index.js';
+import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
+import {
+  inspectFile,
+  redactFile,
+  detectFormat,
+  UnsupportedFormatError,
+  ArchiveTooLargeError,
+  ZIP_LIMITS,
+} from '../src/core/index.js';
 import { makePdf, makePptx, makeDocx, makeXlsx } from './fixtures.js';
 
 describe('detectFormat', () => {
@@ -162,5 +169,94 @@ describe('XLSX', () => {
       'external workbook references',
     );
     expect(codes).toContain('kept:in-content');
+  });
+});
+
+describe('the decompression budget', () => {
+  /**
+   * Inflate the uncompressed-size field every header declares.
+   *
+   * Building a real 800 MB bomb costs seconds of compression to test something
+   * that never inflates a byte. What the guard actually reads is the size the
+   * archive *claims*, so claiming it directly is both instant and the honest
+   * shape of the threat: a small file asserting it holds far more.
+   */
+  const overstate = (zip: Uint8Array, declared: number): Uint8Array => {
+    const out = zip.slice();
+    const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
+    for (let at = 0; at + 30 <= out.length; at++) {
+      const signature = view.getUint32(at, true);
+      // Local file header keeps it at +22, central directory header at +24.
+      if (signature === 0x04034b50) view.setUint32(at + 22, declared, true);
+      else if (signature === 0x02014b50) view.setUint32(at + 24, declared, true);
+    }
+    return out;
+  };
+
+  it('refuses on the size the archive declares, before inflating anything', async () => {
+    const honest = zipSync({
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      'a.bin': strToU8('x'),
+      'b.bin': strToU8('y'),
+    });
+    // Three members each claiming 300 MB. The old limits ran after unzipSync,
+    // so they capped what was reported rather than what was decompressed — by
+    // then the memory was already spent.
+    const bomb = overstate(honest, 300 * 1024 * 1024);
+
+    expect(bomb.length).toBeLessThan(4096);
+    await expect(inspectFile(bomb)).rejects.toThrow(ArchiveTooLargeError);
+    await expect(inspectFile(bomb)).rejects.toThrow(/uncompressed content/);
+  });
+
+  it('refuses an archive with more members than the cap allows', async () => {
+    const parts: Record<string, Uint8Array> = {
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    };
+    for (let i = 0; i <= ZIP_LIMITS.maxMembers; i++) parts[`m${i}`] = strToU8('.');
+    await expect(inspectFile(zipSync(parts))).rejects.toThrow(/members/);
+  });
+
+  it('lets an ordinary document through untouched', async () => {
+    await expect(inspectFile(makeDocx())).resolves.toBeDefined();
+  });
+});
+
+describe('customXml', () => {
+  const withCustomXml = () =>
+    zipSync({
+      '[Content_Types].xml': strToU8(
+        '<Types><Override PartName="/customXml/item1.xml" ContentType="application/xml"/></Types>',
+      ),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      'word/_rels/document.xml.rels': strToU8(
+        '<Relationships><Relationship Id="rId1" Target="../customXml/item1.xml"/>' +
+          '<Relationship Id="rId2" Target="styles.xml"/></Relationships>',
+      ),
+      'customXml/item1.xml': strToU8('<root><Classification>Interne</Classification></root>'),
+      'customXml/itemProps1.xml': strToU8('<ds:datastoreItem ds:itemID="{9F1A}"/>'),
+      'customXml/_rels/item1.xml.rels': strToU8(
+        '<Relationships><Relationship Id="rId1" Target="itemProps1.xml"/></Relationships>',
+      ),
+    });
+
+  it('reports the second property store, which docProps does not cover', async () => {
+    const result = await inspectFile(withCustomXml());
+    const finding = result.findings.find((f) => f.label === 'Custom XML data store');
+    expect(finding?.confidence).toBe('probable');
+  });
+
+  it('removes the tree and every relationship pointing into it', async () => {
+    const redacted = await redactFile(withCustomXml());
+    const parts = unzipSync(redacted.data!);
+
+    expect(Object.keys(parts).filter((p) => p.startsWith('customXml/'))).toEqual([]);
+    // A relationship whose target no longer resolves is not cosmetic: Word
+    // treats it as a damaged file and offers to repair it.
+    const rels = strFromU8(parts['word/_rels/document.xml.rels']!);
+    expect(rels).not.toContain('customXml');
+    expect(rels).toContain('styles.xml'); // the sibling relationship survives
+    expect(strFromU8(parts['[Content_Types].xml']!)).not.toContain('customXml');
   });
 });

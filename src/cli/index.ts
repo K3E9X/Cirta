@@ -5,10 +5,11 @@
  * Everything runs locally; the process makes no network requests.
  */
 
-import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
+import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
   redactFile,
@@ -224,11 +225,11 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
     'Metadata, plus a scan of decompressed streams for credentials, provider identifiers and invisible characters. PDF string operands hold glyph codes rather than Unicode, so a hit in page text is real but a miss proves nothing — unlike in a DOCX, where the body check is exact. A statistical model watermark would not show up either way.',
   'scope:ooxml-metadata-only': () =>
-    'Document properties, plus a scan of the parts for credentials and provider identifiers. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
+    'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
-    'Markup metadata only. The body text is not analysed, and a statistical model watermark in it would not show up here.',
+    'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
   'scope:image-metadata-only': () =>
     'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
   'removed:c2pa': (detail) =>
@@ -335,13 +336,17 @@ async function runRedact(args: Args): Promise<number> {
     try {
       const result = await redactFile(new Uint8Array(await readFile(file)), formatHint(file));
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
-      await writeFile(destination, result.data!);
+      // Overwriting the input is the one case where a failed write costs the
+      // original, so a copy is taken first and named in the report.
+      const saved = args.inPlace ? await backup(file) : undefined;
+      await safeWrite(destination, result.data!);
 
       if (!args.json) {
         console.log(`\n${bold(file)} ${dim(SYMBOL.arrow)} ${bold(destination)}`);
         console.log(
           `  ${green(`${result.removed.length} field${result.removed.length === 1 ? '' : 's'} removed`)}`,
         );
+        if (saved) console.log(`  ${dim(`original kept as ${saved}`)}`);
         printFindings(result.removed);
         printNotes(result.notes);
       }
@@ -381,6 +386,11 @@ async function runText(args: Args): Promise<number> {
     if (process.stderr.isTTY) {
       const count = result.removed.length;
       console.error(dim(count ? `\ncirta: removed ${count} invisible character type(s)` : '\ncirta: nothing to remove'));
+      // Lookalike letters are part of a word, so cleaning leaves them; saying so
+      // on stderr keeps the count above from reading as "the text is now clean".
+      for (const finding of result.kept) {
+        console.error(yellow(`cirta: left in place — ${finding.label}: ${finding.value}`));
+      }
     }
     return 0;
   }
