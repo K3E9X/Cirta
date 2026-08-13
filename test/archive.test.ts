@@ -266,7 +266,7 @@ describe('C2PA claim generator', () => {
 });
 
 describe('custom properties carry their values, not just their names', () => {
-  const zip = (parts) => zipSync(parts);
+  const zip = (parts: Record<string, Uint8Array>) => zipSync(parts);
 
   it('reports each Office custom property with its value', async () => {
     const custom =
@@ -326,7 +326,7 @@ describe('custom properties carry their values, not just their names', () => {
         'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
       }),
     );
-    expect((await inspectFile(redacted.data)).findings).toEqual([]);
+    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
   });
 
   it('reads the manifest an SVG carries, like any other container', async () => {

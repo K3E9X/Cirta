@@ -23,13 +23,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - run: npm run build:web
 
-      # Exercise the built binary the way a user would, on each platform.
-      - name: Smoke-test the CLI
-        run: node dist/cli/index.js --help
-      - name: Smoke-test inspect and redact
-        run: node scripts/smoke.mjs
+      # The same single command contributors run locally, so a green terminal
+      # and a green pipeline cannot disagree about what was checked.
+      - run: npm run verify

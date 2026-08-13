@@ -427,11 +427,21 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 171 tests
-node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
+npm run verify     # typage, 171 tests, build, scénario CLI de bout en bout, build web
+```
+
+`verify` est l'unique porte d'entrée, et c'est exactement ce que lance la CI. Les étapes sont
+enchaînées par `&&`, donc la première qui échoue arrête tout et le code de sortie remonte — un
+terminal vert et un pipeline vert ne peuvent pas être en désaccord sur ce qui a été vérifié.
+
+Les étapes individuelles restent disponibles :
+
+```bash
 npm run typecheck
+npm test
 npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
+node scripts/smoke.mjs
 ```
 
 La base d'URL du site vaut `/Cirta/` pour GitHub Pages ; utilisez `CIRTA_BASE=/ npm run build:web`
