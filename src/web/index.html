@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cirta — nettoyage des métadonnées de documents</title>
+    <meta
+      name="description"
+      content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239a4b1f'/%3E%3Cpath d='M22 11.5a7 7 0 1 0 0 9' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrap">
+        <h1>Cirta</h1>
+        <p class="tagline">
+          Inspecte et retire les métadonnées de provenance de vos documents. Tout s'exécute dans
+          votre navigateur — <strong>aucun fichier n'est envoyé sur un serveur</strong>.
+        </p>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <nav class="tabs" role="tablist">
+        <button role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
+          Documents
+        </button>
+        <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false">
+          Texte
+        </button>
+      </nav>
+
+      <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
+        <div id="dropzone" class="dropzone" tabindex="0" role="button">
+          <p class="dropzone-title">Déposez un fichier ici</p>
+          <p class="dropzone-hint">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX</p>
+          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx" multiple hidden />
+        </div>
+        <div id="file-results" class="results"></div>
+      </section>
+
+      <section id="panel-text" role="tabpanel" aria-labelledby="tab-text" hidden>
+        <label class="field-label" for="text-input">Collez votre texte</label>
+        <textarea
+          id="text-input"
+          rows="10"
+          spellcheck="false"
+          placeholder="Collez ici le texte à analyser…"
+        ></textarea>
+        <div class="actions">
+          <button id="text-scan" class="button">Analyser</button>
+          <button id="text-clean" class="button button-primary">Nettoyer</button>
+        </div>
+        <div id="text-results" class="results"></div>
+      </section>
+
+      <section class="scope">
+        <h2>Ce que fait cet outil, et ce qu'il ne fait pas</h2>
+        <div class="scope-grid">
+          <div class="scope-item scope-yes">
+            <h3>Traité</h3>
+            <ul>
+              <li>Métadonnées PDF : dictionnaire <code>/Info</code> et paquet XMP</li>
+              <li>Propriétés Office : <code>docProps/core.xml</code>, <code>app.xml</code>, propriétés personnalisées, miniature</li>
+              <li>Identifiants de révision <code>rsid</code> et auteurs de commentaires</li>
+              <li>Manifestes C2PA lorsqu'ils sont présents</li>
+              <li>Caractères Unicode invisibles dans le texte, avec décodage des charges stéganographiques</li>
+            </ul>
+          </div>
+          <div class="scope-item scope-no">
+            <h3>Non traité</h3>
+            <p>
+              Les <strong>filigranes statistiques</strong> intégrés par les modèles de langage dans
+              le choix des mots. Ce signal ne réside dans aucun champ : il <em>est</em> la formulation
+              elle-même, et le lire exige la clé secrète de l'éditeur du modèle.
+            </p>
+            <p>
+              Aucun outil local ne peut le détecter ni le retirer — celui-ci pas davantage, et il ne
+              le prétend pas. Méfiez-vous de ceux qui l'affirment : sans la clé, ils n'ont aucun
+              moyen de vérifier ce qu'ils annoncent.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap">
+      <p>
+        Traitement entièrement local — le code ne contient aucun appel réseau.
+        <a id="repo-link" href="https://github.com/k3e9x/Cirta">Code source</a>
+      </p>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

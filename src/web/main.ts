@@ -1,0 +1,381 @@
+/**
+ * Browser front-end for Cirta.
+ *
+ * Every operation runs on the main thread against the local File object; there
+ * is no fetch/XHR/WebSocket anywhere in this bundle, and no file ever leaves
+ * the machine. The scope statement in the page is kept honest by the core:
+ * statistical model watermarks are neither detected nor claimed to be.
+ */
+
+import {
+  inspectFile,
+  redactFile,
+  scanText,
+  cleanText,
+  preview,
+  type Finding,
+  type Format,
+  type Note,
+} from '../core/index.js';
+
+const KIND_LABEL: Record<Finding['kind'], string> = {
+  identity: 'identité',
+  provenance: 'provenance',
+  timestamp: 'horodatage',
+  environment: 'environnement',
+  'invisible-character': 'invisible',
+};
+
+/**
+ * The core reports field names in English so the library reads consistently;
+ * this interface is French. Unicode character names are deliberately absent —
+ * "ZERO WIDTH SPACE" is the standard's own identifier and stays untranslated.
+ */
+const FIELD_LABEL: Record<string, string> = {
+  Author: 'Auteur',
+  'Last modified by': 'Dernière modification par',
+  Title: 'Titre',
+  Subject: 'Objet',
+  Description: 'Description',
+  Keywords: 'Mots-clés',
+  Category: 'Catégorie',
+  'Content status': 'Statut du contenu',
+  'Revision number': 'Numéro de révision',
+  Created: 'Créé le',
+  Modified: 'Modifié le',
+  'Creating application': 'Application de création',
+  'Producing application': 'Application productrice',
+  'Application version': 'Version de l’application',
+  Company: 'Société',
+  Manager: 'Responsable',
+  Template: 'Modèle',
+  'Total editing time': 'Temps d’édition total',
+  'Custom properties': 'Propriétés personnalisées',
+  'Embedded thumbnail': 'Miniature intégrée',
+  'Revision save IDs': 'Identifiants de révision',
+  'Comment and revision authors': 'Auteurs des commentaires et révisions',
+  'C2PA provenance manifest': 'Manifeste de provenance C2PA',
+  'C2PA content credentials': 'Content Credentials C2PA',
+  'Embedded file attachments': 'Pièces jointes intégrées',
+  'XMP creator tool': 'Outil de création XMP',
+  'XMP producer': 'Producteur XMP',
+  'XMP author': 'Auteur XMP',
+  'XMP title': 'Titre XMP',
+  'XMP created': 'Création XMP',
+  'XMP modified': 'Modification XMP',
+  'XMP document ID': 'Identifiant de document XMP',
+  'XMP instance ID': 'Identifiant d’instance XMP',
+};
+
+/** Descriptive values the core writes in prose rather than reporting verbatim data. */
+const VALUE_TEXT: Record<string, string> = {
+  'rendered preview of document content': 'aperçu visuel du contenu du document',
+  'signed content credentials': 'manifeste de provenance signé',
+  'signed provenance manifest': 'manifeste de provenance signé',
+  'present — may carry provenance manifests or source data':
+    'présentes — peuvent contenir des manifestes de provenance ou des données sources',
+  present: 'présentes',
+};
+
+const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
+  'scope:pdf-metadata-only': () =>
+    "Métadonnées PDF uniquement. Le texte du contenu des pages n'est pas analysé : un filigrane statistique qui s'y trouverait n'apparaîtrait pas dans ce rapport.",
+  'scope:ooxml-metadata-only': () =>
+    "Propriétés du document uniquement. Si le corps contient du texte issu d'un modèle filigranant, ce signal réside dans la formulation et n'est pas affecté par le nettoyage.",
+  'scope:invisible-characters-only': () =>
+    "Caractères invisibles uniquement. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
+  'removed:c2pa': (detail) =>
+    `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre.`,
+};
+
+const translateLabel = (label: string) => FIELD_LABEL[label] ?? label;
+
+function translateValue(finding: Finding): string {
+  // Occurrence counts read identically in both languages.
+  const mapped = VALUE_TEXT[finding.value];
+  if (mapped) return mapped;
+  const rsids = /^(\d+) values? \(correlate documents edited in the same session\)$/.exec(finding.value);
+  if (rsids) return `${rsids[1]} valeur(s) — corrèlent les documents édités dans la même session`;
+  return finding.value;
+}
+
+const MIME: Record<Format, string> = {
+  pdf: 'application/pdf',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  text: 'text/plain',
+};
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function must<T extends Element>(selector: string): T {
+  const node = document.querySelector<T>(selector);
+  if (!node) throw new Error(`Missing element: ${selector}`);
+  return node;
+}
+
+/* ---------------------------------------------------------------- tabs --- */
+
+function setupTabs(): void {
+  const tabs = [
+    { button: must<HTMLButtonElement>('#tab-files'), panel: must<HTMLElement>('#panel-files') },
+    { button: must<HTMLButtonElement>('#tab-text'), panel: must<HTMLElement>('#panel-text') },
+  ];
+  for (const { button } of tabs) {
+    button.addEventListener('click', () => {
+      for (const tab of tabs) {
+        const selected = tab.button === button;
+        tab.button.setAttribute('aria-selected', String(selected));
+        tab.panel.hidden = !selected;
+      }
+    });
+  }
+}
+
+/* ------------------------------------------------------------- rendering -- */
+
+function findingsTable(findings: Finding[]): HTMLElement {
+  const scroll = el('div', 'table-scroll');
+  const table = el('table');
+
+  const head = el('thead');
+  const headRow = el('tr');
+  for (const label of ['Type', 'Champ', 'Valeur', 'Emplacement']) {
+    headRow.append(el('th', undefined, label));
+  }
+  head.append(headRow);
+
+  const body = el('tbody');
+  for (const finding of findings) {
+    const row = el('tr');
+    if (finding.affectsVerifiability) row.className = 'flagged';
+    row.append(el('td', 'kind', KIND_LABEL[finding.kind]));
+    row.append(el('td', undefined, translateLabel(finding.label)));
+    row.append(el('td', 'value', preview(translateValue(finding), 120)));
+    row.append(el('td', 'location', finding.location));
+    body.append(row);
+  }
+
+  table.append(head, body);
+  scroll.append(table);
+  return scroll;
+}
+
+function card(title: string, badge?: string, count?: string): HTMLElement {
+  const node = el('article', 'card');
+  const head = el('div', 'card-head');
+  head.append(el('h3', 'card-title', title));
+  if (badge) head.append(el('span', 'badge', badge));
+  if (count) head.append(el('span', 'count', count));
+  node.append(head);
+  return node;
+}
+
+function appendNotes(node: HTMLElement, notes: Note[]): void {
+  for (const note of notes) {
+    const warn = note.code === 'removed:c2pa';
+    node.append(el('p', warn ? 'note note-warn' : 'note', NOTE_TEXT[note.code](note.detail)));
+  }
+}
+
+function download(data: Uint8Array, filename: string, mime: string): void {
+  // Copy into a fresh ArrayBuffer so the Blob never aliases a detached buffer.
+  const blob = new Blob([new Uint8Array(data)], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = el('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // Revoking immediately can race the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+function cleanName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot === -1 ? `${name}.clean` : `${name.slice(0, dot)}.clean${name.slice(dot)}`;
+}
+
+/* ----------------------------------------------------------------- files -- */
+
+async function handleFile(file: File, container: HTMLElement): Promise<void> {
+  const node = card(file.name, undefined, 'analyse…');
+  container.prepend(node);
+
+  let data: Uint8Array;
+  try {
+    data = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    node.append(el('p', 'error', 'Lecture du fichier impossible.'));
+    return;
+  }
+
+  try {
+    const result = await inspectFile(data);
+    const count = node.querySelector('.count');
+    const badge = el('span', 'badge', result.format);
+    node.querySelector('.card-head')?.insertBefore(badge, count);
+    if (count) {
+      count.textContent = result.findings.length
+        ? `${result.findings.length} élément${result.findings.length > 1 ? 's' : ''}`
+        : 'aucune métadonnée';
+    }
+
+    if (result.findings.length === 0) {
+      node.append(el('p', 'empty', 'Aucune métadonnée identifiante trouvée.'));
+    } else {
+      node.append(findingsTable(result.findings));
+
+      const foot = el('div', 'card-foot');
+      const button = el('button', 'button button-primary', 'Télécharger la version nettoyée');
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        button.textContent = 'Nettoyage…';
+        try {
+          const redacted = await redactFile(data);
+          download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
+          button.textContent = 'Téléchargé';
+          // Redaction can surface caveats that inspection could not, notably
+          // that a C2PA manifest was dropped.
+          const fresh = redacted.notes.filter((n) => n.code === 'removed:c2pa');
+          if (fresh.length) appendNotes(node, fresh);
+        } catch (error) {
+          button.textContent = 'Échec du nettoyage';
+          node.append(
+            el('p', 'error', error instanceof Error ? error.message : String(error)),
+          );
+        }
+      });
+      foot.append(button);
+      node.append(foot);
+    }
+
+    appendNotes(node, result.notes);
+  } catch (error) {
+    node.querySelector('.count')?.remove();
+    node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
+  }
+}
+
+function setupFiles(): void {
+  const dropzone = must<HTMLElement>('#dropzone');
+  const input = must<HTMLInputElement>('#file-input');
+  const results = must<HTMLElement>('#file-results');
+
+  const accept = (files: FileList | null) => {
+    for (const file of Array.from(files ?? [])) void handleFile(file, results);
+  };
+
+  dropzone.addEventListener('click', () => input.click());
+  dropzone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
+  });
+  input.addEventListener('change', () => {
+    accept(input.files);
+    input.value = '';
+  });
+
+  for (const type of ['dragenter', 'dragover'] as const) {
+    dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      dropzone.classList.add('is-active');
+    });
+  }
+  for (const type of ['dragleave', 'drop'] as const) {
+    dropzone.addEventListener(type, () => dropzone.classList.remove('is-active'));
+  }
+  dropzone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    accept(event.dataTransfer?.files ?? null);
+  });
+}
+
+/* ------------------------------------------------------------------ text -- */
+
+function setupText(): void {
+  const input = must<HTMLTextAreaElement>('#text-input');
+  const results = must<HTMLElement>('#text-results');
+  const scanButton = must<HTMLButtonElement>('#text-scan');
+  const cleanButton = must<HTMLButtonElement>('#text-clean');
+
+  const render = (node: HTMLElement) => {
+    results.replaceChildren(node);
+  };
+
+  const scopeNote: Note[] = [{ code: 'scope:invisible-characters-only' }];
+
+  scanButton.addEventListener('click', () => {
+    const scan = scanText(input.value);
+    const node = card(
+      'Analyse',
+      undefined,
+      scan.findings.length ? `${scan.findings.length} type${scan.findings.length > 1 ? 's' : ''}` : 'rien trouvé',
+    );
+    if (scan.findings.length === 0) {
+      node.append(el('p', 'empty', 'Aucun caractère invisible trouvé.'));
+    } else {
+      node.append(findingsTable(scan.findings));
+    }
+    for (const payload of scan.decoded) {
+      node.append(el('p', 'decoded', `Charge décodée — ${payload}`));
+    }
+    appendNotes(node, scopeNote);
+    render(node);
+  });
+
+  cleanButton.addEventListener('click', async () => {
+    const result = cleanText(input.value);
+    input.value = result.text;
+
+    const node = card(
+      'Nettoyage',
+      undefined,
+      result.removed.length
+        ? `${result.removed.length} type${result.removed.length > 1 ? 's' : ''} retiré${result.removed.length > 1 ? 's' : ''}`
+        : 'rien à retirer',
+    );
+    if (result.removed.length === 0) {
+      node.append(el('p', 'empty', 'Le texte ne contenait aucun caractère invisible.'));
+    } else {
+      node.append(findingsTable(result.removed));
+    }
+    for (const payload of result.decoded) {
+      node.append(el('p', 'decoded', `Charge retirée — ${payload}`));
+    }
+
+    const foot = el('div', 'card-foot');
+    const copy = el('button', 'button', 'Copier le texte nettoyé');
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(result.text);
+        copy.textContent = 'Copié';
+      } catch {
+        input.select();
+        copy.textContent = 'Sélectionné — Ctrl+C';
+      }
+    });
+    foot.append(copy);
+    node.append(foot);
+
+    appendNotes(node, scopeNote);
+    render(node);
+  });
+}
+
+setupTabs();
+setupFiles();
+setupText();
