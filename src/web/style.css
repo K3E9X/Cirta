@@ -65,6 +65,13 @@ body {
   margin: 0 0 0.35rem;
   font-size: 1.75rem;
   letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.masthead h1 img {
+  border-radius: 7px;
 }
 
 .tagline {
