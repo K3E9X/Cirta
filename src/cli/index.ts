@@ -210,9 +210,9 @@ async function expandPaths(paths: string[]): Promise<string[]> {
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    'PDF metadata only. Text inside the page content is not analysed, and a statistical model watermark there would not show up in this report.',
+    'Metadata, plus a scan of decompressed streams for credentials and provider identifiers. Page text is not read as prose, and a statistical model watermark in it would not show up here.',
   'scope:ooxml-metadata-only': () =>
-    'Document properties only. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
+    'Document properties, plus a scan of the parts for credentials and provider identifiers. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>

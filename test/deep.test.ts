@@ -191,7 +191,7 @@ describe('PDF depth', () => {
     const pdf = await PDFDocument.create();
     pdf.addPage([400, 300]).drawText(options.text ?? 'contenu', { size: 8 });
     pdf.setProducer('Claude Code 2.1');
-    const info = pdf.context.lookup(pdf.context.trailerInfo.Info) as {
+    const info = pdf.context.lookup(pdf.context.trailerInfo.Info) as unknown as {
       set(k: unknown, v: unknown): void;
     };
     for (const [name, value] of Object.entries(options.custom ?? {})) {
