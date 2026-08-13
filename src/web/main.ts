@@ -7,19 +7,69 @@
  * statistical model watermarks are neither detected nor claimed to be.
  */
 
+import type { WorkerRequest, WorkerResponse } from './worker.js';
+// Imported from the individual modules rather than the barrel: pulling in
+// core/index.js would drag pdf-lib and fflate into the main bundle, when the
+// only code that needs them now runs in the worker.
+import { scanText, cleanText } from '../core/text.js';
+import { exposure, type Exposure } from '../core/exposure.js';
 import {
-  inspectFile,
-  redactFile,
-  scanText,
-  cleanText,
   preview,
   type Confidence,
   type Finding,
   type Format,
   type Note,
-  exposure,
-  type Exposure,
-} from '../core/index.js';
+  type InspectResult,
+  type RedactResult,
+} from '../core/types.js';
+
+/**
+ * Analysis runs in a worker so a large PDF or archive cannot freeze the tab.
+ * The worker is created on first use rather than at load, so a visitor who only
+ * uses the text panel never pays for it.
+ */
+let worker: Worker | undefined;
+let nextRequestId = 0;
+const pending = new Map<number, { resolve: (value: never) => void; reject: (error: Error) => void }>();
+
+function ensureWorker(): Worker {
+  if (worker) return worker;
+  worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+  worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
+    const entry = pending.get(event.data.id);
+    if (!entry) return;
+    pending.delete(event.data.id);
+    if (event.data.ok) entry.resolve(event.data as never);
+    else entry.reject(new Error(event.data.error));
+  });
+  worker.addEventListener('error', (event) => {
+    for (const [, entry] of pending) entry.reject(new Error(event.message || 'worker failed'));
+    pending.clear();
+  });
+  return worker;
+}
+
+function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string): Promise<T> {
+  const id = nextRequestId++;
+  // A copy is transferred so the caller keeps its own bytes for a later redact.
+  const buffer = data.slice().buffer;
+  return new Promise<T>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (value: never) => void, reject });
+    ensureWorker().postMessage({ id, op, data: buffer, hint } satisfies WorkerRequest, [buffer]);
+  });
+}
+
+const inspectFile = async (data: Uint8Array, hint?: string): Promise<InspectResult> =>
+  (await ask<{ result: InspectResult }>('inspect', data, hint)).result;
+
+const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult> => {
+  const reply = await ask<{ result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }>(
+    'redact',
+    data,
+    hint,
+  );
+  return { ...reply.result, ...(reply.data ? { data: new Uint8Array(reply.data) } : {}) };
+};
 
 const CONFIDENCE_LABEL: Record<Confidence, string> = {
   confirmed: 'confirmé',
@@ -137,6 +187,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden payload in document text': 'Charge cachée dans le texte du document',
   'Hidden payload in page text': 'Charge cachée dans le texte des pages',
   'Tool credited by the C2PA manifest': 'Outil crédité par le manifeste C2PA',
+  'What the C2PA manifest asserts': 'Ce que le manifeste C2PA affirme',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -408,6 +459,7 @@ function cleanName(name: string): string {
 
 async function handleFile(file: File, container: HTMLElement): Promise<void> {
   const node = card(file.name, undefined, 'analyse…');
+  node.classList.add('is-busy');
   container.prepend(node);
 
   let data: Uint8Array;
@@ -420,6 +472,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
 
   try {
     const result = await inspectFile(data, formatHint(file.name));
+    node.classList.remove('is-busy');
     const count = node.querySelector('.count');
     const badge = el('span', 'badge', result.format);
     node.querySelector('.card-head')?.insertBefore(badge, count);
@@ -460,6 +513,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
 
     appendNotes(node, result.notes);
   } catch (error) {
+    node.classList.remove('is-busy');
     node.querySelector('.count')?.remove();
     node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
   }

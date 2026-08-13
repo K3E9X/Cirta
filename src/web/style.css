@@ -248,6 +248,22 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
+/* A card being analysed pulses gently, so a slow file looks busy not stuck. */
+.card.is-busy .count {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.is-busy .count {
+    animation: none;
+  }
+}
+
 .count {
   margin-left: auto;
   color: var(--text-muted);
