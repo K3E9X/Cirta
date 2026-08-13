@@ -208,11 +208,47 @@ const FRONT_MATTER_KEYS = new Map<string, { label: string; kind: Finding['kind']
 
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/;
 
-function inspectMarkdown(text: string): Finding[] {
-  const block = FRONT_MATTER.exec(text);
-  if (!block) return [];
+/**
+ * Generated Markdown often carries its provenance outside the front matter:
+ * an HTML comment left by the pipeline, or a signature line at the end of the
+ * document. Both are matched on an explicit generation phrase rather than on a
+ * vendor name, so prose that merely mentions a model is not flagged.
+ */
+const MARKDOWN_ATTRIBUTION =
+  /^\s*[*_>\s-]*(?:g[ée]n[ée]r[ée]e?\s+(?:par|avec)|generated\s+(?:by|with)|created\s+(?:by|with)|written\s+by|produit\s+par|r[ée]dig[ée]\s+par)\b.{0,120}$/i;
 
+function inspectMarkdown(text: string): Finding[] {
   const findings: Finding[] = [];
+
+  for (const match of text.matchAll(COMMENT)) {
+    const body = (match[1] ?? '').trim();
+    if (body && GENERATOR_HINT.test(body)) {
+      findings.push({
+        kind: 'provenance',
+        confidence: 'confirmed',
+        location: 'HTML comment',
+        label: 'Generator comment',
+        value: body,
+      });
+    }
+  }
+
+  // Signature lines cluster at the end, so only the tail is examined.
+  const lines = text.split(/\r?\n/);
+  for (const [offset, line] of lines.slice(-8).entries()) {
+    if (!line.trim() || !MARKDOWN_ATTRIBUTION.test(line)) continue;
+    findings.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: `line ${lines.length - Math.min(8, lines.length) + offset + 1}`,
+      label: 'Attribution line',
+      value: line.trim(),
+    });
+  }
+
+  const block = FRONT_MATTER.exec(text);
+  if (!block) return findings;
+
   for (const line of (block[1] ?? '').split(/\r?\n/)) {
     const entry = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line);
     if (!entry) continue;

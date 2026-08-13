@@ -12,12 +12,12 @@ votre machine.
 
 | Support | Traité |
 |---|---|
-| PDF | Dictionnaire `/Info`, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes intégrées |
+| PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
-| Markdown | Clés de front matter nommant un auteur, un outil, un modèle ou une session |
+| Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
 | JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
@@ -58,6 +58,22 @@ Sont reconnus :
   WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…
 - **Environnement** — système d'exploitation et nom de compte déduits de la forme des chemins,
   répertoires temporaires, identifiants de session ou d'exécution (UUID)
+
+### Profondeur par format
+
+L'analyse ne s'arrête pas aux champs de métadonnées connus.
+
+**PDF** — le dictionnaire `/Info` est ouvert : une chaîne de génération peut y écrire n'importe quelle
+clé, et ce sont souvent les plus parlantes. Toutes les clés non standard sont donc énumérées et
+signalées. Par ailleurs le texte des pages, le JavaScript et les pièces jointes vivent dans des flux
+compressés : ils sont décompressés, et les **opérandes de chaîne** décodés — le texte de page est
+stocké en hexadécimal (`<436F6E…>`), donc une recherche d'octets sur un flux décompressé ne trouve
+rien même quand les mots y sont en clair.
+
+**Markdown** — au-delà du front matter, les commentaires HTML de génération et les lignes
+d'attribution en fin de document (`*Généré par …*`) sont détectés. Le repérage se fait sur la
+**tournure de génération**, pas sur le nom de l'éditeur, et seulement dans les dernières lignes : une
+signature est en pied de page, une mention en plein corps est de la prose.
 
 ### Secrets laissés dans les fichiers
 
@@ -276,7 +292,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 129 tests
+npm test           # 137 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/
