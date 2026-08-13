@@ -14,6 +14,7 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
+import { scanContent } from './archive.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -256,6 +257,14 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       value: 'signed content credentials',
       affectsVerifiability: true,
     });
+  }
+
+  // Credentials and provider-issued ids are scanned for in the body too: they
+  // cannot occur innocently, unlike a vendor name, which often just means the
+  // document talks about the vendor.
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!/\.(xml|rels|json|txt|bin)$/.test(path)) continue;
+    findings.push(...scanContent(strFromU8(raw), path));
   }
 
   notes.push({ code: 'scope:ooxml-metadata-only' });

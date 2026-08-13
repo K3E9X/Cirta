@@ -16,6 +16,7 @@ import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } f
 import { byConfidence } from './types.js';
 import { getElementText, setElementText, removeElement, collectAttribute } from './xml.js';
 import { fingerprint } from './fingerprint.js';
+import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 
 type Parts = Record<string, Uint8Array>;
@@ -127,6 +128,11 @@ export function inspectOdf(data: Uint8Array): InspectResult {
       value: 'signed content credentials',
       affectsVerifiability: true,
     });
+  }
+
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!/\.(xml|rdf|txt|json)$/.test(path)) continue;
+    findings.push(...scanContent(strFromU8(raw), path));
   }
 
   notes.push({ code: 'scope:ooxml-metadata-only' });

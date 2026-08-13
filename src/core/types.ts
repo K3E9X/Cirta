@@ -21,6 +21,7 @@ export type Format =
   | 'markdown'
   | 'jpeg'
   | 'png'
+  | 'zip'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -95,6 +96,10 @@ export type NoteCode =
   | 'scope:markup-metadata-only'
   /** Only image container metadata was examined; the pixels were not. */
   | 'scope:image-metadata-only'
+  /** An archive was walked; the report aggregates its members. */
+  | 'scope:archive'
+  /** Archive traversal stopped at a built-in limit. */
+  | 'limit:archive-truncated'
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
   | 'removed:c2pa'
   /** Reported items that are document content, not metadata, and were left alone. */
