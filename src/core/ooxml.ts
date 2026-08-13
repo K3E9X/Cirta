@@ -117,6 +117,70 @@ function findHiddenSlides(parts: Parts): string[] {
     .sort();
 }
 
+/**
+ * Spreadsheet-specific carriers.
+ *
+ * A workbook keeps its comment authors in their own part rather than as an
+ * attribute, threaded comments name people through a person registry, and a
+ * defined name can hold a path to another workbook on the author's disk.
+ * None of those live anywhere the Word or PowerPoint paths look.
+ */
+function findWorkbookIdentities(parts: Parts): Finding[] {
+  const findings: Finding[] = [];
+
+  const authors = new Set<string>();
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!/^xl\/comments\d*\.xml$/.test(path)) continue;
+    for (const match of strFromU8(raw).matchAll(/<author>([^<]+)<\/author>/g)) {
+      const name = match[1]?.trim();
+      if (name && name !== ANONYMOUS_AUTHOR) authors.add(name);
+    }
+  }
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!/^xl\/persons\/person\d*\.xml$/.test(path)) continue;
+    for (const name of collectAttribute(strFromU8(raw), 'displayName')) {
+      if (name !== ANONYMOUS_AUTHOR) authors.add(name);
+    }
+  }
+  if (authors.size) {
+    findings.push({
+      kind: 'identity',
+      confidence: 'confirmed',
+      location: 'xl/comments, xl/persons',
+      label: 'Comment authors',
+      value: [...authors].join(', '),
+    });
+  }
+
+  const workbook = parts['xl/workbook.xml'];
+  if (workbook) {
+    const names = [...strFromU8(workbook).matchAll(/<definedName[^>]*name="([^"]+)"[^>]*>([^<]*)</g)];
+    const external = names.filter(([, , value]) => LOCAL_TARGET.test((value ?? '').replace(/^'/, '')));
+    if (external.length) {
+      findings.push({
+        kind: 'environment',
+        confidence: 'confirmed',
+        location: 'xl/workbook.xml:definedName',
+        label: 'Defined name pointing outside the workbook',
+        value: external.map(([, name, value]) => `${name} → ${value}`).join('; '),
+      });
+    }
+  }
+
+  const externalLinks = Object.keys(parts).filter((path) => path.startsWith('xl/externalLinks/'));
+  if (externalLinks.length) {
+    findings.push({
+      kind: 'environment',
+      confidence: 'probable',
+      location: 'xl/externalLinks/',
+      label: 'Links to other workbooks',
+      value: `${externalLinks.filter((p) => p.endsWith('.xml')).length} external reference part(s)`,
+    });
+  }
+
+  return findings;
+}
+
 /** Presenter notes are rarely written for the audience that receives the deck. */
 function findSpeakerNotes(parts: Parts): number {
   return Object.keys(parts).filter(
@@ -321,6 +385,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     findings.push(...scanContent(strFromU8(raw), path));
   }
 
+  findings.push(...findWorkbookIdentities(parts));
   findings.push(...inspectBodyText(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
@@ -431,9 +496,17 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   if (anonymizeAuthors) {
     for (const [path, raw] of Object.entries(parts)) {
       if (!/\.xml$/.test(path)) continue;
-      const xml = strFromU8(raw);
-      if (!xml.includes('w:author=')) continue;
-      parts[path] = strToU8(xml.replace(/\sw:author="[^"]*"/g, ` w:author="${ANONYMOUS_AUTHOR}"`));
+      let xml = strFromU8(raw);
+      const before = xml;
+      xml = xml.replace(/\sw:author="[^"]*"/g, ` w:author="${ANONYMOUS_AUTHOR}"`);
+      // Spreadsheets name people in elements and in a person registry instead.
+      if (/^xl\/comments\d*\.xml$/.test(path)) {
+        xml = xml.replace(/<author>[^<]*<\/author>/g, `<author>${ANONYMOUS_AUTHOR}</author>`);
+      }
+      if (/^xl\/persons\/person\d*\.xml$/.test(path)) {
+        xml = xml.replace(/\sdisplayName="[^"]*"/g, ` displayName="${ANONYMOUS_AUTHOR}"`);
+      }
+      if (xml !== before) parts[path] = strToU8(xml);
     }
   }
 
@@ -457,13 +530,16 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     notes.push({ code: 'removed:c2pa', detail: path });
   }
 
-  // Hyperlinks, hidden slides and speaker notes are document content rather
-  // than metadata. Deleting them would silently change what the recipient
-  // reads, so they are reported and left alone.
+  // Hyperlinks, hidden slides, speaker notes and cross-workbook references are
+  // document content rather than metadata. Deleting them would silently change
+  // what the recipient reads — a defined name and an external link part are what
+  // formulas resolve through, and dropping either turns live cells into #REF! —
+  // so they are reported and left alone.
   const contentLeft = [
     findLocalHyperlinks(parts).length && 'local links',
     findHiddenSlides(parts).length && 'hidden slides',
     findSpeakerNotes(parts) && 'speaker notes',
+    findWorkbookIdentities(parts).some((f) => f.kind === 'environment') && 'external workbook references',
   ].filter((v): v is string => typeof v === 'string');
   if (contentLeft.length) notes.push({ code: 'kept:content', detail: contentLeft.join(', ') });
 

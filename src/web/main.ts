@@ -1,10 +1,12 @@
 /**
  * Browser front-end for Cirta.
  *
- * Every operation runs on the main thread against the local File object; there
- * is no fetch/XHR/WebSocket anywhere in this bundle, and no file ever leaves
- * the machine. The scope statement in the page is kept honest by the core:
- * statistical model watermarks are neither detected nor claimed to be.
+ * Every operation runs against the local File object — in a worker for
+ * documents, on the main thread for pasted text. There is no fetch, XHR or
+ * WebSocket anywhere in this bundle, and no file ever leaves the machine; a
+ * worker is another thread in the same page, not another machine. The scope
+ * statement in the page is kept honest by the core: statistical model
+ * watermarks are neither detected nor claimed to be.
  */
 
 import type { WorkerRequest, WorkerResponse } from './worker.js';
@@ -128,6 +130,9 @@ const FIELD_LABEL: Record<string, string> = {
   'Link to a local or network path': 'Lien vers un chemin local ou réseau',
   'Hidden slides': 'Diapositives masquées',
   'Speaker notes': 'Notes du présentateur',
+  'Comment authors': 'Auteurs des commentaires',
+  'Defined name pointing outside the workbook': 'Nom défini pointant hors du classeur',
+  'Links to other workbooks': 'Liens vers d’autres classeurs',
   'Exif with GPS coordinates': 'Exif avec coordonnées GPS',
   'Exif camera data': 'Données Exif de l’appareil',
   'XMP metadata': 'Métadonnées XMP',
@@ -220,7 +225,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:in-content': (detail) =>
-    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et réécrire le texte des pages changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
+    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
   'kept:content': (detail) =>
     `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };
@@ -307,6 +312,7 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
+  [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
   [
     /^(.+) — asserted by the manifest, signature not verified$/,
@@ -371,20 +377,48 @@ function must<T extends Element>(selector: string): T {
 
 /* ---------------------------------------------------------------- tabs --- */
 
+/**
+ * A tablist is one stop in the tab order, not one per tab.
+ *
+ * That is the roving tabindex the ARIA authoring practices describe: only the
+ * selected tab is reachable with Tab, and the arrow keys move between them.
+ * Without it, someone navigating by keyboard has to step through every tab to
+ * reach the panel, and the arrow keys — which is what they will reach for — do
+ * nothing at all.
+ */
 function setupTabs(): void {
   const tabs = [
     { button: must<HTMLButtonElement>('#tab-files'), panel: must<HTMLElement>('#panel-files') },
     { button: must<HTMLButtonElement>('#tab-text'), panel: must<HTMLElement>('#panel-text') },
   ];
-  for (const { button } of tabs) {
-    button.addEventListener('click', () => {
-      for (const tab of tabs) {
-        const selected = tab.button === button;
-        tab.button.setAttribute('aria-selected', String(selected));
-        tab.panel.hidden = !selected;
-      }
+
+  const select = (index: number, focus = false): void => {
+    tabs.forEach((tab, at) => {
+      const selected = at === index;
+      tab.button.setAttribute('aria-selected', String(selected));
+      tab.button.tabIndex = selected ? 0 : -1;
+      tab.panel.hidden = !selected;
     });
-  }
+    if (focus) tabs[index]?.button.focus();
+  };
+
+  tabs.forEach(({ button }, index) => {
+    button.addEventListener('click', () => select(index));
+    button.addEventListener('keydown', (event) => {
+      const last = tabs.length - 1;
+      const target =
+        event.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
+        : event.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+        : event.key === 'Home' ? 0
+        : event.key === 'End' ? last
+        : undefined;
+      if (target === undefined) return;
+      event.preventDefault();
+      select(target, true);
+    });
+  });
+
+  select(tabs.findIndex((tab) => tab.button.getAttribute('aria-selected') === 'true') || 0);
 }
 
 /* ------------------------------------------------------------- rendering -- */
@@ -457,21 +491,78 @@ function cleanName(name: string): string {
 
 /* ----------------------------------------------------------------- files -- */
 
+/**
+ * Every file analysed this session, in the order they were dropped.
+ *
+ * Kept in the same shape the CLI's `--json` emits, so a report exported from
+ * the page and one produced by `cirta inspect --json` can be compared or fed to
+ * the same script without a translation step.
+ */
+const session: Array<{ file: string; result?: InspectResult; error?: string }> = [];
+
+/** Tally and export, refreshed after each file resolves. */
+function renderSummary(anchor: HTMLElement): void {
+  const done = session.filter((entry) => entry.result || entry.error);
+  const existing = document.querySelector('#file-summary');
+  if (done.length === 0) {
+    existing?.remove();
+    return;
+  }
+
+  const node = el('div', 'summary');
+  node.id = 'file-summary';
+
+  const flagged = done.filter((entry) =>
+    entry.result?.findings.some((f) => f.confidence === 'confirmed'),
+  ).length;
+  const failures = done.filter((entry) => entry.error).length;
+
+  const parts = [`${done.length} fichier${done.length > 1 ? 's' : ''}`];
+  parts.push(
+    flagged
+      ? `${flagged} portant des données identifiantes confirmées`
+      : 'aucun ne porte de données identifiantes confirmées',
+  );
+  if (failures) parts.push(`${failures} illisible${failures > 1 ? 's' : ''}`);
+
+  const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
+  const button = el('button', 'button button-small', 'Exporter le rapport (JSON)');
+  button.addEventListener('click', () => {
+    const json = JSON.stringify(done, null, 2);
+    download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
+  });
+
+  node.append(text, button);
+  if (existing) existing.replaceWith(node);
+  else anchor.before(node);
+}
+
 async function handleFile(file: File, container: HTMLElement): Promise<void> {
   const node = card(file.name, undefined, 'analyse…');
   node.classList.add('is-busy');
   container.prepend(node);
+
+  // Claimed synchronously so the export keeps the order files were dropped in,
+  // not the order the worker happened to finish them.
+  const entry: { file: string; result?: InspectResult; error?: string } = { file: file.name };
+  session.push(entry);
+  const record = (patch: Partial<typeof entry>) => {
+    Object.assign(entry, patch);
+    renderSummary(container);
+  };
 
   let data: Uint8Array;
   try {
     data = new Uint8Array(await file.arrayBuffer());
   } catch {
     node.append(el('p', 'error', 'Lecture du fichier impossible.'));
+    record({ error: 'Lecture du fichier impossible.' });
     return;
   }
 
   try {
     const result = await inspectFile(data, formatHint(file.name));
+    record({ result });
     node.classList.remove('is-busy');
     const count = node.querySelector('.count');
     const badge = el('span', 'badge', result.format);
@@ -515,7 +606,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
   } catch (error) {
     node.classList.remove('is-busy');
     node.querySelector('.count')?.remove();
-    node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    node.append(el('p', 'error', message));
+    record({ error: message });
   }
 }
 

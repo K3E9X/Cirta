@@ -206,6 +206,37 @@ textarea:focus-visible {
   filter: brightness(1.08);
 }
 
+.button-small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+/* ---------- summary ---------- */
+
+.summary {
+  margin-top: 1.5rem;
+  padding: 0.7rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.summary-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.summary-text.is-flagged {
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* ---------- results ---------- */
 
 .results {
