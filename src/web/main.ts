@@ -13,10 +13,17 @@ import {
   scanText,
   cleanText,
   preview,
+  type Confidence,
   type Finding,
   type Format,
   type Note,
 } from '../core/index.js';
+
+const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confirmed: 'confirmé',
+  probable: 'probable',
+  informational: 'informatif',
+};
 
 const KIND_LABEL: Record<Finding['kind'], string> = {
   identity: 'identité',
@@ -65,6 +72,29 @@ const FIELD_LABEL: Record<string, string> = {
   'XMP modified': 'Modification XMP',
   'XMP document ID': 'Identifiant de document XMP',
   'XMP instance ID': 'Identifiant d’instance XMP',
+  'Last printed': 'Dernière impression',
+  'Link to a local or network path': 'Lien vers un chemin local ou réseau',
+  'Hidden slides': 'Diapositives masquées',
+  'Speaker notes': 'Notes du présentateur',
+  'Exif with GPS coordinates': 'Exif avec coordonnées GPS',
+  'Exif camera data': 'Données Exif de l’appareil',
+  'XMP metadata': 'Métadonnées XMP',
+  'APP1 metadata': 'Métadonnées APP1',
+  'IPTC/Photoshop metadata': 'Métadonnées IPTC/Photoshop',
+  'Embedded comment': 'Commentaire intégré',
+  'Application metadata': 'Métadonnées applicatives',
+  'Document identifier (/ID)': 'Identifiant de document (/ID)',
+  'Windows account': 'Compte Windows',
+  'macOS account': 'Compte macOS',
+  'Linux account': 'Compte Linux',
+  'WSL mount': 'Montage WSL',
+  'Windows temporary directory': 'Répertoire temporaire Windows',
+  'macOS temporary directory': 'Répertoire temporaire macOS',
+  'Temporary directory': 'Répertoire temporaire',
+  'Session identifier': 'Identifiant de session',
+  'Run or workspace identifier (UUID)': 'Identifiant d’exécution ou d’espace de travail (UUID)',
+  'Assistant or agent named in metadata': 'Assistant ou agent nommé dans les métadonnées',
+  'Document generated programmatically': 'Document généré par programme',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -75,6 +105,8 @@ const VALUE_TEXT: Record<string, string> = {
   'present — may carry provenance manifests or source data':
     'présentes — peuvent contenir des manifestes de provenance ou des données sources',
   present: 'présentes',
+  'file was assembled in a scratch directory':
+    'le fichier a été assemblé dans un répertoire de travail temporaire',
 };
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
@@ -86,16 +118,40 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     "Caractères invisibles uniquement. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'removed:c2pa': (detail) =>
     `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre.`,
+  'kept:content': (detail) =>
+    `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };
 
 const translateLabel = (label: string) => FIELD_LABEL[label] ?? label;
+
+/** The core marks derived findings with an English prefix naming their source. */
+const translateLocation = (location: string) =>
+  location.replace(/^derived from /, 'dérivé de ');
+
+/** Values the core builds by interpolating a count, matched by shape. */
+const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    /^(\d+) values? \(correlate documents edited in the same session\)$/,
+    (m) => `${m[1]} valeur(s) — corrèlent les documents édités dans la même session`,
+  ],
+  [
+    /^(\d+) hidden slides? still present in the file$/,
+    (m) => `${m[1]} diapositive(s) masquée(s), toujours présentes dans le fichier`,
+  ],
+  [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
+  [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
+  [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
+  [/^(.+) \(drive ([A-Za-z]):\)$/, (m) => `${m[1]} (lecteur ${m[2]} :)`],
+];
 
 function translateValue(finding: Finding): string {
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
-  const rsids = /^(\d+) values? \(correlate documents edited in the same session\)$/.exec(finding.value);
-  if (rsids) return `${rsids[1]} valeur(s) — corrèlent les documents édités dans la même session`;
+  for (const [pattern, render] of VALUE_PATTERNS) {
+    const match = pattern.exec(finding.value);
+    if (match) return render(match);
+  }
   return finding.value;
 }
 
@@ -150,7 +206,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
 
   const head = el('thead');
   const headRow = el('tr');
-  for (const label of ['Type', 'Champ', 'Valeur', 'Emplacement']) {
+  for (const label of ['Niveau', 'Type', 'Champ', 'Valeur', 'Emplacement']) {
     headRow.append(el('th', undefined, label));
   }
   head.append(headRow);
@@ -159,10 +215,13 @@ function findingsTable(findings: Finding[]): HTMLElement {
   for (const finding of findings) {
     const row = el('tr');
     if (finding.affectsVerifiability) row.className = 'flagged';
+    row.append(
+      el('td', `confidence confidence-${finding.confidence}`, CONFIDENCE_LABEL[finding.confidence]),
+    );
     row.append(el('td', 'kind', KIND_LABEL[finding.kind]));
     row.append(el('td', undefined, translateLabel(finding.label)));
     row.append(el('td', 'value', preview(translateValue(finding), 120)));
-    row.append(el('td', 'location', finding.location));
+    row.append(el('td', 'location', translateLocation(finding.location)));
     body.append(row);
   }
 

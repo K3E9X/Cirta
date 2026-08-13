@@ -13,6 +13,7 @@
   --ok: #2f6b41;
   --warn: #8a6100;
   --warn-soft: #fbf1d8;
+  --danger: #a3312a;
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -31,6 +32,7 @@
     --ok: #7bb98f;
     --warn: #d8a53f;
     --warn-soft: #2a2213;
+    --danger: #e2766c;
   }
 }
 
@@ -279,6 +281,25 @@ td.kind {
   font: 0.8rem/1.5 var(--mono);
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+td.confidence {
+  font: 0.75rem/1.5 var(--mono);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.confidence-confirmed {
+  color: var(--danger);
+}
+
+.confidence-probable {
+  color: var(--warn);
+}
+
+.confidence-informational {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 td.location {

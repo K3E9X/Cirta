@@ -5,7 +5,7 @@
  * Everything runs locally; the process makes no network requests.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import {
@@ -14,13 +14,33 @@ import {
   scanText,
   cleanText,
   UnsupportedFormatError,
+  type Confidence,
   type Finding,
   type InspectResult,
   type Note,
   preview,
 } from '../core/index.js';
 
-const useColor = process.stdout.isTTY && !process.env['NO_COLOR'];
+/**
+ * Terminal capabilities differ enough between platforms that both colour and
+ * non-ASCII output have to be opt-out. Windows Terminal and PowerShell 7 handle
+ * both; the legacy conhost on a non-UTF-8 code page renders an arrow as
+ * mojibake, so arrows and dashes degrade to ASCII rather than produce garbage.
+ */
+const useColor =
+  process.env['FORCE_COLOR'] !== undefined
+    ? process.env['FORCE_COLOR'] !== '0'
+    : Boolean(process.stdout.isTTY) && !process.env['NO_COLOR'];
+
+const useUnicode =
+  process.platform !== 'win32' ||
+  process.env['WT_SESSION'] !== undefined ||
+  /UTF-?8/i.test(process.env['LANG'] ?? process.env['LC_ALL'] ?? '');
+
+const SYMBOL = {
+  arrow: useUnicode ? '\u2192' : '->',
+};
+
 const paint = (code: string, text: string) => (useColor ? `[${code}m${text}[0m` : text);
 const bold = (t: string) => paint('1', t);
 const dim = (t: string) => paint('2', t);
@@ -40,15 +60,23 @@ const HELP = `
 ${bold('cirta')} — inspect and strip provenance metadata from documents
 
 ${bold('Usage')}
-  cirta inspect <file...>            Report metadata carried by each file
-  cirta redact  <file...> [options]  Write a copy with that metadata removed
+  cirta inspect <path...>            Report metadata carried by each file
+  cirta redact  <path...> [options]  Write a copy with that metadata removed
   cirta text [--clean]               Read text on stdin; report or clean it
+
+Paths may be files or directories; directories are walked recursively for
+.pdf, .pptx, .docx and .xlsx.
 
 ${bold('Options')}
   -o, --output <path>   Destination for a single redacted file
       --in-place        Overwrite the input files
       --json            Machine-readable output
   -h, --help            Show this message
+
+${bold('Confidence')}
+  confirmed      Verbatim identifying data — a name, a company, a local path
+  probable       Real information about you or your workflow, not always sensitive
+  informational  Names the software rather than the author
 
 ${bold('Scope')}
   Handles document metadata (PDF /Info and XMP, Office docProps) and invisible
@@ -98,6 +126,13 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
+/** Confirmed findings are the ones worth acting on, so they are the ones that stand out. */
+const CONFIDENCE_STYLE: Record<Confidence, (text: string) => string> = {
+  confirmed: red,
+  probable: yellow,
+  informational: dim,
+};
+
 function printFindings(findings: Finding[]): void {
   if (findings.length === 0) {
     console.log(`  ${green('No metadata found.')}`);
@@ -106,13 +141,47 @@ function printFindings(findings: Finding[]): void {
   const width = Math.max(...findings.map((f) => f.label.length));
   for (const finding of findings) {
     const flag = finding.affectsVerifiability ? yellow(' [verifiable provenance]') : '';
+    const mark = CONFIDENCE_STYLE[finding.confidence](finding.confidence.padEnd(13));
     console.log(
-      `  ${dim(KIND_LABEL[finding.kind].padEnd(11))} ${finding.label.padEnd(width)}  ${preview(
+      `  ${mark} ${dim(KIND_LABEL[finding.kind].padEnd(11))} ${finding.label.padEnd(width)}  ${preview(
         finding.value,
       )}${flag}`,
     );
-    console.log(`  ${dim(' '.repeat(12) + finding.location)}`);
+    console.log(`  ${dim(' '.repeat(26) + finding.location)}`);
   }
+}
+
+const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.pptx', '.docx', '.xlsx']);
+
+/**
+ * Expand directory arguments into the supported files they contain, so that
+ * `cirta inspect ./contrats` audits a whole folder before it is sent out.
+ * Explicit file arguments are kept regardless of extension: naming a file is a
+ * deliberate act, and format detection reads magic bytes rather than the name.
+ */
+async function expandPaths(paths: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const path of paths) {
+    let isDirectory = false;
+    try {
+      isDirectory = (await stat(path)).isDirectory();
+    } catch {
+      out.push(path); // Let the per-file handler report the failure.
+      continue;
+    }
+    if (!isDirectory) {
+      out.push(path);
+      continue;
+    }
+    const entries = await readdir(path, { recursive: true, withFileTypes: true });
+    const found = entries
+      .filter((entry) => entry.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()))
+      .map((entry) => join(entry.parentPath ?? (entry as { path?: string }).path ?? path, entry.name))
+      .sort();
+    if (found.length === 0) console.error(dim(`${path}: no supported files found`));
+    out.push(...found);
+  }
+  return out;
 }
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
@@ -124,6 +193,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction.`,
+  'kept:content': (detail) =>
+    `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
 
 function printNotes(notes: Note[]): void {
@@ -160,7 +231,26 @@ async function runInspect(args: Args): Promise<number> {
     }
   }
 
-  if (args.json) console.log(JSON.stringify(results, null, 2));
+  if (args.json) {
+    console.log(JSON.stringify(results, null, 2));
+    return failures > 0 ? 1 : 0;
+  }
+
+  // A folder audit is only useful if it ends with a verdict rather than pages
+  // of tables the reader has to tally themselves.
+  if (args.files.length > 1) {
+    const flagged = results.filter((r) =>
+      r.result?.findings.some((f) => f.confidence === 'confirmed'),
+    ).length;
+    console.log(
+      `\n${bold('Summary')}  ${args.files.length} file${args.files.length > 1 ? 's' : ''}, ` +
+        (flagged
+          ? red(`${flagged} carrying confirmed identifying data`)
+          : green('none carrying confirmed identifying data')) +
+        (failures ? `, ${red(`${failures} unreadable`)}` : ''),
+    );
+  }
+
   return failures > 0 ? 1 : 0;
 }
 
@@ -178,7 +268,7 @@ async function runRedact(args: Args): Promise<number> {
       await writeFile(destination, result.data!);
 
       if (!args.json) {
-        console.log(`\n${bold(file)} ${dim('→')} ${bold(destination)}`);
+        console.log(`\n${bold(file)} ${dim(SYMBOL.arrow)} ${bold(destination)}`);
         console.log(
           `  ${green(`${result.removed.length} field${result.removed.length === 1 ? '' : 's'} removed`)}`,
         );
@@ -235,23 +325,32 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  if (args.help || !args.command) {
+  // Asking for help succeeded; being invoked with nothing did not.
+  if (args.help) {
     console.log(HELP);
-    return args.command ? 0 : 1;
+    return 0;
+  }
+  if (!args.command) {
+    console.log(HELP);
+    return 1;
   }
 
   switch (args.command) {
     case 'inspect':
       if (!args.files.length) {
-        console.error(red('inspect needs at least one file.'));
+        console.error(red('inspect needs at least one file or directory.'));
         return 2;
       }
+      args.files = await expandPaths(args.files);
+      if (!args.files.length) return 1;
       return runInspect(args);
     case 'redact':
       if (!args.files.length) {
-        console.error(red('redact needs at least one file.'));
+        console.error(red('redact needs at least one file or directory.'));
         return 2;
       }
+      args.files = await expandPaths(args.files);
+      if (!args.files.length) return 1;
       return runRedact(args);
     case 'text':
       return runText(args);
