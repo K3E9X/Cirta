@@ -14,7 +14,15 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
-import { getElementText, setElementText, removeElement, collectAttribute } from './xml.js';
+import {
+  getElementText,
+  setElementText,
+  removeElement,
+  collectAttribute,
+  collectTextContent,
+  mapTextContent,
+} from './xml.js';
+import { scanText, cleanText } from './text.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata } from './image.js';
@@ -69,6 +77,33 @@ function findMediaParts(parts: Parts): string[] {
 /** Locate a C2PA provenance manifest if the producer embedded one. */
 function findC2paParts(parts: Parts): string[] {
   return Object.keys(parts).filter((p) => /c2pa|contentcredentials|content_credentials/i.test(p));
+}
+
+/** OpenDocument keeps all visible text in these two parts. */
+function isBodyPart(path: string): boolean {
+  return path === 'content.xml' || path === 'styles.xml';
+}
+
+/** Invisible characters in the body travel with copied text, so they are reported. */
+function inspectBodyText(parts: Parts): Finding[] {
+  const findings: Finding[] = [];
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!isBodyPart(path)) continue;
+    const scan = scanText(collectTextContent(strFromU8(raw)));
+    for (const finding of scan.findings) {
+      findings.push({ ...finding, location: `${path} (${finding.location})` });
+    }
+    for (const payload of scan.decoded) {
+      findings.push({
+        kind: 'invisible-character',
+        confidence: 'confirmed',
+        location: path,
+        label: 'Hidden payload in document text',
+        value: payload,
+      });
+    }
+  }
+  return findings;
 }
 
 export function inspectOdf(data: Uint8Array): InspectResult {
@@ -135,6 +170,8 @@ export function inspectOdf(data: Uint8Array): InspectResult {
     findings.push(...scanContent(strFromU8(raw), path));
   }
 
+  findings.push(...inspectBodyText(parts));
+
   notes.push({ code: 'scope:ooxml-metadata-only' });
   findings.push(...fingerprint(findings));
 
@@ -174,6 +211,11 @@ export function redactOdf(data: Uint8Array): RedactResult {
 
   for (const path of Object.keys(parts)) {
     if (path.startsWith('Thumbnails/')) delete parts[path];
+  }
+
+  for (const path of Object.keys(parts)) {
+    if (!isBodyPart(path)) continue;
+    parts[path] = strToU8(mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text).text));
   }
 
   for (const path of findMediaParts(parts)) {

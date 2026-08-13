@@ -15,6 +15,7 @@ import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
+import { scanText, cleanText } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -23,6 +24,8 @@ import {
   removeElement,
   removeAttribute,
   collectAttribute,
+  collectTextContent,
+  mapTextContent,
 } from './xml.js';
 
 type Parts = Record<string, Uint8Array>;
@@ -117,6 +120,47 @@ function findSpeakerNotes(parts: Parts): number {
   return Object.keys(parts).filter(
     (p) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(p) && /<a:t>[^<]+<\/a:t>/.test(strFromU8(parts[p]!)),
   ).length;
+}
+
+
+/**
+ * Parts a reader actually sees. Invisible characters are only worth reporting
+ * where they can travel with copied text; the same codepoints inside a theme or
+ * a relationship file are structural noise.
+ */
+function isBodyPart(path: string): boolean {
+  return /^word\/(document|footnotes|endnotes|comments|header\d*|footer\d*)\.xml$/.test(path) ||
+    /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/.test(path) ||
+    path === 'xl/sharedStrings.xml';
+}
+
+/**
+ * Report invisible characters carried by the document body.
+ *
+ * A zero-width space inside a paragraph survives copy/paste out of the document
+ * exactly as it would in a plain text file, so leaving the body unscanned meant
+ * the one class of marking this tool handles completely was invisible to it
+ * precisely where documents are concerned.
+ */
+function inspectBodyText(parts: Parts): Finding[] {
+  const findings: Finding[] = [];
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!isBodyPart(path)) continue;
+    const scan = scanText(collectTextContent(strFromU8(raw)));
+    for (const finding of scan.findings) {
+      findings.push({ ...finding, location: `${path} (${finding.location})` });
+    }
+    for (const payload of scan.decoded) {
+      findings.push({
+        kind: 'invisible-character',
+        confidence: 'confirmed',
+        location: path,
+        label: 'Hidden payload in document text',
+        value: payload,
+      });
+    }
+  }
+  return findings;
 }
 
 export function inspectOoxml(data: Uint8Array): InspectResult {
@@ -267,6 +311,8 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     findings.push(...scanContent(strFromU8(raw), path));
   }
 
+  findings.push(...inspectBodyText(parts));
+
   notes.push({ code: 'scope:ooxml-metadata-only' });
 
   // Derived last, so it can draw on every field the format modules surfaced.
@@ -284,6 +330,8 @@ export interface RedactOoxmlOptions {
   anonymizeAuthors?: boolean;
   /** Strip Exif/XMP/IPTC from embedded pictures. Default true. */
   stripMedia?: boolean;
+  /** Remove invisible characters from the document's visible text. Default true. */
+  cleanBodyText?: boolean;
 }
 
 /** Drop a part and the `[Content_Types].xml` override and relationship that reference it. */
@@ -327,6 +375,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     removeRsids = true,
     anonymizeAuthors = true,
     stripMedia = true,
+    cleanBodyText = true,
   } = options;
 
   const before = inspectOoxml(data);
@@ -375,6 +424,14 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
       const xml = strFromU8(raw);
       if (!xml.includes('w:author=')) continue;
       parts[path] = strToU8(xml.replace(/\sw:author="[^"]*"/g, ` w:author="${ANONYMOUS_AUTHOR}"`));
+    }
+  }
+
+  if (cleanBodyText) {
+    for (const path of Object.keys(parts)) {
+      if (!isBodyPart(path)) continue;
+      const cleaned = mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text).text);
+      parts[path] = strToU8(cleaned);
     }
   }
 

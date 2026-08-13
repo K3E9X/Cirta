@@ -13,8 +13,8 @@ votre machine.
 | Support | Traité |
 |---|---|
 | PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
-| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
+| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
 | Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
@@ -74,6 +74,32 @@ rien même quand les mots y sont en clair.
 d'attribution en fin de document (`*Généré par …*`) sont détectés. Le repérage se fait sur la
 **tournure de génération**, pas sur le nom de l'éditeur, et seulement dans les dernières lignes : une
 signature est en pied de page, une mention en plein corps est de la prose.
+
+### Caractères invisibles dans le corps des documents
+
+Un espace de largeur nulle dans un paragraphe Word survit au copier-coller hors du document
+exactement comme dans un fichier texte. Le corps des DOCX, PPTX, XLSX et ODT est donc scanné et
+nettoyé comme le serait du texte collé dans l'onglet Texte — mêmes règles, mêmes préservations :
+
+```
+confirmed      zero-width space                  2 occurrences
+                                                 word/document.xml (U+200B)
+confirmed      Hidden payload in document text   tag characters → "ID42"
+                                                 word/document.xml
+informational  no-break space                    1 occurrence
+                                                 word/document.xml (U+00A0)
+```
+
+Trois précisions qui comptent :
+
+- **Les références numériques sont résolues.** `&#x200B;` est un espace de largeur nulle écrit
+  autrement ; ne pas le voir rendrait le contrôle trivial à contourner.
+- **Seul le texte visible est touché.** La réécriture opère entre `>` et `<` : jamais les noms de
+  balises, jamais les attributs. La structure XML reste intacte.
+- **Les parties structurelles sont ignorées.** Les mêmes codepoints dans un thème ou un fichier de
+  relations sont du bruit, pas un marquage.
+
+Les liants d'emoji et les anti-liants persans et indiens sont préservés dans le corps comme ailleurs.
 
 ### Secrets laissés dans les fichiers
 
@@ -205,6 +231,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
 | Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
+| Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs |
 
 ### Le nettoyage est mesuré, pas affirmé
 
@@ -326,7 +353,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 140 tests
+npm test           # 150 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

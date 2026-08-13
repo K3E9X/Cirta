@@ -300,3 +300,89 @@ describe('standalone images', () => {
     expect((await redactFile(jpegXt)).data).toEqual(jpegXt);
   });
 });
+
+/* -------------------------------------------- texte du corps des documents */
+
+const ZWSP = '​';
+const NBSP = ' ';
+const ZWJ = '‍';
+const tagEncoded = (payload: string) =>
+  [...payload].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
+
+function makeDocxBody(text: string): Uint8Array {
+  return zipSync({
+    '[Content_Types].xml': strToU8('<Types/>'),
+    'word/document.xml': strToU8(
+      `<w:document><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`,
+    ),
+  });
+}
+
+const docxText = (data: Uint8Array) =>
+  /<w:t>([^<]*)<\/w:t>/.exec(strFromU8(unzipSync(data)['word/document.xml']!))?.[1] ?? '';
+
+describe('invisible characters inside document bodies', () => {
+  it('reports them with the part they came from', async () => {
+    const { findings } = await inspectFile(makeDocxBody(`Bonjour,${ZWSP}${ZWSP} voici.`));
+    const zwsp = find(findings, 'zero-width space');
+    expect(zwsp?.value).toBe('2 occurrences');
+    expect(zwsp?.location).toContain('word/document.xml');
+  });
+
+  it('decodes a payload hidden in the body text', async () => {
+    const { findings } = await inspectFile(makeDocxBody(`Rapport${tagEncoded('ID42')}.`));
+    expect(find(findings, 'Hidden payload in document text')?.value).toContain('ID42');
+  });
+
+  it('sees a character escaped as a numeric reference', async () => {
+    // &#x200B; is a zero-width space written the long way; missing it would
+    // make the whole check trivial to sidestep.
+    const { findings } = await inspectFile(makeDocxBody('Encod&#x200B;&#x200B;é.'));
+    expect(find(findings, 'zero-width space')?.value).toBe('2 occurrences');
+  });
+
+  it('grades exotic whitespace below zero-width characters', async () => {
+    const { findings } = await inspectFile(makeDocxBody(`le${NBSP}rapport${ZWSP}final`));
+    expect(find(findings, 'no-break space')?.confidence).toBe('informational');
+    expect(find(findings, 'zero-width space')?.confidence).toBe('confirmed');
+  });
+
+  it('removes them on redaction and leaves nothing behind', async () => {
+    const redacted = await redactFile(makeDocxBody(`Bonjour,${ZWSP}${ZWSP} voici${tagEncoded('X9')}.`));
+    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+    expect(docxText(redacted.data!)).toBe('Bonjour, voici.');
+  });
+
+  it('normalises exotic whitespace to a plain space', async () => {
+    const redacted = await redactFile(makeDocxBody(`le${NBSP}rapport`));
+    expect(docxText(redacted.data!)).toBe('le rapport');
+  });
+
+  it('removes a numeric-reference escape rather than leaving the markup', async () => {
+    const redacted = await redactFile(makeDocxBody('Encod&#x200B;é'));
+    expect(strFromU8(unzipSync(redacted.data!)['word/document.xml']!)).not.toContain('&#x200B;');
+    expect(docxText(redacted.data!)).toBe('Encodé');
+  });
+
+  it('preserves emoji joiners in the body', async () => {
+    const developer = `\u{1F469}${ZWJ}\u{1F4BB}`;
+    const redacted = await redactFile(makeDocxBody(`équipe ${developer} ok`));
+    expect(docxText(redacted.data!)).toContain(developer);
+  });
+
+  it('never touches the XML structure', async () => {
+    const redacted = await redactFile(makeDocxBody(`texte${ZWSP}`));
+    const xml = strFromU8(unzipSync(redacted.data!)['word/document.xml']!);
+    expect(xml.startsWith('<w:document>')).toBe(true);
+    expect(xml.endsWith('</w:document>')).toBe(true);
+    expect(xml).toContain('<w:body><w:p><w:r><w:t>');
+  });
+
+  it('ignores structural parts, where the same codepoints mean nothing', async () => {
+    const docx = zipSync({
+      '[Content_Types].xml': strToU8(`<Types><X>a${ZWSP}b</X></Types>`),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    });
+    expect((await inspectFile(docx)).findings).toEqual([]);
+  });
+});
