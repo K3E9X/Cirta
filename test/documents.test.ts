@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { unzipSync, strFromU8 } from 'fflate';
 import { inspectFile, redactFile, detectFormat, UnsupportedFormatError } from '../src/core/index.js';
-import { makePdf, makePptx, makeDocx } from './fixtures.js';
+import { makePdf, makePptx, makeDocx, makeXlsx } from './fixtures.js';
 
 describe('detectFormat', () => {
   it('identifies formats by content, not extension', async () => {
@@ -126,5 +126,41 @@ describe('DOCX', () => {
     expect(strFromU8(parts['word/settings.xml']!)).not.toContain('w:rsid');
     expect(strFromU8(parts['word/comments.xml']!)).not.toContain('Lotfi Zakaria');
     expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+  });
+});
+
+describe('XLSX', () => {
+  it('reads the identities and paths that only a workbook carries', async () => {
+    const result = await inspectFile(makeXlsx());
+    expect(result.format).toBe('xlsx');
+    const value = (label: string) => result.findings.find((f) => f.label === label)?.value;
+
+    // Both spellings of a name, and not the "Author" placeholder Excel writes
+    // for an already-anonymised comment.
+    expect(value('Comment authors')).toBe('Lotfi Zakaria, Lotfi Z');
+    expect(value('Defined name pointing outside the workbook')).toContain('Budget');
+    expect(value('Defined name pointing outside the workbook')).not.toContain('Total');
+    expect(value('Links to other workbooks')).toContain('1 external');
+    // The account name falls out of the path the defined name holds.
+    expect(value('Windows account')).toContain('lotfi');
+  });
+
+  it('anonymises the authors and says why the references stay', async () => {
+    const redacted = await redactFile(makeXlsx());
+    const parts = unzipSync(redacted.data!);
+    expect(strFromU8(parts['xl/comments1.xml']!)).not.toContain('Lotfi Zakaria');
+    expect(strFromU8(parts['xl/persons/person1.xml']!)).not.toContain('Lotfi Z');
+
+    // A defined name and an external link part are what formulas resolve
+    // through: removing them would turn live cells into #REF!, so they are
+    // reported as kept rather than deleted — and the report says both that they
+    // were kept on purpose and that they are still in the file.
+    expect(parts['xl/externalLinks/externalLink1.xml']).toBeDefined();
+    const codes = redacted.notes.map((n) => n.code);
+    expect(codes).toContain('kept:content');
+    expect(redacted.notes.find((n) => n.code === 'kept:content')?.detail).toContain(
+      'external workbook references',
+    );
+    expect(codes).toContain('kept:in-content');
   });
 });

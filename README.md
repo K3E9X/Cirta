@@ -16,6 +16,7 @@ votre machine.
 |---|---|
 | PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
+| XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
@@ -297,7 +298,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | Support | Retiré | Conservé délibérément |
 |---|---|---|
 | PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA | Le contenu des pages |
-| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires, Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur |
+| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires (attribut `w:author`, élément `<author>`, `displayName`), Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur, noms définis et liens entre classeurs — les retirer transformerait des cellules vivantes en `#REF!` |
 | ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
 | SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
 | HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération | JSON-LD — ce qu'indexe un moteur de recherche |
@@ -346,6 +347,15 @@ provenance.** Cirta le rappelle dans son rapport de nettoyage.
 
 Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,
 téléchargez la version nettoyée. Le traitement a lieu dans l'onglet ; rien n'est téléversé.
+
+Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décompte que la ligne
+`Summary` du CLI — avec un export JSON du rapport. Cet export a exactement la forme qu'émet
+`cirta inspect --json`, donc un rapport produit depuis la page et un rapport produit en ligne de
+commande se comparent sans traduction. L'analyse tourne dans un *worker* : un PDF volumineux ne fige
+pas l'onglet, et un worker reste un fil d'exécution de la même page, pas une autre machine.
+
+Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les flèches
+(et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux.
 
 Pour l'exécuter localement :
 
@@ -429,7 +439,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm run verify     # typage, 171 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 178 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo
@@ -462,6 +472,23 @@ npm test
 npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
 node scripts/smoke.mjs
+```
+
+### Fichiers réels
+
+Toutes les fixtures unitaires sont construites à la main : c'est rapide et précis, mais un conteneur
+fabriqué ici partage les hypothèses de l'analyseur qui le relit. La seule image réellement signée de
+la suite (`test/fixtures/signed.jpg`, tirée de c2pa-rs) est ce qui a pris le lecteur CBOR en défaut,
+lui qui supposait qu'un manifeste ne contient aucun élément de longueur indéfinie.
+
+`scripts/real-files.mjs` va plus loin : LibreOffice produit un document, Cirta le nettoie,
+LibreOffice rouvre le résultat. Corrompre un fichier Word est le pire échec possible ici, et rien
+d'autre dans la suite ne le remarquerait. La première conversion sert de témoin — si LibreOffice ne
+sait même pas fabriquer l'entrée, le script s'arrête en le disant plutôt qu'en échouant, parce que
+cela ne prouve rien sur le nettoyage. La CI l'exécute sur Linux, après `verify`.
+
+```bash
+node scripts/real-files.mjs
 ```
 
 La base d'URL du site vaut `/Cirta/` pour GitHub Pages ; utilisez `CIRTA_BASE=/ npm run build:web`

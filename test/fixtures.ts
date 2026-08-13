@@ -56,6 +56,31 @@ export function makeDocx(): Uint8Array {
   });
 }
 
+/**
+ * A workbook naming people the way spreadsheets do — an `<author>` element and a
+ * person registry rather than the `w:author` attribute Word uses — and pointing
+ * at a file on the author's own disk through a defined name and an external
+ * link part.
+ */
+export function makeXlsx(): Uint8Array {
+  return zipSync({
+    '[Content_Types].xml': strToU8('<Types/>'),
+    '_rels/.rels': strToU8('<Relationships/>'),
+    'docProps/core.xml': strToU8(
+      '<cp:coreProperties xmlns:cp="c" xmlns:dc="d"><dc:creator>Lotfi Zakaria</dc:creator></cp:coreProperties>',
+    ),
+    'xl/workbook.xml': strToU8(
+      '<workbook><definedNames><definedName name="Budget">\'C:\\Users\\lotfi\\chiffres.xlsx\'!A1</definedName>' +
+        '<definedName name="Total">Feuil1!$A$1</definedName></definedNames></workbook>',
+    ),
+    'xl/comments1.xml': strToU8(
+      '<comments><authors><author>Lotfi Zakaria</author><author>Author</author></authors></comments>',
+    ),
+    'xl/persons/person1.xml': strToU8('<personList><person displayName="Lotfi Z" id="{1}"/></personList>'),
+    'xl/externalLinks/externalLink1.xml': strToU8('<externalLink/>'),
+  });
+}
+
 /* ---------------------------------------------------------------- images -- */
 
 function jpegSegment(marker: number, body: Uint8Array): Uint8Array {

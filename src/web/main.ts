@@ -1,25 +1,77 @@
 /**
  * Browser front-end for Cirta.
  *
- * Every operation runs on the main thread against the local File object; there
- * is no fetch/XHR/WebSocket anywhere in this bundle, and no file ever leaves
- * the machine. The scope statement in the page is kept honest by the core:
- * statistical model watermarks are neither detected nor claimed to be.
+ * Every operation runs against the local File object — in a worker for
+ * documents, on the main thread for pasted text. There is no fetch, XHR or
+ * WebSocket anywhere in this bundle, and no file ever leaves the machine; a
+ * worker is another thread in the same page, not another machine. The scope
+ * statement in the page is kept honest by the core: statistical model
+ * watermarks are neither detected nor claimed to be.
  */
 
+import type { WorkerRequest, WorkerResponse } from './worker.js';
+// Imported from the individual modules rather than the barrel: pulling in
+// core/index.js would drag pdf-lib and fflate into the main bundle, when the
+// only code that needs them now runs in the worker.
+import { scanText, cleanText } from '../core/text.js';
+import { exposure, type Exposure } from '../core/exposure.js';
 import {
-  inspectFile,
-  redactFile,
-  scanText,
-  cleanText,
   preview,
   type Confidence,
   type Finding,
   type Format,
   type Note,
-  exposure,
-  type Exposure,
-} from '../core/index.js';
+  type InspectResult,
+  type RedactResult,
+} from '../core/types.js';
+
+/**
+ * Analysis runs in a worker so a large PDF or archive cannot freeze the tab.
+ * The worker is created on first use rather than at load, so a visitor who only
+ * uses the text panel never pays for it.
+ */
+let worker: Worker | undefined;
+let nextRequestId = 0;
+const pending = new Map<number, { resolve: (value: never) => void; reject: (error: Error) => void }>();
+
+function ensureWorker(): Worker {
+  if (worker) return worker;
+  worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+  worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
+    const entry = pending.get(event.data.id);
+    if (!entry) return;
+    pending.delete(event.data.id);
+    if (event.data.ok) entry.resolve(event.data as never);
+    else entry.reject(new Error(event.data.error));
+  });
+  worker.addEventListener('error', (event) => {
+    for (const [, entry] of pending) entry.reject(new Error(event.message || 'worker failed'));
+    pending.clear();
+  });
+  return worker;
+}
+
+function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string): Promise<T> {
+  const id = nextRequestId++;
+  // A copy is transferred so the caller keeps its own bytes for a later redact.
+  const buffer = data.slice().buffer;
+  return new Promise<T>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (value: never) => void, reject });
+    ensureWorker().postMessage({ id, op, data: buffer, hint } satisfies WorkerRequest, [buffer]);
+  });
+}
+
+const inspectFile = async (data: Uint8Array, hint?: string): Promise<InspectResult> =>
+  (await ask<{ result: InspectResult }>('inspect', data, hint)).result;
+
+const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult> => {
+  const reply = await ask<{ result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }>(
+    'redact',
+    data,
+    hint,
+  );
+  return { ...reply.result, ...(reply.data ? { data: new Uint8Array(reply.data) } : {}) };
+};
 
 const CONFIDENCE_LABEL: Record<Confidence, string> = {
   confirmed: 'confirmé',
@@ -78,6 +130,9 @@ const FIELD_LABEL: Record<string, string> = {
   'Link to a local or network path': 'Lien vers un chemin local ou réseau',
   'Hidden slides': 'Diapositives masquées',
   'Speaker notes': 'Notes du présentateur',
+  'Comment authors': 'Auteurs des commentaires',
+  'Defined name pointing outside the workbook': 'Nom défini pointant hors du classeur',
+  'Links to other workbooks': 'Liens vers d’autres classeurs',
   'Exif with GPS coordinates': 'Exif avec coordonnées GPS',
   'Exif camera data': 'Données Exif de l’appareil',
   'XMP metadata': 'Métadonnées XMP',
@@ -137,6 +192,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden payload in document text': 'Charge cachée dans le texte du document',
   'Hidden payload in page text': 'Charge cachée dans le texte des pages',
   'Tool credited by the C2PA manifest': 'Outil crédité par le manifeste C2PA',
+  'What the C2PA manifest asserts': 'Ce que le manifeste C2PA affirme',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -169,7 +225,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:in-content': (detail) =>
-    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et réécrire le texte des pages changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
+    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
   'kept:content': (detail) =>
     `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };
@@ -256,6 +312,7 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
+  [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
   [
     /^(.+) — asserted by the manifest, signature not verified$/,
@@ -320,20 +377,48 @@ function must<T extends Element>(selector: string): T {
 
 /* ---------------------------------------------------------------- tabs --- */
 
+/**
+ * A tablist is one stop in the tab order, not one per tab.
+ *
+ * That is the roving tabindex the ARIA authoring practices describe: only the
+ * selected tab is reachable with Tab, and the arrow keys move between them.
+ * Without it, someone navigating by keyboard has to step through every tab to
+ * reach the panel, and the arrow keys — which is what they will reach for — do
+ * nothing at all.
+ */
 function setupTabs(): void {
   const tabs = [
     { button: must<HTMLButtonElement>('#tab-files'), panel: must<HTMLElement>('#panel-files') },
     { button: must<HTMLButtonElement>('#tab-text'), panel: must<HTMLElement>('#panel-text') },
   ];
-  for (const { button } of tabs) {
-    button.addEventListener('click', () => {
-      for (const tab of tabs) {
-        const selected = tab.button === button;
-        tab.button.setAttribute('aria-selected', String(selected));
-        tab.panel.hidden = !selected;
-      }
+
+  const select = (index: number, focus = false): void => {
+    tabs.forEach((tab, at) => {
+      const selected = at === index;
+      tab.button.setAttribute('aria-selected', String(selected));
+      tab.button.tabIndex = selected ? 0 : -1;
+      tab.panel.hidden = !selected;
     });
-  }
+    if (focus) tabs[index]?.button.focus();
+  };
+
+  tabs.forEach(({ button }, index) => {
+    button.addEventListener('click', () => select(index));
+    button.addEventListener('keydown', (event) => {
+      const last = tabs.length - 1;
+      const target =
+        event.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
+        : event.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+        : event.key === 'Home' ? 0
+        : event.key === 'End' ? last
+        : undefined;
+      if (target === undefined) return;
+      event.preventDefault();
+      select(target, true);
+    });
+  });
+
+  select(tabs.findIndex((tab) => tab.button.getAttribute('aria-selected') === 'true') || 0);
 }
 
 /* ------------------------------------------------------------- rendering -- */
@@ -406,20 +491,79 @@ function cleanName(name: string): string {
 
 /* ----------------------------------------------------------------- files -- */
 
+/**
+ * Every file analysed this session, in the order they were dropped.
+ *
+ * Kept in the same shape the CLI's `--json` emits, so a report exported from
+ * the page and one produced by `cirta inspect --json` can be compared or fed to
+ * the same script without a translation step.
+ */
+const session: Array<{ file: string; result?: InspectResult; error?: string }> = [];
+
+/** Tally and export, refreshed after each file resolves. */
+function renderSummary(anchor: HTMLElement): void {
+  const done = session.filter((entry) => entry.result || entry.error);
+  const existing = document.querySelector('#file-summary');
+  if (done.length === 0) {
+    existing?.remove();
+    return;
+  }
+
+  const node = el('div', 'summary');
+  node.id = 'file-summary';
+
+  const flagged = done.filter((entry) =>
+    entry.result?.findings.some((f) => f.confidence === 'confirmed'),
+  ).length;
+  const failures = done.filter((entry) => entry.error).length;
+
+  const parts = [`${done.length} fichier${done.length > 1 ? 's' : ''}`];
+  parts.push(
+    flagged
+      ? `${flagged} portant des données identifiantes confirmées`
+      : 'aucun ne porte de données identifiantes confirmées',
+  );
+  if (failures) parts.push(`${failures} illisible${failures > 1 ? 's' : ''}`);
+
+  const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
+  const button = el('button', 'button button-small', 'Exporter le rapport (JSON)');
+  button.addEventListener('click', () => {
+    const json = JSON.stringify(done, null, 2);
+    download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
+  });
+
+  node.append(text, button);
+  if (existing) existing.replaceWith(node);
+  else anchor.before(node);
+}
+
 async function handleFile(file: File, container: HTMLElement): Promise<void> {
   const node = card(file.name, undefined, 'analyse…');
+  node.classList.add('is-busy');
   container.prepend(node);
+
+  // Claimed synchronously so the export keeps the order files were dropped in,
+  // not the order the worker happened to finish them.
+  const entry: { file: string; result?: InspectResult; error?: string } = { file: file.name };
+  session.push(entry);
+  const record = (patch: Partial<typeof entry>) => {
+    Object.assign(entry, patch);
+    renderSummary(container);
+  };
 
   let data: Uint8Array;
   try {
     data = new Uint8Array(await file.arrayBuffer());
   } catch {
     node.append(el('p', 'error', 'Lecture du fichier impossible.'));
+    record({ error: 'Lecture du fichier impossible.' });
     return;
   }
 
   try {
     const result = await inspectFile(data, formatHint(file.name));
+    record({ result });
+    node.classList.remove('is-busy');
     const count = node.querySelector('.count');
     const badge = el('span', 'badge', result.format);
     node.querySelector('.card-head')?.insertBefore(badge, count);
@@ -460,8 +604,11 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
 
     appendNotes(node, result.notes);
   } catch (error) {
+    node.classList.remove('is-busy');
     node.querySelector('.count')?.remove();
-    node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    node.append(el('p', 'error', message));
+    record({ error: message });
   }
 }
 

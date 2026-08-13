@@ -27,3 +27,11 @@ jobs:
       # The same single command contributors run locally, so a green terminal
       # and a green pipeline cannot disagree about what was checked.
       - run: npm run verify
+
+      # Redaction rewrites real containers, and the only convincing proof that
+      # it did not corrupt one is a real implementation reopening the result.
+      # The script skips rather than fails where LibreOffice cannot produce the
+      # control document, so it never reds the run for an environment reason.
+      - name: Round-trip real documents through LibreOffice
+        if: runner.os == 'Linux'
+        run: node scripts/real-files.mjs
