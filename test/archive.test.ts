@@ -235,19 +235,38 @@ describe('redaction is measured, not asserted', () => {
 
 describe('C2PA claim generator', () => {
   it('reads the tool a manifest credits, from XMP attribute syntax', async () => {
-    const { readClaimGenerator } = await import('../src/core/c2pa.js');
+    const { readXmpClaimGenerator: readClaimGenerator } = await import('../src/core/c2pa.js');
     expect(readClaimGenerator('<x c2pa:claim_generator="claude/1.0 export/2.3"/>')).toBe(
       'claude/1.0 export/2.3',
     );
   });
 
-  it('reads it from a binary manifest, where it follows the CBOR key', async () => {
-    const { readClaimGenerator } = await import('../src/core/c2pa.js');
-    expect(readClaimGenerator('\u0000\u0012claim_generatorclaude/1.0\u0000')).toBe('claude/1.0');
+  it('reads a binary manifest through its structure, not by scraping strings', async () => {
+    const { readManifest } = await import('../src/core/c2pa.js');
+    const { readFile } = await import('node:fs/promises');
+    const jpeg = new Uint8Array(await readFile(new URL('./fixtures/signed.jpg', import.meta.url)));
+    // Locate the APP11 segment carrying the JUMBF manifest.
+    let segment: Uint8Array | undefined;
+    for (let i = 2; i + 4 < jpeg.length; ) {
+      if (jpeg[i] !== 0xff) break;
+      const marker = (jpeg[i]! << 8) | jpeg[i + 1]!;
+      if (marker === 0xffda) break;
+      const length = (jpeg[i + 2]! << 8) | jpeg[i + 3]!;
+      if (marker === 0xffeb) {
+        segment = jpeg.subarray(i + 4, i + 2 + length);
+        break;
+      }
+      i += 2 + length;
+    }
+    const summary = readManifest(segment!);
+    expect(summary?.generator).toBe('make_test_images/0.33.1 c2pa-rs/0.33.1');
+    expect(summary?.generatorInfo?.[0]).toEqual({ name: 'make_test_images', version: '0.33.1' });
+    expect(summary?.algorithm).toBe('sha256');
+    expect(summary?.assertions.length).toBeGreaterThan(0);
   });
 
   it('returns nothing when the manifest names no generator', async () => {
-    const { readClaimGenerator } = await import('../src/core/c2pa.js');
+    const { readXmpClaimGenerator: readClaimGenerator } = await import('../src/core/c2pa.js');
     expect(readClaimGenerator('<x c2pa:something="else"/>')).toBeUndefined();
   });
 

@@ -170,7 +170,7 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   }
 
   for (const path of findC2paParts(parts)) {
-    findings.push(...describeC2pa(strFromU8(parts[path]!), path));
+    findings.push(...describeC2pa(strFromU8(parts[path]!), path, parts[path]!));
   }
 
   for (const [path, raw] of Object.entries(parts)) {

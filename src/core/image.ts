@@ -199,7 +199,7 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       const described = describeJpegSegment(segment);
       if (!described) continue;
       if (described.isC2pa) {
-        findings.push(...describeC2pa(ASCII.decode(segment.body), location));
+        findings.push(...describeC2pa(ASCII.decode(segment.body), location, segment.body));
         continue;
       }
       findings.push({
@@ -218,7 +218,8 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
   for (const chunk of pngChunks(data)) {
     if (!PNG_STRIP_CHUNKS.has(chunk.type)) continue;
     if (chunk.type === 'caBX') {
-      findings.push(...describeC2pa(ASCII.decode(data.subarray(chunk.start, chunk.end)), location));
+      const body = data.subarray(chunk.start + 8, chunk.end - 4);
+      findings.push(...describeC2pa(ASCII.decode(body), location, body));
       continue;
     }
     findings.push({

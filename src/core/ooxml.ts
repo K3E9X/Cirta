@@ -310,7 +310,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   }
 
   for (const path of findC2paParts(parts)) {
-    findings.push(...describeC2pa(strFromU8(parts[path]!), path));
+    findings.push(...describeC2pa(strFromU8(parts[path]!), path, parts[path]!));
   }
 
   // Credentials and provider-issued ids are scanned for in the body too: they
