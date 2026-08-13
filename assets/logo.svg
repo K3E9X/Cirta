@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cirta">
+  <title>Cirta</title>
+  <!--
+    The mark is a C held inside a rounded square: a document, and what is read
+    out of it. The CLI banner in src/cli/logo.ts is a character-cell
+    transcription of this shape, so the two stay recognisably the same thing.
+  -->
+  <rect width="64" height="64" rx="14" fill="#9a4b1f" />
+  <path
+    d="M44 22a14 14 0 1 0 0 20"
+    fill="none"
+    stroke="#fff"
+    stroke-width="6"
+    stroke-linecap="round"
+  />
+</svg>

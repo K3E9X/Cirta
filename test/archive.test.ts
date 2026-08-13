@@ -339,3 +339,43 @@ describe('custom properties carry their values, not just their names', () => {
     expect(credited?.value).toContain('signature not verified');
   });
 });
+
+describe('CLI banner', () => {
+  const plain = (t: string) => t;
+
+  it('draws the mark with box-drawing characters when the terminal can show them', async () => {
+    const { banner } = await import('../src/cli/logo.js');
+    const rows = banner({ unicode: true, paint: plain, lines: [] }).split('\n');
+    expect(rows[0]).toContain('╭');
+    expect(rows.at(-1)).toContain('╯');
+  });
+
+  it('falls back to ASCII, since a legacy console renders the other as mojibake', async () => {
+    const { banner } = await import('../src/cli/logo.js');
+    const art = banner({ unicode: false, paint: plain, lines: [] });
+    expect(art).not.toMatch(/[^\x00-\x7f]/);
+    expect(art).toContain('+-------+');
+  });
+
+  it('keeps the text column aligned across both transcriptions', async () => {
+    const { banner } = await import('../src/cli/logo.js');
+    const lines = ['cirta'];
+    const column = (unicode: boolean) =>
+      banner({ unicode, paint: plain, lines }).split('\n')[0]!.indexOf('cirta');
+    expect(column(true)).toBe(column(false));
+  });
+
+  it('pads short art or short text so neither truncates the other', async () => {
+    const { banner } = await import('../src/cli/logo.js');
+    const many = ['a', 'b', 'c', 'd', 'e', 'f'];
+    expect(banner({ unicode: true, paint: plain, lines: many }).split('\n')).toHaveLength(6);
+    expect(banner({ unicode: true, paint: plain, lines: ['a'] }).split('\n')).toHaveLength(4);
+  });
+
+  it('leaves no trailing whitespace on rows without text', async () => {
+    const { banner } = await import('../src/cli/logo.js');
+    for (const row of banner({ unicode: true, paint: plain, lines: ['a'] }).split('\n')) {
+      expect(row).toBe(row.trimEnd());
+    }
+  });
+});

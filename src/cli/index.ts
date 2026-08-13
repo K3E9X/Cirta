@@ -8,6 +8,7 @@
 import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
+import { banner } from './logo.js';
 import {
   inspectFile,
   redactFile,
@@ -51,6 +52,8 @@ const dim = (t: string) => paint('2', t);
 const yellow = (t: string) => paint('33', t);
 const red = (t: string) => paint('31', t);
 const green = (t: string) => paint('32', t);
+// 173 is the 256-colour cell nearest the #9a4b1f of assets/logo.svg.
+const accent = (t: string) => paint('38;5;173', t);
 
 const KIND_LABEL: Record<Finding['kind'], string> = {
   identity: 'identity',
@@ -61,7 +64,16 @@ const KIND_LABEL: Record<Finding['kind'], string> = {
 };
 
 const HELP = `
-${bold('cirta')} — inspect and strip provenance metadata from documents
+${banner({
+  unicode: useUnicode,
+  paint: accent,
+  lines: [
+    bold('cirta'),
+    'inspect and strip provenance metadata from documents',
+    '',
+    dim('everything runs locally; no network calls are made'),
+  ],
+})}
 
 ${bold('Usage')}
   cirta inspect <path...>            Report metadata carried by each file
@@ -87,7 +99,7 @@ ${bold('Scope')}
   Unicode in text. It does not detect or remove statistical model watermarks:
   those live in word choice, not in a field, and reading one requires the
   vendor's secret key. No local tool can do it, including this one.
-`.trim();
+`.replace(/^\n+|\n+$/g, '');
 
 interface Args {
   command: string | undefined;

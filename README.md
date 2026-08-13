@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" alt="" width="72" align="left" hspace="12" />
+
 # Cirta
 
 Inspecte et retire les métadonnées de provenance des **PDF, documents Office et OpenDocument, SVG,
@@ -429,6 +431,24 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ```bash
 npm run verify     # typage, 171 tests, build, scénario CLI de bout en bout, build web
 ```
+
+### Le logo
+
+`assets/logo.svg` est la source unique de la marque. Le site l'affiche et l'utilise comme favicon,
+le README le montre ci-dessus, et `src/cli/logo.ts` en est une transcription en cellules de
+caractères — un terminal ne sait pas afficher du SVG :
+
+```
+  ╭───────╮   cirta
+  │  ╭──  │   inspect and strip provenance metadata from documents
+  │  ╰──  │
+  ╰───────╯   everything runs locally; no network calls are made
+```
+
+Deux transcriptions existent, parce que les caractères de dessin de boîte ne sont pas sûrs partout :
+une console Windows héritée en page de code non-UTF-8 les rend en mojibake, et une bannière qui
+arrive en charabia est pire qu'une bannière simple. Le repli est purement ASCII et la colonne de
+texte reste alignée au même décalage dans les deux cas.
 
 `verify` est l'unique porte d'entrée, et c'est exactement ce que lance la CI. Les étapes sont
 enchaînées par `&&`, donc la première qui échoue arrête tout et le code de sortie remonte — un

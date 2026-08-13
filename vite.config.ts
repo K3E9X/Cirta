@@ -7,6 +7,9 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   root: 'src/web',
+  // The mark lives at the repository root so the README, the site and the CLI
+  // transcription all refer to one file.
+  publicDir: '../../assets',
   base: process.env['CIRTA_BASE'] ?? '/Cirta/',
   build: {
     outDir: '../../dist-web',
