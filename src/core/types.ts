@@ -103,7 +103,9 @@ export type NoteCode =
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
   | 'removed:c2pa'
   /** Reported items that are document content, not metadata, and were left alone. */
-  | 'kept:content';
+  | 'kept:content'
+  /** Findings that survive redaction because they sit in the content itself. */
+  | 'kept:in-content';
 
 export interface Note {
   code: NoteCode;

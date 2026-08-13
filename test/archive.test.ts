@@ -187,3 +187,48 @@ describe('statistical watermark exposure', () => {
     );
   });
 });
+
+describe('redaction is measured, not asserted', () => {
+  it('removes custom /Info keys, not only the standard ones', async () => {
+    const { PDFDocument, PDFName, PDFString } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]).drawText('contenu');
+    pdf.setAuthor('Lotfi Zakaria');
+    const info = pdf.context.lookup(pdf.context.trailerInfo.Info) as unknown as {
+      set(k: unknown, v: unknown): void;
+    };
+    info.set(PDFName.of('GeneratedBy'), PDFString.of('claude-opus-5'));
+    info.set(PDFName.of('SessionId'), PDFString.of('session_01ABCdef99'));
+
+    const redacted = await redactFile(await pdf.save());
+    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+  });
+
+  it('names what survived instead of implying a clean file', async () => {
+    const { PDFDocument } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    // A secret in the page text cannot be removed without rewriting the page.
+    pdf.addPage([400, 300]).drawText(`Contact: sk-ant-api03-${'A'.repeat(40)}`, { size: 8 });
+    pdf.setAuthor('Lotfi Zakaria');
+
+    const redacted = await redactFile(await pdf.save());
+    const kept = redacted.notes.find((n) => n.code === 'kept:in-content');
+    expect(kept?.detail).toContain('Anthropic API key');
+
+    // And it really does survive, which is why saying so matters.
+    const after = await inspectFile(redacted.data!);
+    expect(after.findings.map((f) => f.label)).toEqual([
+      'Credential left in file: Anthropic API key',
+    ]);
+  });
+
+  it('stays quiet when nothing survived', async () => {
+    const { PDFDocument } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]).drawText('contenu ordinaire');
+    pdf.setAuthor('Lotfi Zakaria');
+
+    const redacted = await redactFile(await pdf.save());
+    expect(redacted.notes.map((n) => n.code)).not.toContain('kept:in-content');
+  });
+});

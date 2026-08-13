@@ -13,6 +13,7 @@ import { PDFDocument, PDFName, PDFRawStream, decodePDFRawStream } from 'pdf-lib'
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
 import { byConfidence } from './types.js';
 import { fingerprint } from './fingerprint.js';
+import { scanContent } from './archive.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -72,6 +73,88 @@ const XMP_FIELDS = [
 
 function looksLikeC2pa(xmp: string): boolean {
   return /c2pa|contentcredentials|content_credentials|claim_generator/i.test(xmp);
+}
+
+/** Cap on decompressed bytes read from streams, so a crafted PDF cannot stall the tab. */
+const MAX_STREAM_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Recover the readable text from a decoded content stream.
+ *
+ * Page text is not stored as plain bytes. It sits inside PDF string operands,
+ * either literal `(like this)` or hexadecimal `<4C696B65>`, and most producers
+ * choose hex — which is why a byte search over a decompressed stream finds
+ * nothing even when the words are plainly there. Both forms are decoded here.
+ */
+function extractPdfStrings(stream: string): string {
+  const pieces: string[] = [];
+
+  // Hex strings. The negative lookbehind keeps dictionary delimiters (<<) out.
+  for (const match of stream.matchAll(/(?<!<)<([0-9A-Fa-f\s]+)>(?!>)/g)) {
+    const hex = (match[1] ?? '').replace(/\s+/g, '');
+    if (hex.length < 2) continue;
+    const bytes = new Uint8Array(Math.floor(hex.length / 2));
+    for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    pieces.push(decodePdfText(bytes));
+  }
+
+  // Literal strings, honouring backslash escapes.
+  for (const match of stream.matchAll(/\(((?:[^()\\]|\\[\s\S])*)\)/g)) {
+    const body = match[1] ?? '';
+    if (!body) continue;
+    pieces.push(body.replace(/\\([nrtbf()\\])/g, (_, c: string) =>
+      c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c,
+    ));
+  }
+
+  return pieces.join(' ');
+}
+
+/** PDF text strings are UTF-16BE when they carry a byte-order mark, else 8-bit. */
+function decodePdfText(bytes: Uint8Array): string {
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be', { fatal: false }).decode(bytes.subarray(2));
+  }
+  return new TextDecoder('latin1').decode(bytes);
+}
+
+/**
+ * Scan every decompressed stream in the document.
+ *
+ * Page text, embedded attachments, JavaScript and form data all live in
+ * streams, usually Flate-compressed, so a plain byte search over the file finds
+ * none of them. Decoding first is what makes an API key pasted into a paragraph
+ * visible. Only unambiguous patterns are looked for — see archive.ts.
+ */
+function scanStreams(doc: PDFDocument): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  let budget = MAX_STREAM_BYTES;
+
+  for (const [ref, object] of doc.context.enumerateIndirectObjects()) {
+    if (budget <= 0) break;
+    if (!(object instanceof PDFRawStream)) continue;
+    let bytes: Uint8Array;
+    try {
+      bytes = decodePDFRawStream(object).decode();
+    } catch {
+      continue; // Unsupported filter (DCT, JPX); not text anyway.
+    }
+    budget -= bytes.length;
+    const raw = new TextDecoder('latin1').decode(
+      bytes.subarray(0, Math.min(bytes.length, MAX_STREAM_BYTES)),
+    );
+    // Scan both the raw stream (XMP, JavaScript, attachments) and the decoded
+    // string operands (page text), since the two hide different things.
+    const text = `${raw}\n${extractPdfStrings(raw)}`;
+    for (const finding of scanContent(text, `stream ${ref.toString()}`)) {
+      const key = `${finding.label}:${finding.value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push(finding);
+    }
+  }
+  return findings;
 }
 
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
@@ -142,6 +225,35 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
     }
   }
 
+  // The eight fields above are the standard ones, but /Info is an open
+  // dictionary: a generation pipeline can write anything into it, and those
+  // custom keys are usually the most revealing entries in the whole file.
+  if (info && 'keys' in info) {
+    const known = new Set(INFO_FIELDS.map((f) => f.key));
+    const dict = info as unknown as { keys(): PDFName[]; get(k: PDFName): unknown };
+    for (const key of dict.keys()) {
+      const name = key.asString().replace(/^\//, '');
+      if (known.has(name)) continue;
+      const raw = dict.get(key);
+      if (!raw) continue;
+      const value = String(
+        (raw as { decodeText?: () => string }).decodeText?.() ??
+          (raw as { asString?: () => string }).asString?.() ??
+          raw,
+      ).trim();
+      if (!value) continue;
+      findings.push({
+        kind: 'provenance',
+        confidence: 'confirmed',
+        location: `/Info /${name}`,
+        label: `Custom info key: ${name}`,
+        value,
+      });
+    }
+  }
+
+  findings.push(...scanStreams(doc));
+
   const names = doc.catalog.get(PDFName.of('Names'));
   if (names) {
     const resolved = doc.context.lookup(names);
@@ -176,12 +288,15 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   const doc = await load(data);
   const notes: Note[] = [];
 
-  // The pdf-lib setters would write empty entries that still announce which
-  // fields existed. Deleting the keys outright leaves no trace of them.
+  // Every key is removed, not just the eight standard ones: a generation
+  // pipeline writes its own, and reporting those while leaving them in place
+  // would be worse than not reporting them at all. The pdf-lib setters are
+  // avoided because they write empty entries that still announce which fields
+  // existed.
   const info = doc.context.lookup(doc.context.trailerInfo.Info);
-  if (info && 'delete' in info) {
-    const dict = info as { delete(k: PDFName): void };
-    for (const field of INFO_FIELDS) dict.delete(PDFName.of(field.key));
+  if (info && 'delete' in info && 'keys' in info) {
+    const dict = info as unknown as { delete(k: PDFName): void; keys(): PDFName[] };
+    for (const key of [...dict.keys()]) dict.delete(key);
   }
 
   if (removeXmp) {

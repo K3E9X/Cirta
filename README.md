@@ -12,12 +12,12 @@ votre machine.
 
 | Support | Traité |
 |---|---|
-| PDF | Dictionnaire `/Info`, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes intégrées |
+| PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
-| Markdown | Clés de front matter nommant un auteur, un outil, un modèle ou une session |
+| Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
 | JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
@@ -58,6 +58,22 @@ Sont reconnus :
   WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…
 - **Environnement** — système d'exploitation et nom de compte déduits de la forme des chemins,
   répertoires temporaires, identifiants de session ou d'exécution (UUID)
+
+### Profondeur par format
+
+L'analyse ne s'arrête pas aux champs de métadonnées connus.
+
+**PDF** — le dictionnaire `/Info` est ouvert : une chaîne de génération peut y écrire n'importe quelle
+clé, et ce sont souvent les plus parlantes. Toutes les clés non standard sont donc énumérées et
+signalées. Par ailleurs le texte des pages, le JavaScript et les pièces jointes vivent dans des flux
+compressés : ils sont décompressés, et les **opérandes de chaîne** décodés — le texte de page est
+stocké en hexadécimal (`<436F6E…>`), donc une recherche d'octets sur un flux décompressé ne trouve
+rien même quand les mots y sont en clair.
+
+**Markdown** — au-delà du front matter, les commentaires HTML de génération et les lignes
+d'attribution en fin de document (`*Généré par …*`) sont détectés. Le repérage se fait sur la
+**tournure de génération**, pas sur le nom de l'éditeur, et seulement dans les dernières lignes : une
+signature est en pied de page, une mention en plein corps est de la prose.
 
 ### Secrets laissés dans les fichiers
 
@@ -175,6 +191,40 @@ C'est de la **calibration, pas du ciblage** : cela dit ce que vaut un silence, p
 viser. Le nombre de tokens est estimé par densité de caractères, pas tokenisé — aucun tokenizer n'est
 embarqué, et le compte est donc donné sous forme de fourchette.
 
+## Ce que fait le nettoyage
+
+| Support | Retiré | Conservé délibérément |
+|---|---|---|
+| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA | Le contenu des pages |
+| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires, Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur |
+| ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
+| SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
+| HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération | JSON-LD — ce qu'indexe un moteur de recherche |
+| Markdown | Clés de front matter identifiantes ; délimiteurs retirés s'il ne reste rien dedans | Le corps, les autres clés, les lignes d'attribution |
+| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
+| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
+| ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
+| Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
+
+### Le nettoyage est mesuré, pas affirmé
+
+La détection et la suppression peuvent diverger — un champ finit par être reconnu sans être effacé —
+et c'est le pire défaut possible ici : un rapport qui liste un élément puis rend un fichier qui le
+porte encore. C'est arrivé une fois dans ce projet, avec les clés `/Info` personnalisées.
+
+Le nettoyage **ré-inspecte donc sa propre sortie** et nomme ce qui a survécu, au lieu de faire
+confiance au code de suppression :
+
+```
+Not removed: Anthropic API key. These sit in the document's own content rather
+than in a metadata field, and rewriting page text would change what the
+document says. Edit the source and regenerate — and if a credential is listed,
+rotate it.
+```
+
+Le corollaire est net : **quand aucun avertissement de ce type n'apparaît, c'est que la ré-inspection
+n'a rien trouvé** — pas que le code croit avoir bien travaillé.
+
 ### Sur le retrait des manifestes C2PA
 
 Retirer un manifeste C2PA ne rend pas un fichier « propre » — il le rend **inconnu**. Un vérificateur
@@ -276,7 +326,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 129 tests
+npm test           # 140 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

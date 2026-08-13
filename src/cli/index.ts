@@ -210,9 +210,9 @@ async function expandPaths(paths: string[]): Promise<string[]> {
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    'PDF metadata only. Text inside the page content is not analysed, and a statistical model watermark there would not show up in this report.',
+    'Metadata, plus a scan of decompressed streams for credentials and provider identifiers. Page text is not read as prose, and a statistical model watermark in it would not show up here.',
   'scope:ooxml-metadata-only': () =>
-    'Document properties only. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
+    'Document properties, plus a scan of the parts for credentials and provider identifiers. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
@@ -225,6 +225,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Archive report. Every member was dispatched through the normal detection path; members no parser claims were scanned for credentials and provider identifiers only.',
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
+  'kept:in-content': (detail) =>
+    `Not removed: ${detail ?? 'traces inside the content'}. These sit in the document's own content rather than in a metadata field, and rewriting page text would change what the document says. Edit the source and regenerate — and if a credential is listed, rotate it.`,
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };

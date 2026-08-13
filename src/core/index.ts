@@ -162,8 +162,35 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   throw new UnsupportedFormatError(UNSUPPORTED);
 }
 
+/**
+ * Re-inspect the redacted output and report whatever survived.
+ *
+ * Detection and removal can drift apart — a field gets recognised before it
+ * gets cleared — and the failure mode is the worst one available here: a report
+ * that lists something and then hands back a file still carrying it. Checking
+ * the actual output rather than trusting the removal code means the claim is
+ * always measured, and things that genuinely cannot be removed (a secret in the
+ * page text, which only the author can rewrite) are named instead of implied.
+ */
+async function noteSurvivors(result: RedactResult, hint?: string): Promise<RedactResult> {
+  if (!result.data || result.removed.length === 0) return result;
+  let survivors: Finding[];
+  try {
+    survivors = (await inspectFile(result.data, hint)).findings;
+  } catch {
+    return result;
+  }
+  if (survivors.length === 0) return result;
+
+  const labels = [...new Set(survivors.map((f) => f.label))];
+  return {
+    ...result,
+    notes: [...result.notes, { code: 'kept:in-content', detail: labels.join(', ') }],
+  };
+}
+
 export async function redactFile(data: Uint8Array, hint?: string): Promise<RedactResult> {
-  if (isPdf(data)) return redactPdf(data);
+  if (isPdf(data)) return noteSurvivors(await redactPdf(data), hint);
   if (isZip(data)) {
     const parts = unzipSync(data);
     if (!isDocumentPackage(parts)) {
@@ -171,7 +198,7 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
         'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
       );
     }
-    return isOdf(parts) ? redactOdf(data) : redactOoxml(data);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data), hint);
   }
 
   const image = detectImageKind(data);
@@ -179,25 +206,26 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
     const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
     const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
     if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
-    return {
-      format: image,
-      data: stripImageMetadata(data) ?? data,
-      removed: before,
-      notes,
-    };
+    return noteSurvivors(
+      { format: image, data: stripImageMetadata(data) ?? data, removed: before, notes },
+      hint,
+    );
   }
 
   const format = detectFormat(data, hint);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     const text = decodeTextInput(data);
     const cleaned = redactMarkup(text, format);
-    return {
-      format,
-      data: new TextEncoder().encode(cleaned),
-      text: cleaned,
-      removed: inspectMarkup(text, format),
-      notes: [{ code: 'scope:markup-metadata-only' }],
-    };
+    return noteSurvivors(
+      {
+        format,
+        data: new TextEncoder().encode(cleaned),
+        text: cleaned,
+        removed: inspectMarkup(text, format),
+        notes: [{ code: 'scope:markup-metadata-only' }],
+      },
+      hint,
+    );
   }
   throw new UnsupportedFormatError(UNSUPPORTED);
 }
