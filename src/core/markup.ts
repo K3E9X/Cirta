@@ -15,6 +15,8 @@
 import type { Finding } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
+import { scanText, cleanText } from './text.js';
+import { collectTextContent, mapTextContent } from './xml.js';
 import { byConfidence } from './types.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
@@ -281,6 +283,44 @@ function redactMarkdown(text: string): string {
   return `---\n${kept.join('\n')}\n---\n${body}`;
 }
 
+/* ------------------------------------------------------------------ body -- */
+
+/**
+ * Invisible characters carried by what a reader actually sees.
+ *
+ * For Markdown that is the whole file; for HTML and SVG it is the text between
+ * tags, never the markup itself. Exotic whitespace is reported but not removed
+ * here: a no-break space before a colon is French typography, and a formatted
+ * document is exactly where that distinction matters.
+ */
+function bodyText(text: string, format: MarkupFormat): string {
+  return format === 'markdown' ? text : collectTextContent(text);
+}
+
+function inspectBodyText(text: string, format: MarkupFormat): Finding[] {
+  const scan = scanText(bodyText(text, format));
+  const findings: Finding[] = scan.findings.map((finding) => ({
+    ...finding,
+    location: `document body (${finding.location})`,
+  }));
+  for (const payload of scan.decoded) {
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'confirmed',
+      location: 'document body',
+      label: 'Hidden payload in document text',
+      value: payload,
+    });
+  }
+  return findings;
+}
+
+/** Strip invisible characters from the readable text, leaving markup alone. */
+function cleanBodyText(text: string, format: MarkupFormat): string {
+  const strip = (value: string) => cleanText(value, { normalizeSpaces: false }).text;
+  return format === 'markdown' ? strip(text) : mapTextContent(text, strip);
+}
+
 /* ---------------------------------------------------------------- public -- */
 
 /** Identify a markup format from its content, since extensions are unreliable. */
@@ -297,12 +337,13 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   const findings =
     format === 'svg' ? inspectSvg(text) : format === 'html' ? inspectHtml(text) : inspectMarkdown(text);
   findings.push(...scanContent(text, 'document body'));
+  findings.push(...inspectBodyText(text, format));
   findings.push(...fingerprint(findings));
   return findings.sort(byConfidence);
 }
 
 export function redactMarkup(text: string, format: MarkupFormat): string {
-  if (format === 'svg') return redactSvg(text);
-  if (format === 'html') return redactHtml(text);
-  return redactMarkdown(text);
+  const stripped =
+    format === 'svg' ? redactSvg(text) : format === 'html' ? redactHtml(text) : redactMarkdown(text);
+  return cleanBodyText(stripped, format);
 }

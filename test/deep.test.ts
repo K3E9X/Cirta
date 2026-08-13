@@ -272,3 +272,49 @@ describe('Markdown body depth', () => {
     expect(labels(findings)).not.toContain('Attribution line');
   });
 });
+
+describe('invisible characters in PDF page text', () => {
+  const ZWSP = '​';
+
+  /** Write a content stream whose text operand is UTF-16BE, as producers do. */
+  async function pdfWithPageText(text: string) {
+    const { PDFDocument, PDFName } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([300, 200]);
+    const units = [...text].flatMap((character) => {
+      const code = character.codePointAt(0)!;
+      if (code <= 0xffff) return [code];
+      const offset = code - 0x10000;
+      return [(offset >> 10) + 0xd800, (offset & 0x3ff) + 0xdc00];
+    });
+    const hex = units.map((unit) => unit.toString(16).padStart(4, '0')).join('');
+    page.node.set(PDFName.of('Contents'), pdf.context.register(pdf.context.stream(`BT <${hex}> Tj ET`)));
+    return pdf.save();
+  }
+
+  it('decodes UTF-16BE text operands that carry no byte-order mark', async () => {
+    // Read as Latin-1 a zero-width space becomes a space plus a vertical tab,
+    // destroying the very character being looked for.
+    const { findings } = await inspectFile(await pdfWithPageText(`Bonjour,${ZWSP}${ZWSP} voici.`));
+    expect(find(findings, 'zero-width space')?.value).toBe('2 occurrences');
+  });
+
+  it('decodes a payload hidden in page text', async () => {
+    const payload = [...'ID42'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
+    const { findings } = await inspectFile(await pdfWithPageText(`Rapport${payload}`));
+    expect(find(findings, 'Hidden payload in page text')?.value).toContain('ID42');
+  });
+
+  it('says it could not remove them rather than implying it did', async () => {
+    // Rewriting page content streams would change what the document says, so
+    // these are reported and left — and the report must admit that.
+    const redacted = await redactFile(await pdfWithPageText(`Bonjour,${ZWSP} voici.`));
+    const kept = redacted.notes.find((n) => n.code === 'kept:in-content');
+    expect(kept?.detail).toContain('zero-width space');
+  });
+
+  it('ignores exotic whitespace, which is ordinary in PDF layout', async () => {
+    const { findings } = await inspectFile(await pdfWithPageText('le rapport'));
+    expect(labels(findings)).not.toContain('no-break space');
+  });
+});

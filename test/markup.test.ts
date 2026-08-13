@@ -353,9 +353,17 @@ describe('invisible characters inside document bodies', () => {
     expect(docxText(redacted.data!)).toBe('Bonjour, voici.');
   });
 
-  it('normalises exotic whitespace to a plain space', async () => {
-    const redacted = await redactFile(makeDocxBody(`le${NBSP}rapport`));
-    expect(docxText(redacted.data!)).toBe('le rapport');
+  it('keeps exotic whitespace, which is typography rather than marking', async () => {
+    // A no-break space before a colon is correct French typography. Normalising
+    // it inside a formatted document degrades the document, so the body cleaner
+    // reports it and leaves it, unlike the plain-text cleaner.
+    const redacted = await redactFile(makeDocxBody(`Objet${NBSP}: le${NBSP}rapport`));
+    expect(docxText(redacted.data!)).toBe(`Objet${NBSP}: le${NBSP}rapport`);
+  });
+
+  it('still removes zero-width characters sitting next to a no-break space', async () => {
+    const redacted = await redactFile(makeDocxBody(`Objet${NBSP}:${ZWSP} suite`));
+    expect(docxText(redacted.data!)).toBe(`Objet${NBSP}: suite`);
   });
 
   it('removes a numeric-reference escape rather than leaving the markup', async () => {
@@ -384,5 +392,62 @@ describe('invisible characters inside document bodies', () => {
       'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
     });
     expect((await inspectFile(docx)).findings).toEqual([]);
+  });
+});
+
+describe('invisible characters in markup bodies', () => {
+  const tagPayload = tagEncoded('ID42');
+
+  it('finds them in Markdown', async () => {
+    const { findings } = await inspectFile(
+      encode(`# Titre\n\nBonjour,${ZWSP}${ZWSP} voici${tagPayload}.\n`),
+      'markdown',
+    );
+    expect(find(findings, 'zero-width space')?.value).toBe('2 occurrences');
+    expect(find(findings, 'Hidden payload in document text')?.value).toContain('ID42');
+  });
+
+  it('finds them in HTML text, not in the markup', async () => {
+    const { findings } = await inspectFile(
+      encode(`<!doctype html><html><body><p>Bonjour,${ZWSP}${ZWSP} voici.</p></body></html>`),
+    );
+    expect(find(findings, 'zero-width space')?.value).toBe('2 occurrences');
+  });
+
+  it('finds them in SVG text', async () => {
+    const { findings } = await inspectFile(
+      encode(`<svg xmlns="http://www.w3.org/2000/svg"><text>Bonjour${ZWSP}${ZWSP}</text></svg>`),
+    );
+    expect(find(findings, 'zero-width space')?.value).toBe('2 occurrences');
+  });
+
+  it('removes them from Markdown while keeping the prose', async () => {
+    const redacted = await redactFile(
+      encode(`# Titre\n\nBonjour,${ZWSP}${ZWSP} voici${tagPayload}.\n`),
+      'markdown',
+    );
+    expect(decode(redacted.data!)).toBe('# Titre\n\nBonjour, voici.\n');
+    expect((await inspectFile(redacted.data!, 'markdown')).findings).toEqual([]);
+  });
+
+  it('removes them from HTML without disturbing the tags', async () => {
+    const redacted = await redactFile(
+      encode(`<!doctype html><html><body><p>Bonjour,${ZWSP} voici.</p></body></html>`),
+    );
+    const cleaned = decode(redacted.data!);
+    expect(cleaned).toContain('<p>Bonjour, voici.</p>');
+    expect(cleaned).toContain('</body></html>');
+  });
+
+  it('keeps typographic spaces in markup bodies too', async () => {
+    const redacted = await redactFile(encode(`Objet${NBSP}: le rapport\n`), 'markdown');
+    expect(decode(redacted.data!)).toBe(`Objet${NBSP}: le rapport\n`);
+  });
+
+  it('does not list a kept typographic space as an unremoved survivor', async () => {
+    // Informational findings are kept on purpose; naming them would bury the
+    // survivors that genuinely could not be removed.
+    const redacted = await redactFile(encode(`Objet${NBSP}: le rapport\n`), 'markdown');
+    expect(redacted.notes.map((n) => n.code)).not.toContain('kept:in-content');
   });
 });

@@ -134,6 +134,8 @@ const FIELD_LABEL: Record<string, string> = {
   'API request id': 'Identifiant de requête API',
   'Conversation id': 'Identifiant de conversation',
   'Absolute paths preserved in the archive': 'Chemins absolus conservés dans l’archive',
+  'Hidden payload in document text': 'Charge cachée dans le texte du document',
+  'Hidden payload in page text': 'Charge cachée dans le texte des pages',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -150,7 +152,7 @@ const VALUE_TEXT: Record<string, string> = {
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    "Métadonnées, plus un scan des flux décompressés à la recherche de secrets et d'identifiants de fournisseur. Le texte des pages n'est pas lu comme de la prose : un filigrane statistique qui s'y trouverait n'apparaîtrait pas ici.",
+    "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur, caractères invisibles). Les opérandes de chaîne PDF contiennent des codes de glyphes et non de l'Unicode : une détection dans le texte des pages est fiable, mais une absence ne prouve rien — contrairement à un DOCX, où le contrôle du corps est exact. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, plus un scan des parties à la recherche de secrets et d'identifiants de fournisseur. Si le corps contient du texte issu d'un modèle filigranant, ce signal réside dans la formulation et n'est pas affecté par le nettoyage.",
   'scope:invisible-characters-only': () =>

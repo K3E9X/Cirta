@@ -77,9 +77,18 @@ signature est en pied de page, une mention en plein corps est de la prose.
 
 ### Caractères invisibles dans le corps des documents
 
-Un espace de largeur nulle dans un paragraphe Word survit au copier-coller hors du document
-exactement comme dans un fichier texte. Le corps des DOCX, PPTX, XLSX et ODT est donc scanné et
-nettoyé comme le serait du texte collé dans l'onglet Texte — mêmes règles, mêmes préservations :
+Un espace de largeur nulle dans un paragraphe survit au copier-coller hors du document exactement
+comme dans un fichier texte. Le corps est donc scanné sur **tous** les formats, pas seulement les
+documents Office :
+
+| Format | Détection | Retrait |
+|---|---|---|
+| DOCX / PPTX / XLSX / ODT | Exacte, références numériques comprises | Oui |
+| Markdown | Exacte | Oui |
+| HTML / SVG | Exacte, texte entre balises uniquement | Oui |
+| PDF | Fiable en cas de détection, **une absence ne prouve rien** | Non — voir plus bas |
+
+Le rapport ressemble à ceci :
 
 ```
 confirmed      zero-width space                  2 occurrences
@@ -100,6 +109,27 @@ Trois précisions qui comptent :
   relations sont du bruit, pas un marquage.
 
 Les liants d'emoji et les anti-liants persans et indiens sont préservés dans le corps comme ailleurs.
+
+**Les espaces typographiques sont conservés dans les documents.** Une espace insécable avant un
+deux-points est de la typographie française correcte : la normaliser dégraderait le document. Elle
+est donc signalée en `informatif` et laissée en place — contrairement à l'onglet Texte, où le
+nettoyage d'un extrait collé les normalise. La différence est délibérée.
+
+**Le cas du PDF est plus faible, et c'est structurel.** Un opérande de chaîne PDF contient des codes
+de glyphes, pas de l'Unicode. Avec un encodage simple les deux coïncident, mais une police
+sous-ensemble intégrée les associe arbitrairement et seule sa table `ToUnicode` permet de revenir en
+arrière. Une détection est donc réelle, une absence ne prouve rien — la note de portée le dit. Et le
+retrait est impossible sans réécrire le flux de contenu, donc le rapport annonce explicitement ce
+qu'il n'a pas pu retirer :
+
+```
+Not removed: zero-width space, Hidden payload in page text.
+```
+
+Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leurs chaînes en UTF-16BE
+**sans marque d'ordre d'octets**. Lues en Latin-1, un espace de largeur nulle devient une espace
+suivie d'une tabulation verticale — le caractère recherché, détruit silencieusement. La présence d'un
+octet NUL, impossible dans une vraie chaîne mono-octet, sert donc à reconnaître cette forme.
 
 ### Secrets laissés dans les fichiers
 
@@ -231,7 +261,8 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
 | Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
-| Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs |
+| Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
+| Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |
 
 ### Le nettoyage est mesuré, pas affirmé
 
@@ -353,7 +384,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 150 tests
+npm test           # 162 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

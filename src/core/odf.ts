@@ -215,7 +215,7 @@ export function redactOdf(data: Uint8Array): RedactResult {
 
   for (const path of Object.keys(parts)) {
     if (!isBodyPart(path)) continue;
-    parts[path] = strToU8(mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text).text));
+    parts[path] = strToU8(mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text, { normalizeSpaces: false }).text));
   }
 
   for (const path of findMediaParts(parts)) {

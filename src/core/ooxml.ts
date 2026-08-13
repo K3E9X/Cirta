@@ -430,7 +430,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   if (cleanBodyText) {
     for (const path of Object.keys(parts)) {
       if (!isBodyPart(path)) continue;
-      const cleaned = mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text).text);
+      const cleaned = mapTextContent(strFromU8(parts[path]!), (text) => cleanText(text, { normalizeSpaces: false }).text);
       parts[path] = strToU8(cleaned);
     }
   }

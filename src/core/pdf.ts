@@ -14,6 +14,7 @@ import type { Finding, InspectResult, RedactResult, Note } from './types.js';
 import { byConfidence } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
+import { scanText } from './text.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -110,10 +111,25 @@ function extractPdfStrings(stream: string): string {
   return pieces.join(' ');
 }
 
-/** PDF text strings are UTF-16BE when they carry a byte-order mark, else 8-bit. */
+/**
+ * Decode a PDF text string.
+ *
+ * The spec says UTF-16BE when a byte-order mark is present and 8-bit
+ * otherwise, but producers routinely emit UTF-16BE with no mark at all. Read as
+ * Latin-1 that turns "Bonjour" into NUL-separated letters, and a zero-width
+ * space (U+200B) into a space followed by a vertical tab — the exact character
+ * this is meant to catch, silently destroyed.
+ */
 function decodePdfText(bytes: Uint8Array): string {
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
     return new TextDecoder('utf-16be', { fatal: false }).decode(bytes.subarray(2));
+  }
+  // A NUL byte does not occur in a real single-byte text string, but appears in
+  // every ASCII character of an unmarked UTF-16BE one. That is a far steadier
+  // signal than counting zero high bytes, which flips on the mix of scripts in
+  // the string rather than on its encoding.
+  if (bytes.length % 2 === 0 && bytes.includes(0)) {
+    return new TextDecoder('utf-16be', { fatal: false }).decode(bytes);
   }
   return new TextDecoder('latin1').decode(bytes);
 }
@@ -147,12 +163,42 @@ function scanStreams(doc: PDFDocument): Finding[] {
     // Scan both the raw stream (XMP, JavaScript, attachments) and the decoded
     // string operands (page text), since the two hide different things.
     const text = `${raw}\n${extractPdfStrings(raw)}`;
-    for (const finding of scanContent(text, `stream ${ref.toString()}`)) {
+    const location = `stream ${ref.toString()}`;
+    const candidates = [...scanContent(text, location), ...scanPdfPageText(raw, location)];
+    for (const finding of candidates) {
       const key = `${finding.label}:${finding.value}`;
       if (seen.has(key)) continue;
       seen.add(key);
       findings.push(finding);
     }
+  }
+  return findings;
+}
+
+/**
+ * Invisible characters in the decoded page text.
+ *
+ * This is weaker than the equivalent check on a DOCX, and deliberately so.
+ * A PDF string operand holds glyph codes, not Unicode: with a simple encoding
+ * they coincide, but an embedded subset font maps them arbitrarily and only its
+ * ToUnicode CMap can undo that. So a hit here is real, while a miss proves
+ * nothing — which is why the scope note says the absence of findings in a PDF
+ * body is not evidence of a clean body.
+ */
+function scanPdfPageText(stream: string, location: string): Finding[] {
+  const scan = scanText(extractPdfStrings(stream));
+  const findings: Finding[] = scan.findings
+    // Exotic spaces are far too common in PDF text layout to be meaningful.
+    .filter((finding) => finding.confidence !== 'informational')
+    .map((finding) => ({ ...finding, location: `${location} (${finding.location})` }));
+  for (const payload of scan.decoded) {
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'confirmed',
+      location,
+      label: 'Hidden payload in page text',
+      value: payload,
+    });
   }
   return findings;
 }

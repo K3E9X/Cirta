@@ -180,9 +180,13 @@ async function noteSurvivors(result: RedactResult, hint?: string): Promise<Redac
   } catch {
     return result;
   }
-  if (survivors.length === 0) return result;
+  // Informational findings are the ones deliberately kept — typographic spaces,
+  // software names in a field that is meant to name software. Listing them as
+  // "not removed" would bury the survivors that actually matter.
+  const notable = survivors.filter((f) => f.confidence !== 'informational');
+  if (notable.length === 0) return result;
 
-  const labels = [...new Set(survivors.map((f) => f.label))];
+  const labels = [...new Set(notable.map((f) => f.label))];
   return {
     ...result,
     notes: [...result.notes, { code: 'kept:in-content', detail: labels.join(', ') }],
