@@ -29,6 +29,25 @@ function check(label, condition, detail = '') {
   }
 }
 
+/** Run the CLI with bytes on stdin, keeping stdout and stderr distinguishable. */
+function runCliWithInput(args, input) {
+  try {
+    const stdout = execFileSync(process.execPath, [CLI, ...args], {
+      input,
+      encoding: 'buffer',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+    });
+    return { status: 0, stdout: stdout.toString('utf8'), output: stdout.toString('utf8') };
+  } catch (error) {
+    return {
+      status: error.status ?? 1,
+      stdout: (error.stdout ?? Buffer.alloc(0)).toString('utf8'),
+      output: `${error.stdout ?? ''}${error.stderr ?? ''}`,
+    };
+  }
+}
+
 function runCli(args) {
   try {
     return {
@@ -133,6 +152,12 @@ try {
   });
   check('text --clean strips invisible characters', text === 'Bonjour, voici le texte.',
     JSON.stringify(text));
+
+  // --- binary input is refused, not silently mangled -----------------------
+  const binary = runCliWithInput(['text', '--clean'], await readFile(pdfPath));
+  check('text refuses binary input', binary.status === 2, `status ${binary.status}`);
+  check('text says why it refused', /not text|UTF-8/.test(binary.output), binary.output);
+  check('text writes nothing when refusing', binary.stdout === '', JSON.stringify(binary.stdout));
 
   // --- exit codes ---------------------------------------------------------
   check('missing file exits non-zero', runCli(['inspect', join(dir, 'nope.pdf')]).status !== 0);

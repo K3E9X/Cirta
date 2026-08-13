@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scanText, cleanText } from '../src/core/text.js';
+import { scanText, cleanText, decodeTextInput, BinaryInputError } from '../src/core/text.js';
 import { tagEncode, variationEncode } from './fixtures.js';
 
 // Invisible characters are written as escapes throughout: a literal U+200B in
@@ -97,5 +97,64 @@ describe('cleanText', () => {
   it('leaves clean text byte-identical', () => {
     const input = 'Bonjour, voici le document demandé.\n\nCordialement,\nL.';
     expect(cleanText(input).text).toBe(input);
+  });
+});
+
+describe('binary input', () => {
+  const bytes = (...values: number[]) => new Uint8Array(values);
+
+  it('decodes ordinary UTF-8 text', () => {
+    expect(decodeTextInput(new TextEncoder().encode('Bonjour, café ☕'))).toBe('Bonjour, café ☕');
+  });
+
+  it('accepts an empty input', () => {
+    expect(decodeTextInput(new Uint8Array(0))).toBe('');
+  });
+
+  it('refuses input containing NUL bytes', () => {
+    expect(() => decodeTextInput(bytes(0x68, 0x00, 0x69))).toThrow(BinaryInputError);
+  });
+
+  it('refuses invalid UTF-8', () => {
+    // 0xC3 starts a two-byte sequence that never completes.
+    expect(() => decodeTextInput(bytes(0x68, 0xc3, 0x28))).toThrow(BinaryInputError);
+  });
+
+  it('refuses a PDF, whose header alone looks like text', () => {
+    // "%PDF-1.7" is ASCII, so the guard has to reach the binary body.
+    const pdf = new Uint8Array([...new TextEncoder().encode('%PDF-1.7\n'), 0x00, 0xff, 0xfe]);
+    expect(() => decodeTextInput(pdf)).toThrow(BinaryInputError);
+  });
+
+  it('explains why the input was refused', () => {
+    expect(() => decodeTextInput(bytes(0x00))).toThrow(/NUL/);
+    expect(() => decodeTextInput(bytes(0xc3, 0x28))).toThrow(/UTF-8/);
+  });
+});
+
+describe('text reordering controls', () => {
+  const RLO = '‮';
+  const PDF_MARK = '‬';
+
+  it('calls out bidi overrides separately from other invisible characters', () => {
+    const scan = scanText(`const isAdmin = ${RLO}false${PDF_MARK};`);
+    const callout = scan.findings.find((f) => f.label === 'Text reordering controls');
+    expect(callout?.confidence).toBe('confirmed');
+    expect(callout?.value).toContain('CVE-2021-42574');
+  });
+
+  it('puts the callout first, ahead of ordinary invisible characters', () => {
+    const scan = scanText(`a${ZWSP}b${RLO}c${PDF_MARK}`);
+    expect(scan.findings[0]?.label).toBe('Text reordering controls');
+  });
+
+  it('says nothing when no reordering control is present', () => {
+    const scan = scanText(`a${ZWSP}b`);
+    expect(scan.findings.map((f) => f.label)).not.toContain('Text reordering controls');
+  });
+
+  it('removes the controls when cleaning', () => {
+    const { text } = cleanText(`const isAdmin = ${RLO}false${PDF_MARK};`);
+    expect(text).toBe('const isAdmin = false;');
   });
 });

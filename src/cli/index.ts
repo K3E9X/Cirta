@@ -14,6 +14,8 @@ import {
   scanText,
   cleanText,
   UnsupportedFormatError,
+  decodeTextInput,
+  BinaryInputError,
   type Confidence,
   type Finding,
   type InspectResult,
@@ -64,8 +66,8 @@ ${bold('Usage')}
   cirta redact  <path...> [options]  Write a copy with that metadata removed
   cirta text [--clean]               Read text on stdin; report or clean it
 
-Paths may be files or directories; directories are walked recursively for
-.pdf, .pptx, .docx and .xlsx.
+Paths may be files or directories. Directories are walked recursively for
+.pdf, .pptx, .docx, .xlsx, .odt, .ods, .odp, .svg, .html and .md.
 
 ${bold('Options')}
   -o, --output <path>   Destination for a single redacted file
@@ -151,7 +153,25 @@ function printFindings(findings: Finding[]): void {
   }
 }
 
-const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.pptx', '.docx', '.xlsx']);
+const SUPPORTED_EXTENSIONS = new Set([
+  '.pdf',
+  '.pptx', '.docx', '.xlsx',
+  '.odt', '.ods', '.odp',
+  '.svg', '.html', '.htm',
+  '.md', '.markdown',
+]);
+
+/**
+ * Text formats whose bytes are ambiguous: a Markdown file without front matter
+ * is indistinguishable from plain text, so the extension breaks the tie.
+ */
+function formatHint(path: string): string | undefined {
+  const ext = extname(path).toLowerCase();
+  if (ext === '.md' || ext === '.markdown') return 'markdown';
+  if (ext === '.svg') return 'svg';
+  if (ext === '.html' || ext === '.htm') return 'html';
+  return undefined;
+}
 
 /**
  * Expand directory arguments into the supported files they contain, so that
@@ -191,8 +211,10 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Document properties only. If the body contains text from a watermarking model, that signal lives in the wording and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
+  'scope:markup-metadata-only': () =>
+    'Markup metadata only. The body text is not analysed, and a statistical model watermark in it would not show up here.',
   'removed:c2pa': (detail) =>
-    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction.`,
+    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
@@ -216,7 +238,7 @@ async function runInspect(args: Args): Promise<number> {
 
   for (const file of args.files) {
     try {
-      const result = await inspectFile(new Uint8Array(await readFile(file)));
+      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file));
       results.push({ file, result });
       if (!args.json) {
         console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
@@ -263,7 +285,7 @@ async function runRedact(args: Args): Promise<number> {
   let failures = 0;
   for (const file of args.files) {
     try {
-      const result = await redactFile(new Uint8Array(await readFile(file)));
+      const result = await redactFile(new Uint8Array(await readFile(file)), formatHint(file));
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       await writeFile(destination, result.data!);
 
@@ -284,14 +306,26 @@ async function runRedact(args: Args): Promise<number> {
   return failures > 0 ? 1 : 0;
 }
 
-async function readStdin(): Promise<string> {
+async function readStdin(): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
+  return new Uint8Array(Buffer.concat(chunks));
 }
 
 async function runText(args: Args): Promise<number> {
-  const input = await readStdin();
+  const raw = await readStdin();
+
+  let input: string;
+  try {
+    input = decodeTextInput(raw);
+  } catch (error) {
+    if (!(error instanceof BinaryInputError)) throw error;
+    console.error(red(`cirta text: ${error.message}.`));
+    console.error(
+      dim('Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead.'),
+    );
+    return 2;
+  }
 
   if (args.clean) {
     const result = cleanText(input);

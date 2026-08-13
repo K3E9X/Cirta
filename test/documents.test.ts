@@ -5,9 +5,10 @@ import { inspectFile, redactFile, detectFormat, UnsupportedFormatError } from '.
 import { makePdf, makePptx, makeDocx } from './fixtures.js';
 
 describe('detectFormat', () => {
-  it('identifies formats by magic bytes, not extension', async () => {
+  it('identifies formats by content, not extension', async () => {
     expect(detectFormat(await makePdf())).toBe('pdf');
-    expect(detectFormat(makePptx())).toBe('docx'); // ZIP; refined during inspection
+    expect(detectFormat(makePptx())).toBe('pptx');
+    expect(detectFormat(makeDocx())).toBe('docx');
     expect(detectFormat(new Uint8Array([1, 2, 3, 4]))).toBeUndefined();
   });
 
