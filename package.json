@@ -1,0 +1,34 @@
+{
+  "name": "cirta",
+  "version": "0.1.0",
+  "description": "Inspect and strip provenance metadata from PDF, PPTX and DOCX files, and invisible Unicode from text.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "cirta": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:web": "vite build",
+    "dev:web": "vite",
+    "cli": "node --experimental-strip-types src/cli/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}
