@@ -1,7 +1,9 @@
 # Cirta
 
-Inspecte et retire les métadonnées de provenance des **PDF, PPTX, DOCX et XLSX**, ainsi que les
-**caractères Unicode invisibles** dans le texte. Disponible en interface web et en ligne de commande.
+Inspecte et retire les métadonnées de provenance des **PDF, documents Office et OpenDocument, SVG,
+HTML et Markdown**, l'**Exif des images intégrées**, et les **caractères Unicode invisibles** dans le
+texte. Reconstitue aussi les **traces de l'outil producteur** — assistant nommé, système, nom de
+compte, répertoire de travail. Disponible en interface web et en ligne de commande.
 
 Tout s'exécute localement. L'interface web ne fait aucune requête réseau : aucun document ne quitte
 votre machine.
@@ -12,7 +14,12 @@ votre machine.
 |---|---|
 | PDF | Dictionnaire `/Info`, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes intégrées |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
-| Images intégrées | Exif (dont GPS), XMP, IPTC/Photoshop et commentaires des JPEG ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` des PNG |
+| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature |
+| SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
+| HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
+| Markdown | Clés de front matter nommant un auteur, un outil, un modèle ou une session |
+| JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
+| C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
 
 ### Traces de l'outil producteur
@@ -51,6 +58,14 @@ comptent pas. Chaque élément porte donc son propre niveau, et les rapports son
 | `probable` | Information réelle sur vous ou votre travail, pas nécessairement sensible | Titre, objet, horodatages, numéro de révision, temps d'édition, miniature, `rsid` |
 | `informatif` | Désigne le logiciel, pas l'auteur | Application productrice, version, espaces typographiques non-ASCII |
 
+### Les trois mécanismes annoncés par Anthropic
+
+| Mécanisme | Couvert |
+|---|---|
+| Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
+| Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
+| Biais dans la sélection des tokens | **Non**, et c'est structurel : voir ci-dessous |
+
 ## Ce qu'il ne fait pas, et pourquoi
 
 **Il ne détecte ni ne retire les filigranes statistiques des modèles de langage.**
@@ -75,6 +90,33 @@ comme dans l'autre.
 Nettoyer les caractères invisibles d'un texte **n'a aucun effet** sur un filigrane statistique. Ce
 sont deux mécanismes indépendants, et les confondre est l'erreur la plus répandue dans ce domaine.
 
+### Ce que dit la littérature sur l'atténuation
+
+La reformulation est l'attaque étudiée, et la recherche est précise sur son efficacité réelle.
+[Krishna et al. (NeurIPS 2023)](https://arxiv.org/abs/2303.13408) font tomber DetectGPT de 70,3 % à
+4,6 % de détection à 1 % de faux positifs avec un paraphraseur dédié.
+[Sadasivan et al.](https://arxiv.org/abs/2303.11156) font chuter le taux de vrais positifs d'un
+filigrane de 99,8 % à 9,7 % après cinq reformulations récursives, sur des passages d'environ
+300 tokens.
+
+Mais le résultat le plus important pour un usage quotidien est celui que ces deux articles ne disent
+pas, et que le suivi de
+[Kirchenbauer et al. (ICLR 2024)](https://arxiv.org/abs/2306.04634) établit : **la reformulation
+dilue le signal, elle ne l'efface pas**. À 1e-5 de faux positifs, une reformulation humaine soutenue
+laissait encore le filigrane détectable après environ **800 tokens observés**. La fiabilité est une
+fonction de la longueur : un extrait court paraît propre, un document long accumule des n-grammes
+résiduels.
+
+C'est la raison pour laquelle Cirta ne propose pas de couche de réécriture. Elle ne pourrait produire
+qu'une affirmation invérifiable, et la littérature indique qu'elle serait fausse sur les documents
+longs. Pour un courriel que vous relisez et signez, la longueur joue déjà en votre faveur sans
+outillage.
+
+À surveiller : [SemStamp](https://aclanthology.org/2024.naacl-long.226/) (NAACL 2024) et
+[PostMark](https://aclanthology.org/2024.emnlp-main.506/) (EMNLP 2024) marquent au niveau de la
+phrase et du sens plutôt que du token. Ils ne sont pas déployés en production aujourd'hui ; s'ils le
+sont, l'atténuation par reformulation devient nettement plus difficile.
+
 ### Sur le retrait des manifestes C2PA
 
 Retirer un manifeste C2PA ne rend pas un fichier « propre » — il le rend **inconnu**. Un vérificateur
@@ -82,6 +124,12 @@ distingue trois états : manifeste valide (provenance prouvée), manifeste alté
 vérification, altération visible), manifeste absent (aucune conclusion). Là où le C2PA se généralise,
 l'absence devient un signal en soi. Cirta signale explicitement chaque retrait de manifeste plutôt
 que de l'effectuer en silence.
+
+Second point, plus rarement dit : le C2PA prévoit deux modes de liaison. Le *hard binding* est le
+manifeste signé dans le conteneur — c'est celui que Cirta retire, et le retrait est vérifiable. Le
+*soft binding* est une marque imperceptible dans le contenu lui-même, qui permet à un vérificateur de
+retrouver le manifeste à distance. **Un manifeste retiré ne signifie donc pas qu'il ne reste aucune
+provenance.** Cirta le rappelle dans son rapport de nettoyage.
 
 ## Interface web
 
@@ -170,7 +218,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 63 tests
+npm test           # 105 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/
@@ -182,11 +230,35 @@ pour un domaine personnalisé.
 
 ## Références
 
-La classification par niveaux de signalement et l'audit récursif de dossier sont repris de
-[watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) (MIT), qui a introduit ces
-deux idées dans sa version 0.4.0. Ce projet ne reprend pas sa couche de retrait par régénération en
-domaine pixel : elle relève d'une catégorie différente — reconstruire une image pour détruire un
-filigrane plutôt qu'effacer un champ — et elle n'a pas d'objet pour des PDF ou des documents Office.
+Plusieurs idées viennent de [watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
+(MIT) et de l'article de son auteur sur les quatre couches du problème : la classification par niveaux
+de signalement, l'audit récursif de dossier, le refus des entrées binaires dans les outils texte, et
+la liste des conteneurs à couvrir. Ce projet ne reprend pas sa couche de retrait par régénération en
+domaine pixel ni sa couche de réécriture statistique : toutes deux produisent des affirmations
+invérifiables localement, et n'ont pas d'objet pour des PDF ou des documents Office.
+
+Travaux cités dans ce README :
+
+1. Kirchenbauer, J., Geiping, J., Wen, Y., Katz, J., Miers, I., & Goldstein, T. (2023).
+   [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226). ICML 2023.
+2. Dathathri, S., See, A., Ghaisas, S., Huang, P.-S., et al. (2024).
+   [Scalable watermarking for identifying large language model outputs](https://www.nature.com/articles/s41586-024-08025-4)
+   (SynthID-Text). *Nature*, 634, 818-823.
+3. Kirchenbauer, J., et al. (2024).
+   [On the Reliability of Watermarks for Large Language Models](https://arxiv.org/abs/2306.04634). ICLR 2024.
+4. Krishna, K., Song, Y., Karpinska, M., Wieting, J., & Iyyer, M. (2023).
+   [Paraphrasing evades detectors of AI-generated text, but retrieval is an effective defense](https://arxiv.org/abs/2303.13408).
+   NeurIPS 2023.
+5. Sadasivan, V. S., Kumar, A., Balasubramanian, S., Wang, W., & Feizi, S. (2023).
+   [Can AI-Generated Text be Reliably Detected?](https://arxiv.org/abs/2303.11156)
+6. Hou, A. B., et al. (2024). [SemStamp](https://aclanthology.org/2024.naacl-long.226/). NAACL 2024.
+7. Chang, Y., et al. (2024). [PostMark](https://aclanthology.org/2024.emnlp-main.506/). EMNLP 2024.
+8. Boucher, N., & Anderson, R. (2023).
+   [Trojan Source: Invisible Vulnerabilities](https://arxiv.org/abs/2111.00169). IEEE S&P ; CVE-2021-42574.
+9. Coalition for Content Provenance and Authenticity.
+   [C2PA specifications](https://c2pa.org/specifications/).
+10. Règlement (UE) 2024/1689 (AI Act),
+    [Article 50](https://artificialintelligenceact.eu/article/50/).
 
 ## Licence
 

@@ -35,6 +35,20 @@ const JPEG_STRIP_MARKERS = new Set([
   0xfffe, // COM   — free-text comment
 ]);
 
+/**
+ * APP11 is where C2PA stores its signed manifest, wrapped in JUMBF boxes.
+ * It is handled separately from the list above because the same marker also
+ * carries JPEG XT extension data, which is picture information rather than
+ * provenance — stripping that unconditionally would degrade HDR images.
+ */
+const JPEG_APP11 = 0xffeb;
+
+function isJumbf(segment: JpegSegment): boolean {
+  // A C2PA APP11 body opens with the "JP" common identifier, then box headers.
+  const head = ASCII.decode(segment.body.subarray(0, 64));
+  return head.startsWith('JP') && /jumb|jumd|c2pa/i.test(head);
+}
+
 interface JpegSegment {
   marker: number;
   start: number;
@@ -64,7 +78,9 @@ function jpegSegments(data: Uint8Array): { segments: JpegSegment[]; scanStart: n
 
 const ASCII = new TextDecoder('latin1');
 
-function describeJpegSegment(segment: JpegSegment): { label: string; hasGps: boolean } | undefined {
+function describeJpegSegment(
+  segment: JpegSegment,
+): { label: string; hasGps: boolean; isC2pa?: boolean } | undefined {
   const head = ASCII.decode(segment.body.subarray(0, 32));
   if (segment.marker === 0xffe1) {
     if (head.startsWith('Exif')) {
@@ -78,8 +94,17 @@ function describeJpegSegment(segment: JpegSegment): { label: string; hasGps: boo
   }
   if (segment.marker === 0xffed) return { label: 'IPTC/Photoshop metadata', hasGps: false };
   if (segment.marker === 0xfffe) return { label: 'Embedded comment', hasGps: false };
+  if (segment.marker === JPEG_APP11 && isJumbf(segment)) {
+    return { label: 'C2PA content credentials', hasGps: false, isC2pa: true };
+  }
   if (JPEG_STRIP_MARKERS.has(segment.marker)) return { label: 'Application metadata', hasGps: false };
   return undefined;
+}
+
+/** Segments removed by {@link stripImageMetadata}. */
+function shouldStrip(segment: JpegSegment): boolean {
+  if (JPEG_STRIP_MARKERS.has(segment.marker)) return true;
+  return segment.marker === JPEG_APP11 && isJumbf(segment);
 }
 
 /** Scan for a 16-bit value in both byte orders, since TIFF headers vary. */
@@ -94,7 +119,7 @@ function containsUint16(data: Uint8Array, value: number): boolean {
 
 function stripJpeg(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   const { segments, scanStart } = jpegSegments(data);
-  const keep = segments.filter((s) => !JPEG_STRIP_MARKERS.has(s.marker));
+  const keep = segments.filter((s) => !shouldStrip(s));
   if (keep.length === segments.length) return undefined;
 
   let size = 2 + (data.length - scanStart);
@@ -114,8 +139,8 @@ function stripJpeg(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
 
 /* ------------------------------------------------------------------- PNG -- */
 
-/** PNG ancillary chunks holding text, timestamps or Exif. */
-const PNG_STRIP_CHUNKS = new Set(['tEXt', 'iTXt', 'zTXt', 'eXIf', 'tIME']);
+/** PNG ancillary chunks holding text, timestamps, Exif or a C2PA manifest. */
+const PNG_STRIP_CHUNKS = new Set(['tEXt', 'iTXt', 'zTXt', 'eXIf', 'tIME', 'caBX']);
 
 interface PngChunk {
   type: string;
@@ -173,13 +198,16 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       const described = describeJpegSegment(segment);
       if (!described) continue;
       findings.push({
-        kind: 'identity',
+        kind: described.isC2pa ? 'provenance' : 'identity',
         // GPS coordinates place the author somewhere specific; the rest is
         // device and capture data that is identifying but less pointed.
-        confidence: described.hasGps ? 'confirmed' : 'probable',
+        confidence: described.hasGps || described.isC2pa ? 'confirmed' : 'probable',
         location,
         label: described.label,
-        value: `${segment.end - segment.start} bytes`,
+        value: described.isC2pa
+          ? 'signed provenance manifest'
+          : `${segment.end - segment.start} bytes`,
+        ...(described.isC2pa ? { affectsVerifiability: true } : {}),
       });
     }
     return findings;
@@ -187,6 +215,17 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
 
   for (const chunk of pngChunks(data)) {
     if (!PNG_STRIP_CHUNKS.has(chunk.type)) continue;
+    if (chunk.type === 'caBX') {
+      findings.push({
+        kind: 'provenance',
+        confidence: 'confirmed',
+        location,
+        label: 'C2PA content credentials',
+        value: 'signed provenance manifest',
+        affectsVerifiability: true,
+      });
+      continue;
+    }
     findings.push({
       kind: chunk.type === 'tIME' ? 'timestamp' : 'identity',
       confidence: chunk.type === 'eXIf' ? 'confirmed' : 'probable',
@@ -208,4 +247,14 @@ export function stripImageMetadata(data: Uint8Array): Uint8Array<ArrayBuffer> | 
   if (kind === 'jpeg') return stripJpeg(data);
   if (kind === 'png') return stripPng(data);
   return undefined;
+}
+
+/** True when the image carries a signed C2PA manifest. */
+export function hasC2pa(data: Uint8Array): boolean {
+  const kind = detectImageKind(data);
+  if (kind === 'jpeg') {
+    return jpegSegments(data).segments.some((s) => s.marker === JPEG_APP11 && isJumbf(s));
+  }
+  if (kind === 'png') return pngChunks(data).some((c) => c.type === 'caBX');
+  return false;
 }

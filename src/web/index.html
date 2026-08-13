@@ -38,8 +38,8 @@
       <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
         <div id="dropzone" class="dropzone" tabindex="0" role="button">
           <p class="dropzone-title">Déposez un fichier ici</p>
-          <p class="dropzone-hint">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX</p>
-          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx" multiple hidden />
+          <p class="dropzone-hint">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG</p>
+          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.jpg,.jpeg,.png" multiple hidden />
         </div>
         <div id="file-results" class="results"></div>
       </section>
@@ -72,7 +72,12 @@
               <li>Liens vers des chemins locaux ou des partages réseau</li>
               <li>Diapositives masquées et notes du présentateur</li>
               <li><strong>Traces de l'outil producteur</strong> : assistant ou bibliothèque nommés, système d'exploitation, nom de compte, répertoire temporaire, identifiant de session</li>
-              <li>Manifestes C2PA lorsqu'ils sont présents</li>
+              <li>OpenDocument : <code>meta.xml</code>, propriétés utilisateur, miniature</li>
+              <li>SVG : bloc <code>&lt;metadata&gt;</code>, espaces de noms d'éditeur, commentaires de génération</li>
+              <li>HTML : balises <code>generator</code> et <code>author</code>, commentaires</li>
+              <li>Markdown : clés de front matter nommant un auteur, un outil ou un modèle</li>
+              <li>JPEG et PNG autonomes : Exif, XMP, IPTC, commentaires</li>
+              <li>Manifestes C2PA : PDF, Office, OpenDocument, SVG, et images (JUMBF <code>APP11</code>, chunk <code>caBX</code>)</li>
               <li>Caractères Unicode invisibles dans le texte, avec décodage des charges stéganographiques</li>
             </ul>
           </div>

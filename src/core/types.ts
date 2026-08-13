@@ -8,7 +8,20 @@
  * Both are purely local; nothing in this package performs network I/O.
  */
 
-export type Format = 'pdf' | 'pptx' | 'docx' | 'xlsx' | 'text';
+export type Format =
+  | 'pdf'
+  | 'pptx'
+  | 'docx'
+  | 'xlsx'
+  | 'odt'
+  | 'ods'
+  | 'odp'
+  | 'svg'
+  | 'html'
+  | 'markdown'
+  | 'jpeg'
+  | 'png'
+  | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
 export type FindingKind =
@@ -78,6 +91,10 @@ export type NoteCode =
   | 'scope:ooxml-metadata-only'
   /** Only invisible characters were examined. */
   | 'scope:invisible-characters-only'
+  /** Only markup metadata was examined; the body text was not. */
+  | 'scope:markup-metadata-only'
+  /** Only image container metadata was examined; the pixels were not. */
+  | 'scope:image-metadata-only'
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
   | 'removed:c2pa'
   /** Reported items that are document content, not metadata, and were left alone. */

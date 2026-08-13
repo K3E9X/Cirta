@@ -129,6 +129,34 @@ function isFunctional(cp: number, prev: number | undefined, next: number | undef
   }
 }
 
+export class BinaryInputError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'BinaryInputError';
+  }
+}
+
+/**
+ * Decode bytes as text, refusing anything that is not.
+ *
+ * Without this guard, piping a document into the text cleaner silently
+ * destroys it: the bytes are decoded lossily, invisible-character removal is
+ * applied to the wreckage, and the result is written back out. A PDF that goes
+ * through it comes out larger and unparseable. Refusing is the only safe
+ * answer, because there is no way to put the lost bytes back.
+ */
+export function decodeTextInput(data: Uint8Array): string {
+  // A NUL byte does not occur in text and is the cheapest reliable signal.
+  if (data.includes(0)) {
+    throw new BinaryInputError('input contains NUL bytes, so it is not text');
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(data);
+  } catch {
+    throw new BinaryInputError('input is not valid UTF-8');
+  }
+}
+
 export interface TextScan {
   findings: Finding[];
   /** Payloads recovered from steganographic encodings, if any. */
@@ -196,6 +224,21 @@ export function scanText(input: string): TextScan {
       location: `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`,
       label: name,
       value: `${count} occurrence${count > 1 ? 's' : ''}`,
+    });
+  }
+
+  // Bidi overrides are not just untidy. Boucher & Anderson showed they can
+  // reorder how a reviewer reads source code while the compiler sees something
+  // else (Trojan Source, CVE-2021-42574), so they are called out separately
+  // rather than buried among the other format controls.
+  const bidi = carriers.filter((cp) => (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069));
+  if (bidi.length) {
+    findings.unshift({
+      kind: 'invisible-character',
+      confidence: 'confirmed',
+      location: 'bidirectional controls',
+      label: 'Text reordering controls',
+      value: `${bidi.length} control${bidi.length > 1 ? 's' : ''} that can make text display differently from how it is stored (CVE-2021-42574)`,
     });
   }
 
