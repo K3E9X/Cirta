@@ -65,6 +65,11 @@ function findMediaParts(parts: Parts): string[] {
   return Object.keys(parts).filter((p) => /^Pictures\//.test(p));
 }
 
+/** Locate a C2PA provenance manifest if the producer embedded one. */
+function findC2paParts(parts: Parts): string[] {
+  return Object.keys(parts).filter((p) => /c2pa|contentcredentials|content_credentials/i.test(p));
+}
+
 export function inspectOdf(data: Uint8Array): InspectResult {
   const parts = unzipSync(data);
   const format = detectOdfFormat(parts);
@@ -113,6 +118,17 @@ export function inspectOdf(data: Uint8Array): InspectResult {
     findings.push(...inspectImage(parts[path]!, path));
   }
 
+  for (const path of findC2paParts(parts)) {
+    findings.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: path,
+      label: 'C2PA provenance manifest',
+      value: 'signed content credentials',
+      affectsVerifiability: true,
+    });
+  }
+
   notes.push({ code: 'scope:ooxml-metadata-only' });
   findings.push(...fingerprint(findings));
 
@@ -157,6 +173,11 @@ export function redactOdf(data: Uint8Array): RedactResult {
   for (const path of findMediaParts(parts)) {
     const stripped = stripImageMetadata(parts[path]!);
     if (stripped) parts[path] = stripped;
+  }
+
+  for (const path of findC2paParts(parts)) {
+    delete parts[path];
+    notes.push({ code: 'removed:c2pa', detail: path });
   }
 
   notes.push(...before.notes);

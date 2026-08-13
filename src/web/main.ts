@@ -96,6 +96,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Assistant or agent named in metadata': 'Assistant ou agent nommé dans les métadonnées',
   'Document generated programmatically': 'Document généré par programme',
   'Text reordering controls': 'Contrôles de réordonnancement du texte',
+  'C2PA content credentials': 'Content Credentials C2PA',
   'SVG metadata block': 'Bloc de métadonnées SVG',
   'Editor namespace': 'Espace de noms de l’éditeur',
   'Generator comment': 'Commentaire de génération',
@@ -145,6 +146,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     "Caractères invisibles uniquement. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
     "Métadonnées du balisage uniquement. Le texte du corps n'est pas analysé : un filigrane statistique qui s'y trouverait n'apparaîtrait pas ici.",
+  'scope:image-metadata-only': () =>
+    "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
   'removed:c2pa': (detail) =>
     `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. À noter : le C2PA prévoit aussi le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance. Un manifeste retiré ne signifie donc pas qu'il ne reste aucune provenance.`,
   'kept:content': (detail) =>
@@ -195,6 +198,8 @@ const MIME: Record<Format, string> = {
   svg: 'image/svg+xml',
   html: 'text/html',
   markdown: 'text/markdown',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
   text: 'text/plain',
 };
 

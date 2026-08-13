@@ -18,7 +18,8 @@ votre machine.
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
 | Markdown | Clés de front matter nommant un auteur, un outil, un modèle ou une session |
-| Images intégrées | Exif (dont GPS), XMP, IPTC/Photoshop et commentaires des JPEG ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` des PNG |
+| JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
+| C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
 
 ### Traces de l'outil producteur
@@ -56,6 +57,14 @@ comptent pas. Chaque élément porte donc son propre niveau, et les rapports son
 | `confirmé` | Donnée identifiante littérale, lue directement dans un champ connu | Auteur, société, responsable, chemin de modèle contenant votre nom de session, propriétés personnalisées, auteurs de commentaires, manifeste C2PA |
 | `probable` | Information réelle sur vous ou votre travail, pas nécessairement sensible | Titre, objet, horodatages, numéro de révision, temps d'édition, miniature, `rsid` |
 | `informatif` | Désigne le logiciel, pas l'auteur | Application productrice, version, espaces typographiques non-ASCII |
+
+### Les trois mécanismes annoncés par Anthropic
+
+| Mécanisme | Couvert |
+|---|---|
+| Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
+| Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
+| Biais dans la sélection des tokens | **Non**, et c'est structurel : voir ci-dessous |
 
 ## Ce qu'il ne fait pas, et pourquoi
 
@@ -209,7 +218,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 97 tests
+npm test           # 105 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

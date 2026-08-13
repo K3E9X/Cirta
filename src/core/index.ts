@@ -29,16 +29,17 @@ export type { RedactOoxmlOptions } from './ooxml.js';
 export { inspectOdf, redactOdf, isOdf } from './odf.js';
 export { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 export type { MarkupFormat } from './markup.js';
-export { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
+export { inspectImage, stripImageMetadata, detectImageKind, hasC2pa } from './image.js';
 export { fingerprint } from './fingerprint.js';
 
 import { unzipSync } from 'fflate';
-import type { Format, InspectResult, RedactResult } from './types.js';
+import type { Format, InspectResult, RedactResult, Note } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 import { decodeTextInput } from './text.js';
+import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 
 export class UnsupportedFormatError extends Error {
   constructor(detail: string) {
@@ -49,7 +50,7 @@ export class UnsupportedFormatError extends Error {
 
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
-  'OpenDocument (.odt, .ods, .odp), SVG, HTML and Markdown.';
+  'OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG and PNG.';
 
 function startsWith(data: Uint8Array, signature: number[]): boolean {
   return signature.every((byte, i) => data[i] === byte);
@@ -78,6 +79,8 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
       return undefined;
     }
   }
+  const image = detectImageKind(data);
+  if (image) return image;
   try {
     return detectMarkupFormat(decodeTextInput(data), hint);
   } catch {
@@ -90,6 +93,15 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   if (isZip(data)) {
     const parts = unzipSync(data);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
+  }
+
+  const image = detectImageKind(data);
+  if (image) {
+    return {
+      format: image,
+      findings: inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks'),
+      notes: [{ code: 'scope:image-metadata-only' }],
+    };
   }
 
   const format = detectFormat(data, hint);
@@ -108,6 +120,19 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
   if (isZip(data)) {
     const parts = unzipSync(data);
     return isOdf(parts) ? redactOdf(data) : redactOoxml(data);
+  }
+
+  const image = detectImageKind(data);
+  if (image) {
+    const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+    const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
+    if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
+    return {
+      format: image,
+      data: stripImageMetadata(data) ?? data,
+      removed: before,
+      notes,
+    };
   }
 
   const format = detectFormat(data, hint);

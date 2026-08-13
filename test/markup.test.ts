@@ -209,3 +209,94 @@ describe('OpenDocument', () => {
     expect(Object.keys(parts)).toContain('content.xml');
   });
 });
+
+/* ------------------------------------------------------- images autonomes */
+
+const latin1 = (t: string) => Uint8Array.from([...t].map((c) => c.charCodeAt(0)));
+
+function jpegWithC2pa(): Uint8Array {
+  // APP11 carrying a JUMBF box, which is where C2PA stores its manifest.
+  const body = Uint8Array.from([...latin1('JP'), 0, 1, 0, 0, 0, 1, ...latin1('jumbc2pa-manifest')]);
+  const length = body.length + 2;
+  return Uint8Array.from([
+    0xff, 0xd8,
+    0xff, 0xeb, length >> 8, length & 0xff, ...body,
+    0xff, 0xda, 0x00, 0x08, 1, 1, 0, 0, 0, 0,
+    0x12, 0x34,
+    0xff, 0xd9,
+  ]);
+}
+
+function pngChunk(type: string, body: Uint8Array): Uint8Array {
+  const n = body.length;
+  return Uint8Array.from([
+    (n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff,
+    ...latin1(type), ...body, 0, 0, 0, 0,
+  ]);
+}
+
+function pngWithC2pa(): Uint8Array {
+  return Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...pngChunk('IHDR', new Uint8Array(13)),
+    ...pngChunk('caBX', latin1('c2pa manifest bytes')),
+    ...pngChunk('IDAT', new Uint8Array([1, 2, 3])),
+    ...pngChunk('IEND', new Uint8Array(0)),
+  ]);
+}
+
+describe('standalone images', () => {
+  it('accepts a JPEG as a top-level file', async () => {
+    expect((await inspectFile(jpegWithC2pa())).format).toBe('jpeg');
+  });
+
+  it('accepts a PNG as a top-level file', async () => {
+    expect((await inspectFile(pngWithC2pa())).format).toBe('png');
+  });
+
+  it('reports a C2PA manifest carried in a JPEG APP11/JUMBF segment', async () => {
+    const { findings } = await inspectFile(jpegWithC2pa());
+    const c2pa = find(findings, 'C2PA content credentials');
+    expect(c2pa?.confidence).toBe('confirmed');
+    expect(c2pa?.affectsVerifiability).toBe(true);
+  });
+
+  it('reports a C2PA manifest carried in a PNG caBX chunk', async () => {
+    const { findings } = await inspectFile(pngWithC2pa());
+    expect(find(findings, 'C2PA content credentials')?.affectsVerifiability).toBe(true);
+  });
+
+  it('removes the manifest and says the file is no longer verifiable', async () => {
+    for (const image of [jpegWithC2pa(), pngWithC2pa()]) {
+      const redacted = await redactFile(image);
+      expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+      expect(redacted.notes.map((n) => n.code)).toContain('removed:c2pa');
+    }
+  });
+
+  it('states that the pixels were not analysed', async () => {
+    const { notes } = await inspectFile(pngWithC2pa());
+    expect(notes.map((n) => n.code)).toContain('scope:image-metadata-only');
+  });
+
+  it('keeps the image data when stripping a JPEG manifest', async () => {
+    const redacted = (await redactFile(jpegWithC2pa())).data!;
+    expect([...redacted.subarray(0, 2)]).toEqual([0xff, 0xd8]);
+    expect([...redacted.subarray(-2)]).toEqual([0xff, 0xd9]);
+  });
+
+  it('leaves JPEG APP11 alone when it is not JUMBF', async () => {
+    // The same marker carries JPEG XT extension data, which is picture
+    // information rather than provenance.
+    const body = latin1('XT-extension-payload');
+    const length = body.length + 2;
+    const jpegXt = Uint8Array.from([
+      0xff, 0xd8,
+      0xff, 0xeb, length >> 8, length & 0xff, ...body,
+      0xff, 0xda, 0x00, 0x08, 1, 1, 0, 0, 0, 0, 0x12,
+      0xff, 0xd9,
+    ]);
+    expect((await inspectFile(jpegXt)).findings).toEqual([]);
+    expect((await redactFile(jpegXt)).data).toEqual(jpegXt);
+  });
+});

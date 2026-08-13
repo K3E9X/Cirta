@@ -67,7 +67,7 @@ ${bold('Usage')}
   cirta text [--clean]               Read text on stdin; report or clean it
 
 Paths may be files or directories. Directories are walked recursively for
-.pdf, .pptx, .docx, .xlsx, .odt, .ods, .odp, .svg, .html and .md.
+.pdf, Office and OpenDocument files, .svg, .html, .md, .jpg and .png.
 
 ${bold('Options')}
   -o, --output <path>   Destination for a single redacted file
@@ -159,6 +159,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.odt', '.ods', '.odp',
   '.svg', '.html', '.htm',
   '.md', '.markdown',
+  '.jpg', '.jpeg', '.png',
 ]);
 
 /**
@@ -213,6 +214,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
     'Markup metadata only. The body text is not analysed, and a statistical model watermark in it would not show up here.',
+  'scope:image-metadata-only': () =>
+    'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
   'kept:content': (detail) =>
