@@ -16,6 +16,8 @@ import {
   UnsupportedFormatError,
   decodeTextInput,
   BinaryInputError,
+  exposure,
+  type Exposure,
   type Confidence,
   type Finding,
   type InspectResult,
@@ -160,6 +162,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.svg', '.html', '.htm',
   '.md', '.markdown',
   '.jpg', '.jpeg', '.png',
+  '.zip', '.epub',
 ]);
 
 /**
@@ -218,9 +221,37 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
+  'scope:archive': () =>
+    'Archive report. Every member was dispatched through the normal detection path; members no parser claims were scanned for credentials and provider identifiers only.',
+  'limit:archive-truncated': (detail) =>
+    `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
+
+/**
+ * State what a silent report is worth at this length.
+ *
+ * No verdict is given because none is possible: reading a keyed watermark needs
+ * the vendor's key. What can be said is how much statistical power a detector
+ * that *did* hold the key would have on a passage this size.
+ */
+function printExposure(report: Exposure): void {
+  const size = `~${report.low}-${report.high} tokens (${report.characters} characters, ${report.words} words)`;
+  console.log(`\n  ${bold('Statistical watermark')}  ${dim('no local verdict is possible')}`);
+  console.log(`  ${dim('length'.padEnd(11))} ${size}`);
+
+  const verdict =
+    report.band === 'too-short'
+      ? 'At this length even the vendor may not get a reliable result; finding nothing here would mean almost nothing.'
+      : report.band === 'uncertain'
+        ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
+        : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
+  console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
+  console.log(
+    `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,
+  );
+}
 
 function printNotes(notes: Note[]): void {
   for (const note of notes) {
@@ -350,6 +381,7 @@ async function runText(args: Args): Promise<number> {
   printFindings(scan.findings);
   for (const payload of scan.decoded) console.log(`  ${yellow('decoded:')} ${payload}`);
   printNotes([{ code: 'scope:invisible-characters-only' }]);
+  printExposure(exposure(input));
   return 0;
 }
 

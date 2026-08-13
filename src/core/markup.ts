@@ -14,6 +14,7 @@
 
 import type { Finding } from './types.js';
 import { fingerprint } from './fingerprint.js';
+import { scanContent } from './archive.js';
 import { byConfidence } from './types.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
@@ -259,6 +260,7 @@ export function detectMarkupFormat(text: string, hint?: string): MarkupFormat | 
 export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   const findings =
     format === 'svg' ? inspectSvg(text) : format === 'html' ? inspectHtml(text) : inspectMarkdown(text);
+  findings.push(...scanContent(text, 'document body'));
   findings.push(...fingerprint(findings));
   return findings.sort(byConfidence);
 }

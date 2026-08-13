@@ -17,6 +17,8 @@ import {
   type Finding,
   type Format,
   type Note,
+  exposure,
+  type Exposure,
 } from '../core/index.js';
 
 const CONFIDENCE_LABEL: Record<Confidence, string> = {
@@ -123,6 +125,16 @@ const FIELD_LABEL: Record<string, string> = {
   'Source path': 'Chemin source',
   Date: 'Date',
   Authors: 'Auteurs',
+  'Model identifier': 'Identifiant de modèle',
+  'Coding agent named in metadata': 'Agent de codage nommé dans les métadonnées',
+  'LLM framework or runtime': 'Framework ou runtime LLM',
+  'LLM provider endpoint': 'Point de terminaison de fournisseur LLM',
+  'Anthropic message id': 'Identifiant de message Anthropic',
+  'OpenAI completion id': 'Identifiant de complétion OpenAI',
+  'OpenAI assistant object id': 'Identifiant d’objet Assistant OpenAI',
+  'API request id': 'Identifiant de requête API',
+  'Conversation id': 'Identifiant de conversation',
+  'Absolute paths preserved in the archive': 'Chemins absolus conservés dans l’archive',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -150,9 +162,62 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
   'removed:c2pa': (detail) =>
     `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. À noter : le C2PA prévoit aussi le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance. Un manifeste retiré ne signifie donc pas qu'il ne reste aucune provenance.`,
+  'scope:archive': () =>
+    "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne revendique ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
+  'limit:archive-truncated': (detail) =>
+    `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:content': (detail) =>
     `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };
+
+/**
+ * State what a silent report is worth at this length.
+ *
+ * Deliberately not a verdict: reading a keyed watermark requires the vendor's
+ * key. What can be reported is how much power a detector holding that key would
+ * have on a passage this size, so that "nothing found" is not read as "clean".
+ */
+const EXPOSURE_TEXT: Record<Exposure['band'], string> = {
+  'too-short':
+    "À cette longueur, même l'éditeur du modèle peut ne pas obtenir de résultat fiable. Ne rien trouver ici ne signifierait presque rien.",
+  uncertain:
+    "Assez long pour qu'un détecteur détenant la clé ait une certaine puissance, assez court pour que l'issue dépende du schéma et du seuil retenu.",
+  ample:
+    'Assez long pour que la littérature (Kirchenbauer et al., ICLR 2024) ait observé un signal survivant à une reformulation humaine soutenue, à 1e-5 de faux positifs.',
+};
+
+function exposureCard(text: string): HTMLElement {
+  const report = exposure(text);
+  const node = card('Filigrane statistique', undefined, 'aucun verdict local possible');
+
+  const scroll = el('div', 'table-scroll');
+  const table = el('table');
+  const body = el('tbody');
+
+  const row = (label: string, value: string) => {
+    const tr = el('tr');
+    tr.append(el('td', 'kind', label));
+    tr.append(el('td', 'value', value));
+    body.append(tr);
+  };
+  row(
+    'longueur',
+    `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
+  );
+  row('portée', EXPOSURE_TEXT[report.band]);
+
+  table.append(body);
+  scroll.append(table);
+  node.append(scroll);
+  node.append(
+    el(
+      'p',
+      'note',
+      "Cirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut : il faut la clé secrète de l'éditeur. Le nombre de tokens est estimé, pas tokenisé.",
+    ),
+  );
+  return node;
+}
 
 const translateLabel = (label: string) => FIELD_LABEL[label] ?? label;
 
@@ -200,6 +265,7 @@ const MIME: Record<Format, string> = {
   markdown: 'text/markdown',
   jpeg: 'image/jpeg',
   png: 'image/png',
+  zip: 'application/zip',
   text: 'text/plain',
 };
 
@@ -442,7 +508,7 @@ function setupText(): void {
       node.append(el('p', 'decoded', `Charge décodée — ${payload}`));
     }
     appendNotes(node, scopeNote);
-    render(node);
+    results.replaceChildren(node, exposureCard(input.value));
   });
 
   cleanButton.addEventListener('click', async () => {

@@ -20,6 +20,7 @@ votre machine.
 | Markdown | Clés de front matter nommant un auteur, un outil, un modèle ou une session |
 | JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
+| ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
 
 ### Traces de l'outil producteur
@@ -41,11 +42,40 @@ confirmed  environment  Windows temporary directory          scratch directory
                         derived from docProps/app.xml:Template
 ```
 
-Sont reconnus : les assistants et agents nommés dans les métadonnées (Claude, ChatGPT, Gemini,
-Copilot, Mistral, Llama), les bibliothèques de génération (python-pptx, python-docx, ReportLab,
-Pandoc, wkhtmltopdf, WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…), le système
-d'exploitation et le nom de compte déduits de la forme des chemins, les répertoires temporaires, et
-les identifiants de session ou d'exécution (UUID).
+Sont reconnus :
+
+- **Assistants** — Claude, ChatGPT/OpenAI, Gemini/Vertex, Copilot, Mistral, Llama, Perplexity,
+  DeepSeek, Grok/xAI, Qwen, Cohere
+- **Agents de codage** — Claude Code, Cursor, Windsurf/Codeium, Devin, Aider, Cline, Bolt, v0,
+  Replit Agent, Codex, Continue
+- **Frameworks et runtimes** — LangChain, LlamaIndex, AutoGen, CrewAI, Haystack, Semantic Kernel,
+  Ollama, vLLM, llama.cpp, LM Studio, transformers
+- **Identifiants de modèle** — `claude-opus-5`, `gpt-4o-mini`, `gemini-2.0-flash`… plus précis qu'un
+  nom d'éditeur : ils datent la génération
+- **Identifiants d'appel** — `msg_…`, `chatcmpl-…`, `thread_…`, `run_…`, identifiants de requête et
+  de conversation
+- **Bibliothèques de génération** — python-pptx, python-docx, ReportLab, Pandoc, wkhtmltopdf,
+  WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…
+- **Environnement** — système d'exploitation et nom de compte déduits de la forme des chemins,
+  répertoires temporaires, identifiants de session ou d'exécution (UUID)
+
+### Secrets laissés dans les fichiers
+
+Une clé d'API oubliée dans un fichier généré est la chose la plus grave que cet outil puisse
+trouver. Les formes `sk-ant-`, `sk-proj-`, `AIza`, `hf_`, `gsk_`, `xai-` et `ghp_` sont cherchées
+**dans le corps des documents et des archives**, pas seulement dans les métadonnées, et la valeur
+n'est **jamais affichée en entier** :
+
+```
+confirmed  identity  Credential left in file: Anthropic API key
+                     sk-ant-api03-… (52 characters) — rotate this key
+                     export/.env
+```
+
+Le scan de contenu ne cherche **que** ce qui ne peut pas être de la prose innocente : secrets,
+identifiants émis par un fournisseur, points de terminaison d'API. Les noms de produits en sont
+délibérément absents — un document qui *parle* de Claude n'est pas un document *produit* par Claude,
+et confondre les deux est ce qui rend ces outils peu fiables.
 
 ### Niveaux de signalement
 
@@ -64,7 +94,7 @@ comptent pas. Chaque élément porte donc son propre niveau, et les rapports son
 |---|---|
 | Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
 | Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
-| Biais dans la sélection des tokens | **Non**, et c'est structurel : voir ci-dessous |
+| Biais dans la sélection des tokens | **Non**, et c'est structurel. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
 
 ## Ce qu'il ne fait pas, et pourquoi
 
@@ -116,6 +146,34 @@ outillage.
 [PostMark](https://aclanthology.org/2024.emnlp-main.506/) (EMNLP 2024) marquent au niveau de la
 phrase et du sens plutôt que du token. Ils ne sont pas déployés en production aujourd'hui ; s'ils le
 sont, l'atténuation par reformulation devient nettement plus difficile.
+
+### Ce qu'on peut quand même dire sur le biais de tokens
+
+Aucun verdict local n'est possible, et Cirta n'en donne pas. Mais il rapporte la variable qui
+gouverne réellement la lisibilité de ce marquage : **la longueur**. La détection est un test
+d'hypothèse sur des choix de tokens, et sa puissance statistique croît avec le nombre de tokens
+observés. « On n'a rien trouvé » ne veut donc pas dire la même chose à 80 tokens et à 8 000 — et un
+rapport qui ne le précise pas invite à surinterpréter son silence.
+
+```
+Statistical watermark  no local verdict is possible
+length      ~707-994 tokens (3180 characters, 480 words)
+meaning     Long enough for a keyed detector to have some power, short enough
+            that the outcome depends on the scheme and the threshold chosen.
+```
+
+Trois bandes, volontairement grossières puisque le seuil exact dépend du schéma, de la clé et du taux
+de faux positifs retenu par le vérificateur :
+
+| Bande | Ce que vaut un rapport silencieux |
+|---|---|
+| < 200 tokens | Même l'éditeur peut ne pas obtenir de résultat fiable ; ne rien trouver ne signifie presque rien |
+| 200–800 | Un détecteur détenant la clé a une certaine puissance ; l'issue dépend du schéma et du seuil |
+| > 800 | Kirchenbauer et al. (ICLR 2024) ont observé du signal survivant à une reformulation humaine soutenue à 1e-5 de faux positifs |
+
+C'est de la **calibration, pas du ciblage** : cela dit ce que vaut un silence, pas quelle longueur
+viser. Le nombre de tokens est estimé par densité de caractères, pas tokenisé — aucun tokenizer n'est
+embarqué, et le compte est donc donné sous forme de fourchette.
 
 ### Sur le retrait des manifestes C2PA
 
@@ -218,7 +276,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 105 tests
+npm test           # 129 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

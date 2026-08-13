@@ -31,15 +31,21 @@ export { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 export type { MarkupFormat } from './markup.js';
 export { inspectImage, stripImageMetadata, detectImageKind, hasC2pa } from './image.js';
 export { fingerprint } from './fingerprint.js';
+export { exposure, estimateTokens, EXPOSURE_THRESHOLDS } from './exposure.js';
+export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
+export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
+export type { ArchiveMember } from './archive.js';
 
 import { unzipSync } from 'fflate';
-import type { Format, InspectResult, RedactResult, Note } from './types.js';
+import type { Format, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 import { decodeTextInput } from './text.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
+import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
+import { byConfidence } from './types.js';
 
 export class UnsupportedFormatError extends Error {
   constructor(detail: string) {
@@ -59,6 +65,46 @@ function startsWith(data: Uint8Array, signature: number[]): boolean {
 const isPdf = (data: Uint8Array) => startsWith(data, [0x25, 0x50, 0x44, 0x46]); // %PDF
 const isZip = (data: Uint8Array) => startsWith(data, [0x50, 0x4b, 0x03, 0x04]);
 
+/** True for a ZIP that is a document package rather than a plain archive. */
+function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
+  return (
+    isOdf(parts) ||
+    Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'])
+  );
+}
+
+/**
+ * Report on every member of a plain archive.
+ *
+ * Each member is dispatched through the ordinary detection path, so a PPTX
+ * inside a ZIP gets the same treatment it would get on its own. Members no
+ * parser claims are scanned for credentials and provider identifiers.
+ */
+async function inspectArchive(data: Uint8Array): Promise<InspectResult> {
+  const members = walkArchive(data);
+  const findings: Finding[] = [];
+  const notes: Note[] = [{ code: 'scope:archive' }];
+
+  for (const member of members) {
+    try {
+      const inner = await inspectFile(member.data, member.path);
+      for (const finding of inner.findings) {
+        findings.push({ ...finding, location: `${member.path} → ${finding.location}` });
+      }
+    } catch {
+      // No parser claims it; fall back to the content scan.
+      findings.push(...inspectPlainMember(member));
+    }
+  }
+
+  findings.push(...pathFindings(members.map((m) => m.path)));
+  if (members.length >= ARCHIVE_LIMITS.maxMembers) {
+    notes.push({ code: 'limit:archive-truncated', detail: `${ARCHIVE_LIMITS.maxMembers} members` });
+  }
+
+  return { format: 'zip', findings: findings.sort(byConfidence), notes };
+}
+
 /**
  * Identify a document from its content rather than its file extension.
  *
@@ -74,7 +120,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
       if (parts['word/document.xml']) return 'docx';
       if (parts['ppt/presentation.xml']) return 'pptx';
       if (parts['xl/workbook.xml']) return 'xlsx';
-      return 'docx';
+      return 'zip';
     } catch {
       return undefined;
     }
@@ -92,6 +138,7 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   if (isPdf(data)) return inspectPdf(data);
   if (isZip(data)) {
     const parts = unzipSync(data);
+    if (!isDocumentPackage(parts)) return inspectArchive(data);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
   }
 
@@ -119,6 +166,11 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
   if (isPdf(data)) return redactPdf(data);
   if (isZip(data)) {
     const parts = unzipSync(data);
+    if (!isDocumentPackage(parts)) {
+      throw new UnsupportedFormatError(
+        'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
+      );
+    }
     return isOdf(parts) ? redactOdf(data) : redactOoxml(data);
   }
 
