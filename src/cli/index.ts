@@ -21,7 +21,26 @@ import {
   preview,
 } from '../core/index.js';
 
-const useColor = process.stdout.isTTY && !process.env['NO_COLOR'];
+/**
+ * Terminal capabilities differ enough between platforms that both colour and
+ * non-ASCII output have to be opt-out. Windows Terminal and PowerShell 7 handle
+ * both; the legacy conhost on a non-UTF-8 code page renders an arrow as
+ * mojibake, so arrows and dashes degrade to ASCII rather than produce garbage.
+ */
+const useColor =
+  process.env['FORCE_COLOR'] !== undefined
+    ? process.env['FORCE_COLOR'] !== '0'
+    : Boolean(process.stdout.isTTY) && !process.env['NO_COLOR'];
+
+const useUnicode =
+  process.platform !== 'win32' ||
+  process.env['WT_SESSION'] !== undefined ||
+  /UTF-?8/i.test(process.env['LANG'] ?? process.env['LC_ALL'] ?? '');
+
+const SYMBOL = {
+  arrow: useUnicode ? '\u2192' : '->',
+};
+
 const paint = (code: string, text: string) => (useColor ? `[${code}m${text}[0m` : text);
 const bold = (t: string) => paint('1', t);
 const dim = (t: string) => paint('2', t);
@@ -157,7 +176,7 @@ async function expandPaths(paths: string[]): Promise<string[]> {
     const entries = await readdir(path, { recursive: true, withFileTypes: true });
     const found = entries
       .filter((entry) => entry.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()))
-      .map((entry) => join(entry.parentPath ?? path, entry.name))
+      .map((entry) => join(entry.parentPath ?? (entry as { path?: string }).path ?? path, entry.name))
       .sort();
     if (found.length === 0) console.error(dim(`${path}: no supported files found`));
     out.push(...found);
@@ -174,6 +193,8 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
     'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction.`,
+  'kept:content': (detail) =>
+    `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
 
 function printNotes(notes: Note[]): void {
@@ -247,7 +268,7 @@ async function runRedact(args: Args): Promise<number> {
       await writeFile(destination, result.data!);
 
       if (!args.json) {
-        console.log(`\n${bold(file)} ${dim('→')} ${bold(destination)}`);
+        console.log(`\n${bold(file)} ${dim(SYMBOL.arrow)} ${bold(destination)}`);
         console.log(
           `  ${green(`${result.removed.length} field${result.removed.length === 1 ? '' : 's'} removed`)}`,
         );
@@ -304,9 +325,14 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  if (args.help || !args.command) {
+  // Asking for help succeeded; being invoked with nothing did not.
+  if (args.help) {
     console.log(HELP);
-    return args.command ? 0 : 1;
+    return 0;
+  }
+  if (!args.command) {
+    console.log(HELP);
+    return 1;
   }
 
   switch (args.command) {

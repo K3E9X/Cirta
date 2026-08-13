@@ -18,6 +18,8 @@ export type { TextScan, CleanTextOptions, CleanTextResult } from './text.js';
 export { inspectPdf, redactPdf } from './pdf.js';
 export type { RedactPdfOptions } from './pdf.js';
 export { inspectOoxml, redactOoxml } from './ooxml.js';
+export { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
+export { fingerprint } from './fingerprint.js';
 export type { RedactOoxmlOptions } from './ooxml.js';
 
 import type { Format, InspectResult, RedactResult } from './types.js';

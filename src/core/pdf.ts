@@ -12,6 +12,7 @@
 import { PDFDocument, PDFName, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
 import { byConfidence } from './types.js';
+import { fingerprint } from './fingerprint.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -124,6 +125,23 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
     }
   }
 
+  // The trailer /ID is a pair of hashes identifying this document and this
+  // save. It survives every metadata wipe that does not rewrite the trailer.
+  const id = doc.context.lookup(doc.context.trailerInfo.ID);
+  if (id && 'asArray' in id) {
+    const parts = (id as { asArray(): unknown[] }).asArray();
+    const first = parts[0];
+    if (first) {
+      findings.push({
+        kind: 'environment',
+        confidence: 'probable',
+        location: 'trailer /ID',
+        label: 'Document identifier (/ID)',
+        value: String((first as { asString?: () => string }).asString?.() ?? first),
+      });
+    }
+  }
+
   const names = doc.catalog.get(PDFName.of('Names'));
   if (names) {
     const resolved = doc.context.lookup(names);
@@ -139,6 +157,9 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   }
 
   notes.push({ code: 'scope:pdf-metadata-only' });
+
+  // Derived last, so it can draw on every field the format modules surfaced.
+  findings.push(...fingerprint(findings));
 
   return { format: 'pdf', findings: findings.sort(byConfidence), notes };
 }

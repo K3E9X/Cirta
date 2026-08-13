@@ -7,15 +7,29 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # The CLI is published for Windows, Linux and macOS, so it is verified on
+    # all three rather than assumed portable: path handling, recursive directory
+    # walking and console encoding are exactly where portability breaks.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: npm run build:web
+
+      # Exercise the built binary the way a user would, on each platform.
+      - name: Smoke-test the CLI
+        run: node dist/cli/index.js --help
+      - name: Smoke-test inspect and redact
+        run: node scripts/smoke.mjs

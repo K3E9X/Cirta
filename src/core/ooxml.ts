@@ -12,6 +12,8 @@
  */
 
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
+import { inspectImage, stripImageMetadata } from './image.js';
+import { fingerprint } from './fingerprint.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -34,6 +36,7 @@ const CORE_FIELDS: Array<{ tag: string; label: string; kind: Finding['kind']; co
   { tag: 'cp:category', label: 'Category', kind: 'identity', confidence: 'probable' },
   { tag: 'cp:contentStatus', label: 'Content status', kind: 'identity', confidence: 'informational' },
   { tag: 'cp:revision', label: 'Revision number', kind: 'timestamp', confidence: 'probable' },
+  { tag: 'cp:lastPrinted', label: 'Last printed', kind: 'timestamp', confidence: 'probable' },
   { tag: 'dcterms:created', label: 'Created', kind: 'timestamp', confidence: 'probable' },
   { tag: 'dcterms:modified', label: 'Modified', kind: 'timestamp', confidence: 'probable' },
 ];
@@ -74,6 +77,45 @@ function readText(parts: Parts, path: string): string | undefined {
 /** Locate a C2PA provenance manifest if the producer embedded one. */
 function findC2paParts(parts: Parts): string[] {
   return Object.keys(parts).filter((p) => /c2pa|contentcredentials|content_credentials/i.test(p));
+}
+
+/** Embedded pictures, which keep their own camera metadata. */
+function findMediaParts(parts: Parts): string[] {
+  return Object.keys(parts).filter((p) => /^(ppt|word|xl)\/media\//.test(p));
+}
+
+/**
+ * A hyperlink pointing at the author's own disk or an internal share leaks the
+ * username and the network topology. Web links are ignored.
+ */
+const LOCAL_TARGET = /^(file:|[a-z]:[\\/]|\\\\)/i;
+
+function findLocalHyperlinks(parts: Parts): Array<{ part: string; target: string }> {
+  const out: Array<{ part: string; target: string }> = [];
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!path.endsWith('.rels')) continue;
+    const xml = strFromU8(raw);
+    for (const target of collectAttribute(xml, 'Target')) {
+      const decoded = decodeURI(target.replace(/&amp;/g, '&'));
+      if (LOCAL_TARGET.test(decoded)) out.push({ part: path, target: decoded });
+    }
+  }
+  return out;
+}
+
+/** Slides marked `show="0"` stay in the file and travel with it. */
+function findHiddenSlides(parts: Parts): string[] {
+  return Object.keys(parts)
+    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+    .filter((p) => /<p:sld[^>]*\sshow="(0|false)"/.test(strFromU8(parts[p]!)))
+    .sort();
+}
+
+/** Presenter notes are rarely written for the audience that receives the deck. */
+function findSpeakerNotes(parts: Parts): number {
+  return Object.keys(parts).filter(
+    (p) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(p) && /<a:t>[^<]+<\/a:t>/.test(strFromU8(parts[p]!)),
+  ).length;
 }
 
 export function inspectOoxml(data: Uint8Array): InspectResult {
@@ -169,6 +211,42 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     });
   }
 
+  for (const { part, target } of findLocalHyperlinks(parts)) {
+    findings.push({
+      kind: 'environment',
+      confidence: 'confirmed',
+      location: part,
+      label: 'Link to a local or network path',
+      value: target,
+    });
+  }
+
+  for (const path of findMediaParts(parts)) {
+    findings.push(...inspectImage(parts[path]!, path));
+  }
+
+  const hidden = findHiddenSlides(parts);
+  if (hidden.length) {
+    findings.push({
+      kind: 'identity',
+      confidence: 'probable',
+      location: hidden.join(', '),
+      label: 'Hidden slides',
+      value: `${hidden.length} hidden slide${hidden.length > 1 ? 's' : ''} still present in the file`,
+    });
+  }
+
+  const notesCount = findSpeakerNotes(parts);
+  if (notesCount) {
+    findings.push({
+      kind: 'identity',
+      confidence: 'probable',
+      location: 'ppt/notesSlides/',
+      label: 'Speaker notes',
+      value: `${notesCount} slide${notesCount > 1 ? 's' : ''} with presenter notes`,
+    });
+  }
+
   for (const path of findC2paParts(parts)) {
     findings.push({
       kind: 'provenance',
@@ -182,6 +260,9 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
 
+  // Derived last, so it can draw on every field the format modules surfaced.
+  findings.push(...fingerprint(findings));
+
   return { format, findings: findings.sort(byConfidence), notes };
 }
 
@@ -192,6 +273,8 @@ export interface RedactOoxmlOptions {
   removeRsids?: boolean;
   /** Remove comment and tracked-change author names. Default true. */
   anonymizeAuthors?: boolean;
+  /** Strip Exif/XMP/IPTC from embedded pictures. Default true. */
+  stripMedia?: boolean;
 }
 
 /** Drop a part and the `[Content_Types].xml` override and relationship that reference it. */
@@ -230,7 +313,12 @@ function repack(parts: Parts): Uint8Array {
 }
 
 export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}): RedactResult {
-  const { removeThumbnail = true, removeRsids = true, anonymizeAuthors = true } = options;
+  const {
+    removeThumbnail = true,
+    removeRsids = true,
+    anonymizeAuthors = true,
+    stripMedia = true,
+  } = options;
 
   const before = inspectOoxml(data);
   const parts = unzipSync(data);
@@ -281,10 +369,27 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     }
   }
 
+  if (stripMedia) {
+    for (const path of findMediaParts(parts)) {
+      const stripped = stripImageMetadata(parts[path]!);
+      if (stripped) parts[path] = stripped;
+    }
+  }
+
   for (const path of findC2paParts(parts)) {
     removePart(parts, path);
     notes.push({ code: 'removed:c2pa', detail: path });
   }
+
+  // Hyperlinks, hidden slides and speaker notes are document content rather
+  // than metadata. Deleting them would silently change what the recipient
+  // reads, so they are reported and left alone.
+  const contentLeft = [
+    findLocalHyperlinks(parts).length && 'local links',
+    findHiddenSlides(parts).length && 'hidden slides',
+    findSpeakerNotes(parts) && 'speaker notes',
+  ].filter((v): v is string => typeof v === 'string');
+  if (contentLeft.length) notes.push({ code: 'kept:content', detail: contentLeft.join(', ') });
 
   notes.push(...before.notes);
 

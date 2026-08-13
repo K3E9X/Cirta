@@ -79,7 +79,9 @@ export type NoteCode =
   /** Only invisible characters were examined. */
   | 'scope:invisible-characters-only'
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
-  | 'removed:c2pa';
+  | 'removed:c2pa'
+  /** Reported items that are document content, not metadata, and were left alone. */
+  | 'kept:content';
 
 export interface Note {
   code: NoteCode;

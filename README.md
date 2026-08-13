@@ -10,9 +10,35 @@ votre machine.
 
 | Support | Traité |
 |---|---|
-| PDF | Dictionnaire `/Info`, paquet XMP, manifestes C2PA, pièces jointes intégrées |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature intégrée, identifiants de révision `rsid`, auteurs de commentaires et de révisions |
+| PDF | Dictionnaire `/Info`, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes intégrées |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur |
+| Images intégrées | Exif (dont GPS), XMP, IPTC/Photoshop et commentaires des JPEG ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` des PNG |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
+
+### Traces de l'outil producteur
+
+Un document produit par un assistant, un agent ou un script ne s'annonce jamais dans un seul champ.
+Il fuit par morceaux : une chaîne de producteur qui nomme la bibliothèque, un chemin de modèle qui
+porte le système et le nom de compte, un répertoire de travail sous un identifiant de session. Pris
+isolément ces éléments semblent anodins ; recoupés, ils décrivent la machine sur laquelle le fichier
+a été fabriqué.
+
+Cirta effectue ce recoupement et signale explicitement d'où chaque déduction provient :
+
+```
+confirmed  provenance   Document generated programmatically  python-pptx
+                        derived from docProps/app.xml:Application
+confirmed  environment  Windows account                      lotfi (drive C:)
+                        derived from docProps/app.xml:Template
+confirmed  environment  Windows temporary directory          scratch directory
+                        derived from docProps/app.xml:Template
+```
+
+Sont reconnus : les assistants et agents nommés dans les métadonnées (Claude, ChatGPT, Gemini,
+Copilot, Mistral, Llama), les bibliothèques de génération (python-pptx, python-docx, ReportLab,
+Pandoc, wkhtmltopdf, WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…), le système
+d'exploitation et le nom de compte déduits de la forme des chemins, les répertoires temporaires, et
+les identifiants de session ou d'exécution (UUID).
 
 ### Niveaux de signalement
 
@@ -71,11 +97,19 @@ npm run dev:web
 
 ## Ligne de commande
 
+Fonctionne sur **Windows, Linux et macOS**, sur Node 20 et 22. La CI exécute la suite de tests et un
+scénario de bout en bout du binaire sur les trois systèmes à chaque commit — la portabilité est
+vérifiée, pas supposée.
+
 ```bash
 npm install
 npm run build
 npm link          # rend la commande `cirta` disponible
 ```
+
+Notes de plateforme : la couleur suit `NO_COLOR` et `FORCE_COLOR` ; sur les consoles Windows
+héritées en page de code non-UTF-8, les caractères non-ASCII de l'affichage sont automatiquement
+remplacés par des équivalents ASCII plutôt que de produire du mojibake.
 
 ```bash
 # Signaler les métadonnées portées par des fichiers
@@ -93,8 +127,14 @@ cirta redact rapport.pdf -o public/rapport.pdf
 cirta inspect rapport.pdf --json
 
 # Texte sur l'entrée standard
-pbpaste | cirta text                 # analyser
-pbpaste | cirta text --clean | pbcopy  # nettoyer
+cirta text < brouillon.txt                    # analyser
+cirta text --clean < brouillon.txt > propre.txt
+
+# Presse-papiers, selon le système
+pbpaste | cirta text --clean | pbcopy                      # macOS
+xclip -o | cirta text --clean | xclip -i                   # Linux (X11)
+wl-paste | cirta text --clean | wl-copy                    # Linux (Wayland)
+Get-Clipboard | cirta text --clean | Set-Clipboard          # Windows PowerShell
 ```
 
 Codes de sortie : `0` succès, `1` au moins un fichier en échec, `2` erreur d'usage.
@@ -113,6 +153,15 @@ et la relation dans `_rels/.rels` le sont également : c'est la façon habituell
 naïf corrompt un fichier Office. Le conteneur est reconstruit avec `[Content_Types].xml` en première
 entrée.
 
+**Contenu laissé en place** — les liens vers des chemins locaux, les diapositives masquées et les
+notes du présentateur sont signalés mais **jamais supprimés**. Ce sont du contenu, pas des
+métadonnées : les retirer changerait ce que lit le destinataire. Le rapport de nettoyage les rappelle
+explicitement pour que la décision vous revienne.
+
+**Images intégrées** — l'Exif, le XMP, l'IPTC et les commentaires sont retirés des JPEG, et les
+chunks de texte, d'horodatage et d'Exif des PNG. Le segment JFIF et le profil colorimétrique ICC sont
+conservés : les supprimer changerait le rendu de l'image.
+
 **Texte** — les caractères invisibles sont retirés, sauf lorsqu'ils accomplissent un travail
 typographique légitime : liants de séquences emoji (`👩‍💻`), sélecteurs de présentation après un
 caractère pictographique, et anti-liants entre deux lettres, indispensables aux orthographes persane
@@ -121,7 +170,8 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 39 tests
+npm test           # 63 tests
+node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
