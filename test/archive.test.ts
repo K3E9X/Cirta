@@ -232,3 +232,35 @@ describe('redaction is measured, not asserted', () => {
     expect(redacted.notes.map((n) => n.code)).not.toContain('kept:in-content');
   });
 });
+
+describe('C2PA claim generator', () => {
+  it('reads the tool a manifest credits, from XMP attribute syntax', async () => {
+    const { readClaimGenerator } = await import('../src/core/c2pa.js');
+    expect(readClaimGenerator('<x c2pa:claim_generator="claude/1.0 export/2.3"/>')).toBe(
+      'claude/1.0 export/2.3',
+    );
+  });
+
+  it('reads it from a binary manifest, where it follows the CBOR key', async () => {
+    const { readClaimGenerator } = await import('../src/core/c2pa.js');
+    expect(readClaimGenerator('\u0000\u0012claim_generatorclaude/1.0\u0000')).toBe('claude/1.0');
+  });
+
+  it('returns nothing when the manifest names no generator', async () => {
+    const { readClaimGenerator } = await import('../src/core/c2pa.js');
+    expect(readClaimGenerator('<x c2pa:something="else"/>')).toBeUndefined();
+  });
+
+  it('marks the credited tool as asserted rather than verified', async () => {
+    const { describeC2pa } = await import('../src/core/c2pa.js');
+    const findings = describeC2pa('<x c2pa:claim_generator="claude/1.0"/>', '/Metadata');
+    const presence = findings.find((f) => f.label === 'C2PA content credentials');
+    const credited = findings.find((f) => f.label === 'Tool credited by the C2PA manifest');
+
+    // Presence is a fact about the bytes; the credit is the producer's word,
+    // since nothing here walks the certificate chain.
+    expect(presence?.confidence).toBe('confirmed');
+    expect(credited?.confidence).toBe('probable');
+    expect(credited?.value).toContain('signature not verified');
+  });
+});

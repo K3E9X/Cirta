@@ -14,6 +14,7 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
+import { describeC2pa } from './c2pa.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
@@ -293,14 +294,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   }
 
   for (const path of findC2paParts(parts)) {
-    findings.push({
-      kind: 'provenance',
-      confidence: 'confirmed',
-      location: path,
-      label: 'C2PA provenance manifest',
-      value: 'signed content credentials',
-      affectsVerifiability: true,
-    });
+    findings.push(...describeC2pa(strFromU8(parts[path]!), path));
   }
 
   // Credentials and provider-issued ids are scanned for in the body too: they

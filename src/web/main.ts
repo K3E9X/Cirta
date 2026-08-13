@@ -136,6 +136,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Absolute paths preserved in the archive': 'Chemins absolus conservés dans l’archive',
   'Hidden payload in document text': 'Charge cachée dans le texte du document',
   'Hidden payload in page text': 'Charge cachée dans le texte des pages',
+  'Tool credited by the C2PA manifest': 'Outil crédité par le manifeste C2PA',
 };
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
@@ -241,6 +242,10 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
+  [
+    /^(.+) — asserted by the manifest, signature not verified$/,
+    (m) => `${m[1]} — déclaré par le manifeste, signature non vérifiée`,
+  ],
   [/^(.+) \(drive ([A-Za-z]):\)$/, (m) => `${m[1]} (lecteur ${m[2]} :)`],
 ];
 

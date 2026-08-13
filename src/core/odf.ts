@@ -24,6 +24,7 @@ import {
 } from './xml.js';
 import { scanText, cleanText } from './text.js';
 import { fingerprint } from './fingerprint.js';
+import { describeC2pa } from './c2pa.js';
 import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 
@@ -155,14 +156,7 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   }
 
   for (const path of findC2paParts(parts)) {
-    findings.push({
-      kind: 'provenance',
-      confidence: 'confirmed',
-      location: path,
-      label: 'C2PA provenance manifest',
-      value: 'signed content credentials',
-      affectsVerifiability: true,
-    });
+    findings.push(...describeC2pa(strFromU8(parts[path]!), path));
   }
 
   for (const [path, raw] of Object.entries(parts)) {

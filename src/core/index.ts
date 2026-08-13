@@ -31,6 +31,7 @@ export { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 export type { MarkupFormat } from './markup.js';
 export { inspectImage, stripImageMetadata, detectImageKind, hasC2pa } from './image.js';
 export { fingerprint } from './fingerprint.js';
+export { readClaimGenerator, describeC2pa } from './c2pa.js';
 export { exposure, estimateTokens, EXPOSURE_THRESHOLDS } from './exposure.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';

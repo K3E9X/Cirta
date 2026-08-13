@@ -131,6 +131,34 @@ Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leu
 suivie d'une tabulation verticale — le caractère recherché, détruit silencieusement. La présence d'un
 octet NUL, impossible dans une vraie chaîne mono-octet, sert donc à reconnaître cette forme.
 
+### Ce qu'un PDF peut révéler sur sa génération
+
+Sur un PDF produit par une chaîne LLM typique, le rapport ressemble à ceci :
+
+```
+confirmed  C2PA content credentials              signed provenance manifest
+confirmed  Custom info key: GeneratedBy          anthropic/claude-opus-5
+confirmed  Custom info key: RequestId            msg_01XyZaBcDeFgHiJkLmNoPqRs
+confirmed  Linux account                         lotfi
+confirmed  Session identifier                    session_01ABCdef99
+confirmed  Model identifier                      claude-opus-5 (Claude)
+confirmed  Coding agent named in metadata        Claude Code
+confirmed  Anthropic message id                  msg_01XyZaBcDeFgHiJkLmNoPqRs
+probable   Tool credited by the C2PA manifest    claude/1.0 — déclaré par le
+                                                 manifeste, signature non vérifiée
+```
+
+**L'asymétrie est fondamentale et il faut la garder en tête.** Tout cela repose sur ce que le
+producteur a *laissé*. Ce sont des traces, pas un filigrane : une chaîne de génération propre — ou un
+passage par le nettoyage de cet outil — les fait toutes disparaître. Donc une détection est une
+preuve solide, une absence ne prouve rien du tout.
+
+**Le manifeste C2PA est lu, pas vérifié.** Sa présence est un fait sur les octets, donc `confirmé`.
+Le `claim_generator` qu'il contient est en revanche la *déclaration* du producteur : vérifier qu'elle
+est authentique demanderait de remonter une chaîne de certificats jusqu'à la liste de confiance C2PA,
+ce que Cirta ne fait pas. N'importe qui peut écrire un manifeste créditant n'importe qui — d'où le
+niveau `probable` et la mention explicite dans la valeur.
+
 ### Secrets laissés dans les fichiers
 
 Une clé d'API oubliée dans un fichier généré est la chose la plus grave que cet outil puisse
@@ -384,7 +412,7 @@ et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte 
 ## Développement
 
 ```bash
-npm test           # 162 tests
+npm test           # 166 tests
 node scripts/smoke.mjs  # scénario de bout en bout du binaire construit
 npm run typecheck
 npm run build      # bibliothèque + CLI vers dist/

@@ -15,6 +15,7 @@ import { byConfidence } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText } from './text.js';
+import { describeC2pa } from './c2pa.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -242,16 +243,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
         });
       }
     }
-    if (looksLikeC2pa(xmp)) {
-      findings.push({
-        kind: 'provenance',
-        confidence: 'confirmed',
-        location: '/Metadata',
-        label: 'C2PA content credentials',
-        value: 'signed provenance manifest',
-        affectsVerifiability: true,
-      });
-    }
+    if (looksLikeC2pa(xmp)) findings.push(...describeC2pa(xmp, '/Metadata'));
   }
 
   // The trailer /ID is a pair of hashes identifying this document and this
