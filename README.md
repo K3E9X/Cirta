@@ -113,6 +113,52 @@ Produced by  a generative model — the file declares it
              pdf-lib
 ```
 
+### Reconnaître un programme qui ne signe pas son travail
+
+Toutes les détections précédentes lisent un champ qui **nomme** un outil. Elles ne trouvent rien dès
+que l'outil ne signe pas — et la plupart ne signent pas.
+
+Un rapport réel, examiné pendant ce développement, avait `dc:creator` renseigné avec un nom de
+service, `cp:lastModifiedBy` à « Un-named », et **aucun outil nommé nulle part**. Il avait aussi été,
+sans le moindre doute, fabriqué par une bibliothèque. Tout ce qui le disait était structurel :
+
+| Signal | Pourquoi |
+|---|---|
+| `docProps/app.xml` présent mais **vide** | Word le remplit toujours : `Application`, `AppVersion`, `Words`, `Characters`, `DocSecurity`. Une partie créée pour le schéma OPC et jamais remplie n'est pas ce que produit une application Office |
+| Horodatage `…T15:22:28.698Z` | Des millisecondes et un `Z` : c'est ce qu'émet `Date.prototype.toISOString()` en JavaScript. Word écrit des secondes entières |
+| Média nommé `0ff0d056…98.png` | Quarante caractères hexadécimaux, un SHA-1. Convention de bibliothèque ; Word écrit `image1.png` |
+| `word/settings.xml` sans aucun `rsid` | Word enregistre toujours des identifiants de session de révision |
+| `créé` == `modifié` à la milliseconde | Jamais rouvert, jamais réenregistré |
+
+Chacun est faible isolément — un convertisseur peut en produire un — donc **deux au minimum** sont
+exigés avant que l'outil dise quoi que ce soit. Et ce qu'il conclut est étroit et vérifiable :
+
+```
+Produced by  no tool is named, but a program assembled this file
+             the container has the shape a library leaves, not the one a word processor does.
+             What it does not say is which program, or whether a model wrote the words.
+```
+
+Le contrôle : un `.docx` réellement enregistré depuis Word — `app.xml` rempli, `rsid` présents,
+secondes entières — n'est pas accusé, et sa ligne de synthèse répond avec le champ le plus simple
+qui soit : `Microsoft Office Word`.
+
+### Le sujet d'un document n'est pas sa provenance
+
+Une distinction qui semble évidente écrite comme ça, et qui manquait.
+
+Un rapport intitulé « Comparatif Claude contre ChatGPT », tapé à la main dans Word par une personne,
+était rapporté comme **attribué à une IA** — parce que le titre était scanné à la recherche de noms
+de fournisseurs au même titre que les champs producteur. Écrire *sur* un outil n'est pas avoir été
+écrit *par* lui, et un outil incapable de faire la différence accuse tous ceux qui traitent du sujet.
+
+Les champs qui décrivent le contenu — titre, objet, description, mots-clés, catégorie — ne sont plus
+lus comme des noms d'outils. Les champs auteur le restent : `dc:creator` valant « Claude Code » est
+une vraie attribution, et le nom d'une personne n'y correspond à rien de toute façon.
+
+Ce qui **continue** d'être lu dans un titre : les chemins, les comptes système, les identifiants de
+session. Un chemin `C:\Users\lotfi\` reste une fuite où qu'il se trouve.
+
 ### La question directe : produit par une IA, et laquelle ?
 
 Chaque rapport commence par une ligne qui y répond, parce que la réponse était jusqu'ici éparpillée
@@ -662,7 +708,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 255 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 263 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

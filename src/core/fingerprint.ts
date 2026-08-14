@@ -266,6 +266,35 @@ function matchTool(value: string): ToolMatch[] {
  * typically appears in a template path and in several hyperlinks at once, and
  * reporting it five times helps nobody.
  */
+/**
+ * Fields that describe what a document is *about* rather than what made it.
+ *
+ * A report titled "Comparatif Claude contre ChatGPT", typed by a person in
+ * Word, was reported as attributed to an AI — because the title was scanned for
+ * vendor names alongside the producer fields. Subject matter is not provenance,
+ * and a tool that cannot tell them apart accuses everyone who writes about the
+ * subject.
+ *
+ * The author fields stay in scope: `dc:creator` set to "Claude Code" is a real
+ * attribution, and a person's name there matches nothing anyway.
+ */
+const SUBJECT_FIELDS = new Set([
+  'Title',
+  'XMP title',
+  'Subject',
+  'Description',
+  'Keywords',
+  'Category',
+  'Content status',
+  'SVG title (accessibility)',
+  'SVG description (accessibility)',
+  'JSON-LD structured data',
+  // This module's own prose, which names tools in order to explain them.
+  'Written by the docx JavaScript library',
+  'Assembled by a program, not typed in a word processor',
+  'How the file says it was made',
+]);
+
 export function fingerprint(findings: Finding[]): Finding[] {
   const derived = new Map<string, Finding>();
 
@@ -277,6 +306,10 @@ export function fingerprint(findings: Finding[]): Finding[] {
   for (const source of findings) {
     const value = source.value;
     if (!value) continue;
+    // Subject matter is not provenance. Host and identifier signatures still
+    // run on these — a path or a session id in a title is still a leak — but a
+    // vendor name in one is a topic.
+    const subjectOnly = SUBJECT_FIELDS.has(source.label);
 
     for (const signature of [...HOST_SIGNATURES, ...TEMP_SIGNATURES, ...IDENTIFIER_SIGNATURES]) {
       const match = value.match(signature.pattern);
@@ -289,6 +322,8 @@ export function fingerprint(findings: Finding[]): Finding[] {
         value: signature.describe(match),
       });
     }
+
+    if (subjectOnly) continue;
 
     for (const tool of matchTool(value)) {
       add({
@@ -331,6 +366,12 @@ export interface Provenance {
    * written around.
    */
   declared: boolean;
+  /**
+   * True when nothing names a tool but the container's own shape says a
+   * program built it. Narrower than an attribution and much stronger than
+   * silence — see structuralGenerator in ooxml.ts for what it reads.
+   */
+  machineAssembled: boolean;
 }
 
 /** Labels this module emits that name a producing tool rather than a machine. */
@@ -343,6 +384,14 @@ const TOOL_LABELS = [
   'Tool credited by the C2PA manifest',
   'Software credited by the action',
   'Document generated programmatically',
+  // The plainest statement a file can make about what wrote it. It is reported
+  // as informational because naming Word is not a privacy problem — but a
+  // summary that answers "what produced this" and omits the field literally
+  // headed "Application" is answering the wrong question.
+  'Producing application',
+  'Creating application',
+  'XMP creator tool',
+  'Written by the docx JavaScript library',
 ] as const;
 
 export function provenance(findings: Finding[]): Provenance {
@@ -354,7 +403,16 @@ export function provenance(findings: Finding[]): Provenance {
       // signature not verified"), which belongs in the report line rather than
       // repeated after every tool name in a one-line summary.
       const name = finding.value.split(' \u2014 ')[0]!.trim();
-      if (name && !tools.includes(name)) tools.push(name);
+      if (!name) continue;
+      // The raw field often restates what an earlier, parsed entry already
+      // said: "ReportLab" then "ReportLab PDF Library - www.reportlab.com",
+      // "claude-opus-5 (Claude)" then "claude-opus-5 via LangChain 0.3.7". A
+      // one-line answer that repeats itself twice is not an answer.
+      const lower = name.toLowerCase();
+      if (tools.some((t) => t.toLowerCase().includes(lower) || lower.includes(t.toLowerCase()))) {
+        continue;
+      }
+      tools.push(name);
     }
   }
   // "Generated programmatically" alone means a library wrote the container —
@@ -366,5 +424,13 @@ export function provenance(findings: Finding[]): Provenance {
       finding.label === 'Assistant or agent named in metadata' ||
       finding.label === 'Coding agent named in metadata',
   );
-  return { tools, attributed: attributed || declaresGenerative(findings), declared: declaresGenerative(findings) };
+  const machineAssembled = findings.some(
+    (finding) => finding.label === 'Assembled by a program, not typed in a word processor',
+  );
+  return {
+    tools,
+    attributed: attributed || declaresGenerative(findings),
+    declared: declaresGenerative(findings),
+    machineAssembled,
+  };
 }

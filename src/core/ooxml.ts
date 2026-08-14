@@ -70,6 +70,20 @@ const DATE_TAGS = new Set(['dcterms:created', 'dcterms:modified']);
  */
 const ANONYMOUS_AUTHOR = 'Author';
 
+/**
+ * Values that name a library's default rather than a person.
+ *
+ * `Un-named` is what the `docx` JavaScript library writes into `dc:creator`
+ * and `cp:lastModifiedBy` when the caller supplies neither — verified in its
+ * source, not inferred. Reporting it as confirmed identifying data is a false
+ * positive: nobody is called that, and clearing a field that already holds a
+ * placeholder achieves nothing.
+ *
+ * It is still worth knowing it is there, which is what the generator signature
+ * below does with it.
+ */
+const PLACEHOLDER_VALUES = new Set(['Un-named', 'Unknown', 'unknown', 'Anonymous', ANONYMOUS_AUTHOR]);
+
 export function detectOoxmlFormat(parts: Parts): Format {
   if (parts['word/document.xml']) return 'docx';
   if (parts['ppt/presentation.xml']) return 'pptx';
@@ -183,6 +197,95 @@ function findWorkbookIdentities(parts: Parts): Finding[] {
   return findings;
 }
 
+/**
+ * Traces of a program, in the shape of the container rather than in a name.
+ *
+ * Every generator check elsewhere reads a field that names a tool, which finds
+ * nothing whenever the tool does not sign its work — and most do not. A real
+ * document had `dc:creator` set to a department, `cp:lastModifiedBy` set to
+ * "Un-named", and no tool named anywhere. It was also, unmistakably, assembled
+ * by a library, and everything saying so was structural:
+ *
+ *   - `docProps/app.xml` present and empty. Word always fills it — Application,
+ *     AppVersion, Words, Characters, DocSecurity. A part created to satisfy the
+ *     OPC schema and never populated is not something an Office app produces.
+ *   - Timestamps carrying milliseconds. `2026-07-29T15:22:28.698Z` is what
+ *     JavaScript's `Date.toISOString()` emits; Word writes whole seconds.
+ *   - Media named by content hash. Forty hex characters is a SHA-1, a library
+ *     convention; Word writes image1.png.
+ *   - A .docx with settings but no rsid at all. Word always records revision
+ *     save identifiers.
+ *
+ * Each is weak alone — a converter might do any one of them — so two are
+ * required before this says anything. What it concludes is narrow and
+ * checkable: a program assembled this file rather than a person typing in a
+ * word processor. It does not say which program, and it does not say AI.
+ */
+function structuralGenerator(parts: Parts, format: Format): Finding[] {
+  const findings: Finding[] = [];
+  const reasons: string[] = [];
+
+  // A signature specific enough to name, and checked rather than guessed: a
+  // document generated with the library reproduces this shape exactly —
+  // "Un-named" in the two name fields, an empty extended-properties part,
+  // revision 1, and created equal to modified down to the millisecond.
+  const coreForLibrary = readText(parts, 'docProps/core.xml') ?? '';
+  if (/<(?:cp:)?lastModifiedBy>Un-named<|<dc:creator>Un-named</.test(coreForLibrary)) {
+    findings.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'docProps/core.xml',
+      label: 'Written by the docx JavaScript library',
+      // The name leads, so a one-line summary can take it verbatim; the
+      // reasoning follows the dash, where every other tool value puts it.
+      value:
+        'docx (JavaScript library) — "Un-named" is that library\'s default for the author ' +
+        'fields, verified in its source. Many products embed it, so this names what wrote the ' +
+        'file and not who asked for it',
+    });
+  }
+
+  const app = readText(parts, 'docProps/app.xml');
+  if (app !== undefined && /<Properties[^>]*\/>|<Properties[^>]*>\s*<\/Properties>/.test(app)) {
+    reasons.push('docProps/app.xml is present but empty');
+  }
+
+  const core = readText(parts, 'docProps/core.xml');
+  if (core) {
+    const created = getElementText(core, 'dcterms:created');
+    const modified = getElementText(core, 'dcterms:modified');
+    if (created && /\.\d{3}Z$/.test(created)) {
+      reasons.push('timestamps carry milliseconds, the shape JavaScript writes');
+    }
+    if (created && created === modified) {
+      reasons.push('created and modified are the same instant');
+    }
+  }
+
+  const settings = readText(parts, 'word/settings.xml');
+  if (format === 'docx' && settings && !/rsid/i.test(settings)) {
+    reasons.push('no revision save IDs, which Word always writes');
+  }
+
+  const hashed = findMediaParts(parts).filter((path) =>
+    /\/[0-9a-f]{32,64}\.[a-z0-9]+$/i.test(path),
+  );
+  if (hashed.length) {
+    reasons.push(`${hashed.length} media file(s) named by content hash rather than image1, image2`);
+  }
+
+  if (reasons.length >= 2) {
+    findings.push({
+      kind: 'provenance',
+      confidence: reasons.length >= 3 ? 'confirmed' : 'probable',
+      location: 'container structure',
+      label: 'Assembled by a program, not typed in a word processor',
+      value: reasons.join('; '),
+    });
+  }
+  return findings;
+}
+
 /** Presenter notes are rarely written for the audience that receives the deck. */
 function findSpeakerNotes(parts: Parts): number {
   return Object.keys(parts).filter(
@@ -243,7 +346,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   if (core) {
     for (const field of CORE_FIELDS) {
       const value = getElementText(core, field.tag);
-      if (value) {
+      if (value && !PLACEHOLDER_VALUES.has(value)) {
         findings.push({
           kind: field.kind,
           confidence: field.confidence,
@@ -290,10 +393,14 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       const names = collectAttribute(custom, 'name');
       findings.push({
         kind: 'identity',
-        confidence: 'confirmed',
+        // An empty container carries no identity. Several generators create
+        // the part and never populate it, and calling that confirmed
+        // identifying data overstates what is in the file — the part is worth
+        // mentioning, and worth removing, but it is not evidence of anything.
+        confidence: names.length ? 'confirmed' : 'informational',
         location: 'docProps/custom.xml',
         label: 'Custom properties',
-        value: names.length ? names.join(', ') : 'present',
+        value: names.length ? names.join(', ') : 'the part exists but holds no properties',
       });
     }
   }
@@ -407,6 +514,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     findings.push(...findSourceTypes(strFromU8(raw), path));
   }
 
+  findings.push(...structuralGenerator(parts, format));
   findings.push(...findWorkbookIdentities(parts));
   findings.push(...inspectBodyText(parts));
 

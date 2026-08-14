@@ -222,6 +222,7 @@ const VALUE_TEXT: Record<string, string> = {
   'present — may carry provenance manifests or source data':
     'présentes — peuvent contenir des manifestes de provenance ou des données sources',
   present: 'présentes',
+  'the part exists but holds no properties': 'la partie existe mais ne contient aucune propriété',
   'file was assembled in a scratch directory':
     'le fichier a été assemblé dans un répertoire de travail temporaire',
 };
@@ -662,7 +663,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
  * honnête est plus étroite que ça.
  */
 function provenanceBanner(findings: Finding[]): HTMLElement {
-  const { tools, attributed, declared } = provenance(findings);
+  const { tools, attributed, declared, machineAssembled } = provenance(findings);
   const node = el('div', attributed ? 'provenance is-attributed' : 'provenance');
 
   if (declared) {
@@ -694,7 +695,28 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
   }
   if (tools.length) {
     node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
-    node.append(el('span', 'provenance-caveat', '— une bibliothèque, pas un assistant.'));
+    node.append(
+      el(
+        'span',
+        'provenance-caveat',
+        'Le logiciel qui a écrit le fichier. Aucun assistant n’est nommé, ce qui ne veut pas dire qu’il n’y en a pas eu.' +
+          (machineAssembled
+            ? ' La forme du conteneur le confirme : un programme l’a fabriqué, pas un traitement de texte.'
+            : ''),
+      ),
+    );
+    return node;
+  }
+  if (machineAssembled) {
+    node.classList.add('is-attributed');
+    node.append(el('strong', undefined, 'Aucun outil nommé, mais un programme a fabriqué ce fichier.'));
+    node.append(
+      el(
+        'span',
+        'provenance-caveat',
+        'Le conteneur a la forme que laisse une bibliothèque, pas celle d’un traitement de texte. Ce que cela ne dit pas : quel programme, ni si un modèle a écrit les mots.',
+      ),
+    );
     return node;
   }
   node.append(el('strong', undefined, 'Aucune métadonnée ne nomme d’outil.'));
