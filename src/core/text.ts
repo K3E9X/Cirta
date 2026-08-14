@@ -14,6 +14,8 @@ import { preview } from './types.js';
 
 const CP = {
   SOFT_HYPHEN: 0x00ad,
+  COMBINING_GRAPHEME_JOINER: 0x034f,
+  ARABIC_LETTER_MARK: 0x061c,
   MONGOLIAN_VOWEL_SEP: 0x180e,
   ZWSP: 0x200b,
   ZWNJ: 0x200c,
@@ -26,22 +28,62 @@ const CP = {
   VS16: 0xfe0f,
 } as const;
 
-/** True for codepoints that render as nothing on their own. */
+/**
+ * Format characters that belong to a writing system rather than to a carrier.
+ *
+ * Every one of these is category Cf, so the generic backstop below would strip
+ * them — and that would be data loss, not cleaning. The Arabic number signs
+ * prefix a numeral, the end-of-ayah marks punctuate Quranic text, and the
+ * musical controls beam notes together. They are invisible, but they are what
+ * the document says.
+ */
+function isScriptFunctional(cp: number): boolean {
+  return (
+    (cp >= 0x0600 && cp <= 0x0605) || // Arabic number signs
+    cp === 0x06dd || // Arabic end of ayah
+    cp === 0x070f || // Syriac abbreviation mark
+    cp === 0x08e2 || // Arabic disputed end of ayah
+    cp === 0x110bd || // Kaithi number sign
+    cp === 0x110cd || // Kaithi number sign above
+    (cp >= 0x1d173 && cp <= 0x1d17a) // musical beam/phrase/tie controls
+  );
+}
+
+/**
+ * True for codepoints that render as nothing on their own.
+ *
+ * The enumerated cases come first because they carry names worth reporting.
+ * The `Cf` clause behind them is the backstop: Unicode keeps adding format
+ * characters, and a list that only knows the ones written down here silently
+ * passes every future carrier through. Several invisibles below are *not* `Cf`
+ * — Hangul fillers are `Lo`, the Mongolian selectors and the grapheme joiner
+ * are `Mn` — so the backstop replaces neither the list nor the reverse.
+ */
 function isInvisible(cp: number): boolean {
   return (
     cp === CP.SOFT_HYPHEN ||
-    cp === CP.MONGOLIAN_VOWEL_SEP ||
+    cp === CP.COMBINING_GRAPHEME_JOINER ||
+    cp === CP.ARABIC_LETTER_MARK ||
+    cp === 0x115f || // Hangul choseong filler
+    cp === 0x1160 || // Hangul jungseong filler
+    cp === 0x17b4 || // Khmer vowel inherent AQ
+    cp === 0x17b5 || // Khmer vowel inherent AA
+    (cp >= 0x180b && cp <= 0x180e) || // Mongolian free variation selectors, vowel separator
     (cp >= 0x200b && cp <= 0x200f) || // ZWSP..RLM
     (cp >= 0x202a && cp <= 0x202e) || // bidi embedding/override
     (cp >= 0x2060 && cp <= 0x2064) || // word joiner, invisible operators
     (cp >= 0x2066 && cp <= 0x2069) || // bidi isolates
     (cp >= 0x206a && cp <= 0x206f) || // deprecated format controls
-    cp === CP.ZWNBSP ||
     (cp >= 0xfe00 && cp <= 0xfe0f) || // variation selectors 1-16
+    (cp >= 0xfff9 && cp <= 0xfffb) || // interlinear annotation anchors
+    cp === CP.ZWNBSP ||
     (cp >= 0xe0000 && cp <= 0xe007f) || // tag characters
-    (cp >= 0xe0100 && cp <= 0xe01ef) // variation selectors 17-256
+    (cp >= 0xe0100 && cp <= 0xe01ef) || // variation selectors 17-256
+    (!isScriptFunctional(cp) && OTHER_FORMAT.test(String.fromCodePoint(cp)))
   );
 }
+
+const OTHER_FORMAT = /\p{Cf}/u;
 
 function describe(cp: number): string {
   if (cp >= 0xe0000 && cp <= 0xe007f) return 'tag character';
@@ -50,6 +92,16 @@ function describe(cp: number): string {
   switch (cp) {
     case CP.SOFT_HYPHEN:
       return 'soft hyphen';
+    case CP.COMBINING_GRAPHEME_JOINER:
+      return 'combining grapheme joiner';
+    case CP.ARABIC_LETTER_MARK:
+      return 'Arabic letter mark';
+    case 0x115f:
+    case 0x1160:
+      return 'Hangul filler';
+    case 0x17b4:
+    case 0x17b5:
+      return 'Khmer inherent vowel';
     case CP.MONGOLIAN_VOWEL_SEP:
       return 'Mongolian vowel separator';
     case CP.ZWSP:
@@ -67,8 +119,10 @@ function describe(cp: number): string {
     case CP.ZWNBSP:
       return 'zero-width no-break space (BOM)';
     default:
+      if (cp >= 0x180b && cp <= 0x180d) return 'Mongolian free variation selector';
       if (cp >= 0x202a && cp <= 0x202e) return 'bidirectional override';
       if (cp >= 0x2066 && cp <= 0x2069) return 'bidirectional isolate';
+      if (cp >= 0xfff9 && cp <= 0xfffb) return 'interlinear annotation anchor';
       return 'format control';
   }
 }
@@ -136,6 +190,91 @@ export class BinaryInputError extends Error {
   }
 }
 
+const latin1 = (text: string) => Uint8Array.from([...text].map((c) => c.charCodeAt(0)));
+
+/**
+ * Formats that are not text whatever their bytes happen to decode to.
+ *
+ * The NUL-byte test below catches most of these, but not reliably: a PDF whose
+ * streams are uncompressed contains no NUL byte and is valid UTF-8, so it went
+ * straight through the earlier guard and into the text cleaner. A signature is
+ * a fact about the format rather than a guess about the bytes, so it is checked
+ * first. Text formats this tool handles — SVG, HTML, Markdown — are deliberately
+ * absent: they belong in the text path.
+ */
+const BINARY_SIGNATURES: ReadonlyArray<readonly [Uint8Array, string]> = [
+  [latin1('PK\x03\x04'), 'a ZIP container (DOCX, ODT, XLSX, PPTX, EPUB)'],
+  [latin1('PK\x05\x06'), 'an empty ZIP container'],
+  [latin1('PK\x07\x08'), 'a spanned ZIP container'],
+  [latin1('%PDF-'), 'a PDF'],
+  [latin1('\x89PNG\r\n\x1a\n'), 'a PNG image'],
+  [latin1('\xff\xd8\xff'), 'a JPEG image'],
+  [latin1('GIF87a'), 'a GIF image'],
+  [latin1('GIF89a'), 'a GIF image'],
+  [latin1('II*\x00'), 'a TIFF image'],
+  [latin1('MM\x00*'), 'a TIFF image'],
+  [latin1('\x1f\x8b'), 'a gzip archive'],
+  [latin1('\xfd7zXZ\x00'), 'an xz archive'],
+  [latin1('7z\xbc\xaf\x27\x1c'), 'a 7-Zip archive'],
+  [latin1('Rar!\x1a\x07'), 'a RAR archive'],
+  [latin1('\x7fELF'), 'an ELF binary'],
+  [latin1('\xca\xfe\xba\xbe'), 'a Java class or Mach-O binary'],
+  [latin1('\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'), 'a legacy Office document (.doc, .xls, .ppt)'],
+  [latin1('SQLite format 3\x00'), 'a SQLite database'],
+];
+
+/**
+ * Signatures that are also ordinary words.
+ *
+ * A Markdown file may legitimately open with "OTTO" or "RIFF", and refusing it
+ * would be a regression in a text tool. Every one of these formats puts binary
+ * structure — a length, a table count — immediately after the magic, and prose
+ * does not, so a non-printable byte in the opening bytes is what separates them.
+ */
+const AMBIGUOUS_SIGNATURES: ReadonlyArray<readonly [Uint8Array, string]> = [
+  [latin1('RIFF'), 'a RIFF container (WEBP, WAV, AVI)'],
+  [latin1('OggS'), 'an Ogg media file'],
+  [latin1('BZh'), 'a bzip2 archive'],
+  [latin1('8BPS'), 'a Photoshop document'],
+  [latin1('wOFF'), 'a WOFF font'],
+  [latin1('wOF2'), 'a WOFF2 font'],
+  [latin1('OTTO'), 'an OpenType font'],
+];
+
+const startsWith = (data: Uint8Array, magic: Uint8Array): boolean =>
+  data.length >= magic.length && magic.every((byte, index) => data[index] === byte);
+
+function hasBinaryStructure(data: Uint8Array): boolean {
+  return data
+    .subarray(0, 32)
+    .some((byte) => byte < 0x20 && !ALLOWED_CONTROLS.has(byte));
+}
+
+function matchSignature(data: Uint8Array): string | undefined {
+  for (const [magic, label] of BINARY_SIGNATURES) {
+    if (startsWith(data, magic)) return label;
+  }
+  for (const [magic, label] of AMBIGUOUS_SIGNATURES) {
+    if (startsWith(data, magic) && hasBinaryStructure(data)) return label;
+  }
+  return undefined;
+}
+
+const SNIFF_BYTES = 8192;
+/** Real text runs near zero control bytes; compressed and executable data does not. */
+const CONTROL_RATIO_LIMIT = 0.05;
+const ALLOWED_CONTROLS = new Set([0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1b]);
+
+function isControlDense(data: Uint8Array): boolean {
+  const head = data.subarray(0, SNIFF_BYTES);
+  if (head.length === 0) return false;
+  let controls = 0;
+  for (const byte of head) {
+    if (byte < 0x20 && !ALLOWED_CONTROLS.has(byte)) controls++;
+  }
+  return controls / head.length > CONTROL_RATIO_LIMIT;
+}
+
 /**
  * Decode bytes as text, refusing anything that is not.
  *
@@ -144,11 +283,21 @@ export class BinaryInputError extends Error {
  * applied to the wreckage, and the result is written back out. A PDF that goes
  * through it comes out larger and unparseable. Refusing is the only safe
  * answer, because there is no way to put the lost bytes back.
+ *
+ * Three tests, cheapest last: a format signature, then NUL bytes, then the
+ * density of control bytes. Undecodable bytes alone are deliberately not proof
+ * — text in an encoding other than UTF-8 must still be recognisable as text.
  */
 export function decodeTextInput(data: Uint8Array): string {
-  // A NUL byte does not occur in text and is the cheapest reliable signal.
+  const signature = matchSignature(data);
+  if (signature) {
+    throw new BinaryInputError(`input looks like ${signature}, not text`);
+  }
   if (data.includes(0)) {
     throw new BinaryInputError('input contains NUL bytes, so it is not text');
+  }
+  if (isControlDense(data)) {
+    throw new BinaryInputError('input is dense in control bytes, so it is not text');
   }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(data);
@@ -197,6 +346,64 @@ function decodePayloads(codepoints: number[]): string[] {
   return out;
 }
 
+const SCRIPTS = [
+  ['Latin', /\p{Script=Latin}/u],
+  ['Cyrillic', /\p{Script=Cyrillic}/u],
+  ['Greek', /\p{Script=Greek}/u],
+] as const;
+
+const WORD = /[\p{L}\p{M}\p{Nd}]+/gu;
+const FULLWIDTH_LATIN = /[Ａ-Ｚａ-ｚ]/;
+const ASCII_LATIN = /[A-Za-z]/;
+
+/**
+ * Words built from lookalike letters, which is the other way to hide in text.
+ *
+ * A Cyrillic `а` and a Latin `a` are different codepoints that render
+ * identically, so "pаsswоrd" reads as ordinary English and matches nothing. The
+ * signal is not the character — Cyrillic text is full of them legitimately — but
+ * the *mixture*: one word drawing on two scripts at once has no innocent reason
+ * to exist outside a linguistics paper. Same for a fullwidth `Ａ` next to an
+ * ASCII one.
+ *
+ * These are reported and never replaced. Substituting the "wrong" script is a
+ * guess about which half of the word was intended, and getting it backwards
+ * mangles genuine Cyrillic or Greek text — so the call stays with the reader.
+ */
+function findConfusables(input: string): Finding[] {
+  const mixedScript = new Map<string, Set<string>>();
+  const mixedWidth = new Set<string>();
+
+  for (const match of input.matchAll(WORD)) {
+    const word = match[0];
+    const scripts = SCRIPTS.filter(([, pattern]) => pattern.test(word)).map(([name]) => name);
+    if (scripts.length > 1) mixedScript.set(word, new Set(scripts));
+    if (FULLWIDTH_LATIN.test(word) && ASCII_LATIN.test(word)) mixedWidth.add(word);
+  }
+
+  const findings: Finding[] = [];
+  if (mixedScript.size) {
+    const scripts = new Set([...mixedScript.values()].flatMap((set) => [...set]));
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'mixed-script words',
+      label: 'Letters that look alike but are not',
+      value: `${preview([...mixedScript.keys()].join(', '), 80)} — one word mixing ${[...scripts].join(' and ')}`,
+    });
+  }
+  if (mixedWidth.size) {
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'mixed-width words',
+      label: 'Fullwidth letters among ASCII ones',
+      value: preview([...mixedWidth].join(', '), 80),
+    });
+  }
+  return findings;
+}
+
 export function scanText(input: string): TextScan {
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const counts = new Map<number, number>();
@@ -242,6 +449,8 @@ export function scanText(input: string): TextScan {
     });
   }
 
+  findings.push(...findConfusables(input));
+
   return { findings, decoded: decodePayloads(carriers) };
 }
 
@@ -255,8 +464,18 @@ export interface CleanTextOptions {
 export interface CleanTextResult {
   text: string;
   removed: Finding[];
+  /**
+   * Found but deliberately left in place — lookalike letters, which are part of
+   * a word rather than an invisible character. Reported separately so `removed`
+   * never claims something the output still carries.
+   */
+  kept: Finding[];
   decoded: string[];
 }
+
+/** Findings that describe a word rather than a codepoint, so cleaning cannot touch them. */
+const isConfusable = (finding: Finding) =>
+  finding.location === 'mixed-script words' || finding.location === 'mixed-width words';
 
 export function cleanText(input: string, options: CleanTextOptions = {}): CleanTextResult {
   const { normalizeSpaces = true, normalize = true } = options;
@@ -281,7 +500,12 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
   let text = kept.join('');
   if (normalize) text = text.normalize('NFC');
 
-  return { text, removed: scan.findings, decoded: scan.decoded };
+  return {
+    text,
+    removed: scan.findings.filter((finding) => !isConfusable(finding)),
+    kept: scan.findings.filter(isConfusable),
+    decoded: scan.decoded,
+  };
 }
 
 /** Render a short human-readable summary of a scan, used by CLI and web. */

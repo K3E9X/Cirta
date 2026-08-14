@@ -16,15 +16,17 @@ votre machine.
 |---|---|
 | PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
+| `customXml/` | Le second magasin de propriétés, que `docProps` ne couvre pas : liaisons de contrôles de contenu, colonnes de bibliothèque SharePoint, étiquettes de classification |
 | XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
-| HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; commentaires de génération ; JSON-LD signalé |
+| HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; attributs `data-ai-*` ; commentaires de génération ; JSON-LD signalé |
 | Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
 | JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
-| Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques |
+| Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques ; **plus un filet générique sur la catégorie Unicode `Cf`**, pour que la liste ne prenne pas de retard sur la norme |
+| Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 
 ### Traces de l'outil producteur
 
@@ -422,8 +424,9 @@ et la relation dans `_rels/.rels` le sont également : c'est la façon habituell
 naïf corrompt un fichier Office. Le conteneur est reconstruit avec `[Content_Types].xml` en première
 entrée.
 
-**Contenu laissé en place** — les liens vers des chemins locaux, les diapositives masquées et les
-notes du présentateur sont signalés mais **jamais supprimés**. Ce sont du contenu, pas des
+**Contenu laissé en place** — les liens vers des chemins locaux, les diapositives masquées, les
+notes du présentateur, les références entre classeurs et les lettres sosies sont signalés mais
+**jamais supprimés**. Ce sont du contenu, pas des
 métadonnées : les retirer changerait ce que lit le destinataire. Le rapport de nettoyage les rappelle
 explicitement pour que la décision vous revienne.
 
@@ -436,10 +439,45 @@ typographique légitime : liants de séquences emoji (`👩‍💻`), sélecteur
 caractère pictographique, et anti-liants entre deux lettres, indispensables aux orthographes persane
 et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte passe en NFC.
 
+Derrière la liste nommée, un filet attrape toute la catégorie Unicode `Cf` — sinon chaque caractère
+de format ajouté à la norme passerait sans bruit. Ce filet a lui aussi ses exceptions, pour la raison
+inverse : les signes de nombre arabes (`U+0600`–`U+0605`), les fins de verset coranique (`U+06DD`,
+`U+08E2`), le signe kaithi et les contrôles de ligature musicale sont invisibles mais font partie de
+ce que dit le document. Les supprimer serait une perte de données, pas un nettoyage.
+
+**Lettres sosies** — un `а` cyrillique et un `a` latin sont deux codepoints qui s'affichent
+identiquement, donc `pаssword` se lit comme un mot anglais ordinaire et ne correspond à rien. Le
+signal n'est pas le caractère — le cyrillique en est légitimement plein — mais le *mélange* : un mot
+puisant dans deux alphabets à la fois. Ils sont **signalés et jamais remplacés** : substituer le
+« mauvais » alphabet est un pari sur la moitié du mot qui était voulue, et se tromper de sens abîme
+du vrai texte cyrillique ou grec. La décision vous revient.
+
+### Refuser plutôt qu'abîmer
+
+Deux gardes existent parce que l'échec silencieux coûte plus cher que le refus.
+
+**Un fichier binaire n'entre pas dans les outils texte.** Passer un document au nettoyeur de texte le
+détruit : les octets sont décodés en pure perte, le retrait s'applique à l'épave, et le résultat est
+réécrit par-dessus. La détection repose sur une **signature de format** (25 en-têtes), puis les
+octets NUL, puis la densité d'octets de contrôle. La signature d'abord, parce qu'elle seule est
+fiable : un PDF dont les flux ne sont pas compressés ne contient aucun NUL et décode proprement en
+UTF-8 — il traversait les deux autres tests. Les signatures qui sont aussi des mots courants (`OTTO`,
+`RIFF`) exigent en plus une structure binaire dans les premiers octets, pour qu'un document qui
+commence par ce mot reste traité comme du texte.
+
+**Une archive est refusée sur la taille qu'elle annonce**, avant toute décompression. Un conteneur de
+800 Ko peut déclarer 800 Mo ; les plafonds appliqués après coup bornent ce qui est *rapporté*, pas ce
+qui est *décompressé* — la mémoire est déjà dépensée. La taille annoncée est la revendication de
+l'archive et un fichier forgé peut mentir : c'est une garde, pas une preuve.
+
+**Une écriture ne peut pas perdre l'original.** Toute sortie passe par un fichier temporaire du même
+répertoire puis un renommage atomique ; un lien symbolique en destination est refusé plutôt que suivi ;
+et `--in-place` conserve un `.bak` créé avant tout remplacement.
+
 ## Développement
 
 ```bash
-npm run verify     # typage, 178 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 196 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

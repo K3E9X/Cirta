@@ -451,3 +451,25 @@ describe('invisible characters in markup bodies', () => {
     expect(redacted.notes.map((n) => n.code)).not.toContain('kept:in-content');
   });
 });
+
+describe('data-ai attributes', () => {
+  const page = `<!doctype html><html><body>
+  <p data-ai-generated="true" data-ai-model="claude">Un paragraphe.</p>
+  <p>Un autre.</p>
+  </body></html>`;
+
+  it('reports them', async () => {
+    const result = await inspectFile(encode(page), 'page.html');
+    const finding = result.findings.find((f) => f.label === 'AI provenance data attributes');
+    expect(finding?.confidence).toBe('confirmed');
+    expect(finding?.value).toContain('2 attributes');
+  });
+
+  it('removes them and leaves the text alone', async () => {
+    // Unlike JSON-LD, these change nothing a reader or a search engine sees.
+    const cleaned = decode((await redactFile(encode(page), 'page.html')).data!);
+    expect(cleaned).not.toContain('data-ai');
+    expect(cleaned).toContain('Un paragraphe.');
+    expect(cleaned).toContain('<p>Un autre.</p>');
+  });
+});

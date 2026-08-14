@@ -39,8 +39,9 @@ export { exposure, estimateTokens, EXPOSURE_THRESHOLDS } from './exposure.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export type { ArchiveMember } from './archive.js';
+export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
-import { unzipSync } from 'fflate';
+import { unzipGuarded } from './zip.js';
 import type { Format, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
@@ -119,7 +120,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isPdf(data)) return 'pdf';
   if (isZip(data)) {
     try {
-      const parts = unzipSync(data);
+      const parts = unzipGuarded(data);
       if (isOdf(parts)) return 'odt'; // refined by inspectOdf
       if (parts['word/document.xml']) return 'docx';
       if (parts['ppt/presentation.xml']) return 'pptx';
@@ -141,7 +142,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
 export async function inspectFile(data: Uint8Array, hint?: string): Promise<InspectResult> {
   if (isPdf(data)) return inspectPdf(data);
   if (isZip(data)) {
-    const parts = unzipSync(data);
+    const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return inspectArchive(data);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
   }
@@ -200,7 +201,7 @@ async function noteSurvivors(result: RedactResult, hint?: string): Promise<Redac
 export async function redactFile(data: Uint8Array, hint?: string): Promise<RedactResult> {
   if (isPdf(data)) return noteSurvivors(await redactPdf(data), hint);
   if (isZip(data)) {
-    const parts = unzipSync(data);
+    const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) {
       throw new UnsupportedFormatError(
         'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
