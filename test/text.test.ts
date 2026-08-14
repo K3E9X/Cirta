@@ -457,3 +457,46 @@ describe('C0 control characters', () => {
     ).toBe(true);
   });
 });
+
+describe('zero-width characters used as digits', () => {
+  /** The scheme every "invisible watermark" library on npm implements. */
+  const encode = (payload: string, zero = '​', one = '‌') =>
+    [...payload]
+      .map((c) => c.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join('')
+      .replace(/0/g, zero)
+      .replace(/1/g, one);
+
+  it('recovers a payload hidden as U+200B and U+200C', () => {
+    const { decoded } = scanText(`Bien cordialement,\nLotfi${encode('KGX-2026')}`);
+    expect(decoded.join(' ')).toContain('KGX-2026');
+  });
+
+  it('recovers it whichever codepoint the library chose for 1', () => {
+    const { decoded } = scanText(`Texte${encode('SECRET', '‌', '​')}`);
+    expect(decoded.join(' ')).toContain('SECRET');
+  });
+
+  it('reads a four-symbol alphabet as base-4', () => {
+    const symbols = ['​', '‌', '‍', '﻿'];
+    const bits = [...'AGENT']
+      .map((c) => c.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join('');
+    let hidden = '';
+    for (let i = 0; i + 2 <= bits.length; i += 2) hidden += symbols[parseInt(bits.slice(i, i + 2), 2)]!;
+    expect(scanText(`Texte${hidden}`).decoded.join(' ')).toContain('AGENT');
+  });
+
+  it('stays quiet when the characters do not decode to anything printable', () => {
+    // Twenty-four alternating joiners: long enough to try, meaningless as bytes.
+    const noise = '​‌'.repeat(16);
+    expect(scanText(`Texte${noise}`).decoded).toEqual([]);
+  });
+
+  it('still counts and removes the characters even when nothing decodes', () => {
+    const noise = '​‌'.repeat(16);
+    const scan = scanText(`Texte${noise}`);
+    expect(scan.findings.some((f) => f.label === 'zero-width space')).toBe(true);
+    expect(cleanText(`Texte${noise}`).text).toBe('Texte');
+  });
+});

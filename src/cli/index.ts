@@ -13,7 +13,7 @@ import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
   redactFile,
-  scanText,
+  inspectPlainText,
   cleanText,
   UnsupportedFormatError,
   decodeTextInput,
@@ -203,6 +203,9 @@ const SUPPORTED_EXTENSIONS = new Set([
   // travels exactly as far as one in a .docx, and a bidi override in source is
   // the Trojan Source case — the reason those controls are called out at all.
   '.txt', '.text', '.log', '.csv', '.tsv',
+  // Mail exports. The header block is the most talkative metadata this tool
+  // reads, and a saved draft is exactly where it survives.
+  '.eml', '.mbox',
   '.json', '.yaml', '.yml', '.toml', '.ini',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
@@ -576,15 +579,19 @@ async function runText(args: Args): Promise<number> {
     return 0;
   }
 
-  const scan = scanText(input);
+  // The same reading a file gets. These used to be two separate paths, and
+  // they disagreed: piping a mail draft in reported only its odd characters,
+  // while saving the identical bytes and inspecting the file named the
+  // assistant that wrote it.
+  const findings = inspectPlainText(input);
   if (args.json) {
-    console.log(JSON.stringify(scan, null, 2));
+    console.log(JSON.stringify({ format: 'text', findings }, null, 2));
     return 0;
   }
 
   console.log(bold('stdin'));
-  printFindings(scan.findings);
-  for (const payload of scan.decoded) console.log(`  ${yellow('decoded:')} ${payload}`);
+  printProvenance(findings);
+  printFindings(findings);
   printNotes([{ code: 'scope:invisible-characters-only' }]);
   printExposure(exposure(input));
   printStyle(stylometry(input));

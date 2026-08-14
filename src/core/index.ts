@@ -40,6 +40,8 @@ export { stylometry } from './stylometry.js';
 export type { Stylometry, StyleBand, StyleIndicator } from './stylometry.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
+export { emailHeaders, stripToolHeaders } from './email.js';
+export { inspectPlainText } from './plaintext.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
@@ -51,6 +53,8 @@ import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 import { decodeTextInput, scanText, cleanText } from './text.js';
 import { scanContent } from './archive.js';
+import { stripToolHeaders } from './email.js';
+import { inspectPlainText } from './plaintext.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
 import { byConfidence } from './types.js';
@@ -179,29 +183,16 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
     };
   }
   if (format === 'text') {
-    const text = decodeTextInput(data, decodeOptions(hint));
-    const scan = scanText(text);
     return {
       format,
-      findings: [...scan.findings, ...scanContent(text, 'file contents'), ...decodedFindings(scan)].sort(
-        byConfidence,
-      ),
+      findings: inspectPlainText(decodeTextInput(data, decodeOptions(hint))),
       notes: [{ code: 'scope:invisible-characters-only' }],
     };
   }
   throw new UnsupportedFormatError(UNSUPPORTED);
 }
 
-/** Recovered steganographic payloads, promoted from strings to findings. */
-function decodedFindings(scan: { decoded: string[] }): Finding[] {
-  return scan.decoded.map((payload) => ({
-    kind: 'invisible-character' as const,
-    confidence: 'confirmed' as const,
-    location: 'file contents',
-    label: 'Hidden payload in text',
-    value: payload,
-  }));
-}
+
 
 /**
  * Re-inspect the redacted output and report whatever survived.
@@ -278,6 +269,12 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
     // a file on disk is authored content, not a paste being tidied up, and
     // flattening the no-break space in "Objet : le rapport" is a regression.
     const result = cleanText(text, { normalizeSpaces: false });
+    // Mail headers that name a tool go too. They are metadata by every
+    // definition this tool uses, and on a generated draft they are the single
+    // most explicit mark in the file — X-Mailer naming the desktop client that
+    // composed it. The message's own headers stay: From, Subject and
+    // Message-ID are content, and noteSurvivors() will say so.
+    const stripped = stripToolHeaders(result.text);
     const notes: Note[] = [{ code: 'scope:invisible-characters-only' }];
     if (result.kept.length) {
       notes.push({ code: 'kept:content', detail: result.kept.map((f) => f.label).join(', ') });
@@ -285,8 +282,8 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
     return noteSurvivors(
       {
         format,
-        data: new TextEncoder().encode(result.text),
-        text: result.text,
+        data: new TextEncoder().encode(stripped.text),
+        text: stripped.text,
         removed: result.removed,
         notes,
       },
