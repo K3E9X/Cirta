@@ -302,3 +302,53 @@ export function fingerprint(findings: Finding[]): Finding[] {
 
   return [...derived.values()];
 }
+
+/**
+ * The one question a reader actually asks: was this made by an AI, and which?
+ *
+ * Everything needed is already in the findings — but spread over as many as
+ * five rows among a dozen others, so answering it means assembling the report
+ * by hand. This gathers them into one statement.
+ *
+ * The silent case is the one that matters most. A file with no such trace
+ * produces no provenance row at all, and a report that simply says nothing
+ * reads as "no AI" when the truthful answer is "nothing in the metadata says
+ * so, which is not the same thing". Whoever wrote the document may have pasted
+ * the text in by hand, or cleared the fields, or used a tool that writes none —
+ * and the wording itself, where a statistical watermark lives, is not readable
+ * here at all. So the absence is stated rather than left to be inferred.
+ */
+export interface Provenance {
+  /** Tools the metadata names, most specific first. */
+  tools: string[];
+  /** True when at least one field attributes the file to an AI tool. */
+  attributed: boolean;
+}
+
+/** Labels this module emits that name a producing tool rather than a machine. */
+const TOOL_LABELS = [
+  'Model identifier',
+  'Assistant or agent named in metadata',
+  'Coding agent named in metadata',
+  'LLM framework or runtime',
+  'Document generated programmatically',
+] as const;
+
+export function provenance(findings: Finding[]): Provenance {
+  const tools: string[] = [];
+  for (const label of TOOL_LABELS) {
+    for (const finding of findings) {
+      if (finding.label === label && !tools.includes(finding.value)) tools.push(finding.value);
+    }
+  }
+  // "Generated programmatically" alone means a library wrote the container —
+  // ReportLab, python-docx — which is not by itself an AI. The attribution is
+  // only claimed when something names an assistant, a model or an agent.
+  const attributed = findings.some(
+    (finding) =>
+      finding.label === 'Model identifier' ||
+      finding.label === 'Assistant or agent named in metadata' ||
+      finding.label === 'Coding agent named in metadata',
+  );
+  return { tools, attributed };
+}

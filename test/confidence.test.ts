@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
+import { PDFDocument } from 'pdf-lib';
 import {
   inspectFile,
   scanText,
   redactOoxml,
   redactPdf,
+  redactFile,
+  provenance,
   CONFIDENCE_ORDER,
   type Finding,
 } from '../src/core/index.js';
@@ -122,5 +125,50 @@ describe('credentials that cannot occur in prose', () => {
     const finding = (await inspectFile(encode('AKIAIOSFODNN7EXAMPLE'), 'k.txt')).findings[0];
     expect(finding?.value).toContain('AKIA…');
     expect(finding?.value).not.toContain('AKIAIO');
+  });
+});
+
+describe('the provenance question', () => {
+  const encode = (text: string) => new TextEncoder().encode(text);
+
+  const pdfWith = async (fields: { creator?: string; producer?: string }) => {
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]).drawText('contenu');
+    if (fields.creator) pdf.setCreator(fields.creator);
+    if (fields.producer) pdf.setProducer(fields.producer);
+    return pdf.save();
+  };
+
+  it('names the assistant, the model and the framework in one answer', async () => {
+    const data = await pdfWith({
+      creator: 'claude-opus-5 via LangChain 0.3.7',
+      producer: 'ReportLab PDF Library',
+    });
+    const result = provenance((await inspectFile(data)).findings);
+    expect(result.attributed).toBe(true);
+    expect(result.tools[0]).toContain('claude-opus-5');
+    expect(result.tools.join(' ')).toContain('LangChain');
+  });
+
+  it('does not call a plain library an AI', async () => {
+    // python-docx wrote the container; that says nothing about who wrote the
+    // words, and claiming otherwise would be the whole failure mode here.
+    const data = await pdfWith({ producer: 'ReportLab PDF Library' });
+    const result = provenance((await inspectFile(data)).findings);
+    expect(result.attributed).toBe(false);
+    expect(result.tools.join(' ')).toContain('ReportLab');
+  });
+
+  it('reports nothing rather than "no AI" when the fields are empty', async () => {
+    // The distinction the banner exists to make: silence is not a verdict.
+    const result = provenance((await inspectFile(encode('du texte ordinaire'), 'a.txt')).findings);
+    expect(result.attributed).toBe(false);
+    expect(result.tools).toEqual([]);
+  });
+
+  it('survives redaction being run first', async () => {
+    const data = await pdfWith({ creator: 'Claude', producer: 'ReportLab PDF Library' });
+    const cleaned = (await redactFile(data)).data!;
+    expect(provenance((await inspectFile(cleaned)).findings).attributed).toBe(false);
   });
 });

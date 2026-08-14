@@ -33,6 +33,30 @@ votre machine.
 | Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française |
 | Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
 
+### La question directe : produit par une IA, et laquelle ?
+
+Chaque rapport commence par une ligne qui y répond, parce que la réponse était jusqu'ici éparpillée
+sur cinq lignes du tableau qu'il fallait assembler soi-même :
+
+```
+Produced by  claude-opus-5 (Claude) · Claude / Anthropic · LangChain · ReportLab
+             according to the file's own metadata, which can be absent, wrong or forged
+```
+
+Trois réponses possibles, et la troisième est la plus importante :
+
+1. **Un assistant, un modèle ou un agent est nommé** — la ligne les liste, du plus précis au plus
+   général, avec le rappel que ce sont les métadonnées du fichier qui l'affirment.
+2. **Seule une bibliothèque est nommée** (`ReportLab`, `python-docx`) — le conteneur a été fabriqué
+   par un programme, ce qui ne dit rien de qui a écrit les mots. L'outil le dit et ne va pas plus
+   loin.
+3. **Rien ne nomme quoi que ce soit** — et le rapport le formule explicitement, au lieu de se taire :
+   *ce n'est pas la même chose que « pas d'IA »*. Les champs ont pu être vidés, jamais écrits, ou le
+   texte collé à la main dans Word. Et la formulation elle-même — là où vit un filigrane statistique
+   — n'est pas lisible ici.
+
+Un rapport silencieux se lit comme un acquittement. Ce n'en est pas un.
+
 ### Traces de l'outil producteur
 
 Un document produit par un assistant, un agent ou un script ne s'annonce jamais dans un seul champ.
@@ -558,7 +582,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 230 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 234 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo
