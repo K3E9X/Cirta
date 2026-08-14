@@ -290,10 +290,14 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       const names = collectAttribute(custom, 'name');
       findings.push({
         kind: 'identity',
-        confidence: 'confirmed',
+        // An empty container carries no identity. Several generators create
+        // the part and never populate it, and calling that confirmed
+        // identifying data overstates what is in the file — the part is worth
+        // mentioning, and worth removing, but it is not evidence of anything.
+        confidence: names.length ? 'confirmed' : 'informational',
         location: 'docProps/custom.xml',
         label: 'Custom properties',
-        value: names.length ? names.join(', ') : 'present',
+        value: names.length ? names.join(', ') : 'the part exists but holds no properties',
       });
     }
   }

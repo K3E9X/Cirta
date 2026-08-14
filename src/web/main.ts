@@ -222,6 +222,7 @@ const VALUE_TEXT: Record<string, string> = {
   'present — may carry provenance manifests or source data':
     'présentes — peuvent contenir des manifestes de provenance ou des données sources',
   present: 'présentes',
+  'the part exists but holds no properties': 'la partie existe mais ne contient aucune propriété',
   'file was assembled in a scratch directory':
     'le fichier a été assemblé dans un répertoire de travail temporaire',
 };
