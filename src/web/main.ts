@@ -153,6 +153,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Assistant or agent named in metadata': 'Assistant ou agent nommé dans les métadonnées',
   'Document generated programmatically': 'Document généré par programme',
   'Text reordering controls': 'Contrôles de réordonnancement du texte',
+  'Hidden payload in text': 'Charge cachée dans le texte',
   'Letters that look alike but are not': 'Lettres sosies venues d’un autre alphabet',
   'Fullwidth letters among ASCII ones': 'Lettres pleine chasse mêlées à des ASCII',
   'Custom XML data store': 'Magasin de données XML personnalisé',
@@ -303,6 +304,7 @@ function translateLabel(label: string): string {
 /** Locations the core states in prose rather than as a path or a field name. */
 const LOCATION_TEXT: Record<string, string> = {
   'mixed-script words': 'mots à alphabets mêlés',
+  'file contents': 'contenu du fichier',
   'mixed-width words': 'mots à chasses mêlées',
   'tracked changes / comments': 'suivi de modifications / commentaires',
   'bidirectional controls': 'contrôles bidirectionnels',
@@ -350,6 +352,11 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
       `${m[1]} partie(s) — liaisons de contrôles de contenu, colonnes de bibliothèque ou étiquettes de classification`,
   ],
   [/^(\d+) attributes? — (.+)$/, (m) => `${m[1]} attribut(s) — ${m[2]}`],
+  [
+    /^(\d+) controls? that can make text display differently from how it is stored \(CVE-2021-42574\)$/,
+    (m) =>
+      `${m[1]} contrôle(s) pouvant faire afficher le texte autrement qu'il n'est stocké (CVE-2021-42574)`,
+  ],
   [/^(.+) — from "(.+)"$/, (m) => `${m[1]} — d'après « ${m[2]} »`],
   [
     /^(.+) — asserted by the manifest, signature not verified$/,
@@ -389,7 +396,7 @@ const MIME: Record<Format, string> = {
 /** Extensions whose bytes alone do not identify the format. */
 function formatHint(name: string): string | undefined {
   const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
-  if (ext === '.md' || ext === '.markdown') return 'markdown';
+  if (ext === '.md' || ext === '.markdown' || ext === '.mdx') return 'markdown';
   if (ext === '.svg') return 'svg';
   if (ext === '.html' || ext === '.htm') return 'html';
   return undefined;

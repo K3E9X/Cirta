@@ -26,6 +26,7 @@ votre machine.
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques ; **plus un filet générique sur la catégorie Unicode `Cf`**, pour que la liste ne prenne pas de retard sur la norme |
+| Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 
 ### Traces de l'outil producteur
@@ -240,6 +241,20 @@ comme dans l'autre.
 Nettoyer les caractères invisibles d'un texte **n'a aucun effet** sur un filigrane statistique. Ce
 sont deux mécanismes indépendants, et les confondre est l'erreur la plus répandue dans ce domaine.
 
+### Trois précisions d'Anthropic, qui vont dans les deux sens
+
+La [documentation d'Anthropic](https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content)
+pose trois limites explicites, et aucune ne va dans le sens qu'on attend :
+
+1. **Une marque détectée ne prouve pas une paternité.** Elle indique que le contenu *a pu être
+   traité* par le modèle — pas qu'il a été écrit par lui.
+2. **L'absence de marque ne prouve pas une origine humaine.** C'est exactement ce que le bloc
+   « filigrane statistique » de Cirta existe pour dire : un rapport silencieux sur un texte court ne
+   signifie presque rien.
+3. **La relecture, la traduction ou le résumé peuvent estampiller du texte humain.** C'est le cas le
+   plus courant et le moins évident : vous écrivez vous-même, vous demandez une correction, et votre
+   texte ressort marqué. Le marquage suit le passage par le modèle, pas la paternité de la rédaction.
+
 ### Ce que dit la littérature sur l'atténuation
 
 La reformulation est l'attaque étudiée, et la recherche est précise sur son efficacité réelle.
@@ -389,6 +404,15 @@ cirta inspect rapport.pdf presentation.pptx
 # Auditer un dossier entier avant envoi — parcours récursif, verdict en fin de sortie
 cirta inspect ./contrats
 
+# Les répertoires de dépendances et de build sont ignorés (node_modules, .git,
+# dist, target, .venv…), sinon un dépôt ordinaire noie le rapport : sur celui-ci,
+# 118 des 125 fichiers trouvés venaient de node_modules.
+cirta inspect ./mon-projet --skip fixtures,snapshots
+
+# Les fichiers texte et code source passent par le même chemin
+cirta inspect ./src
+cirta redact src/auth.py           # retire un contrôle bidi de type Trojan Source
+
 # Écrire une copie nettoyée (rapport.clean.pdf par défaut)
 cirta redact rapport.pdf
 cirta redact *.docx --in-place
@@ -400,6 +424,10 @@ cirta inspect rapport.pdf --json
 # Texte sur l'entrée standard
 cirta text < brouillon.txt                    # analyser
 cirta text --clean < brouillon.txt > propre.txt
+
+# La garde binaire refuse un document ; --force-text passe outre si vous savez
+# ce que vous faites (elle est délibérément grossière, donc faillible)
+cirta text --force-text < fichier-au-format-inhabituel
 
 # Presse-papiers, selon le système
 pbpaste | cirta text --clean | pbcopy                      # macOS
@@ -477,7 +505,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 196 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 202 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scanText, cleanText, decodeTextInput, BinaryInputError } from '../src/core/text.js';
+import { inspectFile, redactFile } from '../src/core/index.js';
 import { tagEncode, variationEncode } from './fixtures.js';
 
 // Invisible characters are written as escapes throughout: a literal U+200B in
@@ -256,5 +257,49 @@ describe('lookalike letters', () => {
     expect(result.text).toBe(input);
     expect(result.removed).toEqual([]);
     expect(result.kept.map((f) => f.label)).toEqual(['Letters that look alike but are not']);
+  });
+});
+
+describe('plain text and source files', () => {
+  const encode = (text: string) => new TextEncoder().encode(text);
+
+  it('routes a file that is text but no known markup', async () => {
+    const result = await inspectFile(encode(`a${ZWSP}b`), 'notes.txt');
+    expect(result.format).toBe('text');
+    expect(result.findings.map((f) => f.label)).toContain('zero-width space');
+  });
+
+  it('catches a bidi override in source, which is the Trojan Source case', async () => {
+    const source = 'if (user.role == "‮admin‬") grant();';
+    const result = await inspectFile(encode(source), 'auth.py');
+    expect(result.findings[0]?.label).toBe('Text reordering controls');
+
+    const cleaned = (await redactFile(encode(source), 'auth.py')).text;
+    expect(cleaned).toBe('if (user.role == "admin") grant();');
+  });
+
+  it('keeps typographic spaces, as document bodies do', async () => {
+    // A file on disk is authored content, not a paste being tidied up.
+    const cleaned = (await redactFile(encode(`Objet : le rapport${ZWSP}.`), 'note.txt')).text;
+    expect(cleaned).toBe('Objet : le rapport.');
+  });
+
+  it('still refuses bytes that are not text at all', async () => {
+    await expect(inspectFile(new Uint8Array([1, 2, 3, 4]))).rejects.toThrow();
+  });
+
+  it('decodes anyway when the caller insists', async () => {
+    // The guard is blunt, so it needs a way past it — otherwise a rare false
+    // positive becomes a permanent refusal. It cannot override a magic-byte
+    // route: a file that really is a PDF still goes to the PDF parser.
+    const riffish = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+    await expect(inspectFile(riffish, 'weird.txt')).rejects.toThrow();
+    await expect(inspectFile(riffish, 'text')).resolves.toMatchObject({ format: 'text' });
+  });
+
+  it('reports a damaged PDF instead of crashing on it', async () => {
+    // %PDF at the front is not a promise that the rest parses, and pdf-lib is
+    // asked to load leniently — so the catalog can be missing entirely.
+    await expect(inspectFile(encode('%PDF-1.4 not really'))).resolves.toBeDefined();
   });
 });

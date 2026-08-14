@@ -38,7 +38,11 @@ async function load(data: Uint8Array): Promise<PDFDocument> {
 
 /** Read the XMP packet, inflating it when the stream is Flate-encoded. */
 function readXmp(doc: PDFDocument): string | undefined {
-  const ref = doc.catalog.get(PDFName.of('Metadata'));
+  // `throwOnInvalidObject: false` lets a damaged file load with no catalog at
+  // all, and reading through it then fails as a TypeError rather than as
+  // something a caller can report. A file that starts with %PDF is not a
+  // promise that the rest of it parses.
+  const ref = doc.catalog?.get(PDFName.of('Metadata'));
   if (!ref) return undefined;
   const stream = doc.context.lookup(ref);
   if (!(stream instanceof PDFRawStream)) return undefined;
@@ -292,7 +296,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
 
   findings.push(...scanStreams(doc));
 
-  const names = doc.catalog.get(PDFName.of('Names'));
+  const names = doc.catalog?.get(PDFName.of('Names'));
   if (names) {
     const resolved = doc.context.lookup(names);
     if (resolved && 'get' in resolved && (resolved as { get(k: PDFName): unknown }).get(PDFName.of('EmbeddedFiles'))) {
@@ -338,9 +342,9 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   }
 
   if (removeXmp) {
-    const hadXmp = Boolean(doc.catalog.get(PDFName.of('Metadata')));
+    const hadXmp = Boolean(doc.catalog?.get(PDFName.of('Metadata')));
     const xmp = readXmp(doc);
-    doc.catalog.delete(PDFName.of('Metadata'));
+    doc.catalog?.delete(PDFName.of('Metadata'));
     if (hadXmp && xmp && looksLikeC2pa(xmp)) {
       notes.push({ code: 'removed:c2pa', detail: '/Metadata' });
     }

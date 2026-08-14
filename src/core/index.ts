@@ -47,7 +47,8 @@ import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
-import { decodeTextInput } from './text.js';
+import { decodeTextInput, scanText, cleanText } from './text.js';
+import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
 import { byConfidence } from './types.js';
@@ -111,6 +112,13 @@ async function inspectArchive(data: Uint8Array): Promise<InspectResult> {
 }
 
 /**
+ * `hint` is a file name, an extension or a format name. `'text'` additionally
+ * means "decode these bytes as text whatever the guard thinks", which is how
+ * the CLI's `--force-text` reaches this far down.
+ */
+const decodeOptions = (hint?: string) => ({ allowBinary: hint === 'text' });
+
+/**
  * Identify a document from its content rather than its file extension.
  *
  * `hint` is only consulted for text formats where the bytes alone are
@@ -133,7 +141,11 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   const image = detectImageKind(data);
   if (image) return image;
   try {
-    return detectMarkupFormat(decodeTextInput(data), hint);
+    const text = decodeTextInput(data, decodeOptions(hint));
+    // Anything that decodes as text but is no known markup is still a file
+    // whose invisible characters travel: a .txt, a source file, a CSV. It gets
+    // the character-level pass rather than a refusal.
+    return detectMarkupFormat(text, hint) ?? 'text';
   } catch {
     return undefined;
   }
@@ -160,11 +172,33 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     return {
       format,
-      findings: inspectMarkup(decodeTextInput(data), format),
+      findings: inspectMarkup(decodeTextInput(data, decodeOptions(hint)), format),
       notes: [{ code: 'scope:markup-metadata-only' }],
     };
   }
+  if (format === 'text') {
+    const text = decodeTextInput(data, decodeOptions(hint));
+    const scan = scanText(text);
+    return {
+      format,
+      findings: [...scan.findings, ...scanContent(text, 'file contents'), ...decodedFindings(scan)].sort(
+        byConfidence,
+      ),
+      notes: [{ code: 'scope:invisible-characters-only' }],
+    };
+  }
   throw new UnsupportedFormatError(UNSUPPORTED);
+}
+
+/** Recovered steganographic payloads, promoted from strings to findings. */
+function decodedFindings(scan: { decoded: string[] }): Finding[] {
+  return scan.decoded.map((payload) => ({
+    kind: 'invisible-character' as const,
+    confidence: 'confirmed' as const,
+    location: 'file contents',
+    label: 'Hidden payload in text',
+    value: payload,
+  }));
 }
 
 /**
@@ -223,7 +257,7 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
 
   const format = detectFormat(data, hint);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
-    const text = decodeTextInput(data);
+    const text = decodeTextInput(data, decodeOptions(hint));
     const cleaned = redactMarkup(text, format);
     return noteSurvivors(
       {
@@ -232,6 +266,27 @@ export async function redactFile(data: Uint8Array, hint?: string): Promise<Redac
         text: cleaned,
         removed: inspectMarkup(text, format),
         notes: [{ code: 'scope:markup-metadata-only' }],
+      },
+      hint,
+    );
+  }
+  if (format === 'text') {
+    const text = decodeTextInput(data, decodeOptions(hint));
+    // Typographic spaces are preserved, as they are in every document body:
+    // a file on disk is authored content, not a paste being tidied up, and
+    // flattening the no-break space in "Objet : le rapport" is a regression.
+    const result = cleanText(text, { normalizeSpaces: false });
+    const notes: Note[] = [{ code: 'scope:invisible-characters-only' }];
+    if (result.kept.length) {
+      notes.push({ code: 'kept:content', detail: result.kept.map((f) => f.label).join(', ') });
+    }
+    return noteSurvivors(
+      {
+        format,
+        data: new TextEncoder().encode(result.text),
+        text: result.text,
+        removed: result.removed,
+        notes,
       },
       hint,
     );

@@ -288,16 +288,30 @@ function isControlDense(data: Uint8Array): boolean {
  * density of control bytes. Undecodable bytes alone are deliberately not proof
  * — text in an encoding other than UTF-8 must still be recognisable as text.
  */
-export function decodeTextInput(data: Uint8Array): string {
-  const signature = matchSignature(data);
-  if (signature) {
-    throw new BinaryInputError(`input looks like ${signature}, not text`);
-  }
-  if (data.includes(0)) {
-    throw new BinaryInputError('input contains NUL bytes, so it is not text');
-  }
-  if (isControlDense(data)) {
-    throw new BinaryInputError('input is dense in control bytes, so it is not text');
+export interface DecodeTextOptions {
+  /**
+   * Skip the format checks and decode anyway.
+   *
+   * The guard is deliberately blunt, so it will occasionally be wrong about a
+   * real text file — and a guard with no way past it turns a rare false
+   * positive into a permanent refusal. Decoding is still strict: invalid UTF-8
+   * fails whatever this says, because there is no useful output on that path.
+   */
+  allowBinary?: boolean;
+}
+
+export function decodeTextInput(data: Uint8Array, options: DecodeTextOptions = {}): string {
+  if (!options.allowBinary) {
+    const signature = matchSignature(data);
+    if (signature) {
+      throw new BinaryInputError(`input looks like ${signature}, not text`);
+    }
+    if (data.includes(0)) {
+      throw new BinaryInputError('input contains NUL bytes, so it is not text');
+    }
+    if (isControlDense(data)) {
+      throw new BinaryInputError('input is dense in control bytes, so it is not text');
+    }
   }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(data);
