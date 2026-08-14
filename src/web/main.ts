@@ -16,6 +16,7 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 import { scanText, cleanText } from '../core/text.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
+import { stylometry, type StyleBand } from '../core/stylometry.js';
 import {
   preview,
   type Confidence,
@@ -163,10 +164,13 @@ const FIELD_LABEL: Record<string, string> = {
   'Trailing whitespace': 'Espaces en fin de ligne',
   'Spacing after full stops is inconsistent': 'Espacement après les points, irrégulier',
   'Line endings are mixed': 'Fins de ligne mélangées',
+  'Control characters in the text': 'Caractères de contrôle dans le texte',
   'Hangul filler': 'Remplisseur hangûl',
   'blank braille cell': 'Cellule braille vide',
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
+  'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
+  'Software credited by the action': 'Logiciel crédité par l’action',
   'SVG metadata block': 'Bloc de métadonnées SVG',
   'Editor namespace': 'Espace de noms de l’éditeur',
   'Generator comment': 'Commentaire de génération',
@@ -279,6 +283,66 @@ const EXPOSURE_TEXT: Record<Exposure['band'], string> = {
     'Assez long pour que la littérature (Kirchenbauer et al., ICLR 2024) ait observé un signal survivant à une reformulation humaine soutenue, à 1e-5 de faux positifs.',
 };
 
+const STYLE_TEXT: Record<Exclude<StyleBand, 'too-short'>, string> = {
+  many: "Plusieurs de ces marqueurs sont présents en même temps. C'est à ça que ressemble de la prose générée — et aussi un brouillon d'entreprise écrit vite.",
+  several: "Quelques-uns sont présents. Pris isolément, chacun a une explication parfaitement innocente.",
+  few: 'Peu de ces marqueurs sont présents.',
+};
+
+/**
+ * À quoi ressemble le texte, pas d'où il vient.
+ *
+ * Même forme que la carte du filigrane : des mesures, et un décompte. Pas de
+ * score — un score serait lu comme une probabilité, et ces signaux n'ont jamais
+ * été calibrés pour en produire une. Les détecteurs qui le font classent 61 %
+ * des copies d'anglophones non natifs comme générées (Liang et al., 2023).
+ */
+function styleCard(text: string): HTMLElement | undefined {
+  const report = stylometry(text);
+  if (report.band === 'too-short') return undefined;
+
+  const node = card('Style', undefined, 'des indices, pas un verdict');
+  const scroll = el('div', 'table-scroll');
+  const table = el('table');
+  const body = el('tbody');
+  const row = (label: string, value: string) => {
+    const tr = el('tr');
+    tr.append(el('td', 'kind', label));
+    tr.append(el('td', 'value', value));
+    body.append(tr);
+  };
+
+  row('forme', `${report.sentences} phrases, ${report.meanSentence.toFixed(1)} mots en moyenne`);
+  row(
+    'variation',
+    `${report.burstiness.toFixed(2)} — de combien la longueur des phrases bouge. Les gens varient ` +
+      "généralement plus qu'un modèle ; la documentation technique varie moins que les deux.",
+  );
+  row('tirets', `${report.dashRate.toFixed(1)} cadratins ou demi-cadratins pour 1000 mots`);
+  if (report.boldLeadIns > 0) {
+    row('amorces', `${Math.round(report.boldLeadIns * 100)}% des paragraphes ouvrent sur une phrase en gras`);
+  }
+  if (report.indicators.length) {
+    row(
+      'tournures',
+      report.indicators.map((i) => `${i.label} ×${i.count}`).join(' · '),
+    );
+  }
+  row('lecture', STYLE_TEXT[report.band]);
+
+  table.append(body);
+  scroll.append(table);
+  node.append(scroll);
+  node.append(
+    el(
+      'p',
+      'note',
+      "Ce sont des signaux de style, pas une preuve de paternité. Les gommer change la façon dont le texte se lit, pas son origine. Utile pour relire votre propre brouillon avant de l'envoyer.",
+    ),
+  );
+  return node;
+}
+
 function exposureCard(text: string): HTMLElement {
   const report = exposure(text);
   const node = card('Filigrane statistique', undefined, 'aucun verdict local possible');
@@ -336,6 +400,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'hyphen lookalikes': 'sosies du trait d’union',
   'line endings': 'fins de ligne',
   'sentence spacing': 'espacement des phrases',
+  'control characters': 'caractères de contrôle',
   'file contents': 'contenu du fichier',
   'mixed-width words': 'mots à chasses mêlées',
   'tracked changes / comments': 'suivi de modifications / commentaires',
@@ -390,6 +455,32 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
       `${m[1]} partie(s) — liaisons de contrôles de contenu, colonnes de bibliothèque ou étiquettes de classification`,
   ],
   [/^(\d+) attributes? — (.+)$/, (m) => `${m[1]} attribut(s) — ${m[2]}`],
+  // Vocabulaire IPTC digitalSourceType : le terme reste tel quel, c'est
+  // l'identifiant de la norme ; seule la glose est traduite.
+  [
+    /^(\w+) — created by a generative model — the file says so itself$/,
+    (m) => `${m[1]} — créé par un modèle génératif, le fichier l'affirme lui-même`,
+  ],
+  [
+    /^(\w+) — a composite including generative-model content — the file says so itself$/,
+    (m) => `${m[1]} — un composite incluant du contenu de modèle génératif, le fichier l'affirme`,
+  ],
+  [
+    /^(\w+) — produced by an algorithm, which does not by itself mean a trained model$/,
+    (m) => `${m[1]} — produit par un algorithme, ce qui n'implique pas en soi un modèle entraîné`,
+  ],
+  [
+    /^(\w+) — human-made, then altered by an algorithm$/,
+    (m) => `${m[1]} — fait par un humain, puis altéré par un algorithme`,
+  ],
+  [
+    /^(\w+) — captured by a camera — an explicit statement that it is not generated$/,
+    (m) => `${m[1]} — capturé par un appareil photo : une affirmation explicite que ce n'est pas généré`,
+  ],
+  [
+    /^(\w+) — generated from data rather than captured$/,
+    (m) => `${m[1]} — généré à partir de données plutôt que capturé`,
+  ],
   [
     /^(\d+) decomposed and (\d+) composed accented letters in one document — the choice between them carries about (\d+) bits$/,
     (m) =>
@@ -571,9 +662,25 @@ function findingsTable(findings: Finding[]): HTMLElement {
  * honnête est plus étroite que ça.
  */
 function provenanceBanner(findings: Finding[]): HTMLElement {
-  const { tools, attributed } = provenance(findings);
+  const { tools, attributed, declared } = provenance(findings);
   const node = el('div', attributed ? 'provenance is-attributed' : 'provenance');
 
+  if (declared) {
+    // Une déclaration prime sur une déduction : le fichier l'affirme lui-même,
+    // dans le vocabulaire IPTC sur lequel les règles de transparence reposent.
+    node.classList.add('is-declared');
+    node.append(el('strong', undefined, 'Produit par un modèle génératif — le fichier le déclare'));
+    node.append(
+      el(
+        'span',
+        'provenance-caveat',
+        tools.length
+          ? `Champ digitalSourceType (IPTC). Outils nommés : ${tools.join(' · ')}.`
+          : 'Champ digitalSourceType (IPTC).',
+      ),
+    );
+    return node;
+  }
   if (attributed) {
     node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
     node.append(
@@ -844,7 +951,8 @@ function setupText(): void {
       node.append(el('p', 'decoded', `Charge décodée — ${payload}`));
     }
     appendNotes(node, scopeNote);
-    results.replaceChildren(node, exposureCard(input.value));
+    const style = styleCard(input.value);
+    results.replaceChildren(node, exposureCard(input.value), ...(style ? [style] : []));
   });
 
   cleanButton.addEventListener('click', async () => {

@@ -564,6 +564,52 @@ function findWhitespaceChannels(input: string): Finding[] {
   return findings;
 }
 
+/**
+ * C0 control characters, which render as nothing and are nobody's typography.
+ *
+ * Tab, newline and carriage return are text. Form feed still is, in listings
+ * old enough to page. Everything else in the C0 block — a NUL, a bell, a shift
+ * out — has no business in prose, renders as nothing or as a box, and carries a
+ * bit per position exactly like a zero-width space. They sit in category `Cc`,
+ * which the `Cf` backstop does not cover, so nothing above sees them.
+ *
+ * ESC is the reason these are reported rather than removed: a coloured log or
+ * a terminal capture is full of legitimate escape sequences, and stripping them
+ * would mangle the file to fix nothing.
+ */
+const TEXTUAL_CONTROLS = new Set([0x09, 0x0a, 0x0c, 0x0d]);
+
+function findControlCharacters(input: string): Finding[] {
+  const counts = new Map<number, number>();
+  for (const char of input) {
+    const cp = char.codePointAt(0)!;
+    if (cp < 0x20 && !TEXTUAL_CONTROLS.has(cp)) counts.set(cp, (counts.get(cp) ?? 0) + 1);
+    else if (cp === 0x7f) counts.set(cp, (counts.get(cp) ?? 0) + 1);
+  }
+  if (counts.size === 0) return [];
+
+  const named = (cp: number) =>
+    cp === 0x00 ? 'NUL' : cp === 0x07 ? 'BEL' : cp === 0x08 ? 'BS' : cp === 0x0b ? 'VT'
+    : cp === 0x1b ? 'ESC' : cp === 0x7f ? 'DEL' : `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+
+  const parts = [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cp, n]) => `${named(cp)} ×${n}`);
+  const hasEscape = counts.has(0x1b);
+
+  return [
+    {
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'control characters',
+      label: 'Control characters in the text',
+      value: `${parts.join(', ')} — invisible, and one bit per position${
+        hasEscape ? '. ESC is also how a coloured terminal log is written' : ''
+      }`,
+    },
+  ];
+}
+
 export function scanText(input: string): TextScan {
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const counts = new Map<number, number>();
@@ -613,6 +659,7 @@ export function scanText(input: string): TextScan {
   findings.push(...findNormalizationChannel(input));
   findings.push(...findHyphenTwins(input));
   findings.push(...findWhitespaceChannels(input));
+  findings.push(...findControlCharacters(input));
 
   return { findings, decoded: decodePayloads(carriers) };
 }
@@ -649,6 +696,7 @@ const REPORTED_NOT_REMOVED = new Set([
   'hyphen lookalikes',
   'line endings',
   'sentence spacing',
+  'control characters',
 ]);
 
 const isKeptFinding = (finding: Finding) => REPORTED_NOT_REMOVED.has(finding.location);

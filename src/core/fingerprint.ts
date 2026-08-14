@@ -13,6 +13,7 @@
  */
 
 import type { Finding } from './types.js';
+import { declaresGenerative } from './sourcetype.js';
 
 interface Signature {
   pattern: RegExp;
@@ -269,7 +270,7 @@ export function fingerprint(findings: Finding[]): Finding[] {
   const derived = new Map<string, Finding>();
 
   const add = (finding: Finding) => {
-    const key = `${finding.label} ${finding.value}`;
+    const key = `${finding.label}\x00${finding.value}`;
     if (!derived.has(key)) derived.set(key, finding);
   };
 
@@ -323,6 +324,13 @@ export interface Provenance {
   tools: string[];
   /** True when at least one field attributes the file to an AI tool. */
   attributed: boolean;
+  /**
+   * True when the file states in the IPTC vocabulary that a trained model made
+   * it. That is a declaration rather than an inference — the strongest thing a
+   * report here can say, and the thing the EU AI Act's transparency rules are
+   * written around.
+   */
+  declared: boolean;
 }
 
 /** Labels this module emits that name a producing tool rather than a machine. */
@@ -331,6 +339,9 @@ const TOOL_LABELS = [
   'Assistant or agent named in metadata',
   'Coding agent named in metadata',
   'LLM framework or runtime',
+  // Credited by a signed manifest rather than inferred from a free-text field.
+  'Tool credited by the C2PA manifest',
+  'Software credited by the action',
   'Document generated programmatically',
 ] as const;
 
@@ -338,7 +349,12 @@ export function provenance(findings: Finding[]): Provenance {
   const tools: string[] = [];
   for (const label of TOOL_LABELS) {
     for (const finding of findings) {
-      if (finding.label === label && !tools.includes(finding.value)) tools.push(finding.value);
+      if (finding.label !== label) continue;
+      // C2PA values carry their own caveat ("— asserted by the manifest,
+      // signature not verified"), which belongs in the report line rather than
+      // repeated after every tool name in a one-line summary.
+      const name = finding.value.split(' \u2014 ')[0]!.trim();
+      if (name && !tools.includes(name)) tools.push(name);
     }
   }
   // "Generated programmatically" alone means a library wrote the container —
@@ -350,5 +366,5 @@ export function provenance(findings: Finding[]): Provenance {
       finding.label === 'Assistant or agent named in metadata' ||
       finding.label === 'Coding agent named in metadata',
   );
-  return { tools, attributed };
+  return { tools, attributed: attributed || declaresGenerative(findings), declared: declaresGenerative(findings) };
 }

@@ -19,6 +19,7 @@
 import type { Finding } from './types.js';
 import { decodeCbor, asMap, type CborValue } from './cbor.js';
 import { findManifest, findByLabel, collectLabels, contentOf, type JumbfBox } from './jumbf.js';
+import { describeSourceType } from './sourcetype.js';
 
 export interface ManifestSummary {
   /** Free-text generator string, e.g. "make_test_images/0.33.1 c2pa-rs/0.33.1". */
@@ -29,6 +30,10 @@ export interface ManifestSummary {
   algorithm?: string;
   /** Assertion labels, which describe what the manifest actually claims. */
   assertions: string[];
+  /** The `digitalSourceType` the actions assertion states, if it states one. */
+  sourceType?: string;
+  /** Software the actions assertion credits, which is often more specific than the claim generator. */
+  softwareAgent?: string;
 }
 
 function readGeneratorInfo(value: CborValue | undefined): ManifestSummary['generatorInfo'] {
@@ -55,12 +60,23 @@ export function readManifest(bytes: Uint8Array): ManifestSummary | undefined {
   const generator = claim?.['claim_generator'];
   const algorithm = claim?.['alg'];
 
+  // The actions assertion is where a generator states how the content was
+  // made. Listing the assertion's name and stopping there reports that the
+  // file has something to say without reading it.
+  const actionsBox = findByLabel([root], (label) => label === 'c2pa.actions');
+  const actions = asMap(actionsBox && decodeCbor(contentOf(actionsBox, 'cbor') ?? new Uint8Array()));
+  const first = Array.isArray(actions?.['actions']) ? asMap(actions['actions'][0]) : undefined;
+  const sourceType = first?.['digitalSourceType'];
+  const softwareAgent = first?.['softwareAgent'];
+
   return {
     ...(typeof generator === 'string' ? { generator } : {}),
     ...(readGeneratorInfo(claim?.['claim_generator_info'])
       ? { generatorInfo: readGeneratorInfo(claim?.['claim_generator_info'])! }
       : {}),
     ...(typeof algorithm === 'string' ? { algorithm } : {}),
+    ...(typeof sourceType === 'string' ? { sourceType } : {}),
+    ...(typeof softwareAgent === 'string' ? { softwareAgent } : {}),
     // Only the standard assertion labels are listed; the tree also carries
     // internal boxes whose names would be noise in a report.
     assertions: [...new Set(collectLabels([root]).filter((label) => label.startsWith('c2pa.')))]
@@ -109,6 +125,20 @@ export function describeC2pa(manifest: string, location: string, bytes?: Uint8Ar
       location: `${location} (claim_generator)`,
       label: 'Tool credited by the C2PA manifest',
       value: `${generator} — asserted by the manifest, signature not verified`,
+    });
+  }
+
+  if (summary?.sourceType) {
+    findings.push(...describeSourceType(summary.sourceType, `${location} (c2pa.actions)`));
+  }
+
+  if (summary?.softwareAgent && summary.softwareAgent !== generator) {
+    findings.push({
+      kind: 'provenance',
+      confidence: 'probable',
+      location: `${location} (c2pa.actions)`,
+      label: 'Software credited by the action',
+      value: `${summary.softwareAgent} — asserted by the manifest, signature not verified`,
     });
   }
 

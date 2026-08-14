@@ -9,6 +9,7 @@
 
 import type { Finding } from './types.js';
 import { describeC2pa } from './c2pa.js';
+import { findSourceTypes } from './sourcetype.js';
 
 const JPEG_SOI = 0xffd8;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -202,6 +203,8 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
         findings.push(...describeC2pa(ASCII.decode(segment.body), location, segment.body));
         continue;
       }
+      // A generator that declares itself does it here, in the XMP packet.
+      findings.push(...findSourceTypes(ASCII.decode(segment.body), location));
       findings.push({
         kind: 'identity',
         // GPS coordinates place the author somewhere specific; the rest is
@@ -222,6 +225,7 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       findings.push(...describeC2pa(ASCII.decode(body), location, body));
       continue;
     }
+    findings.push(...findSourceTypes(ASCII.decode(data.subarray(chunk.start + 8, chunk.end - 4)), location));
     findings.push({
       kind: chunk.type === 'tIME' ? 'timestamp' : 'identity',
       confidence: chunk.type === 'eXIf' ? 'confirmed' : 'probable',

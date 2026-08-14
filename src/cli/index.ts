@@ -26,6 +26,8 @@ import {
   type Note,
   preview,
   provenance,
+  stylometry,
+  type Stylometry,
 } from '../core/index.js';
 
 /**
@@ -48,7 +50,7 @@ const SYMBOL = {
   arrow: useUnicode ? '\u2192' : '->',
 };
 
-const paint = (code: string, text: string) => (useColor ? `[${code}m${text}[0m` : text);
+const paint = (code: string, text: string) => (useColor ? `\x1b[${code}m${text}\x1b[0m` : text);
 const bold = (t: string) => paint('1', t);
 const dim = (t: string) => paint('2', t);
 const yellow = (t: string) => paint('33', t);
@@ -347,7 +349,14 @@ function printExposure(report: Exposure): void {
  * reads as "no AI", and the truthful answer is narrower than that.
  */
 function printProvenance(findings: Finding[]): void {
-  const { tools, attributed } = provenance(findings);
+  const { tools, attributed, declared } = provenance(findings);
+  if (declared) {
+    // A declaration outranks an inference: the file states this about itself
+    // in the IPTC vocabulary, which is what the transparency rules are built on.
+    console.log(`  ${bold('Produced by')}  ${red('a generative model — the file declares it')}`);
+    if (tools.length) console.log(`  ${dim('              ')}${tools.join(' \u00b7 ')}`);
+    return;
+  }
   if (attributed) {
     console.log(`  ${bold('Produced by')}  ${yellow(tools.join(' · '))}`);
     console.log(`  ${dim('              according to the file\'s own metadata, which can be absent, wrong or forged')}`);
@@ -364,6 +373,53 @@ function printProvenance(findings: Finding[]): void {
     `  ${dim('              the fields may have been cleared, never written, or the text pasted in by hand,')}`,
   );
   console.log(`  ${dim('              and the wording itself cannot be read here at all.')}`);
+}
+
+/**
+ * How much the prose reads like generated prose.
+ *
+ * Deliberately shaped like the watermark block above it: measurements, and a
+ * count of how many are present. No score, because a score would be read as a
+ * probability and these signals have never been calibrated to produce one —
+ * and because the detectors that do produce one flag 61% of non-native English
+ * writers (Liang et al., Stanford 2023).
+ */
+function printStyle(report: Stylometry): void {
+  if (report.band === 'too-short') return;
+  console.log(`\n  ${bold('Style')}  ${dim('indicators, not a verdict')}`);
+
+  const line = (name: string, value: string) => console.log(`  ${dim(name.padEnd(11))} ${value}`);
+  line('shape', `${report.sentences} sentences, ${report.meanSentence.toFixed(1)} words on average`);
+  line(
+    'variation',
+    `${report.burstiness.toFixed(2)} — how much sentence length moves; people usually vary more than models, ` +
+      'and documentation varies less than either',
+  );
+  line('dashes', `${report.dashRate.toFixed(1)} em/en dashes per 1000 words`);
+  if (report.boldLeadIns > 0) {
+    line('lead-ins', `${Math.round(report.boldLeadIns * 100)}% of paragraphs open with a bold phrase`);
+  }
+
+  if (report.indicators.length) {
+    line('phrases', `${report.indicators.length} of the turns of phrase assistants overuse:`);
+    for (const indicator of report.indicators.slice(0, 8)) {
+      console.log(`  ${' '.repeat(11)}   ${yellow(indicator.label)} ${dim(`×${indicator.count}`)}`);
+    }
+    if (report.indicators.length > 8) {
+      console.log(`  ${' '.repeat(11)}   ${dim(`and ${report.indicators.length - 8} more`)}`);
+    }
+  }
+
+  const meaning =
+    report.band === 'many'
+      ? 'Many of these are present at once. That is what generated prose tends to look like — and also what a rushed corporate draft looks like.'
+      : report.band === 'several'
+        ? 'A few are present. Individually every one of them has an innocent explanation.'
+        : 'Few of these are present.';
+  line('meaning', meaning);
+  console.log(
+    `  ${dim('note:')} ${dim('These are style signals, not evidence of authorship. Editing them away changes how the text reads, not where it came from.')}`,
+  );
 }
 
 function printNotes(notes: Note[]): void {
@@ -514,6 +570,7 @@ async function runText(args: Args): Promise<number> {
   for (const payload of scan.decoded) console.log(`  ${yellow('decoded:')} ${payload}`);
   printNotes([{ code: 'scope:invisible-characters-only' }]);
   printExposure(exposure(input));
+  printStyle(stylometry(input));
   return 0;
 }
 

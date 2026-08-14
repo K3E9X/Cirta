@@ -19,6 +19,7 @@ import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import { collectTextContent, mapTextContent } from './xml.js';
 import { describeC2pa } from './c2pa.js';
+import { findSourceTypes } from './sourcetype.js';
 import { byConfidence } from './types.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
@@ -362,6 +363,7 @@ export function detectMarkupFormat(text: string, hint?: string): MarkupFormat | 
 export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   const findings =
     format === 'svg' ? inspectSvg(text) : format === 'html' ? inspectHtml(text) : inspectMarkdown(text);
+  findings.push(...findSourceTypes(text, 'metadata'));
   findings.push(...scanContent(text, 'document body'));
   findings.push(...inspectBodyText(text, format));
   findings.push(...fingerprint(findings));

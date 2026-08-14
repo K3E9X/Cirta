@@ -16,6 +16,7 @@ import { unzipGuarded } from './zip.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
 import { describeC2pa } from './c2pa.js';
+import { findSourceTypes } from './sourcetype.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
@@ -403,6 +404,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   for (const [path, raw] of Object.entries(parts)) {
     if (!/\.(xml|rels|json|txt|bin)$/.test(path)) continue;
     findings.push(...scanContent(strFromU8(raw), path));
+    findings.push(...findSourceTypes(strFromU8(raw), path));
   }
 
   findings.push(...findWorkbookIdentities(parts));

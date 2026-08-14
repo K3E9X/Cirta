@@ -36,6 +36,8 @@ export type { ManifestSummary } from './c2pa.js';
 export { decodeCbor, asMap } from './cbor.js';
 export { parseBoxes, findManifest, findByLabel, collectLabels, contentOf } from './jumbf.js';
 export { exposure, estimateTokens } from './exposure.js';
+export { stylometry } from './stylometry.js';
+export type { Stylometry, StyleBand, StyleIndicator } from './stylometry.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export type { ArchiveMember } from './archive.js';
