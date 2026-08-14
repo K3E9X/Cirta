@@ -347,7 +347,14 @@ function printExposure(report: Exposure): void {
  * reads as "no AI", and the truthful answer is narrower than that.
  */
 function printProvenance(findings: Finding[]): void {
-  const { tools, attributed } = provenance(findings);
+  const { tools, attributed, declared } = provenance(findings);
+  if (declared) {
+    // A declaration outranks an inference: the file states this about itself
+    // in the IPTC vocabulary, which is what the transparency rules are built on.
+    console.log(`  ${bold('Produced by')}  ${red('a generative model — the file declares it')}`);
+    if (tools.length) console.log(`  ${dim('              ')}${tools.join(' \u00b7 ')}`);
+    return;
+  }
   if (attributed) {
     console.log(`  ${bold('Produced by')}  ${yellow(tools.join(' · '))}`);
     console.log(`  ${dim('              according to the file\'s own metadata, which can be absent, wrong or forged')}`);

@@ -34,6 +34,38 @@ votre machine.
 | Contrôles C0 | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — catégorie `Cc`, que le filet `Cf` ne couvre pas. Signalés, jamais retirés : un journal de terminal en couleurs est plein d'`ESC` légitimes |
 | Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
 
+### Quand le fichier le déclare lui-même
+
+Il existe un champ standard où un générateur *déclare* comment le contenu a été fabriqué :
+`digitalSourceType`, le vocabulaire de l'IPTC. C'est ce que porte le C2PA dans son assertion
+`c2pa.actions`, et c'est autour de lui que les obligations de transparence de l'AI Act européen sont
+rédigées. Un outil honnête y écrit qu'il a généré le contenu — un URI, dans les métadonnées, fait
+pour être lu.
+
+Cirta le lit dans le paquet XMP, dans l'assertion C2PA, dans les parties OOXML et ODF, et dans le
+balisage HTML/SVG. Le vocabulaire est lu **terme par terme**, parce qu'une recherche par mot-clé
+écrase des distinctions qui comptent :
+
+| Terme | Ce que ça veut dire |
+|---|---|
+| `trainedAlgorithmicMedia` | **Créé par un modèle génératif** — le fichier l'affirme |
+| `compositeWithTrainedAlgorithmicMedia` | Composite incluant du contenu de modèle génératif |
+| `algorithmicallyEnhanced` | Fait par un humain, puis altéré par un algorithme |
+| `algorithmicMedia` | Produit par un algorithme — **un dégradé, une fractale** : pas un modèle entraîné |
+| `digitalCapture` | Capturé par un appareil photo : l'affirmation explicite que ce n'est *pas* généré |
+
+La quatrième ligne est la raison d'être de cette lecture fine. La fixture C2PA signée du dépôt
+déclare `algorithmicMedia` : c'est un dégradé généré par un script, pas de l'IA. Un outil qui cherche
+`digitalSourceType` au mot-clé la classerait « générée par IA ». Le nôtre dit ce qu'elle dit.
+
+Quand le terme est génératif, la ligne de synthèse change de ton — c'est une déclaration, pas une
+déduction :
+
+```
+Produced by  a generative model — the file declares it
+             pdf-lib
+```
+
 ### La question directe : produit par une IA, et laquelle ?
 
 Chaque rapport commence par une ligne qui y répond, parce que la réponse était jusqu'ici éparpillée
@@ -583,7 +615,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 239 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 249 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

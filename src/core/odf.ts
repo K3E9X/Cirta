@@ -27,6 +27,7 @@ import {
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import { fingerprint } from './fingerprint.js';
 import { describeC2pa } from './c2pa.js';
+import { findSourceTypes } from './sourcetype.js';
 import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 
@@ -179,6 +180,7 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   for (const [path, raw] of Object.entries(parts)) {
     if (!/\.(xml|rdf|txt|json)$/.test(path)) continue;
     findings.push(...scanContent(strFromU8(raw), path));
+    findings.push(...findSourceTypes(strFromU8(raw), path));
   }
 
   findings.push(...inspectBodyText(parts));

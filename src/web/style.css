@@ -235,6 +235,11 @@ textarea:focus-visible {
   border-color: var(--accent);
 }
 
+.provenance.is-declared {
+  border-color: var(--danger);
+  background: var(--warn-soft);
+}
+
 /* ---------- summary ---------- */
 
 .summary {

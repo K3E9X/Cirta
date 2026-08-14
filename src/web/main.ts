@@ -168,6 +168,8 @@ const FIELD_LABEL: Record<string, string> = {
   'blank braille cell': 'Cellule braille vide',
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
+  'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
+  'Software credited by the action': 'Logiciel crédité par l’action',
   'SVG metadata block': 'Bloc de métadonnées SVG',
   'Editor namespace': 'Espace de noms de l’éditeur',
   'Generator comment': 'Commentaire de génération',
@@ -392,6 +394,32 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
       `${m[1]} partie(s) — liaisons de contrôles de contenu, colonnes de bibliothèque ou étiquettes de classification`,
   ],
   [/^(\d+) attributes? — (.+)$/, (m) => `${m[1]} attribut(s) — ${m[2]}`],
+  // Vocabulaire IPTC digitalSourceType : le terme reste tel quel, c'est
+  // l'identifiant de la norme ; seule la glose est traduite.
+  [
+    /^(\w+) — created by a generative model — the file says so itself$/,
+    (m) => `${m[1]} — créé par un modèle génératif, le fichier l'affirme lui-même`,
+  ],
+  [
+    /^(\w+) — a composite including generative-model content — the file says so itself$/,
+    (m) => `${m[1]} — un composite incluant du contenu de modèle génératif, le fichier l'affirme`,
+  ],
+  [
+    /^(\w+) — produced by an algorithm, which does not by itself mean a trained model$/,
+    (m) => `${m[1]} — produit par un algorithme, ce qui n'implique pas en soi un modèle entraîné`,
+  ],
+  [
+    /^(\w+) — human-made, then altered by an algorithm$/,
+    (m) => `${m[1]} — fait par un humain, puis altéré par un algorithme`,
+  ],
+  [
+    /^(\w+) — captured by a camera — an explicit statement that it is not generated$/,
+    (m) => `${m[1]} — capturé par un appareil photo : une affirmation explicite que ce n'est pas généré`,
+  ],
+  [
+    /^(\w+) — generated from data rather than captured$/,
+    (m) => `${m[1]} — généré à partir de données plutôt que capturé`,
+  ],
   [
     /^(\d+) decomposed and (\d+) composed accented letters in one document — the choice between them carries about (\d+) bits$/,
     (m) =>
@@ -573,9 +601,25 @@ function findingsTable(findings: Finding[]): HTMLElement {
  * honnête est plus étroite que ça.
  */
 function provenanceBanner(findings: Finding[]): HTMLElement {
-  const { tools, attributed } = provenance(findings);
+  const { tools, attributed, declared } = provenance(findings);
   const node = el('div', attributed ? 'provenance is-attributed' : 'provenance');
 
+  if (declared) {
+    // Une déclaration prime sur une déduction : le fichier l'affirme lui-même,
+    // dans le vocabulaire IPTC sur lequel les règles de transparence reposent.
+    node.classList.add('is-declared');
+    node.append(el('strong', undefined, 'Produit par un modèle génératif — le fichier le déclare'));
+    node.append(
+      el(
+        'span',
+        'provenance-caveat',
+        tools.length
+          ? `Champ digitalSourceType (IPTC). Outils nommés : ${tools.join(' · ')}.`
+          : 'Champ digitalSourceType (IPTC).',
+      ),
+    );
+    return node;
+  }
   if (attributed) {
     node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
     node.append(

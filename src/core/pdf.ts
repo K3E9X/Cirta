@@ -17,6 +17,7 @@ import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText, isArrangementFinding } from './text.js';
 import { describeC2pa } from './c2pa.js';
+import { findSourceTypes } from './sourcetype.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -355,6 +356,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
         });
       }
     }
+    findings.push(...findSourceTypes(xmp, '/Metadata'));
     if (looksLikeC2pa(xmp)) findings.push(...describeC2pa(xmp, '/Metadata'));
   }
 
