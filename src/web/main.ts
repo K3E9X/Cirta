@@ -16,6 +16,7 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 import { scanText, cleanText } from '../core/text.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
+import { stylometry, type StyleBand } from '../core/stylometry.js';
 import {
   preview,
   type Confidence,
@@ -281,6 +282,66 @@ const EXPOSURE_TEXT: Record<Exposure['band'], string> = {
   ample:
     'Assez long pour que la littérature (Kirchenbauer et al., ICLR 2024) ait observé un signal survivant à une reformulation humaine soutenue, à 1e-5 de faux positifs.',
 };
+
+const STYLE_TEXT: Record<Exclude<StyleBand, 'too-short'>, string> = {
+  many: "Plusieurs de ces marqueurs sont présents en même temps. C'est à ça que ressemble de la prose générée — et aussi un brouillon d'entreprise écrit vite.",
+  several: "Quelques-uns sont présents. Pris isolément, chacun a une explication parfaitement innocente.",
+  few: 'Peu de ces marqueurs sont présents.',
+};
+
+/**
+ * À quoi ressemble le texte, pas d'où il vient.
+ *
+ * Même forme que la carte du filigrane : des mesures, et un décompte. Pas de
+ * score — un score serait lu comme une probabilité, et ces signaux n'ont jamais
+ * été calibrés pour en produire une. Les détecteurs qui le font classent 61 %
+ * des copies d'anglophones non natifs comme générées (Liang et al., 2023).
+ */
+function styleCard(text: string): HTMLElement | undefined {
+  const report = stylometry(text);
+  if (report.band === 'too-short') return undefined;
+
+  const node = card('Style', undefined, 'des indices, pas un verdict');
+  const scroll = el('div', 'table-scroll');
+  const table = el('table');
+  const body = el('tbody');
+  const row = (label: string, value: string) => {
+    const tr = el('tr');
+    tr.append(el('td', 'kind', label));
+    tr.append(el('td', 'value', value));
+    body.append(tr);
+  };
+
+  row('forme', `${report.sentences} phrases, ${report.meanSentence.toFixed(1)} mots en moyenne`);
+  row(
+    'variation',
+    `${report.burstiness.toFixed(2)} — de combien la longueur des phrases bouge. Les gens varient ` +
+      "généralement plus qu'un modèle ; la documentation technique varie moins que les deux.",
+  );
+  row('tirets', `${report.dashRate.toFixed(1)} cadratins ou demi-cadratins pour 1000 mots`);
+  if (report.boldLeadIns > 0) {
+    row('amorces', `${Math.round(report.boldLeadIns * 100)}% des paragraphes ouvrent sur une phrase en gras`);
+  }
+  if (report.indicators.length) {
+    row(
+      'tournures',
+      report.indicators.map((i) => `${i.label} ×${i.count}`).join(' · '),
+    );
+  }
+  row('lecture', STYLE_TEXT[report.band]);
+
+  table.append(body);
+  scroll.append(table);
+  node.append(scroll);
+  node.append(
+    el(
+      'p',
+      'note',
+      "Ce sont des signaux de style, pas une preuve de paternité. Les gommer change la façon dont le texte se lit, pas son origine. Utile pour relire votre propre brouillon avant de l'envoyer.",
+    ),
+  );
+  return node;
+}
 
 function exposureCard(text: string): HTMLElement {
   const report = exposure(text);
@@ -890,7 +951,8 @@ function setupText(): void {
       node.append(el('p', 'decoded', `Charge décodée — ${payload}`));
     }
     appendNotes(node, scopeNote);
-    results.replaceChildren(node, exposureCard(input.value));
+    const style = styleCard(input.value);
+    results.replaceChildren(node, exposureCard(input.value), ...(style ? [style] : []));
   });
 
   cleanButton.addEventListener('click', async () => {

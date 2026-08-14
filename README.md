@@ -34,6 +34,53 @@ votre machine.
 | Contrôles C0 | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — catégorie `Cc`, que le filet `Cf` ne couvre pas. Signalés, jamais retirés : un journal de terminal en couleurs est plein d'`ESC` légitimes |
 | Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
 
+### Ce à quoi le texte ressemble
+
+Troisième et dernière chose qu'un outil local peut dire — et la plus facile à détourner, donc sa
+forme compte autant que son contenu. **Il mesure, il ne conclut pas.**
+
+Ce n'est pas de la modestie. OpenAI a retiré son propre classifieur de texte IA en juillet 2023 :
+26 % de vrais positifs, 9 % de faux positifs. Et
+[Liang et al. (Stanford, 2023)](https://arxiv.org/abs/2304.02819) ont montré que les détecteurs
+encore sur le marché classaient **61 % des copies TOEFL d'anglophones non natifs** comme générées —
+un faux positif qui tombe systématiquement sur les gens les moins en mesure de le contester. Tout
+verdict bâti sur ces signaux en hérite.
+
+Ce qui résiste à l'examen, ce sont les indices pris un par un :
+
+```
+Style  des indices, pas un verdict
+forme       7 phrases, 17.9 mots en moyenne
+variation   0.50 — de combien la longueur des phrases bouge
+tirets      24.0 cadratins ou demi-cadratins pour 1000 mots
+amorces     60% des paragraphes ouvrent sur une phrase en gras
+tournures   crucial / primordial / holistique ×3 · il est important de noter ×2 · dans le paysage… ×1
+lecture     Plusieurs de ces marqueurs sont présents en même temps.
+```
+
+Quatre familles de mesures :
+
+- **Lexique** — une liste **d'abord française**, parce que presque tous les détecteurs publiés sont
+  entraînés sur l'anglais, ce qui les rend inutiles sur les documents que cet outil vise. Les
+  tournures distinctives (« dans le paysage numérique en constante évolution ») comptent dès la
+  première occurrence ; les mots ordinaires (« crucial ») exigent **au moins deux occurrences et un
+  taux minimal**, parce qu'un seul ne veut rien dire.
+- **Rythme** — la variation de longueur des phrases. Les gens varient plus qu'un modèle ; la
+  documentation technique varie moins que les deux. Le nombre est donné, le seuil ne l'est pas.
+- **Ponctuation** — cadratins pour 1000 mots.
+- **Structure** — proportion de paragraphes ouvrant sur une amorce en gras.
+
+**Aucun score, et c'est délibéré.** Pondérer ces signaux impliquerait qu'ils ont été calibrés contre
+un corpus étiqueté, ce qui n'est pas le cas, et le nombre serait lu comme une probabilité quel que
+soit son nom. L'agrégation se limite donc à *combien* sont présents.
+
+Le contrôle qui compte : sur *L'Étranger* de Camus, la lecture est « peu de ces marqueurs sont
+présents ». Un module qui signale Camus est pire que pas de module.
+
+L'usage visé est celui pour lequel l'outil a été construit : relire **votre propre brouillon** avant
+de l'envoyer. « Six de ces marqueurs sont dans votre texte, les voici » est actionnable. « 78 % IA »
+ne l'est pas, et serait faux.
+
 ### Quand le fichier le déclare lui-même
 
 Il existe un champ standard où un générateur *déclare* comment le contenu a été fabriqué :
@@ -615,7 +662,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 249 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 255 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo
