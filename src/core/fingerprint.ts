@@ -278,6 +278,21 @@ function matchTool(value: string): ToolMatch[] {
  * The author fields stay in scope: `dc:creator` set to "Claude Code" is a real
  * attribution, and a person's name there matches nothing anyway.
  */
+/**
+ * Label for a synthetic finding that carries a document's running text, so the
+ * host, temp-directory and identifier signatures can run over the body of a
+ * plain-text file the way they run over a metadata field.
+ *
+ * It belongs in SUBJECT_FIELDS, and that is the entire point of routing it
+ * through this door rather than another. A path or a session identifier in the
+ * body is a leak no matter what the text is about, and those signatures run.
+ * A *vendor name* in the body is the text's subject — someone writing an email
+ * about Claude has not written an email with Claude — so tool matching is
+ * skipped. Any other arrangement would report the author of a comparison
+ * article as an assistant.
+ */
+export const BODY_TEXT = 'Document body text';
+
 const SUBJECT_FIELDS = new Set([
   'Title',
   'XMP title',
@@ -292,7 +307,10 @@ const SUBJECT_FIELDS = new Set([
   // This module's own prose, which names tools in order to explain them.
   'Written by the docx JavaScript library',
   'Assembled by a program, not typed in a word processor',
+  'Assembled by a program, not exported from an editor',
+  'Assembled by a program, not saved from an office suite',
   'How the file says it was made',
+  BODY_TEXT,
 ]);
 
 export function fingerprint(findings: Finding[]): Finding[] {

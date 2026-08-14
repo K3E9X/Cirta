@@ -370,6 +370,75 @@ function decodePayloads(codepoints: number[]): string[] {
     }
   }
 
+  out.push(...decodeZeroWidth(codepoints));
+  return out;
+}
+
+/**
+ * Zero-width characters used as digits.
+ *
+ * This is the scheme every "invisible watermark" library on npm implements, and
+ * the one most likely to be sitting in a document someone was handed. The text
+ * carries a run of characters from a small alphabet — most often U+200B and
+ * U+200C standing for 0 and 1 — which reassemble into bytes.
+ *
+ * Neither the polarity nor the alphabet is standardised, so both binary
+ * polarities are tried, and a four-symbol run is additionally read as base-4.
+ * A candidate is only reported if it decodes to printable ASCII, which is what
+ * separates a real payload from an arbitrary reading of incidental joiners.
+ */
+const ZERO_WIDTH_DIGITS = [0x200b, 0x200c, 0x200d, 0xfeff, 0x2060];
+
+function bitsToText(bits: string): string | undefined {
+  if (bits.length < 24) return undefined;
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  const text = String.fromCharCode(...bytes);
+  // Printable ASCII only. A payload worth hiding is a name, a key or an
+  // identifier; a run of control bytes means the reading was wrong.
+  if (!/^[\x20-\x7e]{3,}$/.test(text)) return undefined;
+  // And it must say more than one thing. A regular alternation of two carriers
+  // decodes to a single repeated letter — 0101… is "UUUU" — which is printable
+  // and means nothing. Rejecting it costs the ability to recover a payload that
+  // genuinely is one character repeated, which is not a payload anyone hides.
+  return new Set(text).size >= 2 ? text : undefined;
+}
+
+function decodeZeroWidth(codepoints: number[]): string[] {
+  const run = codepoints.filter((cp) => ZERO_WIDTH_DIGITS.includes(cp));
+  // Twelve carriers is the shortest run that can hold three bytes, which
+  // happens under the base-4 reading. bitsToText() enforces the real floor of
+  // 24 bits, so counting characters here would set the bar in the wrong unit —
+  // and did: a five-byte base-4 payload needs only twenty carriers, and a
+  // twenty-four-character minimum silently threw it away.
+  if (run.length < 12) return [];
+
+  const alphabet = [...new Set(run)];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (text: string, scheme: string) => {
+    if (seen.has(text)) return;
+    seen.add(text);
+    out.push(`zero-width ${scheme} → "${text}"`);
+  };
+
+  if (alphabet.length === 2) {
+    // Both polarities: which codepoint means 1 is a per-library choice.
+    const [a, b] = alphabet as [number, number];
+    for (const one of [b, a]) {
+      const text = bitsToText(run.map((cp) => (cp === one ? '1' : '0')).join(''));
+      if (text) add(text, 'binary');
+    }
+  } else if (alphabet.length === 4) {
+    // Two bits per character. Only the sorted order is tried: guessing among
+    // the 24 permutations would eventually produce printable text by chance,
+    // and a decoder that always finds something is worth nothing.
+    const order = [...alphabet].sort((x, y) => x - y);
+    const bits = run.map((cp) => order.indexOf(cp).toString(2).padStart(2, '0')).join('');
+    const text = bitsToText(bits);
+    if (text) add(text, 'base-4');
+  }
+
   return out;
 }
 

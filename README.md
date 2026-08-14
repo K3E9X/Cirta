@@ -26,6 +26,7 @@ votre machine.
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques ; **plus un filet générique sur la catégorie Unicode `Cf`**, pour que la liste ne prenne pas de retard sur la norme |
+| **E-mails** | Bloc d'en-têtes RFC 5322 : `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, et **tout en-tête `X-` inconnu** — c'est là qu'un pipeline se signe. Les en-têtes-outil sont retirés au nettoyage ; `From`, `Subject`, `Date` et `Message-ID` restent, ce sont le message |
 | Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
 | Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
@@ -80,6 +81,50 @@ présents ». Un module qui signale Camus est pire que pas de module.
 L'usage visé est celui pour lequel l'outil a été construit : relire **votre propre brouillon** avant
 de l'envoyer. « Six de ces marqueurs sont dans votre texte, les voici » est actionnable. « 78 % IA »
 ne l'est pas, et serait faux.
+
+### Le texte collé reçoit la même lecture qu'un fichier
+
+Un défaut réel, trouvé en mesurant plutôt qu'en supposant : **les mêmes octets ne donnaient pas la
+même réponse selon leur extension.** Un brouillon d'e-mail enregistré en `.md` déclarait sa source
+générative et nommait l'assistant ; le fichier identique en `.txt` ne signalait que ses caractères
+bizarres. Trois chemins menaient au texte — un fichier, l'entrée standard, la zone de collage de la
+page — et les trois avaient divergé.
+
+Ils passent maintenant par une seule fonction, `inspectPlainText()`, qui empile :
+
+1. Le niveau caractère — invisibles, sosies, canaux d'espacement.
+2. Les charges cachées **dans** ces caractères.
+3. Les en-têtes de courrier, quand le texte se révèle être un message.
+4. Le `digitalSourceType` déclaré.
+5. Les secrets et identifiants de fournisseur.
+6. `fingerprint()`, qui relit tout ce qui précède **et le corps du texte lui-même**.
+
+Le point 6 mérite sa précaution. Le corps est passé sous une étiquette qui **désactive la
+reconnaissance des noms d'outils** : un chemin `/home/lotfi/…` ou un `session_01ABCdef99` dans une
+signature est une fuite quel que soit le sujet du texte, mais un *nom de fournisseur* dans le corps
+est le sujet. Quelqu'un qui écrit un e-mail **sur** Claude n'a pas écrit cet e-mail **avec** Claude.
+Le test qui garde cette distinction est dans `test/email.test.ts`, et c'est le plus important du
+fichier.
+
+### Les filigranes zéro-largeur, décodés pour de vrai
+
+Compter les caractères invisibles ne suffit pas : la question est **ce qu'ils disent**. Le schéma le
+plus répandu — celui qu'implémente chaque bibliothèque « invisible watermark » sur npm — se sert de
+U+200B et U+200C comme des chiffres binaires. Un `KGX-2026` caché derrière une signature, c'est
+64 caractères invisibles qui ne ressemblent à rien tant qu'on ne les relit pas comme des bits.
+
+Cirta essaie **les deux polarités** (aucune norme ne dit lequel des deux vaut 1) et lit
+additionnellement un alphabet à quatre symboles en base 4. Deux garde-fous, tous deux issus d'un
+test qui a échoué :
+
+- Le seuil se compte **en bits, pas en caractères**. Un plancher à 24 caractères jetait
+  silencieusement une charge de cinq octets en base 4, qui n'en occupe que vingt.
+- Le résultat doit dire **plus d'une chose**. Une alternance régulière de deux porteurs décode en
+  `0101…`, soit `UUUU` — parfaitement imprimable, parfaitement vide de sens. Un décodeur qui trouve
+  toujours quelque chose ne vaut rien.
+
+Quand rien ne se décode, les caractères restent comptés et retirés : l'absence de charge lisible ne
+veut pas dire l'absence de canal.
 
 ### Quand le fichier le déclare lui-même
 

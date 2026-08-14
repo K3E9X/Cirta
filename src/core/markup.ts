@@ -14,7 +14,7 @@
 
 import type { Finding } from './types.js';
 import { preview } from './types.js';
-import { fingerprint } from './fingerprint.js';
+import { fingerprint, BODY_TEXT } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import { collectTextContent, mapTextContent } from './xml.js';
@@ -366,7 +366,19 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   findings.push(...findSourceTypes(text, 'metadata'));
   findings.push(...scanContent(text, 'document body'));
   findings.push(...inspectBodyText(text, format));
-  findings.push(...fingerprint(findings));
+  // The body goes to fingerprint() as a source, so a local path or a session
+  // identifier sitting in a trailing "generated from …" line is found. Without
+  // it a Markdown draft was quieter than the same bytes saved as .txt, which is
+  // the same asymmetry, only pointing the other way. BODY_TEXT suppresses tool
+  // matching: a page *about* an assistant was not written *by* one.
+  const body: Finding = {
+    kind: 'provenance',
+    confidence: 'informational',
+    location: 'document body',
+    label: BODY_TEXT,
+    value: bodyText(text, format),
+  };
+  findings.push(...fingerprint([...findings, body]));
   return findings.sort(byConfidence);
 }
 
