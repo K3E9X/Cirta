@@ -424,8 +424,12 @@ export function provenance(findings: Finding[]): Provenance {
       finding.label === 'Assistant or agent named in metadata' ||
       finding.label === 'Coding agent named in metadata',
   );
-  const machineAssembled = findings.some(
-    (finding) => finding.label === 'Assembled by a program, not typed in a word processor',
+  // Each container phrases this in its own vocabulary — a word processor for
+  // OOXML, an office suite for ODF, an editor for PDF — so match the shared
+  // stem rather than three literals that would silently stop matching the day
+  // a fourth format is added.
+  const machineAssembled = findings.some((finding) =>
+    finding.label.startsWith('Assembled by a program'),
   );
   return {
     tools,

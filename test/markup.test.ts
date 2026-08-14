@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
-import { inspectFile, redactFile, detectFormat, type Finding } from '../src/core/index.js';
+import { inspectFile, redactFile, detectFormat, isStructuralFinding, type Finding } from '../src/core/index.js';
 
 const encode = (text: string) => new TextEncoder().encode(text);
 const decode = (data: Uint8Array) => new TextDecoder().decode(data);
@@ -197,7 +197,17 @@ describe('OpenDocument', () => {
 
   it('leaves no metadata behind after redaction', async () => {
     const redacted = await redactFile(makeOdt());
-    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+    const after = await inspectFile(redacted.data!);
+    expect(after.findings.filter((f) => !isStructuralFinding(f))).toEqual([]);
+  });
+
+  it('removes the generator rather than blanking it, leaving no scrub trace', async () => {
+    const parts = unzipSync((await redactFile(makeOdt())).data!);
+    const meta = strFromU8(parts['meta.xml']!);
+    // An empty <meta:generator/> is a shape no application writes, so blanking
+    // would trade one mark for another.
+    expect(meta).not.toContain('<meta:generator');
+    expect(meta).not.toContain('<meta:initial-creator');
   });
 
   it('keeps mimetype as the first entry, as the package spec requires', async () => {

@@ -81,6 +81,22 @@ export function byConfidence(a: Finding, b: Finding): number {
 }
 
 /**
+ * Findings that describe the file's construction rather than something written
+ * into it — how a PDF's trailer is built, which parts an ODF package carries,
+ * whether a .docx has revision identifiers.
+ *
+ * The distinction matters because redaction cannot touch them. Removing a
+ * `/Producer` string makes it gone; the absence of a `/StructTreeRoot` is the
+ * document's shape, and the only way to change it is to rebuild the document in
+ * the application whose shape you want. A cleaned file still reports these, and
+ * that is not a failure of the cleaning — it is the honest state of the file.
+ * Callers separate the two so a report can say which is which.
+ */
+export function isStructuralFinding(finding: Finding): boolean {
+  return /\bstructure$/.test(finding.location);
+}
+
+/**
  * Caveats attached to a result. These are codes rather than sentences so that
  * each front-end supplies its own wording; the CLI reports in English and the
  * web interface in French from the same core.

@@ -17,7 +17,6 @@ import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } f
 import { byConfidence } from './types.js';
 import {
   getElementText,
-  setElementText,
   removeElement,
   collectAttribute,
   collectNamedProperties,
@@ -112,6 +111,87 @@ function inspectBodyText(parts: Parts): Finding[] {
   return findings;
 }
 
+/**
+ * What an OpenDocument package's own construction says about who built it.
+ *
+ * ODF gives a cleaner answer than any other format here, because an office
+ * suite writes several parts that have nothing to do with the document's
+ * content and that a generating library has no reason to invent:
+ *
+ *   - `settings.xml` — window size, cursor position, zoom level. This is the
+ *     state of somebody's screen. Nothing writes it but an application that
+ *     had a screen.
+ *   - `meta:editing-cycles` — how many times the file was opened and saved.
+ *     LibreOffice writes it on the first save and increments it forever after.
+ *   - `Thumbnails/thumbnail.png` and `manifest.rdf`, both written by default.
+ *
+ * The first two carry the weight; the last two are ordinary enough to disable
+ * that they only corroborate. The check earns its place because `meta:generator`
+ * is a free-text field: a library can write `LibreOffice/7.5` into it and be
+ * believed. It cannot as easily fake having been open in a window.
+ */
+function structuralOdf(parts: Parts, meta: string | undefined): Finding[] {
+  const out: Finding[] = [];
+  const has = (p: string) => Object.keys(parts).some((k) => k === p || k.startsWith(p));
+
+  const generator = meta ? getElementText(meta, 'meta:generator') : undefined;
+  const created = meta ? getElementText(meta, 'meta:creation-date') : undefined;
+
+  // An office suite's package with an emptied meta.xml. The parts that prove a
+  // window was open are still there, so the missing metadata was taken out
+  // afterwards rather than never written — worth saying, because cleaning a
+  // file leaves its own mark and the reader deserves to know that.
+  if (has('settings.xml') && generator !== undefined && generator.trim() === '') {
+    out.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'meta.xml:meta:generator',
+      label: 'Metadata has been stripped from this file',
+      value:
+        'the generator element is present and empty, which no application writes; the package ' +
+        'still carries the parts an office suite adds, so the metadata was removed after the fact',
+    });
+  }
+
+  const strong: string[] = [];
+  if (!has('settings.xml')) strong.push('no settings.xml, which records the state of an open window');
+  if (meta && !getElementText(meta, 'meta:editing-cycles')) {
+    strong.push('no edit-cycle count, which an office suite writes on the first save');
+  }
+
+  const weak: string[] = [];
+  if (!has('Thumbnails/')) weak.push('no embedded thumbnail');
+  if (!has('manifest.rdf')) weak.push('no manifest.rdf');
+
+  if (strong.length >= 1 && strong.length + weak.length >= 2) {
+    const claim = generator?.trim()
+      ? ` — despite meta:generator naming ${generator.trim()}`
+      : '';
+    out.push({
+      kind: 'provenance',
+      confidence: strong.length >= 2 ? 'probable' : 'informational',
+      location: 'package structure',
+      label: 'Assembled by a program, not saved from an office suite',
+      value: [...strong, ...weak].join('; ') + claim,
+    });
+  }
+
+  if (created && meta) {
+    const modified = getElementText(meta, 'dc:date');
+    if (modified && modified === created) {
+      out.push({
+        kind: 'provenance',
+        confidence: 'informational',
+        location: 'meta.xml',
+        label: 'Written in a single pass',
+        value: 'created and last modified at the same instant, so the file was never reopened',
+      });
+    }
+  }
+
+  return out;
+}
+
 export function inspectOdf(data: Uint8Array): InspectResult {
   const parts = unzipGuarded(data);
   const format = detectOdfFormat(parts);
@@ -184,6 +264,7 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   }
 
   findings.push(...inspectBodyText(parts));
+  findings.push(...structuralOdf(parts, meta));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
   findings.push(...fingerprint(findings));
@@ -210,13 +291,12 @@ export function redactOdf(data: Uint8Array): RedactResult {
 
   let meta = readText(parts, 'meta.xml');
   if (meta) {
-    for (const field of META_FIELDS) {
-      // Dates and durations are removed rather than blanked; an empty
-      // meta:creation-date is not a valid value.
-      meta = /date$/.test(field.tag)
-        ? removeElement(meta, field.tag)
-        : setElementText(meta, field.tag, field.tag === 'meta:editing-cycles' ? '0' : '');
-    }
+    // Removed, not blanked. An empty <meta:generator/> is not a neutral
+    // value — it is a shape no application writes, and structuralOdf() reports
+    // it as evidence the file was scrubbed. Blanking would replace one mark
+    // with another, which is the opposite of the point. Every element here is
+    // optional in the schema, so removal produces a valid document.
+    for (const field of META_FIELDS) meta = removeElement(meta, field.tag);
     meta = removeElement(meta, 'meta:user-defined');
     meta = removeElement(meta, 'meta:document-statistic');
     parts['meta.xml'] = strToU8(meta);

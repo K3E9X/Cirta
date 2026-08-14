@@ -5,6 +5,7 @@ import {
   inspectFile,
   redactFile,
   detectFormat,
+  isStructuralFinding,
   UnsupportedFormatError,
   ArchiveTooLargeError,
   ZIP_LIMITS,
@@ -40,7 +41,20 @@ describe('PDF', () => {
   it('leaves no metadata behind after redaction', async () => {
     const redacted = await redactFile(await makePdf());
     expect(redacted.removed.length).toBeGreaterThanOrEqual(8);
-    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+    const after = await inspectFile(redacted.data!);
+    // Structural findings survive by definition: they describe how the file is
+    // built, and rebuilding it is not something a redaction tool can do.
+    expect(after.findings.filter((f) => !isStructuralFinding(f))).toEqual([]);
+  });
+
+  it('removes the /Info dictionary rather than emptying it', async () => {
+    const redacted = await redactFile(await makePdf());
+    const after = await inspectFile(redacted.data!);
+    // A present-but-empty /Info is a shape no producer writes, so leaving one
+    // would announce "this file was cleaned" — one mark traded for another.
+    expect(after.findings.map((f) => f.label)).not.toContain(
+      'Metadata has been stripped from this file',
+    );
   });
 
   it('produces a file that still opens and keeps its pages', async () => {

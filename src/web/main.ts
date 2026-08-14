@@ -170,6 +170,15 @@ const FIELD_LABEL: Record<string, string> = {
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
+  'Written by the docx JavaScript library': 'Écrit par la bibliothèque JavaScript docx',
+  'Assembled by a program, not typed in a word processor':
+    'Assemblé par un programme, pas tapé dans un traitement de texte',
+  'Assembled by a program, not exported from an editor':
+    'Assemblé par un programme, pas exporté depuis un éditeur',
+  'Assembled by a program, not saved from an office suite':
+    'Assemblé par un programme, pas enregistré depuis une suite bureautique',
+  'Metadata has been stripped from this file': 'Les métadonnées de ce fichier ont été effacées',
+  'Written in a single pass': 'Écrit en une seule passe',
   'Software credited by the action': 'Logiciel crédité par l’action',
   'SVG metadata block': 'Bloc de métadonnées SVG',
   'Editor namespace': 'Espace de noms de l’éditeur',
@@ -225,6 +234,12 @@ const VALUE_TEXT: Record<string, string> = {
   'the part exists but holds no properties': 'la partie existe mais ne contient aucune propriété',
   'file was assembled in a scratch directory':
     'le fichier a été assemblé dans un répertoire de travail temporaire',
+  'the /Info dictionary is present and empty, which no producer writes — every one of them records at least a /Producer. Cleaning a document leaves this shape behind':
+    'le dictionnaire /Info est présent et vide, ce qu’aucun producteur n’écrit — tous inscrivent au moins un /Producer. Nettoyer un document laisse cette forme derrière soi',
+  'the generator element is present and empty, which no application writes; the package still carries the parts an office suite adds, so the metadata was removed after the fact':
+    'l’élément generator est présent et vide, ce qu’aucune application n’écrit ; le paquet porte encore les parties qu’ajoute une suite bureautique, donc les métadonnées ont été retirées après coup',
+  'created and last modified at the same instant, so the file was never reopened':
+    'créé et modifié au même instant : le fichier n’a jamais été rouvert',
 };
 
 /**
@@ -407,6 +422,9 @@ const LOCATION_TEXT: Record<string, string> = {
   'tracked changes / comments': 'suivi de modifications / commentaires',
   'bidirectional controls': 'contrôles bidirectionnels',
   'document body': 'corps du document',
+  'container structure': 'structure du conteneur',
+  'file structure': 'structure du fichier',
+  'package structure': 'structure du paquet',
 };
 
 /** The core marks derived findings with an English prefix naming their source. */
@@ -522,10 +540,71 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(.+) \(drive ([A-Za-z]):\)$/, (m) => `${m[1]} (lecteur ${m[2]} :)`],
 ];
 
+/**
+ * Structural findings compose their value out of reason fragments joined by
+ * "; ", one per signal observed, so the fragments are translated one by one.
+ * A fragment this table does not know passes through in English — visibly
+ * wrong, which is the correct failure mode for a missing translation.
+ */
+const REASON_TEXT: Record<string, string> = {
+  // OOXML
+  'docProps/app.xml is present but empty': 'docProps/app.xml est présent mais vide',
+  'timestamps carry milliseconds, the shape JavaScript writes':
+    'les horodatages portent des millisecondes, la forme qu’écrit JavaScript',
+  'created and modified are the same instant': 'création et modification au même instant',
+  'no revision save IDs, which Word always writes':
+    'aucun identifiant de révision, que Word écrit toujours',
+  // PDF
+  'the trailer carries no /ID, which the format asks for':
+    'le trailer ne porte pas d’/ID, que le format demande',
+  'created and modified at the same instant': 'créé et modifié au même instant',
+  'no XMP metadata packet': 'aucun paquet de métadonnées XMP',
+  'not tagged for accessibility': 'non balisé pour l’accessibilité',
+  // ODF
+  'no settings.xml, which records the state of an open window':
+    'pas de settings.xml, qui enregistre l’état d’une fenêtre ouverte',
+  'no edit-cycle count, which an office suite writes on the first save':
+    'aucun compteur de cycles d’édition, qu’une suite bureautique écrit dès le premier enregistrement',
+  'no embedded thumbnail': 'aucune miniature intégrée',
+  'no manifest.rdf': 'pas de manifest.rdf',
+};
+
+const REASON_SUFFIX: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    / — the last of these are also absent from a file printed to PDF$/,
+    () => ' — ces derniers manquent aussi dans un fichier imprimé en PDF',
+  ],
+  [
+    / — despite meta:generator naming (.+)$/,
+    (m) => ` — alors même que meta:generator déclare ${m[1]}`,
+  ],
+];
+
+function translateReasons(value: string): string {
+  let suffix = '';
+  for (const [pattern, render] of REASON_SUFFIX) {
+    const match = pattern.exec(value);
+    if (match) {
+      suffix = render(match);
+      value = value.slice(0, match.index);
+      break;
+    }
+  }
+  const parts = value.split('; ').map((part) => {
+    const known = REASON_TEXT[part];
+    if (known) return known;
+    const media = /^(\d+) media file\(s\) named by content hash rather than image1, image2$/.exec(part);
+    if (media) return `${media[1]} fichier(s) média nommés par empreinte de contenu plutôt que image1, image2`;
+    return part;
+  });
+  return parts.join(' ; ') + suffix;
+}
+
 function translateValue(finding: Finding): string {
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
+  if (/\bstructure$/.test(finding.location)) return translateReasons(finding.value);
   for (const [pattern, render] of VALUE_PATTERNS) {
     const match = pattern.exec(finding.value);
     if (match) return render(match);

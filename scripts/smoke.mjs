@@ -15,7 +15,7 @@ import process from 'node:process';
 
 import { PDFDocument } from 'pdf-lib';
 import { zipSync, strToU8, unzipSync, strFromU8 } from 'fflate';
-import { inspectFile } from '../dist/core/index.js';
+import { inspectFile, isStructuralFinding } from '../dist/core/index.js';
 
 const CLI = join(import.meta.dirname, '..', 'dist', 'cli', 'index.js');
 
@@ -133,8 +133,11 @@ try {
   const redact = runCli(['redact', pdfPath, '-o', outPath]);
   check('redact exits 0', redact.status === 0, `status ${redact.status}`);
   const cleaned = await inspectFile(new Uint8Array(await readFile(outPath)));
-  check('redacted PDF has no metadata left', cleaned.findings.length === 0,
-    JSON.stringify(cleaned.findings.map((f) => f.label)));
+  // Structural findings describe how the file is built and survive any
+  // redaction; what must be gone is everything written *into* the file.
+  const residual = cleaned.findings.filter((f) => !isStructuralFinding(f));
+  check('redacted PDF has no metadata left', residual.length === 0,
+    JSON.stringify(residual.map((f) => f.label)));
 
   const pptxOut = join(dir, 'out.pptx');
   runCli(['redact', pptxPath, '-o', pptxOut]);

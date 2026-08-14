@@ -9,7 +9,7 @@
  * Both are handled here. Page content is never touched.
  */
 
-import { PDFDocument, PDFName, PDFDict, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
 import { byConfidence } from './types.js';
@@ -317,6 +317,84 @@ function scanPageFonts(doc: PDFDocument): Finding[] {
   return findings;
 }
 
+/**
+ * What a PDF's own construction says about who built it.
+ *
+ * Same reasoning as the OOXML equivalent: every other check reads a field that
+ * names a tool, and finds nothing when the tool does not sign itself. A PDF
+ * carries its answer in the parts a producer either writes or does not.
+ *
+ * The signals are not equal, and treating them as equal is how a check like
+ * this starts accusing people. Two carry weight:
+ *
+ *   - A trailer with no `/ID`. The specification asks for one, and Acrobat,
+ *     Word, LibreOffice and pdfTeX all write it. Omitting it is a library
+ *     shortcut, not something an interactive application does.
+ *   - Creation and modification stamped at the same instant: written once in a
+ *     single pass, never reopened and saved again.
+ *
+ * Two more are suggestive on their own but far too common to lean on:
+ *
+ *   - No XMP `/Metadata`, and no `/StructTreeRoot`. Word and LibreOffice write
+ *     both, which is why they look conclusive — but a file printed to PDF from
+ *     Preview, a browser or an older driver has neither, and a person did that.
+ *
+ * So one of the two weighty signals is required, plus a second of any kind.
+ * The weak pair alone says nothing and is reported as nothing. Even then the
+ * conclusion is narrow: a program built this file — not which program, and not
+ * that a model wrote the words in it.
+ */
+function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
+  const out: Finding[] = [];
+
+  // An /Info dictionary that exists and holds nothing is not a shape any
+  // producer emits — every one of them writes at least a /Producer. It means
+  // the file was scrubbed, which is worth saying plainly: removing metadata
+  // leaves its own trace, and a reader of this report deserves to know that
+  // about someone else's file as much as about their own.
+  const info = doc.context.lookup(doc.context.trailerInfo.Info);
+  if (info && 'keys' in info && [...(info as { keys(): unknown[] }).keys()].length === 0) {
+    out.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'trailer /Info',
+      label: 'Metadata has been stripped from this file',
+      value:
+        'the /Info dictionary is present and empty, which no producer writes — every one of them ' +
+        'records at least a /Producer. Cleaning a document leaves this shape behind',
+    });
+  }
+
+  const strong: string[] = [];
+  if (!doc.context.trailerInfo.ID) strong.push('the trailer carries no /ID, which the format asks for');
+
+  const created = findings.find((f) => f.label === 'Created')?.value;
+  const modified = findings.find((f) => f.label === 'Modified')?.value;
+  if (created && created === modified) strong.push('created and modified at the same instant');
+
+  const weak: string[] = [];
+  if (!doc.catalog?.get(PDFName.of('Metadata'))) weak.push('no XMP metadata packet');
+  if (!doc.catalog?.get(PDFName.of('StructTreeRoot'))) weak.push('not tagged for accessibility');
+
+  // One weighty signal is the entry price. Without it the file is only missing
+  // things that a print-to-PDF driver also leaves out, and saying anything
+  // there would put a person's own document under suspicion.
+  if (strong.length >= 1 && strong.length + weak.length >= 2) {
+    out.push({
+      kind: 'provenance',
+      confidence: strong.length >= 2 ? 'probable' : 'informational',
+      location: 'file structure',
+      label: 'Assembled by a program, not exported from an editor',
+      value:
+        [...strong, ...weak].join('; ') +
+        (weak.length && strong.length < 2
+          ? ' — the last of these are also absent from a file printed to PDF'
+          : ''),
+    });
+  }
+  return out;
+}
+
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   const doc = await load(data);
   const findings: Finding[] = [];
@@ -406,6 +484,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
 
   findings.push(...scanStreams(doc));
   findings.push(...scanPageFonts(doc));
+  findings.push(...structuralPdf(doc, findings));
 
   const names = doc.catalog?.get(PDFName.of('Names'));
   if (names) {
@@ -446,10 +525,21 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   // would be worse than not reporting them at all. The pdf-lib setters are
   // avoided because they write empty entries that still announce which fields
   // existed.
-  const info = doc.context.lookup(doc.context.trailerInfo.Info);
+  const infoRef = doc.context.trailerInfo.Info;
+  const info = doc.context.lookup(infoRef);
   if (info && 'delete' in info && 'keys' in info) {
     const dict = info as unknown as { delete(k: PDFName): void; keys(): PDFName[] };
     for (const key of [...dict.keys()]) dict.delete(key);
+  }
+
+  // Then drop the husk. An /Info dictionary present and empty is a shape no
+  // producer writes, so leaving it would replace one mark with another —
+  // "this file has been cleaned" is itself information about the file.
+  // structuralPdf() reports exactly that when it sees it elsewhere; it would be
+  // incoherent to keep emitting it ourselves.
+  if (infoRef) {
+    delete doc.context.trailerInfo.Info;
+    if (infoRef instanceof PDFRef) doc.context.delete(infoRef);
   }
 
   if (removeXmp) {

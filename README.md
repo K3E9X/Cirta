@@ -143,6 +143,36 @@ Le contrôle : un `.docx` réellement enregistré depuis Word — `app.xml` remp
 secondes entières — n'est pas accusé, et sa ligne de synthèse répond avec le champ le plus simple
 qui soit : `Microsoft Office Word`.
 
+Le même raisonnement est appliqué aux deux autres conteneurs, chacun dans son vocabulaire :
+
+- **PDF** — deux signaux ont du poids : un trailer **sans `/ID`** (le format le demande ; Acrobat,
+  Word, LibreOffice et pdfTeX l'écrivent tous) et `créé` == `modifié` au même instant. L'absence de
+  XMP et de balisage d'accessibilité ne fait que corroborer, parce qu'un fichier *imprimé en PDF*
+  depuis un navigateur n'a ni l'un ni l'autre — et c'est une personne qui a fait ça. Sans au moins
+  un signal lourd, l'outil ne dit rien.
+- **ODF** — le signal le plus propre de tous les formats : `settings.xml` enregistre la taille de la
+  fenêtre, la position du curseur, le zoom. **C'est l'état de l'écran de quelqu'un.** Rien d'autre
+  qu'une application ouverte dans une fenêtre ne l'écrit. S'y ajoutent le compteur
+  `meta:editing-cycles`, la miniature et `manifest.rdf`. L'intérêt : `meta:generator` est un champ
+  libre — une bibliothèque peut y écrire `LibreOffice/7.5` et être crue. Elle peut beaucoup plus
+  difficilement simuler d'avoir été ouverte dans une fenêtre, et le rapport le dit alors
+  explicitement : *« … alors même que meta:generator déclare LibreOffice/7.5 »*.
+
+Ces constats **structurels** survivent au nettoyage, par définition : ils décrivent comment le
+fichier est construit, et un outil de nettoyage ne reconstruit pas le fichier. Un fichier nettoyé
+par Cirta continue donc de les rapporter — c'est l'état honnête du fichier, pas un échec du
+nettoyage. La seule façon de changer la forme d'un document est de le refaire dans l'application
+dont on veut la forme.
+
+Et le nettoyage lui-même est tenu au même standard : vider les métadonnées sans les retirer
+laisserait une trace que personne d'autre ne produit — un `/Info` présent et vide dans un PDF, un
+`<meta:generator/>` vide dans un ODF. Cirta **supprime** ces éléments plutôt que de les vider, et
+signale la forme « nettoyé par quelqu'un d'autre » quand il la rencontre :
+
+```
+confirmed  provenance  Metadata has been stripped from this file
+```
+
 ### Le sujet d'un document n'est pas sa provenance
 
 Une distinction qui semble évidente écrite comme ça, et qui manquait.

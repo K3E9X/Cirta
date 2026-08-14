@@ -4,6 +4,7 @@ import {
   inspectFile,
   redactFile,
   detectFormat,
+  isStructuralFinding,
   scanContent,
   fingerprint,
   exposure,
@@ -201,7 +202,8 @@ describe('redaction is measured, not asserted', () => {
     info.set(PDFName.of('SessionId'), PDFString.of('session_01ABCdef99'));
 
     const redacted = await redactFile(await pdf.save());
-    expect((await inspectFile(redacted.data!)).findings).toEqual([]);
+    const after = await inspectFile(redacted.data!);
+    expect(after.findings.filter((f) => !isStructuralFinding(f))).toEqual([]);
   });
 
   it('names what survived instead of implying a clean file', async () => {
@@ -217,7 +219,7 @@ describe('redaction is measured, not asserted', () => {
 
     // And it really does survive, which is why saying so matters.
     const after = await inspectFile(redacted.data!);
-    expect(after.findings.map((f) => f.label)).toEqual([
+    expect(after.findings.filter((f) => !isStructuralFinding(f)).map((f) => f.label)).toEqual([
       'Credential left in file: Anthropic API key',
     ]);
   });

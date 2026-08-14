@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFHexString } from 'pdf-lib';
 import {
   inspectFile,
   scanText,
@@ -256,6 +256,89 @@ describe('a program that does not sign its work', () => {
       'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
     });
     expect(provenance((await inspectFile(single)).findings).machineAssembled).toBe(false);
+  });
+});
+
+describe('the same reasoning on the other containers', () => {
+  it('reads a library-built PDF from its trailer', async () => {
+    // pdf-lib's defaults: no /ID, creation and modification at the same instant.
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]).drawText('contenu');
+    const findings = (await inspectFile(await pdf.save())).findings;
+    const structural = findings.find(
+      (f) => f.label === 'Assembled by a program, not exported from an editor',
+    );
+    expect(structural?.confidence).toBe('probable');
+    expect(structural?.value).toContain('no /ID');
+    expect(provenance(findings).machineAssembled).toBe(true);
+  });
+
+  it('does not accuse a PDF that only lacks XMP and tagging', async () => {
+    // The shape of a file printed to PDF: an /ID and distinct dates, but no
+    // XMP packet and no structure tree. A person made this.
+    const pdf = await PDFDocument.create();
+    pdf.addPage([200, 200]).drawText('contenu');
+    pdf.setCreationDate(new Date('2026-07-01T09:00:00Z'));
+    pdf.setModificationDate(new Date('2026-08-01T14:30:00Z'));
+    pdf.context.trailerInfo.ID = pdf.context.obj([
+      PDFHexString.of('AABBCCDDEEFF00112233445566778899'),
+      PDFHexString.of('AABBCCDDEEFF00112233445566778899'),
+    ]);
+    const findings = (await inspectFile(await pdf.save())).findings;
+    expect(provenance(findings).machineAssembled).toBe(false);
+  });
+
+  it('reads a library-built ODF from the parts an office suite would have added', async () => {
+    // meta:generator claims LibreOffice, but nothing else of LibreOffice is
+    // there: no settings.xml, no edit cycles, no thumbnail, no manifest.rdf.
+    const data = zipSync({
+      mimetype: strToU8('application/vnd.oasis.opendocument.text'),
+      'meta.xml': strToU8(
+        '<office:document-meta xmlns:office="o" xmlns:meta="m" xmlns:dc="d"><office:meta>' +
+          '<meta:generator>LibreOffice/7.5</meta:generator></office:meta></office:document-meta>',
+      ),
+      'content.xml': strToU8('<office:document-content/>'),
+    });
+    const findings = (await inspectFile(data)).findings;
+    const structural = findings.find(
+      (f) => f.label === 'Assembled by a program, not saved from an office suite',
+    );
+    expect(structural?.confidence).toBe('probable');
+    expect(structural?.value).toContain('despite meta:generator naming LibreOffice/7.5');
+    expect(provenance(findings).machineAssembled).toBe(true);
+  });
+
+  it('does not accuse an ODF that carries the full suite shape', async () => {
+    const data = zipSync({
+      mimetype: strToU8('application/vnd.oasis.opendocument.text'),
+      'meta.xml': strToU8(
+        '<office:document-meta xmlns:office="o" xmlns:meta="m" xmlns:dc="d"><office:meta>' +
+          '<meta:generator>LibreOffice/24.8.0.3$Linux_X86_64</meta:generator>' +
+          '<meta:editing-cycles>12</meta:editing-cycles></office:meta></office:document-meta>',
+      ),
+      'settings.xml': strToU8('<office:document-settings/>'),
+      'manifest.rdf': strToU8('<rdf:RDF/>'),
+      'content.xml': strToU8('<office:document-content/>'),
+      'Thumbnails/thumbnail.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+    expect(provenance((await inspectFile(data)).findings).machineAssembled).toBe(false);
+  });
+
+  it('reports an emptied generator inside an intact package as a scrub trace', async () => {
+    // The parts that prove a window was open are still there; the metadata is
+    // not. Someone removed it after the fact, and that is itself a finding.
+    const data = zipSync({
+      mimetype: strToU8('application/vnd.oasis.opendocument.text'),
+      'meta.xml': strToU8(
+        '<office:document-meta xmlns:office="o" xmlns:meta="m" xmlns:dc="d"><office:meta>' +
+          '<meta:generator></meta:generator></office:meta></office:document-meta>',
+      ),
+      'settings.xml': strToU8('<office:document-settings/>'),
+      'content.xml': strToU8('<office:document-content/>'),
+    });
+    const findings = (await inspectFile(data)).findings;
+    const scrubbed = findings.find((f) => f.label === 'Metadata has been stripped from this file');
+    expect(scrubbed?.confidence).toBe('confirmed');
   });
 });
 
