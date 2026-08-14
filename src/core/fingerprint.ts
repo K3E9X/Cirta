@@ -266,6 +266,35 @@ function matchTool(value: string): ToolMatch[] {
  * typically appears in a template path and in several hyperlinks at once, and
  * reporting it five times helps nobody.
  */
+/**
+ * Fields that describe what a document is *about* rather than what made it.
+ *
+ * A report titled "Comparatif Claude contre ChatGPT", typed by a person in
+ * Word, was reported as attributed to an AI — because the title was scanned for
+ * vendor names alongside the producer fields. Subject matter is not provenance,
+ * and a tool that cannot tell them apart accuses everyone who writes about the
+ * subject.
+ *
+ * The author fields stay in scope: `dc:creator` set to "Claude Code" is a real
+ * attribution, and a person's name there matches nothing anyway.
+ */
+const SUBJECT_FIELDS = new Set([
+  'Title',
+  'XMP title',
+  'Subject',
+  'Description',
+  'Keywords',
+  'Category',
+  'Content status',
+  'SVG title (accessibility)',
+  'SVG description (accessibility)',
+  'JSON-LD structured data',
+  // This module's own prose, which names tools in order to explain them.
+  'Written by the docx JavaScript library',
+  'Assembled by a program, not typed in a word processor',
+  'How the file says it was made',
+]);
+
 export function fingerprint(findings: Finding[]): Finding[] {
   const derived = new Map<string, Finding>();
 
@@ -277,6 +306,10 @@ export function fingerprint(findings: Finding[]): Finding[] {
   for (const source of findings) {
     const value = source.value;
     if (!value) continue;
+    // Subject matter is not provenance. Host and identifier signatures still
+    // run on these — a path or a session id in a title is still a leak — but a
+    // vendor name in one is a topic.
+    const subjectOnly = SUBJECT_FIELDS.has(source.label);
 
     for (const signature of [...HOST_SIGNATURES, ...TEMP_SIGNATURES, ...IDENTIFIER_SIGNATURES]) {
       const match = value.match(signature.pattern);
@@ -289,6 +322,8 @@ export function fingerprint(findings: Finding[]): Finding[] {
         value: signature.describe(match),
       });
     }
+
+    if (subjectOnly) continue;
 
     for (const tool of matchTool(value)) {
       add({
@@ -356,6 +391,7 @@ const TOOL_LABELS = [
   'Producing application',
   'Creating application',
   'XMP creator tool',
+  'Written by the docx JavaScript library',
 ] as const;
 
 export function provenance(findings: Finding[]): Provenance {

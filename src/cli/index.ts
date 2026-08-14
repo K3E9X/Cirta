@@ -367,6 +367,11 @@ function printProvenance(findings: Finding[]): void {
       `  ${bold('Produced by')}  ${tools.join(' · ')} ` +
         dim('— the software that wrote the file; nothing names an assistant'),
     );
+    if (machineAssembled) {
+      console.log(
+        `  ${dim('              the container\'s shape agrees: a program built it, not a word processor.')}`,
+      );
+    }
     return;
   }
   if (machineAssembled) {

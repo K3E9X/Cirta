@@ -258,3 +258,79 @@ describe('a program that does not sign its work', () => {
     expect(provenance((await inspectFile(single)).findings).machineAssembled).toBe(false);
   });
 });
+
+describe('subject matter is not provenance', () => {
+  const word = (core: string) =>
+    zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'docProps/app.xml': strToU8('<Properties><Application>Microsoft Office Word</Application></Properties>'),
+      'docProps/core.xml': strToU8(core),
+      'word/settings.xml': strToU8('<w:settings><w:rsids><w:rsid w:val="00B2"/></w:rsids></w:settings>'),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    });
+
+  it('does not accuse someone for writing about the subject', async () => {
+    // Typed by a person in Word. The vendor names are what the report is about.
+    const data = word(
+      '<cp:coreProperties xmlns:cp="c" xmlns:dc="d"><dc:title>Comparatif Claude contre ChatGPT</dc:title>' +
+        '<dc:creator>Lotfi Zakaria</dc:creator></cp:coreProperties>',
+    );
+    const result = provenance((await inspectFile(data)).findings);
+    expect(result.attributed).toBe(false);
+    expect(result.tools).toEqual(['Microsoft Office Word']);
+  });
+
+  it('still attributes when the author field names the tool', async () => {
+    const data = word(
+      '<cp:coreProperties xmlns:cp="c" xmlns:dc="d"><dc:creator>Claude Code</dc:creator></cp:coreProperties>',
+    );
+    expect(provenance((await inspectFile(data)).findings).attributed).toBe(true);
+  });
+
+  it('still reads a real leak out of a title', async () => {
+    // Only vendor names are ignored there. A path is a path wherever it sits.
+    const data = word(
+      '<cp:coreProperties xmlns:cp="c" xmlns:dc="d">' +
+        '<dc:title>Rapport C:\\Users\\lotfi\\Documents\\final</dc:title></cp:coreProperties>',
+    );
+    const findings = (await inspectFile(data)).findings;
+    expect(findings.find((f) => f.label === 'Windows account')?.value).toContain('lotfi');
+  });
+
+  it('does not read its own explanations back as evidence', async () => {
+    // The library signature names tools in order to explain itself. Scanning
+    // that prose turned the tool's own wording into an attribution.
+    const generated = zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'docProps/app.xml': strToU8(
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"/>',
+      ),
+      'docProps/core.xml': strToU8(
+        '<cp:coreProperties xmlns:cp="c" xmlns:dc="d" xmlns:dcterms="t"><dc:creator>Pôle Cyber</dc:creator>' +
+          '<cp:lastModifiedBy>Un-named</cp:lastModifiedBy>' +
+          '<dcterms:created>2026-07-29T15:22:28.698Z</dcterms:created>' +
+          '<dcterms:modified>2026-07-29T15:22:28.698Z</dcterms:modified></cp:coreProperties>',
+      ),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    });
+    const findings = (await inspectFile(generated)).findings;
+    expect(findings.find((f) => f.label === 'Written by the docx JavaScript library')).toBeDefined();
+    expect(provenance(findings).attributed).toBe(false);
+  });
+
+  it('does not report a library placeholder as a person', async () => {
+    // "Un-named" is that library's default, not somebody's name.
+    const generated = zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'docProps/core.xml': strToU8(
+        '<cp:coreProperties xmlns:cp="c" xmlns:dc="d"><cp:lastModifiedBy>Un-named</cp:lastModifiedBy></cp:coreProperties>',
+      ),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    });
+    const findings = (await inspectFile(generated)).findings;
+    expect(findings.find((f) => f.label === 'Last modified by')).toBeUndefined();
+  });
+});

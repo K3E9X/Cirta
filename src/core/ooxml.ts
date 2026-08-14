@@ -70,6 +70,20 @@ const DATE_TAGS = new Set(['dcterms:created', 'dcterms:modified']);
  */
 const ANONYMOUS_AUTHOR = 'Author';
 
+/**
+ * Values that name a library's default rather than a person.
+ *
+ * `Un-named` is what the `docx` JavaScript library writes into `dc:creator`
+ * and `cp:lastModifiedBy` when the caller supplies neither — verified in its
+ * source, not inferred. Reporting it as confirmed identifying data is a false
+ * positive: nobody is called that, and clearing a field that already holds a
+ * placeholder achieves nothing.
+ *
+ * It is still worth knowing it is there, which is what the generator signature
+ * below does with it.
+ */
+const PLACEHOLDER_VALUES = new Set(['Un-named', 'Unknown', 'unknown', 'Anonymous', ANONYMOUS_AUTHOR]);
+
 export function detectOoxmlFormat(parts: Parts): Format {
   if (parts['word/document.xml']) return 'docx';
   if (parts['ppt/presentation.xml']) return 'pptx';
@@ -208,7 +222,28 @@ function findWorkbookIdentities(parts: Parts): Finding[] {
  * word processor. It does not say which program, and it does not say AI.
  */
 function structuralGenerator(parts: Parts, format: Format): Finding[] {
+  const findings: Finding[] = [];
   const reasons: string[] = [];
+
+  // A signature specific enough to name, and checked rather than guessed: a
+  // document generated with the library reproduces this shape exactly —
+  // "Un-named" in the two name fields, an empty extended-properties part,
+  // revision 1, and created equal to modified down to the millisecond.
+  const coreForLibrary = readText(parts, 'docProps/core.xml') ?? '';
+  if (/<(?:cp:)?lastModifiedBy>Un-named<|<dc:creator>Un-named</.test(coreForLibrary)) {
+    findings.push({
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'docProps/core.xml',
+      label: 'Written by the docx JavaScript library',
+      // The name leads, so a one-line summary can take it verbatim; the
+      // reasoning follows the dash, where every other tool value puts it.
+      value:
+        'docx (JavaScript library) — "Un-named" is that library\'s default for the author ' +
+        'fields, verified in its source. Many products embed it, so this names what wrote the ' +
+        'file and not who asked for it',
+    });
+  }
 
   const app = readText(parts, 'docProps/app.xml');
   if (app !== undefined && /<Properties[^>]*\/>|<Properties[^>]*>\s*<\/Properties>/.test(app)) {
@@ -239,16 +274,16 @@ function structuralGenerator(parts: Parts, format: Format): Finding[] {
     reasons.push(`${hashed.length} media file(s) named by content hash rather than image1, image2`);
   }
 
-  if (reasons.length < 2) return [];
-  return [
-    {
+  if (reasons.length >= 2) {
+    findings.push({
       kind: 'provenance',
       confidence: reasons.length >= 3 ? 'confirmed' : 'probable',
       location: 'container structure',
       label: 'Assembled by a program, not typed in a word processor',
       value: reasons.join('; '),
-    },
-  ];
+    });
+  }
+  return findings;
 }
 
 /** Presenter notes are rarely written for the audience that receives the deck. */
@@ -311,7 +346,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   if (core) {
     for (const field of CORE_FIELDS) {
       const value = getElementText(core, field.tag);
-      if (value) {
+      if (value && !PLACEHOLDER_VALUES.has(value)) {
         findings.push({
           kind: field.kind,
           confidence: field.confidence,

@@ -699,7 +699,10 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
       el(
         'span',
         'provenance-caveat',
-        'Le logiciel qui a écrit le fichier. Aucun assistant n’est nommé, ce qui ne veut pas dire qu’il n’y en a pas eu.',
+        'Le logiciel qui a écrit le fichier. Aucun assistant n’est nommé, ce qui ne veut pas dire qu’il n’y en a pas eu.' +
+          (machineAssembled
+            ? ' La forme du conteneur le confirme : un programme l’a fabriqué, pas un traitement de texte.'
+            : ''),
       ),
     );
     return node;
