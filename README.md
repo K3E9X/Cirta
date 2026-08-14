@@ -73,6 +73,21 @@ Sont reconnus :
 
 L'analyse ne s'arrête pas aux champs de métadonnées connus.
 
+**PDF — lire le texte des pages pour de vrai.** Une chaîne PDF ne contient pas d'Unicode : elle
+contient des codes qui signifient ce que la police en dit. Or dès qu'un texte porte un accent, le
+producteur intègre une police *sous-ensemble*, qui numérote ses glyphes à partir de 1 dans l'ordre
+où elle les a rencontrés. Une page affichant « Réduire les flux » apparaît alors dans le flux comme
+`<000100020003…>`, et y chercher une espace de largeur nulle ne trouve jamais rien.
+
+La correspondance inverse est dans le fichier : chaque police de ce type porte une table
+`/ToUnicode`. Cirta la lit, suit l'opérateur `Tf` pour savoir quelle police est active à chaque
+instant, et décode. Mesuré sur un corpus furtif rendu en PDF avec police embarquée : **2067
+caractères sur 2088 récupérés**, et les 21 manquants n'avaient jamais été écrits — la police n'avait
+pas de glyphe pour eux, ils ont été perdus à la génération, pas à l'analyse.
+
+Une page dont la police ne porte pas de table `ToUnicode` reste lue en codes bruts : là, une
+détection est fiable mais une absence ne prouve rien.
+
 **PDF** — le dictionnaire `/Info` est ouvert : une chaîne de génération peut y écrire n'importe quelle
 clé, et ce sont souvent les plus parlantes. Toutes les clés non standard sont donc énumérées et
 signalées. Par ailleurs le texte des pages, le JavaScript et les pièces jointes vivent dans des flux
@@ -96,7 +111,7 @@ documents Office :
 | DOCX / PPTX / XLSX / ODT | Exacte, références numériques comprises | Oui |
 | Markdown | Exacte | Oui |
 | HTML / SVG | Exacte, texte entre balises uniquement | Oui |
-| PDF | Fiable en cas de détection, **une absence ne prouve rien** | Non — voir plus bas |
+| PDF | **Exacte** quand la police porte une table `ToUnicode`, ce qui est le cas dès qu'un accent est présent ; sinon fiable en détection, une absence ne prouvant rien | Non — voir plus bas |
 
 Le rapport ressemble à ceci :
 
@@ -543,7 +558,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 221 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 230 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

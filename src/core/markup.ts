@@ -16,7 +16,7 @@ import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
-import { scanText, cleanText } from './text.js';
+import { scanText, cleanText, isArrangementFinding } from './text.js';
 import { collectTextContent, mapTextContent } from './xml.js';
 import { describeC2pa } from './c2pa.js';
 import { byConfidence } from './types.js';
@@ -321,10 +321,14 @@ function bodyText(text: string, format: MarkupFormat): string {
 
 function inspectBodyText(text: string, format: MarkupFormat): Finding[] {
   const scan = scanText(bodyText(text, format));
-  const findings: Finding[] = scan.findings.map((finding) => ({
-    ...finding,
-    location: `document body (${finding.location})`,
-  }));
+  const findings: Finding[] = scan.findings
+    // A Markdown file *is* the text, so its line layout is the author's. In
+    // HTML and SVG the lines belong to the markup.
+    .filter((finding) => format === 'markdown' || !isArrangementFinding(finding))
+    .map((finding) => ({
+      ...finding,
+      location: `document body (${finding.location})`,
+    }));
   for (const payload of scan.decoded) {
     findings.push({
       kind: 'invisible-character',

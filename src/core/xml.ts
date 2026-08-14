@@ -97,10 +97,28 @@ function decodeNumericReferences(text: string): string {
 }
 
 /** Concatenate the visible text of a document part. */
+/**
+ * Elements that end a line of readable text.
+ *
+ * Runs inside one paragraph must be joined with nothing — a word split across
+ * two runs is still one word, and inserting anything between them invents a
+ * break. Across paragraphs the opposite is true: joining them with nothing
+ * welds the last word of one to the first word of the next, which produced
+ * "Fin de phrase.Les flux" and, from there, sentence counts that measured the
+ * concatenation rather than the document.
+ */
+const LINE_BREAK = /^<\/(?:w:p|a:p|text:p|text:h)\b|^<(?:w:br|a:br|text:line-break)\b/;
+
+const TOKEN = /<[^>]*>|[^<]+/g;
+
 export function collectTextContent(xml: string): string {
   const pieces: string[] = [];
-  for (const match of xml.matchAll(TEXT_CONTENT)) {
-    pieces.push(decodeEntities(decodeNumericReferences(match[1] ?? '')));
+  for (const token of xml.match(TOKEN) ?? []) {
+    if (token.startsWith('<')) {
+      if (LINE_BREAK.test(token)) pieces.push('\n');
+    } else {
+      pieces.push(decodeEntities(decodeNumericReferences(token)));
+    }
   }
   return pieces.join('');
 }

@@ -241,7 +241,7 @@ const translateDetail = (detail: string): string =>
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur, caractères invisibles). Les opérandes de chaîne PDF contiennent des codes de glyphes et non de l'Unicode : une détection dans le texte des pages est fiable, mais une absence ne prouve rien — contrairement à un DOCX, où le contrôle du corps est exact. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
+    "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur) et du texte des pages, décodé via la table ToUnicode de chaque police. C'est cette table qui retransforme les codes de glyphes d'une police sous-ensemble en caractères ; une page dont la police n'en porte pas est lue en codes bruts, où une détection reste fiable mais une absence ne prouve rien. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
   'scope:invisible-characters-only': () =>

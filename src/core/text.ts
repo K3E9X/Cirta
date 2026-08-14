@@ -653,6 +653,22 @@ const REPORTED_NOT_REMOVED = new Set([
 
 const isKeptFinding = (finding: Finding) => REPORTED_NOT_REMOVED.has(finding.location);
 
+/**
+ * Findings that describe how a file is laid out rather than what it contains.
+ *
+ * Line endings, trailing spaces and sentence spacing are channels in a text
+ * file, where the author controls every byte. Inside a container they are not:
+ * an OOXML "line" is a paragraph element, the whitespace between two tags is
+ * the generator's indentation, and a PDF content stream carries the newlines of
+ * PDF syntax and of any embedded font. Measured there, these count the format
+ * rather than the document — a PDF reported "1 CRLF and 14 LF" that came from
+ * a subset font program.
+ */
+const ARRANGEMENT = new Set(['line endings', 'sentence spacing']);
+
+export const isArrangementFinding = (finding: Finding): boolean =>
+  ARRANGEMENT.has(finding.location);
+
 export function cleanText(input: string, options: CleanTextOptions = {}): CleanTextResult {
   const { normalizeSpaces = true, normalize = true } = options;
   const scan = scanText(input);

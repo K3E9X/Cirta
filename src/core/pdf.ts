@@ -9,12 +9,13 @@
  * Both are handled here. Page content is never touched.
  */
 
-import { PDFDocument, PDFName, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFDict, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
 import { byConfidence } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
-import { scanText } from './text.js';
+import { scanText, isArrangementFinding } from './text.js';
 import { describeC2pa } from './c2pa.js';
 
 const INFO_FIELDS = [
@@ -193,8 +194,9 @@ function scanStreams(doc: PDFDocument): Finding[] {
 function scanPdfPageText(stream: string, location: string): Finding[] {
   const scan = scanText(extractPdfStrings(stream));
   const findings: Finding[] = scan.findings
-    // Exotic spaces are far too common in PDF text layout to be meaningful.
-    .filter((finding) => finding.confidence !== 'informational')
+    // Exotic spaces are far too common in PDF text layout to be meaningful,
+    // and a content stream's own newlines are not the document's.
+    .filter((finding) => finding.confidence !== 'informational' && !isArrangementFinding(finding))
     .map((finding) => ({ ...finding, location: `${location} (${finding.location})` }));
   for (const payload of scan.decoded) {
     findings.push({
@@ -205,6 +207,112 @@ function scanPdfPageText(stream: string, location: string): Finding[] {
       value: payload,
     });
   }
+  return findings;
+}
+
+/**
+ * Page text decoded through the fonts the page actually uses.
+ *
+ * The raw-stream pass above reads string operands as if their bytes were
+ * characters, which is right for a simple encoding and useless for an embedded
+ * subset — and a subset is what every producer embeds as soon as the text has
+ * accents. Here each page's `/Resources /Font` entries are resolved to their
+ * `/ToUnicode` CMaps, the content stream is walked tracking the `Tf` operator
+ * so the right map applies to each string, and the result is real text.
+ */
+function scanPageFonts(doc: PDFDocument): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+
+  // Same reason readXmp guards its catalog read: a lenient load can produce a
+  // document with no page tree at all, and walking it then fails as a
+  // TypeError rather than as something a caller can report.
+  let pages: ReturnType<PDFDocument['getPages']>;
+  try {
+    pages = doc.getPages();
+  } catch {
+    return findings;
+  }
+
+  pages.forEach((page, index) => {
+    const fonts = new Map<string, ToUnicode>();
+    try {
+      const resources = page.node.Resources();
+      const fontDict = resources?.lookupMaybe(PDFName.of('Font'), PDFDict);
+      for (const [name, ref] of fontDict?.entries() ?? []) {
+        const font = doc.context.lookupMaybe(ref, PDFDict);
+        const toUnicode = font?.get(PDFName.of('ToUnicode'));
+        const stream = toUnicode && doc.context.lookup(toUnicode);
+        // pdf-lib's typed lookup has no PDFRawStream overload, so the class
+        // check does the narrowing the way readXmp does above.
+        if (!(stream instanceof PDFRawStream)) continue;
+        const table = parseToUnicode(
+          new TextDecoder('latin1').decode(decodePDFRawStream(stream).decode()),
+        );
+        // asString() keeps the leading slash that PDF names carry; the content
+        // stream's operand is matched without it, so the key drops it too.
+        if (table) fonts.set(name.asString().replace(/^\//, ''), table);
+      }
+    } catch {
+      return; // A damaged resource tree is not worth failing the whole report.
+    }
+    if (fonts.size === 0) return;
+
+    let content: string;
+    try {
+      content = page.node
+        .normalizedEntries()
+        .Contents?.asArray()
+        .map((ref) => {
+          const stream = doc.context.lookup(ref);
+          return stream instanceof PDFRawStream
+            ? new TextDecoder('latin1').decode(decodePDFRawStream(stream).decode())
+            : '';
+        })
+        .join('\n') ?? '';
+    } catch {
+      return;
+    }
+
+    let current: ToUnicode | undefined = fonts.size === 1 ? [...fonts.values()][0] : undefined;
+    const pieces: string[] = [];
+    // One pass over the operators that matter: `/Name size Tf` switches font,
+    // and any hex string is text drawn with whichever font is current.
+    for (const token of content.matchAll(/\/([^\s/<>[\]()]+)[^/]*?\bTf\b|<([0-9A-Fa-f\s]+)>/g)) {
+      if (token[1] !== undefined) {
+        current = fonts.get(token[1]) ?? current;
+        continue;
+      }
+      if (!current) continue;
+      const hex = (token[2] ?? '').replace(/\s+/g, '');
+      if (hex.length < 2) continue;
+      const bytes = new Uint8Array(Math.floor(hex.length / 2));
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+      pieces.push(decodeWithToUnicode(bytes, current));
+    }
+
+    const scan = scanText(pieces.join(' '));
+    const location = `page ${index + 1}`;
+    for (const finding of scan.findings) {
+      // Layout spacing is the producer's, not the author's, and exotic spaces
+      // are how a PDF kerns — both would be noise here.
+      if (finding.confidence === 'informational' || isArrangementFinding(finding)) continue;
+      const key = `${finding.label}:${finding.value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({ ...finding, location: `${location} (${finding.location})` });
+    }
+    for (const payload of scan.decoded) {
+      findings.push({
+        kind: 'invisible-character',
+        confidence: 'confirmed',
+        location,
+        label: 'Hidden payload in page text',
+        value: payload,
+      });
+    }
+  });
+
   return findings;
 }
 
@@ -295,6 +403,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   }
 
   findings.push(...scanStreams(doc));
+  findings.push(...scanPageFonts(doc));
 
   const names = doc.catalog?.get(PDFName.of('Names'));
   if (names) {
