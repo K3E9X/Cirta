@@ -339,6 +339,20 @@ function printExposure(report: Exposure): void {
         ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
         : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
   console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
+  // The question this answers, asked often enough to belong in the output:
+  // "SynthID is open source, why not just use it?"
+  console.log(
+    `  ${dim('why not'.padEnd(11))} ${dim('SynthID-Text is published (DeepMind, Nature 2024) and its detector is open source, but')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('it scores token n-grams against the keys used at generation. The keys shipped with')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('the reference code are demo keys; a vendor\'s production keys are not published, and')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('the scheme is Google\'s — a detector for it would answer "no" to every other model.')}`,
+  );
   console.log(
     `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,
   );

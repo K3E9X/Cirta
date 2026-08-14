@@ -399,6 +399,16 @@ function exposureCard(text: string): HTMLElement {
     `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
   );
   row('portée', EXPOSURE_TEXT[report.band]);
+  // « SynthID est open source, pourquoi ne pas s'en servir ? » — la question
+  // revient assez souvent pour mériter sa réponse dans le rapport lui-même.
+  row(
+    'et SynthID ?',
+    'SynthID-Text est publié (DeepMind, Nature 2024) et son détecteur est open source. Mais il ' +
+      'note des n-grammes de tokens contre les clés utilisées à la génération : celles livrées ' +
+      'avec le code de référence sont des clés de démonstration, les clés de production d’un ' +
+      'éditeur ne sont pas publiées, et le schéma est celui de Google — un détecteur SynthID ' +
+      'répondrait « non » à tout document produit par un autre modèle.',
+  );
 
   table.append(body);
   scroll.append(table);

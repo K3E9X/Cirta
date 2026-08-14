@@ -477,6 +477,31 @@ d'Aaronson, et [SynthID-Text](https://www.nature.com/articles/s41586-024-08025-4
 2024). Toutes sont clefées, toutes exigent un volume de texte suffisant pour une puissance
 statistique, et aucune ne dépose de caractère repérable.
 
+#### « Mais SynthID est open source, pourquoi ne pas l'intégrer ? »
+
+C'est la bonne question à poser, et la réponse tient en trois obstacles indépendants. Elle est
+vérifiée sur le code du paquet officiel `synthid-text` de DeepMind, pas de mémoire.
+
+**1. Les clés.** Le détecteur calcule des *g-values* à partir d'un hachage `(n-gramme de tokens,
+clé)`. Le paquet livre bien des clés — trente entiers dans `DEFAULT_WATERMARKING_CONFIG` — mais ce
+sont des **clés de démonstration publiées dans un dépôt public**. Elles ne détectent que le texte que
+vous avez vous-même filigrané avec ces mêmes clés : un autotest, pas un détecteur. Les clés de
+production d'un éditeur ne sont pas publiées, et le README de DeepMind dit lui-même que la fonction
+de hachage de référence *« ne fournit aucune garantie de sécurité cryptographique »*.
+
+**2. Les tokens.** Les g-values portent sur des identifiants de tokens, pas sur des caractères. Il
+faudrait donc embarquer le tokenizer exact du modèle. Celui de Gemma est public, celui de Gemini ne
+l'est pas — et Cirta est du TypeScript qui tourne dans un onglet sans aucun appel réseau.
+
+**3. Le mauvais éditeur, et c'est l'obstacle décisif ici.** SynthID est le schéma de Google. Sur un
+document produit avec Claude, un détecteur SynthID parfaitement fonctionnel répondrait « aucun
+filigrane » — et cette réponse serait **pire qu'aucune réponse**, parce qu'elle se lirait comme
+« ce n'est pas de l'IA ». Un outil qui ajoute une case verte fausse est moins honnête que celui qui
+n'ajoute rien.
+
+Ce qui existe côté détection publique — le portail SynthID Detector de Google — suppose d'**envoyer
+le fichier chez Google**. C'est exactement la propriété que cet outil refuse de perdre.
+
 En conséquence, un outil local — celui-ci compris — ne peut ni confirmer la présence d'un tel
 filigrane, ni prouver son absence après traitement. Cirta ne le prétend pas. Méfiez-vous des services
 qui l'affirment : sans la clé, ils n'ont aucun moyen de vérifier ce qu'ils annoncent, dans un sens
