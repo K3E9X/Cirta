@@ -14,6 +14,7 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 // core/index.js would drag pdf-lib and fflate into the main bundle, when the
 // only code that needs them now runs in the worker.
 import { scanText, cleanText } from '../core/text.js';
+import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
 import {
   preview,
@@ -561,6 +562,45 @@ function findingsTable(findings: Finding[]): HTMLElement {
   return scroll;
 }
 
+/**
+ * « Ce fichier a-t-il été produit par une IA, et laquelle ? »
+ *
+ * Les lignes du tableau le disent déjà, réparties sur jusqu'à cinq d'entre
+ * elles. Ce qu'elles ne savent pas faire, c'est répondre quand il n'y a rien :
+ * un rapport silencieux se lit comme « pas d'IA », alors que la réponse
+ * honnête est plus étroite que ça.
+ */
+function provenanceBanner(findings: Finding[]): HTMLElement {
+  const { tools, attributed } = provenance(findings);
+  const node = el('div', attributed ? 'provenance is-attributed' : 'provenance');
+
+  if (attributed) {
+    node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
+    node.append(
+      el(
+        'span',
+        'provenance-caveat',
+        'd’après les métadonnées du fichier lui-même, qui peuvent être absentes, erronées ou falsifiées.',
+      ),
+    );
+    return node;
+  }
+  if (tools.length) {
+    node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
+    node.append(el('span', 'provenance-caveat', '— une bibliothèque, pas un assistant.'));
+    return node;
+  }
+  node.append(el('strong', undefined, 'Aucune métadonnée ne nomme d’outil.'));
+  node.append(
+    el(
+      'span',
+      'provenance-caveat',
+      'Ce n’est pas la même chose que « pas d’IA » : les champs ont pu être vidés, jamais écrits, ou le texte collé à la main — et la formulation elle-même est illisible ici.',
+    ),
+  );
+  return node;
+}
+
 function card(title: string, badge?: string, count?: string): HTMLElement {
   const node = el('article', 'card');
   const head = el('div', 'card-head');
@@ -680,6 +720,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         ? `${result.findings.length} élément${result.findings.length > 1 ? 's' : ''}`
         : 'aucune métadonnée';
     }
+
+    // Les images et les archives n'ont pas de champ producteur à interroger.
+    if (result.format !== 'zip') node.append(provenanceBanner(result.findings));
 
     if (result.findings.length === 0) {
       node.append(el('p', 'empty', 'Aucune métadonnée identifiante trouvée.'));

@@ -211,6 +211,30 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
+/* ---------- provenance ---------- */
+
+.provenance {
+  margin: 0 1rem 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.provenance strong {
+  display: block;
+}
+
+.provenance-caveat {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.provenance.is-attributed {
+  border-color: var(--accent);
+}
+
 /* ---------- summary ---------- */
 
 .summary {
@@ -229,7 +253,7 @@ textarea:focus-visible {
 .summary-text {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .summary-text.is-flagged {

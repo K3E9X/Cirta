@@ -25,6 +25,7 @@ import {
   type InspectResult,
   type Note,
   preview,
+  provenance,
 } from '../core/index.js';
 
 /**
@@ -338,6 +339,33 @@ function printExposure(report: Exposure): void {
   );
 }
 
+/**
+ * Answer "was this made by an AI, and which?" in one line.
+ *
+ * The rows below already carry it, spread over as many as five of them. What
+ * they cannot do is answer when there is nothing: a report that stays silent
+ * reads as "no AI", and the truthful answer is narrower than that.
+ */
+function printProvenance(findings: Finding[]): void {
+  const { tools, attributed } = provenance(findings);
+  if (attributed) {
+    console.log(`  ${bold('Produced by')}  ${yellow(tools.join(' · '))}`);
+    console.log(`  ${dim('              according to the file\'s own metadata, which can be absent, wrong or forged')}`);
+    return;
+  }
+  if (tools.length) {
+    console.log(`  ${bold('Produced by')}  ${tools.join(' · ')} ${dim('— a library, not an assistant')}`);
+    return;
+  }
+  console.log(
+    `  ${bold('Produced by')}  ${dim('nothing in the metadata names a tool. That is not the same as "not AI":')}`,
+  );
+  console.log(
+    `  ${dim('              the fields may have been cleared, never written, or the text pasted in by hand,')}`,
+  );
+  console.log(`  ${dim('              and the wording itself cannot be read here at all.')}`);
+}
+
 function printNotes(notes: Note[]): void {
   for (const note of notes) {
     const text = NOTE_TEXT[note.code](note.detail);
@@ -364,6 +392,7 @@ async function runInspect(args: Args): Promise<number> {
       results.push({ file, result });
       if (!args.json) {
         console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
+        printProvenance(result.findings);
         printFindings(result.findings);
         printNotes(result.notes);
       }
