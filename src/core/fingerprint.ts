@@ -269,7 +269,7 @@ export function fingerprint(findings: Finding[]): Finding[] {
   const derived = new Map<string, Finding>();
 
   const add = (finding: Finding) => {
-    const key = `${finding.label} ${finding.value}`;
+    const key = `${finding.label}\x00${finding.value}`;
     if (!derived.has(key)) derived.set(key, finding);
   };
 

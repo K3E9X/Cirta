@@ -48,7 +48,7 @@ const SYMBOL = {
   arrow: useUnicode ? '\u2192' : '->',
 };
 
-const paint = (code: string, text: string) => (useColor ? `[${code}m${text}[0m` : text);
+const paint = (code: string, text: string) => (useColor ? `\x1b[${code}m${text}\x1b[0m` : text);
 const bold = (t: string) => paint('1', t);
 const dim = (t: string) => paint('2', t);
 const yellow = (t: string) => paint('33', t);

@@ -418,3 +418,42 @@ describe('channels that are not a strange codepoint', () => {
     });
   });
 });
+
+describe('C0 control characters', () => {
+  it('flags the ones that are not text', () => {
+    const finding = scanText('un \x1b echappement et un \x07 bip').findings.find(
+      (f) => f.location === 'control characters',
+    );
+    expect(finding?.confidence).toBe('probable');
+    expect(finding?.value).toContain('ESC');
+    expect(finding?.value).toContain('BEL');
+  });
+
+  it('says nothing about tabs, newlines and form feeds', () => {
+    // Consistent line endings, or the mixed-CRLF channel fires on the fixture
+    // rather than on anything this test is about.
+    expect(scanText('une phrase.\tune tabulation.\nune page.\f\n').findings).toEqual([]);
+  });
+
+  it('names the legitimate use of ESC rather than just accusing', () => {
+    // A coloured terminal capture is full of them, and stripping those would
+    // mangle the file to fix nothing.
+    const finding = scanText('\x1b[1mgras\x1b[0m').findings.find(
+      (f) => f.location === 'control characters',
+    );
+    expect(finding?.value).toContain('coloured terminal log');
+  });
+
+  it('reports without rewriting', () => {
+    const input = 'a\x00b';
+    const result = cleanText(input);
+    expect(result.text).toBe(input);
+    expect(result.kept.map((f) => f.location)).toContain('control characters');
+  });
+
+  it('catches DEL, which sits just past the printable range', () => {
+    expect(
+      scanText('a\x7fb').findings.some((f) => f.location === 'control characters'),
+    ).toBe(true);
+  });
+});
