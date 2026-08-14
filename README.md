@@ -29,6 +29,9 @@ votre machine.
 | Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
 | Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
+| Normalisation Unicode | Un document contenant à la fois `é` (U+00E9) et `e`+U+0301 — même rendu, deux encodages, **un bit libre par lettre accentuée** |
+| Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française |
+| Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
 
 ### Traces de l'outil producteur
 
@@ -481,6 +484,40 @@ puisant dans deux alphabets à la fois. Ils sont **signalés et jamais remplacé
 « mauvais » alphabet est un pari sur la moitié du mot qui était voulue, et se tromper de sens abîme
 du vrai texte cyrillique ou grec. La décision vous revient.
 
+### Les canaux qui ne sont pas un caractère bizarre
+
+Un détecteur qui travaille sur une liste noire de codepoints trouve zéro résultat sur un texte qui
+n'en contient aucun — et il est parfaitement possible de marquer un document sans en utiliser un
+seul. Quatre familles sont couvertes pour cette raison :
+
+**La normalisation.** `é` s'écrit en un codepoint (U+00E9) ou en deux (`e` + U+0301). Les deux
+s'affichent identiquement, aucun n'est suspect, et le choix entre les deux est un bit gratuit par
+lettre accentuée. Sur un texte français ordinaire, cela fait une centaine de bits.
+
+Le signal n'est pas la décomposition mais le **mélange**. Un fichier entièrement décomposé, c'est un
+Mac : HFS+ stocke en NFD et plusieurs chaînes d'outils suivent. Un fichier qui contient les deux
+formes est un fichier où quelque chose a choisi, lettre par lettre. D'où deux niveaux distincts :
+`confirmé` pour le mélange, `informatif` pour le NFD uniforme.
+
+**Les sosies du trait d'union.** U+2010 et U+2011 sont au pixel près le `-` ASCII dans la plupart
+des polices. Les tirets demi-cadratin et cadratin sont délibérément absents de la liste : ils sont
+visiblement plus longs, ils sont corrects en français, et les signaler noierait les deux qui se
+cachent vraiment.
+
+**L'espacement.** Une ou deux espaces après un point passe pour une habitude de frappe ; une espace
+en fin de ligne est invisible dans tout éditeur ; des fins de ligne CRLF et LF mélangées portent un
+bit par ligne. Là encore le signal est l'irrégularité : un document qui double *toutes* ses espaces
+suit une convention, un document qui alterne a choisi phrase par phrase. Ces canaux sont **signalés
+et jamais réécrits** — l'espacement appartient à l'auteur.
+
+Le canal CRLF/LF n'apparaît que sur un **fichier**. Un `<textarea>` normalise les fins de ligne à la
+lecture, donc un texte collé dans la page ne le porte plus. Le rapport le dit.
+
+**Les invisibles que la catégorie `Cf` ne couvre pas.** U+3164 HANGUL FILLER est classé *lettre* par
+Unicode et se rend vide ; U+2800 est une cellule braille blanche ; U+034F est une marque combinante.
+Aucun n'est un caractère de formatage, tous se voient comme rien. La cellule braille est conservée
+quand elle est entourée de braille — c'est l'espace de cette écriture — et retirée partout ailleurs.
+
 ### Refuser plutôt qu'abîmer
 
 Deux gardes existent parce que l'échec silencieux coûte plus cher que le refus.
@@ -506,7 +543,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 207 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 221 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

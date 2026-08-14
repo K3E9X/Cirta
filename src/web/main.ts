@@ -156,6 +156,14 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden payload in text': 'Charge cachée dans le texte',
   'Letters that look alike but are not': 'Lettres sosies venues d’un autre alphabet',
   'Fullwidth letters among ASCII ones': 'Lettres pleine chasse mêlées à des ASCII',
+  'Same letters written two different ways': 'Mêmes lettres écrites de deux façons',
+  'Text is in decomposed form (NFD)': 'Texte en forme décomposée (NFD)',
+  'Dashes that are not the ASCII hyphen': 'Tirets qui ne sont pas le trait d’union ASCII',
+  'Trailing whitespace': 'Espaces en fin de ligne',
+  'Spacing after full stops is inconsistent': 'Espacement après les points, irrégulier',
+  'Line endings are mixed': 'Fins de ligne mélangées',
+  'Hangul filler': 'Remplisseur hangûl',
+  'blank braille cell': 'Cellule braille vide',
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'SVG metadata block': 'Bloc de métadonnées SVG',
@@ -323,6 +331,10 @@ function translateLabel(label: string): string {
 /** Locations the core states in prose rather than as a path or a field name. */
 const LOCATION_TEXT: Record<string, string> = {
   'mixed-script words': 'mots à alphabets mêlés',
+  'Unicode normalisation': 'normalisation Unicode',
+  'hyphen lookalikes': 'sosies du trait d’union',
+  'line endings': 'fins de ligne',
+  'sentence spacing': 'espacement des phrases',
   'file contents': 'contenu du fichier',
   'mixed-width words': 'mots à chasses mêlées',
   'tracked changes / comments': 'suivi de modifications / commentaires',
@@ -361,9 +373,15 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [
-    /^(.+) — one word mixing (\w+) and (\w+)$/,
-    (m) =>
-      `${m[1]} — un seul mot mêlant ${SCRIPT_TEXT[m[2]!] ?? m[2]} et ${SCRIPT_TEXT[m[3]!] ?? m[3]}`,
+    // Any number of scripts, not just two: a document can mix Latin with both
+    // Cyrillic and Greek, and the two-script pattern left that untranslated.
+    /^(.+) — one word mixing (.+)$/,
+    (m) => {
+      const scripts = (m[2] ?? '').split(' and ').map((name) => SCRIPT_TEXT[name] ?? name);
+      const last = scripts.pop();
+      const list = scripts.length ? `${scripts.join(', ')} et ${last}` : last;
+      return `${m[1]} — un seul mot mêlant ${list}`;
+    },
   ],
   [
     /^(\d+) part\(s\) — content-control bindings, library columns or classification labels$/,
@@ -371,6 +389,33 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
       `${m[1]} partie(s) — liaisons de contrôles de contenu, colonnes de bibliothèque ou étiquettes de classification`,
   ],
   [/^(\d+) attributes? — (.+)$/, (m) => `${m[1]} attribut(s) — ${m[2]}`],
+  [
+    /^(\d+) decomposed and (\d+) composed accented letters in one document — the choice between them carries about (\d+) bits$/,
+    (m) =>
+      `${m[1]} lettres accentuées décomposées et ${m[2]} composées dans un même document — le choix entre les deux transporte environ ${m[3]} bits`,
+  ],
+  [
+    /^(\d+) decomposed accented letters, none composed — usual for text that passed through macOS$/,
+    (m) => `${m[1]} lettres accentuées décomposées, aucune composée — courant pour un texte passé par macOS`,
+  ],
+  [
+    /^(.+) — indistinguishable from "-" on screen$/,
+    (m) => `${m[1]} — indiscernables du « - » à l'écran`,
+  ],
+  [
+    /^(\d+) of (\d+) lines end in spaces or tabs — invisible in an editor, and one bit per line$/,
+    (m) =>
+      `${m[1]} lignes sur ${m[2]} se terminent par des espaces ou des tabulations — invisible dans un éditeur, et un bit par ligne`,
+  ],
+  [
+    /^(\d+) sentences followed by two or more spaces, (\d+) by one — one bit per sentence$/,
+    (m) => `${m[1]} phrases suivies de deux espaces ou plus, ${m[2]} d'une seule — un bit par phrase`,
+  ],
+  [
+    /^(\d+) CRLF and (\d+) LF in one file — one bit per line\. Note that pasting into a browser normalises these away, so this only shows on a file$/,
+    (m) =>
+      `${m[1]} CRLF et ${m[2]} LF dans un même fichier — un bit par ligne. À noter : un collage dans le navigateur les normalise, ce canal n'apparaît donc que sur un fichier`,
+  ],
   [
     /^(\d+) controls? that can make text display differently from how it is stored \(CVE-2021-42574\)$/,
     (m) =>
