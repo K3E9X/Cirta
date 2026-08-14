@@ -200,7 +200,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   // travels exactly as far as one in a .docx, and a bidi override in source is
   // the Trojan Source case — the reason those controls are called out at all.
   '.txt', '.text', '.log', '.csv', '.tsv',
-  '.json', '.yaml', '.yml', '.toml', '.ini', '.env',
+  '.json', '.yaml', '.yml', '.toml', '.ini',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
   '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',
@@ -235,6 +235,16 @@ function formatHint(path: string, forceText = false): string | undefined {
   return undefined;
 }
 
+/**
+ * Dotfiles carrying secrets. `extname('.env')` is the empty string — a leading
+ * dot is not an extension to Node — so these can only be matched by name.
+ */
+const SUPPORTED_NAMES = new Set(['.env', '.env.local', '.env.production', '.npmrc', '.netrc']);
+
+const isSupportedFile = (name: string) =>
+  SUPPORTED_NAMES.has(name.toLowerCase()) ||
+  SUPPORTED_EXTENSIONS.has(extname(name).toLowerCase());
+
 /** Walk a tree, pruning the directories rather than filtering their files out. */
 async function walkDirectory(root: string, skip: Set<string>): Promise<string[]> {
   const found: string[] = [];
@@ -246,7 +256,7 @@ async function walkDirectory(root: string, skip: Set<string>): Promise<string[]>
       // the results away still costs the descent.
       if (skip.has(entry.name) || entry.name.startsWith('.')) continue;
       found.push(...(await walkDirectory(path, skip)));
-    } else if (entry.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
+    } else if (entry.isFile() && isSupportedFile(entry.name)) {
       found.push(path);
     }
   }
@@ -287,7 +297,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:ooxml-metadata-only': () =>
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
-    'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
+    'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
     'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
   'scope:image-metadata-only': () =>
@@ -295,7 +305,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
   'scope:archive': () =>
-    'Archive report. Every member was dispatched through the normal detection path; members no parser claims were scanned for credentials and provider identifiers only.',
+    'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
   'kept:in-content': (detail) =>

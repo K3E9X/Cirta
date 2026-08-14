@@ -26,7 +26,8 @@ votre machine.
 | C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
 | ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
 | Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques ; **plus un filet générique sur la catégorie Unicode `Cf`**, pour que la liste ne prenne pas de retard sur la norme |
-| Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
+| Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
+| Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 
 ### Traces de l'outil producteur
@@ -505,7 +506,7 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ## Développement
 
 ```bash
-npm run verify     # typage, 202 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typage, 207 tests, build, scénario CLI de bout en bout, build web
 ```
 
 ### Le logo

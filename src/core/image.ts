@@ -245,12 +245,3 @@ export function stripImageMetadata(data: Uint8Array): Uint8Array<ArrayBuffer> | 
   return undefined;
 }
 
-/** True when the image carries a signed C2PA manifest. */
-export function hasC2pa(data: Uint8Array): boolean {
-  const kind = detectImageKind(data);
-  if (kind === 'jpeg') {
-    return jpegSegments(data).segments.some((s) => s.marker === JPEG_APP11 && isJumbf(s));
-  }
-  if (kind === 'png') return pngChunks(data).some((c) => c.type === 'caBX');
-  return false;
-}

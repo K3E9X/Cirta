@@ -17,7 +17,6 @@ export * from './types.js';
 export {
   scanText,
   cleanText,
-  summarizeText,
   decodeTextInput,
   BinaryInputError,
 } from './text.js';
@@ -29,13 +28,13 @@ export type { RedactOoxmlOptions } from './ooxml.js';
 export { inspectOdf, redactOdf, isOdf } from './odf.js';
 export { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 export type { MarkupFormat } from './markup.js';
-export { inspectImage, stripImageMetadata, detectImageKind, hasC2pa } from './image.js';
+export { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 export { fingerprint } from './fingerprint.js';
 export { readManifest, describeC2pa, readXmpClaimGenerator } from './c2pa.js';
 export type { ManifestSummary } from './c2pa.js';
 export { decodeCbor, asMap } from './cbor.js';
 export { parseBoxes, findManifest, findByLabel, collectLabels, contentOf } from './jumbf.js';
-export { exposure, estimateTokens, EXPOSURE_THRESHOLDS } from './exposure.js';
+export { exposure, estimateTokens } from './exposure.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export type { ArchiveMember } from './archive.js';

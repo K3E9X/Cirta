@@ -522,11 +522,3 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
   };
 }
 
-/** Render a short human-readable summary of a scan, used by CLI and web. */
-export function summarizeText(scan: TextScan): string {
-  if (scan.findings.length === 0) return 'No invisible characters found.';
-  const total = scan.findings.reduce((n, f) => n + (parseInt(f.value, 10) || 0), 0);
-  return `${total} invisible character${total > 1 ? 's' : ''} across ${scan.findings.length} type${
-    scan.findings.length > 1 ? 's' : ''
-  }${scan.decoded.length ? `; ${scan.decoded.map(preview).join(', ')}` : ''}`;
-}

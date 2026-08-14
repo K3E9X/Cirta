@@ -165,6 +165,8 @@ const FIELD_LABEL: Record<string, string> = {
   'SVG description (accessibility)': 'Description SVG (accessibilité)',
   'Generator meta tag': 'Balise meta generator',
   'Author meta tag': 'Balise meta author',
+  Creator: 'Créateur',
+  'Attribution line': 'Ligne d’attribution',
   'Creator meta tag': 'Balise meta creator',
   'Copyright meta tag': 'Balise meta copyright',
   'Date meta tag': 'Balise meta date',
@@ -203,7 +205,6 @@ const FIELD_LABEL: Record<string, string> = {
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
 const VALUE_TEXT: Record<string, string> = {
   'rendered preview of document content': 'aperçu visuel du contenu du document',
-  'signed content credentials': 'manifeste de provenance signé',
   'signed provenance manifest': 'manifeste de provenance signé',
   'present — may carry provenance manifests or source data':
     'présentes — peuvent contenir des manifestes de provenance ou des données sources',
@@ -212,13 +213,31 @@ const VALUE_TEXT: Record<string, string> = {
     'le fichier a été assemblé dans un répertoire de travail temporaire',
 };
 
+/**
+ * Note details are built by the core out of English fragments — a list of
+ * content kinds, or a list of finding labels. Spliced raw into a French
+ * sentence they read as a bug, so both shapes are translated here.
+ */
+const CONTENT_KIND: Record<string, string> = {
+  'local links': 'liens locaux',
+  'hidden slides': 'diapositives masquées',
+  'speaker notes': 'notes du présentateur',
+  'external workbook references': 'références vers d’autres classeurs',
+};
+
+const translateDetail = (detail: string): string =>
+  detail
+    .split(', ')
+    .map((part) => CONTENT_KIND[part] ?? translateLabel(part))
+    .join(', ');
+
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
     "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur, caractères invisibles). Les opérandes de chaîne PDF contiennent des codes de glyphes et non de l'Unicode : une détection dans le texte des pages est fiable, mais une absence ne prouve rien — contrairement à un DOCX, où le contrôle du corps est exact. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
   'scope:invisible-characters-only': () =>
-    "Caractères invisibles uniquement. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
+    "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
     "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
   'scope:image-metadata-only': () =>
@@ -226,13 +245,13 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'removed:c2pa': (detail) =>
     `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. À noter : le C2PA prévoit aussi le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance. Un manifeste retiré ne signifie donc pas qu'il ne reste aucune provenance.`,
   'scope:archive': () =>
-    "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne revendique ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
+    "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne reconnaît du tout ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:in-content': (detail) =>
-    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
+    `Non retiré : ${detail ? translateDetail(detail) : 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
   'kept:content': (detail) =>
-    `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
+    `Laissé en place : ${detail ? translateDetail(detail) : 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };
 
 /**
@@ -622,28 +641,43 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
     } else {
       node.append(findingsTable(result.findings));
 
-      const foot = el('div', 'card-foot');
-      const button = el('button', 'button button-primary', 'Télécharger la version nettoyée');
-      button.addEventListener('click', async () => {
-        button.disabled = true;
-        button.textContent = 'Nettoyage…';
-        try {
-          const redacted = await redactFile(data, formatHint(file.name));
-          download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
-          button.textContent = 'Téléchargé';
-          // Redaction can surface caveats that inspection could not, notably
-          // that a C2PA manifest was dropped.
-          const fresh = redacted.notes.filter((n) => n.code === 'removed:c2pa');
-          if (fresh.length) appendNotes(node, fresh);
-        } catch (error) {
-          button.textContent = 'Échec du nettoyage';
-          node.append(
-            el('p', 'error', error instanceof Error ? error.message : String(error)),
-          );
-        }
-      });
-      foot.append(button);
-      node.append(foot);
+      // A plain archive is reported, never rewritten — redaction throws on it.
+      // Offering the button and failing on the click is a promise the page
+      // cannot keep, so it says so up front instead.
+      if (result.format === 'zip') {
+        node.append(
+          el(
+            'p',
+            'note',
+            'Archive analysée, pas réécrite. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
+          ),
+        );
+      } else {
+        const foot = el('div', 'card-foot');
+        const button = el('button', 'button button-primary', 'Télécharger la version nettoyée');
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          button.textContent = 'Nettoyage…';
+          try {
+            const redacted = await redactFile(data, formatHint(file.name));
+            download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
+            button.textContent = 'Téléchargé';
+            // Redaction surfaces caveats inspection cannot: a dropped C2PA
+            // manifest, and — more importantly — what was found and left in
+            // place. Dropping those on the floor would make the browser claim
+            // more than the CLI does for the same file.
+            const fresh = redacted.notes.filter(
+              (n) => n.code === 'removed:c2pa' || n.code.startsWith('kept:'),
+            );
+            if (fresh.length) appendNotes(node, fresh);
+          } catch (error) {
+            button.textContent = 'Échec du nettoyage';
+            node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
+          }
+        });
+        foot.append(button);
+        node.append(foot);
+      }
     }
 
     appendNotes(node, result.notes);

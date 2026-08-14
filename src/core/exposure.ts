@@ -73,4 +73,3 @@ export function exposure(text: string): Exposure {
   return { ...estimate, band };
 }
 
-export const EXPOSURE_THRESHOLDS = { short: SHORT_LIMIT, ample: AMPLE_LIMIT } as const;
