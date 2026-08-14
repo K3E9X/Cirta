@@ -39,8 +39,8 @@
       <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
         <div id="dropzone" class="dropzone" tabindex="0" role="button">
           <p class="dropzone-title">Déposez un fichier ici</p>
-          <p class="dropzone-hint">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP</p>
-          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.jpg,.jpeg,.png,.zip,.epub" multiple hidden />
+          <p class="dropzone-hint">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, et tout fichier texte ou source</p>
+          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.zip,.epub,.txt,.text,.log,.csv,.tsv,.json,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
         </div>
         <div id="file-results" class="results"></div>
       </section>
@@ -81,6 +81,7 @@
               <li>JPEG et PNG autonomes : Exif, XMP, IPTC, commentaires</li>
               <li>Manifestes C2PA : PDF, Office, OpenDocument, SVG, et images (JUMBF <code>APP11</code>, chunk <code>caBX</code>)</li>
               <li>Caractères Unicode invisibles dans le texte, avec décodage des charges stéganographiques</li>
+              <li>Fichiers texte et code source : <code>.txt</code>, <code>.py</code>, <code>.js</code>, <code>.json</code>… — un contrôle bidirectionnel dans du code est le cas Trojan Source</li>
             </ul>
           </div>
           <div class="scope-item scope-no">

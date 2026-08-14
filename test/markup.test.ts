@@ -123,7 +123,10 @@ describe('Markdown front matter', () => {
 
   it('falls back to the extension hint when there is no front matter', () => {
     expect(detectFormat(encode('# Titre\n\nTexte.'), 'markdown')).toBe('markdown');
-    expect(detectFormat(encode('# Titre\n\nTexte.'))).toBeUndefined();
+    // Without the hint it is no longer refused: bytes that decode as text but
+    // match no markup still get the character-level pass, which is the whole
+    // point of routing plain text and source files.
+    expect(detectFormat(encode('# Titre\n\nTexte.'))).toBe('text');
   });
 
   it('reports author, generator and session keys', async () => {

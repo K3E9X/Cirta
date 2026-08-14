@@ -49,6 +49,18 @@ const CONTENT_PATTERNS: Array<{
   { pattern: /\bAIza[A-Za-z0-9_-]{30,}/g, label: 'Google API key', kind: 'identity', redactValue: true },
   { pattern: /\bhf_[A-Za-z0-9]{30,}/g, label: 'Hugging Face token', kind: 'identity', redactValue: true },
   { pattern: /\bghp_[A-Za-z0-9]{36}/g, label: 'GitHub token', kind: 'identity', redactValue: true },
+  // AWS keys and PEM private keys meet the same test as the rest — neither can
+  // occur in ordinary prose — and they are the two most commonly leaked things
+  // in a document someone is about to send out.
+  { pattern: /\bAKIA[0-9A-Z]{16}\b/g, label: 'AWS access key id', kind: 'identity', redactValue: true },
+  { pattern: /\bASIA[0-9A-Z]{16}\b/g, label: 'AWS temporary access key id', kind: 'identity', redactValue: true },
+  { pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}/g, label: 'Slack token', kind: 'identity', redactValue: true },
+  { pattern: /\bsk_live_[A-Za-z0-9]{20,}/g, label: 'Stripe live key', kind: 'identity', redactValue: true },
+  {
+    pattern: /-----BEGIN (?:RSA |EC |OPENSSH |PGP |DSA )?PRIVATE KEY-----/g,
+    label: 'Private key block',
+    kind: 'identity',
+  },
   { pattern: /\bmsg_[A-Za-z0-9]{20,}/g, label: 'Anthropic message id', kind: 'provenance' },
   { pattern: /\bchatcmpl-[A-Za-z0-9]{20,}/g, label: 'OpenAI completion id', kind: 'provenance' },
   { pattern: /\b(?:thread|asst|run)_[A-Za-z0-9]{20,}/g, label: 'OpenAI assistant object id', kind: 'provenance' },
@@ -64,9 +76,22 @@ const CONTENT_PATTERNS: Array<{
   },
 ];
 
+/**
+ * Show enough of a credential to recognise it, and nothing more.
+ *
+ * The vendor marker is the part before the last separator — `sk-ant-`, `ghp_`,
+ * `sk_live_`. Keys with no separator at all (AWS, Google) previously fell back
+ * to a fixed six characters, which printed two characters of the actual secret
+ * into a report the user is likely to paste somewhere. The leading letter run
+ * is the marker in that case: `AKIA`, `AIza`.
+ */
 function maskSecret(secret: string): string {
-  const cut = secret.indexOf('-', 3);
-  const prefix = secret.slice(0, cut > 0 ? cut + 1 : 6);
+  const head = secret.slice(0, 8);
+  const separator = Math.max(head.lastIndexOf('-'), head.lastIndexOf('_'));
+  const prefix =
+    separator >= 0
+      ? secret.slice(0, separator + 1)
+      : (/^[A-Za-z]+/.exec(secret)?.[0] ?? secret).slice(0, 4);
   return `${prefix}… (${secret.length} characters) — rotate this key`;
 }
 

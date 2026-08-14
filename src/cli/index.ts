@@ -82,11 +82,14 @@ ${bold('Usage')}
   cirta text [--clean]               Read text on stdin; report or clean it
 
 Paths may be files or directories. Directories are walked recursively for
-.pdf, Office and OpenDocument files, .svg, .html, .md, .jpg and .png.
+documents, images and text files; build and dependency directories such as
+node_modules, .git and dist are skipped.
 
 ${bold('Options')}
   -o, --output <path>   Destination for a single redacted file
-      --in-place        Overwrite the input files
+      --in-place        Overwrite the input files (keeps a .bak)
+      --skip <names>    Extra directory names to skip, comma-separated
+      --force-text      Treat the input as text even if it looks binary
       --json            Machine-readable output
   -h, --help            Show this message
 
@@ -110,10 +113,21 @@ interface Args {
   json: boolean;
   clean: boolean;
   help: boolean;
+  forceText: boolean;
+  skip: string[];
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { command: undefined, files: [], inPlace: false, json: false, clean: false, help: false };
+  const args: Args = {
+    command: undefined,
+    files: [],
+    inPlace: false,
+    json: false,
+    clean: false,
+    help: false,
+    forceText: false,
+    skip: [],
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     switch (arg) {
@@ -129,6 +143,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--clean':
         args.clean = true;
+        break;
+      case '--force-text':
+        args.forceText = true;
+        break;
+      case '--skip':
+        args.skip.push(...(argv[++i] ?? '').split(',').map((name) => name.trim()).filter(Boolean));
         break;
       case '-o':
       case '--output':
@@ -173,21 +193,74 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.pptx', '.docx', '.xlsx',
   '.odt', '.ods', '.odp',
   '.svg', '.html', '.htm',
-  '.md', '.markdown',
+  '.md', '.markdown', '.mdx',
   '.jpg', '.jpeg', '.png',
   '.zip', '.epub',
+  // Plain text and source files. An invisible character in a .py or a .json
+  // travels exactly as far as one in a .docx, and a bidi override in source is
+  // the Trojan Source case — the reason those controls are called out at all.
+  '.txt', '.text', '.log', '.csv', '.tsv',
+  '.json', '.yaml', '.yml', '.toml', '.ini',
+  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
+  '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
+  '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',
+  '.css', '.scss', '.xml', '.rst', '.adoc',
+]);
+
+/**
+ * Directories that are never the user's own content.
+ *
+ * Without this, `cirta inspect .` on an ordinary project is mostly noise: on
+ * this repository the walk returned 125 files, 118 of them inside
+ * node_modules. A report nobody can read through is a report nobody reads.
+ */
+const SKIP_DIRECTORIES = new Set([
+  '.git', '.hg', '.svn',
+  'node_modules', 'bower_components', 'vendor',
+  '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache', '.ruff_cache',
+  'dist', 'build', 'out', 'target', '.next', '.nuxt', '.svelte-kit',
+  '.cache', '.gradle', '.terraform', 'coverage', '.idea', '.vscode',
 ]);
 
 /**
  * Text formats whose bytes are ambiguous: a Markdown file without front matter
  * is indistinguishable from plain text, so the extension breaks the tie.
  */
-function formatHint(path: string): string | undefined {
+function formatHint(path: string, forceText = false): string | undefined {
+  if (forceText) return 'text';
   const ext = extname(path).toLowerCase();
-  if (ext === '.md' || ext === '.markdown') return 'markdown';
+  if (ext === '.md' || ext === '.markdown' || ext === '.mdx') return 'markdown';
   if (ext === '.svg') return 'svg';
   if (ext === '.html' || ext === '.htm') return 'html';
   return undefined;
+}
+
+/**
+ * Dotfiles carrying secrets. `extname('.env')` is the empty string — a leading
+ * dot is not an extension to Node — so these can only be matched by name.
+ */
+const SUPPORTED_NAMES = new Set(['.env', '.env.local', '.env.production', '.npmrc', '.netrc']);
+
+const isSupportedFile = (name: string) =>
+  SUPPORTED_NAMES.has(name.toLowerCase()) ||
+  SUPPORTED_EXTENSIONS.has(extname(name).toLowerCase());
+
+/** Walk a tree, pruning the directories rather than filtering their files out. */
+async function walkDirectory(root: string, skip: Set<string>): Promise<string[]> {
+  const found: string[] = [];
+  const entries = await readdir(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) {
+      // Pruning rather than filtering: descending into node_modules to throw
+      // the results away still costs the descent.
+      if (skip.has(entry.name) || entry.name.startsWith('.')) continue;
+      found.push(...(await walkDirectory(path, skip)));
+    } else if (entry.isFile() && isSupportedFile(entry.name)) {
+      found.push(path);
+    }
+  }
+  return found;
 }
 
 /**
@@ -196,7 +269,8 @@ function formatHint(path: string): string | undefined {
  * Explicit file arguments are kept regardless of extension: naming a file is a
  * deliberate act, and format detection reads magic bytes rather than the name.
  */
-async function expandPaths(paths: string[]): Promise<string[]> {
+async function expandPaths(paths: string[], skip: string[] = []): Promise<string[]> {
+  const skipSet = new Set([...SKIP_DIRECTORIES, ...skip]);
   const out: string[] = [];
   for (const path of paths) {
     let isDirectory = false;
@@ -210,11 +284,7 @@ async function expandPaths(paths: string[]): Promise<string[]> {
       out.push(path);
       continue;
     }
-    const entries = await readdir(path, { recursive: true, withFileTypes: true });
-    const found = entries
-      .filter((entry) => entry.isFile() && SUPPORTED_EXTENSIONS.has(extname(entry.name).toLowerCase()))
-      .map((entry) => join(entry.parentPath ?? (entry as { path?: string }).path ?? path, entry.name))
-      .sort();
+    const found = (await walkDirectory(path, skipSet)).sort();
     if (found.length === 0) console.error(dim(`${path}: no supported files found`));
     out.push(...found);
   }
@@ -227,7 +297,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:ooxml-metadata-only': () =>
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>
-    'Invisible characters only. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
+    'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
     'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
   'scope:image-metadata-only': () =>
@@ -235,7 +305,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'removed:c2pa': (detail) =>
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
   'scope:archive': () =>
-    'Archive report. Every member was dispatched through the normal detection path; members no parser claims were scanned for credentials and provider identifiers only.',
+    'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
   'kept:in-content': (detail) =>
@@ -287,7 +357,10 @@ async function runInspect(args: Args): Promise<number> {
 
   for (const file of args.files) {
     try {
-      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file));
+      const result = await inspectFile(
+        new Uint8Array(await readFile(file)),
+        formatHint(file, args.forceText),
+      );
       results.push({ file, result });
       if (!args.json) {
         console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
@@ -334,7 +407,10 @@ async function runRedact(args: Args): Promise<number> {
   let failures = 0;
   for (const file of args.files) {
     try {
-      const result = await redactFile(new Uint8Array(await readFile(file)), formatHint(file));
+      const result = await redactFile(
+        new Uint8Array(await readFile(file)),
+        formatHint(file, args.forceText),
+      );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
       // original, so a copy is taken first and named in the report.
@@ -370,12 +446,15 @@ async function runText(args: Args): Promise<number> {
 
   let input: string;
   try {
-    input = decodeTextInput(raw);
+    input = decodeTextInput(raw, { allowBinary: args.forceText });
   } catch (error) {
     if (!(error instanceof BinaryInputError)) throw error;
     console.error(red(`cirta text: ${error.message}.`));
     console.error(
-      dim('Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead.'),
+      dim(
+        'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
+          'or pass --force-text if you are certain these bytes are text.',
+      ),
     );
     return 2;
   }
@@ -434,7 +513,7 @@ async function main(): Promise<number> {
         console.error(red('inspect needs at least one file or directory.'));
         return 2;
       }
-      args.files = await expandPaths(args.files);
+      args.files = await expandPaths(args.files, args.skip);
       if (!args.files.length) return 1;
       return runInspect(args);
     case 'redact':
@@ -442,7 +521,7 @@ async function main(): Promise<number> {
         console.error(red('redact needs at least one file or directory.'));
         return 2;
       }
-      args.files = await expandPaths(args.files);
+      args.files = await expandPaths(args.files, args.skip);
       if (!args.files.length) return 1;
       return runRedact(args);
     case 'text':
