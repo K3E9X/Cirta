@@ -303,3 +303,118 @@ describe('plain text and source files', () => {
     await expect(inspectFile(encode('%PDF-1.4 not really'))).resolves.toBeDefined();
   });
 });
+
+describe('channels that are not a strange codepoint', () => {
+  // Layers from a stealth corpus that carried no ZWSP, ZWNJ, BOM or tag
+  // character at all: a scanner that only walks a blocklist returns nothing.
+
+  describe('Unicode normalisation', () => {
+    const label = (text: string) =>
+      scanText(text).findings.find((f) => f.location === 'Unicode normalisation');
+
+    it('flags a document holding both spellings of the same letter', () => {
+      // "é" as one codepoint and as e+U+0301 render identically, so the choice
+      // between them is a free bit per accented letter and shows up nowhere.
+      const mixed = 'Réviser'.normalize('NFC') + ' et ' + 'corrigé'.normalize('NFD');
+      const finding = label(mixed);
+      expect(finding?.confidence).toBe('confirmed');
+      expect(finding?.value).toMatch(/decomposed and \d+ composed/);
+    });
+
+    it('does not cry about text that is uniformly decomposed', () => {
+      // HFS+ stores decomposed, and several toolchains follow. That is a Mac,
+      // not a mark, so it is reported without an accusation.
+      expect(label('Réviser et corriger'.normalize('NFD'))?.confidence).toBe('informational');
+    });
+
+    it('says nothing about ordinary composed text', () => {
+      expect(label('Réviser et corriger'.normalize('NFC'))).toBeUndefined();
+    });
+
+    it('cleaning removes the channel, and the report says so', () => {
+      const mixed = 'é' + 'é';
+      const result = cleanText(mixed);
+      expect(result.text).toBe('éé');
+      // Normalising is what destroys the payload; leaving it out of `removed`
+      // would mean silently erasing a channel the user was never told about.
+      expect(result.removed.some((f) => f.location === 'Unicode normalisation')).toBe(true);
+    });
+  });
+
+  describe('hyphen lookalikes', () => {
+    it('flags the ones indistinguishable from "-"', () => {
+      const finding = scanText('bien‐sûr et haut‑parleur').findings.find(
+        (f) => f.location === 'hyphen lookalikes',
+      );
+      expect(finding?.value).toContain('U+2010');
+      expect(finding?.value).toContain('U+2011');
+    });
+
+    it('leaves the en and em dashes alone', () => {
+      // Visibly longer, and correct French typography. Flagging them would
+      // bury the two that actually hide.
+      expect(scanText('un tiret — long, un autre – moyen').findings).toEqual([]);
+    });
+
+    it('never rewrites them', () => {
+      const input = 'haut‑parleur';
+      const result = cleanText(input);
+      expect(result.text).toBe(input);
+      expect(result.kept.map((f) => f.location)).toContain('hyphen lookalikes');
+    });
+  });
+
+  describe('whitespace', () => {
+    it('flags trailing spaces once there are enough to carry something', () => {
+      const carrying = Array.from({ length: 12 }, (_, i) => `ligne ${i}${i % 2 ? ' ' : ''}`).join('\n');
+      expect(scanText(carrying).findings.some((f) => f.label === 'Trailing whitespace')).toBe(true);
+    });
+
+    it('ignores a couple of stray trailing spaces', () => {
+      expect(scanText('def a():\n    pass  \n\ndef b():\n    pass \n').findings).toEqual([]);
+    });
+
+    it('flags sentence spacing only when the document does both', () => {
+      // Uniform double-spacing is a typing convention; alternating is a choice
+      // made sentence by sentence.
+      expect(
+        scanText('Un.  Deux. Trois.  Quatre.').findings.some(
+          (f) => f.location === 'sentence spacing',
+        ),
+      ).toBe(true);
+      expect(scanText('Un.  Deux.  Trois.').findings).toEqual([]);
+      expect(scanText('Un. Deux. Trois.').findings).toEqual([]);
+    });
+
+    it('flags mixed line endings, and says the browser cannot see them', () => {
+      const finding = scanText('a\r\nb\nc\r\nd\n').findings.find(
+        (f) => f.label === 'Line endings are mixed',
+      );
+      expect(finding?.value).toContain('CRLF');
+      expect(finding?.value).toContain('normalises these away');
+    });
+
+    it('reports spacing without re-spacing the prose', () => {
+      const input = 'Un.  Deux. Trois.  Quatre.';
+      const result = cleanText(input);
+      expect(result.text).toBe(input);
+      expect(result.kept.map((f) => f.location)).toContain('sentence spacing');
+    });
+  });
+
+  describe('invisibles outside category Cf', () => {
+    it('catches the fillers Unicode classifies as letters', () => {
+      for (const cp of [0x3164, 0xffa0]) {
+        const input = `a${String.fromCodePoint(cp)}b`;
+        expect(scanText(input).findings.some((f) => f.label === 'Hangul filler')).toBe(true);
+        expect(cleanText(input).text).toBe('ab');
+      }
+    });
+
+    it('catches a blank braille cell, but not one inside braille', () => {
+      expect(cleanText('a⠀b').text).toBe('ab');
+      // Between braille characters it is the space of that script.
+      expect(cleanText('⠁⠀⠃').text).toBe('⠁⠀⠃');
+    });
+  });
+});

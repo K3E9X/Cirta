@@ -17,7 +17,7 @@ import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
 import { describeC2pa } from './c2pa.js';
 import { scanContent } from './archive.js';
-import { scanText, cleanText } from './text.js';
+import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import {
@@ -215,6 +215,8 @@ function inspectBodyText(parts: Parts): Finding[] {
     if (!isBodyPart(path)) continue;
     const scan = scanText(collectTextContent(strFromU8(raw)));
     for (const finding of scan.findings) {
+      // Line and sentence layout here belongs to the markup, not the author.
+      if (isArrangementFinding(finding)) continue;
       findings.push({ ...finding, location: `${path} (${finding.location})` });
     }
     for (const payload of scan.decoded) {

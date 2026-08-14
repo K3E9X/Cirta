@@ -293,7 +293,7 @@ async function expandPaths(paths: string[], skip: string[] = []): Promise<string
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
-    'Metadata, plus a scan of decompressed streams for credentials, provider identifiers and invisible characters. PDF string operands hold glyph codes rather than Unicode, so a hit in page text is real but a miss proves nothing — unlike in a DOCX, where the body check is exact. A statistical model watermark would not show up either way.',
+    'Metadata, plus a scan of decompressed streams for credentials and provider identifiers, and of page text decoded through each font\'s ToUnicode map. That map is what turns a subset font\'s glyph codes back into characters; a page whose font carries none is still read as raw codes, where a hit is real but a miss proves nothing. A statistical model watermark would not show up either way.',
   'scope:ooxml-metadata-only': () =>
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
   'scope:invisible-characters-only': () =>

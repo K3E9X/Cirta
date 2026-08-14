@@ -66,6 +66,9 @@ function isInvisible(cp: number): boolean {
     cp === CP.ARABIC_LETTER_MARK ||
     cp === 0x115f || // Hangul choseong filler
     cp === 0x1160 || // Hangul jungseong filler
+    cp === 0x3164 || // Hangul filler — category Lo, so Unicode calls it a letter
+    cp === 0xffa0 || // halfwidth Hangul filler
+    cp === 0x2800 || // braille pattern blank, guarded below
     cp === 0x17b4 || // Khmer vowel inherent AQ
     cp === 0x17b5 || // Khmer vowel inherent AA
     (cp >= 0x180b && cp <= 0x180e) || // Mongolian free variation selectors, vowel separator
@@ -98,7 +101,11 @@ function describe(cp: number): string {
       return 'Arabic letter mark';
     case 0x115f:
     case 0x1160:
+    case 0x3164:
+    case 0xffa0:
       return 'Hangul filler';
+    case 0x2800:
+      return 'blank braille cell';
     case 0x17b4:
     case 0x17b5:
       return 'Khmer inherent vowel';
@@ -158,6 +165,9 @@ function isLetter(cp: number | undefined): boolean {
   return cp !== undefined && LETTER.test(String.fromCodePoint(cp));
 }
 
+const isBraille = (cp: number | undefined): boolean =>
+  cp !== undefined && cp >= 0x2800 && cp <= 0x28ff;
+
 /**
  * Decide whether an invisible codepoint is doing legitimate typographic work.
  *
@@ -167,6 +177,9 @@ function isLetter(cp: number | undefined): boolean {
  * where they carry meaning and removed everywhere else.
  */
 function isFunctional(cp: number, prev: number | undefined, next: number | undefined): boolean {
+  // A blank braille cell is a space *in braille*, and a carrier anywhere else.
+  // Neighbouring braille is what tells the two apart.
+  if (cp === 0x2800) return isBraille(prev) || isBraille(next);
   switch (cp) {
     case CP.ZWJ:
       // Emoji ZWJ sequence: 👨‍👩‍👧. Also joins Indic consonant clusters.
@@ -418,6 +431,139 @@ function findConfusables(input: string): Finding[] {
   return findings;
 }
 
+/**
+ * Text that carries the same letter written two different ways.
+ *
+ * `é` is one codepoint (U+00E9) or two (`e` + U+0301). Both render identically,
+ * neither is a suspicious character, and a scanner working from a list of
+ * codepoints sees nothing at all — which makes the choice between them a free
+ * bit per accented letter. A hundred and ninety accented letters is a hundred
+ * and ninety bits.
+ *
+ * The signal is the *mixture*, not the decomposition. A file that is entirely
+ * NFD is a Mac: HFS+ stores filenames decomposed and several toolchains follow.
+ * A file where the same document holds both forms is a file where something
+ * chose, letter by letter, which one to use.
+ */
+function findNormalizationChannel(input: string): Finding[] {
+  let decomposed = 0;
+  let composed = 0;
+  for (const grapheme of input.match(/\P{M}\p{M}+|\p{L}/gu) ?? []) {
+    const nfc = grapheme.normalize('NFC');
+    if (nfc.length < grapheme.length) decomposed++;
+    else if (grapheme.normalize('NFD').length > grapheme.length) composed++;
+  }
+  if (decomposed === 0) return [];
+
+  const mixed = composed > 0;
+  return [
+    {
+      kind: 'invisible-character',
+      // Mixed forms have no innocent explanation. Uniformly decomposed text
+      // does — so it is reported at a level that says "worth knowing", not
+      // "someone did this to you".
+      confidence: mixed ? 'confirmed' : 'informational',
+      location: 'Unicode normalisation',
+      label: mixed
+        ? 'Same letters written two different ways'
+        : 'Text is in decomposed form (NFD)',
+      value: mixed
+        ? `${decomposed} decomposed and ${composed} composed accented letters in one document — the choice between them carries about ${decomposed} bits`
+        : `${decomposed} decomposed accented letters, none composed — usual for text that passed through macOS`,
+    },
+  ];
+}
+
+/**
+ * Dashes and hyphens that are not the ASCII one but look like it.
+ *
+ * U+2010 and U+2011 are pixel-for-pixel the ASCII hyphen in most fonts, so
+ * swapping one in is a free bit that survives every visual review. The en and
+ * em dashes are deliberately absent: they are visibly longer, they are correct
+ * French typography, and flagging them would bury this under noise.
+ */
+const HYPHEN_TWINS = new Map<number, string>([
+  [0x2010, 'HYPHEN'],
+  [0x2011, 'NON-BREAKING HYPHEN'],
+  [0x2012, 'FIGURE DASH'],
+  [0x02d7, 'MODIFIER LETTER MINUS SIGN'],
+  [0x2212, 'MINUS SIGN'],
+]);
+
+function findHyphenTwins(input: string): Finding[] {
+  const counts = new Map<number, number>();
+  for (const char of input) {
+    const cp = char.codePointAt(0)!;
+    if (HYPHEN_TWINS.has(cp)) counts.set(cp, (counts.get(cp) ?? 0) + 1);
+  }
+  if (counts.size === 0) return [];
+  const parts = [...counts].map(
+    ([cp, n]) => `U+${cp.toString(16).toUpperCase().padStart(4, '0')} ${HYPHEN_TWINS.get(cp)} ×${n}`,
+  );
+  return [
+    {
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'hyphen lookalikes',
+      label: 'Dashes that are not the ASCII hyphen',
+      value: `${parts.join(', ')} — indistinguishable from "-" on screen`,
+    },
+  ];
+}
+
+/**
+ * Channels made of whitespace rather than of characters.
+ *
+ * Nothing here is a strange codepoint; every one is an ordinary space or line
+ * ending, arranged. One or two spaces after a full stop is a free bit that
+ * reads as a typing habit; a trailing space at end of line is invisible in
+ * every editor. They are reported and never rewritten — spacing is the
+ * author's, and a tool that quietly re-spaces prose is worse than the mark.
+ */
+function findWhitespaceChannels(input: string): Finding[] {
+  const findings: Finding[] = [];
+  const lines = input.split('\n');
+
+  const trailing = lines.filter((line) => /[ \t]+\r?$/.test(line)).length;
+  if (trailing >= 3) {
+    findings.push({
+      kind: 'invisible-character',
+      confidence: trailing >= lines.length / 4 ? 'probable' : 'informational',
+      location: 'line endings',
+      label: 'Trailing whitespace',
+      value: `${trailing} of ${lines.length} lines end in spaces or tabs — invisible in an editor, and one bit per line`,
+    });
+  }
+
+  const doubled = [...input.matchAll(/[.!?] {2,}(?=[^\s])/g)].length;
+  const single = [...input.matchAll(/[.!?] (?=[^\s])/g)].length;
+  if (doubled > 0 && single > 0) {
+    findings.push({
+      kind: 'invisible-character',
+      // Uniform double-spacing is a typing convention. A document that does
+      // both, sentence by sentence, is not following a convention.
+      confidence: 'probable',
+      location: 'sentence spacing',
+      label: 'Spacing after full stops is inconsistent',
+      value: `${doubled} sentences followed by two or more spaces, ${single} by one — one bit per sentence`,
+    });
+  }
+
+  const crlf = (input.match(/\r\n/g) ?? []).length;
+  const lf = lines.length - 1 - crlf;
+  if (crlf > 0 && lf > 0) {
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'line endings',
+      label: 'Line endings are mixed',
+      value: `${crlf} CRLF and ${lf} LF in one file — one bit per line. Note that pasting into a browser normalises these away, so this only shows on a file`,
+    });
+  }
+
+  return findings;
+}
+
 export function scanText(input: string): TextScan {
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const counts = new Map<number, number>();
@@ -464,6 +610,9 @@ export function scanText(input: string): TextScan {
   }
 
   findings.push(...findConfusables(input));
+  findings.push(...findNormalizationChannel(input));
+  findings.push(...findHyphenTwins(input));
+  findings.push(...findWhitespaceChannels(input));
 
   return { findings, decoded: decodePayloads(carriers) };
 }
@@ -487,9 +636,38 @@ export interface CleanTextResult {
   decoded: string[];
 }
 
-/** Findings that describe a word rather than a codepoint, so cleaning cannot touch them. */
-const isConfusable = (finding: Finding) =>
-  finding.location === 'mixed-script words' || finding.location === 'mixed-width words';
+/**
+ * Findings that describe an arrangement rather than a codepoint.
+ *
+ * Cleaning removes characters; it does not re-spell words, re-space prose or
+ * choose which dash the author meant. These are reported so the count of what
+ * was removed never covers for what is still there.
+ */
+const REPORTED_NOT_REMOVED = new Set([
+  'mixed-script words',
+  'mixed-width words',
+  'hyphen lookalikes',
+  'line endings',
+  'sentence spacing',
+]);
+
+const isKeptFinding = (finding: Finding) => REPORTED_NOT_REMOVED.has(finding.location);
+
+/**
+ * Findings that describe how a file is laid out rather than what it contains.
+ *
+ * Line endings, trailing spaces and sentence spacing are channels in a text
+ * file, where the author controls every byte. Inside a container they are not:
+ * an OOXML "line" is a paragraph element, the whitespace between two tags is
+ * the generator's indentation, and a PDF content stream carries the newlines of
+ * PDF syntax and of any embedded font. Measured there, these count the format
+ * rather than the document — a PDF reported "1 CRLF and 14 LF" that came from
+ * a subset font program.
+ */
+const ARRANGEMENT = new Set(['line endings', 'sentence spacing']);
+
+export const isArrangementFinding = (finding: Finding): boolean =>
+  ARRANGEMENT.has(finding.location);
 
 export function cleanText(input: string, options: CleanTextOptions = {}): CleanTextResult {
   const { normalizeSpaces = true, normalize = true } = options;
@@ -516,8 +694,8 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
 
   return {
     text,
-    removed: scan.findings.filter((finding) => !isConfusable(finding)),
-    kept: scan.findings.filter(isConfusable),
+    removed: scan.findings.filter((finding) => !isKeptFinding(finding)),
+    kept: scan.findings.filter(isKeptFinding),
     decoded: scan.decoded,
   };
 }
