@@ -331,6 +331,12 @@ export interface Provenance {
    * written around.
    */
   declared: boolean;
+  /**
+   * True when nothing names a tool but the container's own shape says a
+   * program built it. Narrower than an attribution and much stronger than
+   * silence — see structuralGenerator in ooxml.ts for what it reads.
+   */
+  machineAssembled: boolean;
 }
 
 /** Labels this module emits that name a producing tool rather than a machine. */
@@ -343,6 +349,13 @@ const TOOL_LABELS = [
   'Tool credited by the C2PA manifest',
   'Software credited by the action',
   'Document generated programmatically',
+  // The plainest statement a file can make about what wrote it. It is reported
+  // as informational because naming Word is not a privacy problem — but a
+  // summary that answers "what produced this" and omits the field literally
+  // headed "Application" is answering the wrong question.
+  'Producing application',
+  'Creating application',
+  'XMP creator tool',
 ] as const;
 
 export function provenance(findings: Finding[]): Provenance {
@@ -354,7 +367,16 @@ export function provenance(findings: Finding[]): Provenance {
       // signature not verified"), which belongs in the report line rather than
       // repeated after every tool name in a one-line summary.
       const name = finding.value.split(' \u2014 ')[0]!.trim();
-      if (name && !tools.includes(name)) tools.push(name);
+      if (!name) continue;
+      // The raw field often restates what an earlier, parsed entry already
+      // said: "ReportLab" then "ReportLab PDF Library - www.reportlab.com",
+      // "claude-opus-5 (Claude)" then "claude-opus-5 via LangChain 0.3.7". A
+      // one-line answer that repeats itself twice is not an answer.
+      const lower = name.toLowerCase();
+      if (tools.some((t) => t.toLowerCase().includes(lower) || lower.includes(t.toLowerCase()))) {
+        continue;
+      }
+      tools.push(name);
     }
   }
   // "Generated programmatically" alone means a library wrote the container —
@@ -366,5 +388,13 @@ export function provenance(findings: Finding[]): Provenance {
       finding.label === 'Assistant or agent named in metadata' ||
       finding.label === 'Coding agent named in metadata',
   );
-  return { tools, attributed: attributed || declaresGenerative(findings), declared: declaresGenerative(findings) };
+  const machineAssembled = findings.some(
+    (finding) => finding.label === 'Assembled by a program, not typed in a word processor',
+  );
+  return {
+    tools,
+    attributed: attributed || declaresGenerative(findings),
+    declared: declaresGenerative(findings),
+    machineAssembled,
+  };
 }

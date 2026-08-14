@@ -349,7 +349,7 @@ function printExposure(report: Exposure): void {
  * reads as "no AI", and the truthful answer is narrower than that.
  */
 function printProvenance(findings: Finding[]): void {
-  const { tools, attributed, declared } = provenance(findings);
+  const { tools, attributed, declared, machineAssembled } = provenance(findings);
   if (declared) {
     // A declaration outranks an inference: the file states this about itself
     // in the IPTC vocabulary, which is what the transparency rules are built on.
@@ -363,7 +363,19 @@ function printProvenance(findings: Finding[]): void {
     return;
   }
   if (tools.length) {
-    console.log(`  ${bold('Produced by')}  ${tools.join(' · ')} ${dim('— a library, not an assistant')}`);
+    console.log(
+      `  ${bold('Produced by')}  ${tools.join(' · ')} ` +
+        dim('— the software that wrote the file; nothing names an assistant'),
+    );
+    return;
+  }
+  if (machineAssembled) {
+    // No name, but the container's shape is evidence in itself.
+    console.log(`  ${bold('Produced by')}  ${yellow('no tool is named, but a program assembled this file')}`);
+    console.log(
+      `  ${dim('              the container has the shape a library leaves, not the one a word processor does.')}`,
+    );
+    console.log(`  ${dim('              What it does not say is which program, or whether a model wrote the words.')}`);
     return;
   }
   console.log(

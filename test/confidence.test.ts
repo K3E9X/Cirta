@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unzipSync, strFromU8 } from 'fflate';
+import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 import {
   inspectFile,
@@ -170,5 +170,91 @@ describe('the provenance question', () => {
     const data = await pdfWith({ creator: 'Claude', producer: 'ReportLab PDF Library' });
     const cleaned = (await redactFile(data)).data!;
     expect(provenance((await inspectFile(cleaned)).findings).attributed).toBe(false);
+  });
+});
+
+describe('a program that does not sign its work', () => {
+  /**
+   * Built from a real report: nothing in it named a tool, and it was
+   * unmistakably assembled by a library. Everything saying so was structural.
+   */
+  const generated = () =>
+    zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      // Word always fills app.xml. A part created for the schema and left empty
+      // is not something an Office application produces.
+      'docProps/app.xml': strToU8(
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"/>',
+      ),
+      'docProps/core.xml': strToU8(
+        '<cp:coreProperties xmlns:cp="c" xmlns:dc="d" xmlns:dcterms="t">' +
+          '<dc:creator>Pôle Cybersécurité</dc:creator>' +
+          // Milliseconds and a Z: Date.prototype.toISOString(), not Word.
+          '<dcterms:created>2026-07-29T15:22:28.698Z</dcterms:created>' +
+          '<dcterms:modified>2026-07-29T15:22:28.698Z</dcterms:modified></cp:coreProperties>',
+      ),
+      'word/settings.xml': strToU8('<w:settings><w:zoom w:percent="100"/></w:settings>'),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      // Forty hex characters is a SHA-1. Word writes image1.png.
+      'word/media/0ff0d056683aaeb3942f10192d9fe3e499bd2a98.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
+  const authored = () =>
+    zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'docProps/app.xml': strToU8(
+        '<Properties><Application>Microsoft Office Word</Application><AppVersion>16.0000</AppVersion>' +
+          '<Words>1204</Words><DocSecurity>0</DocSecurity></Properties>',
+      ),
+      'docProps/core.xml': strToU8(
+        '<cp:coreProperties xmlns:cp="c" xmlns:dc="d" xmlns:dcterms="t"><dc:creator>Lotfi Zakaria</dc:creator>' +
+          '<dcterms:created>2026-07-29T15:22:00Z</dcterms:created>' +
+          '<dcterms:modified>2026-08-01T09:14:00Z</dcterms:modified></cp:coreProperties>',
+      ),
+      'word/settings.xml': strToU8('<w:settings><w:rsids><w:rsid w:val="00B23C5D"/></w:rsids></w:settings>'),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+      'word/media/image1.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
+  it('recognises the shape a library leaves, with no tool named anywhere', async () => {
+    const findings = (await inspectFile(generated())).findings;
+    const structural = findings.find(
+      (f) => f.label === 'Assembled by a program, not typed in a word processor',
+    );
+    expect(structural?.confidence).toBe('confirmed');
+    expect(structural?.value).toContain('app.xml is present but empty');
+    expect(structural?.value).toContain('milliseconds');
+    expect(structural?.value).toContain('content hash');
+
+    const result = provenance(findings);
+    expect(result.machineAssembled).toBe(true);
+    // Structure says a program built the container. It does not say which, and
+    // it does not say a model wrote the words.
+    expect(result.attributed).toBe(false);
+    expect(result.tools).toEqual([]);
+  });
+
+  it('does not accuse a document a person actually saved from Word', async () => {
+    const findings = (await inspectFile(authored())).findings;
+    expect(provenance(findings).machineAssembled).toBe(false);
+    // Word names itself, so the summary can answer with the plainest field there is.
+    expect(provenance(findings).tools).toContain('Microsoft Office Word');
+  });
+
+  it('needs more than one signal before it says anything', async () => {
+    // Milliseconds alone — a converter might do that and nothing else.
+    const single = zipSync({
+      '[Content_Types].xml': strToU8('<Types/>'),
+      '_rels/.rels': strToU8('<Relationships/>'),
+      'docProps/core.xml': strToU8(
+        '<cp:coreProperties xmlns:cp="c" xmlns:dcterms="t">' +
+          '<dcterms:created>2026-07-29T15:22:28.698Z</dcterms:created>' +
+          '<dcterms:modified>2026-08-01T09:14:00Z</dcterms:modified></cp:coreProperties>',
+      ),
+      'word/document.xml': strToU8('<w:document><w:body/></w:document>'),
+    });
+    expect(provenance((await inspectFile(single)).findings).machineAssembled).toBe(false);
   });
 });
