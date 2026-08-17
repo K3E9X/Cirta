@@ -17,12 +17,18 @@
  * string appearing unannounced in an English page.
  */
 
-export type Lang = 'fr' | 'en';
+// One declaration of this union, in the module that owns the French tables.
+export type { Lang } from '../shared/french.js';
+import type { Lang } from '../shared/french.js';
 
 const FR = {
   /* --------------------------------------------------------------- chrome */
   langLabel: 'English',
   langTitle: 'Switch to English',
+  docTitle: 'Cirta — nettoyage des métadonnées de documents',
+  docDescription:
+    'Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères ' +
+    'Unicode invisibles dans le texte. Tout s’exécute dans le navigateur.',
   placeholder: 'Collez ici le texte à analyser…',
 
   /* ---------------------------------------------------------------- files */
@@ -184,6 +190,10 @@ type Strings = {
 const EN: Strings = {
   langLabel: 'Français',
   langTitle: 'Passer en français',
+  docTitle: 'Cirta — strip metadata from your documents',
+  docDescription:
+    'Inspects and strips provenance metadata from PDF, PPTX and DOCX, and the invisible Unicode ' +
+    'in text. Everything runs in the browser.',
   placeholder: 'Paste the text to analyse here…',
 
   analysing: 'analysing…',

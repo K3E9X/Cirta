@@ -29,7 +29,6 @@ export function getElementText(xml: string, name: string): string | undefined {
 
 /** Replace the text content of every matching element with `value`. */
 export function setElementText(xml: string, name: string, value: string): string {
-  const t = tag(name);
   return xml.replace(elementPattern(name), (_full, attrs: string | undefined) => {
     const a = attrs ?? '';
     return `<${name}${a}>${escapeText(value)}</${name}>`;
@@ -58,14 +57,14 @@ export function collectAttribute(xml: string, attribute: string): string[] {
   return [...seen];
 }
 
-export function escapeText(value: string): string {
+function escapeText(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
 
-export function decodeEntities(value: string): string {
+function decodeEntities(value: string): string {
   return value
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

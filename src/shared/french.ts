@@ -371,26 +371,13 @@ const REASON_SUFFIX: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
 ];
 
-
-
-export const translateDetail = (detail: string, lang: Lang): string =>
+const translateDetail = (detail: string, lang: Lang): string =>
   lang === 'en'
     ? detail
     : detail
         .split(', ')
         .map((part) => CONTENT_KIND[part] ?? translateLabel(part, lang))
         .join(', ');
-
-const NOTE_TEXT = NOTE_TEXT_FR;
-
-/**
- * À quoi ressemble le texte, pas d'où il vient.
- *
- * Même forme que la carte du filigrane : des mesures, et un décompte. Pas de
- * score — un score serait lu comme une probabilité, et ces signaux n'ont jamais
- * été calibrés pour en produire une. Les détecteurs qui le font classent 61 %
- * des copies d'anglophones non natifs comme générées (Liang et al., 2023).
- */
 
 export function translateLabel(label: string, lang: Lang): string {
   if (lang === 'en') return label;

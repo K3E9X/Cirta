@@ -8,6 +8,22 @@
       name="description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
     />
+    <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14130f" media="(prefers-color-scheme: dark)" />
+    <!--
+      Link previews. Deliberately no og:image: the only artwork here is an SVG,
+      which most preview renderers refuse, and an absent image beats a broken
+      one. These stay in the page's authoring language; a static tag cannot
+      follow the toggle, and the title and description that a reader sees do.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cirta — nettoyage des métadonnées de documents" />
+    <meta
+      property="og:description"
+      content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
+    />
+    <meta property="og:url" content="https://k3e9x.github.io/Cirta/" />
+    <meta name="twitter:card" content="summary" />
     <!-- Same file the README shows and the CLI transcribes. -->
     <link rel="icon" href="./logo.svg" />
     <link rel="stylesheet" href="./style.css" />
@@ -22,10 +38,13 @@
     -->
     <header class="masthead">
       <div class="wrap">
-        <h1>
-          <img src="./logo.svg" alt="" width="34" height="34" />
-          Cirta
-        </h1>
+        <div class="masthead-top">
+          <h1>
+            <img src="./logo.svg" alt="" width="34" height="34" />
+            Cirta
+          </h1>
+          <button id="lang-toggle" class="lang-toggle" type="button">English</button>
+        </div>
         <p class="tagline" data-lang="fr">
           Inspecte et retire les métadonnées de provenance de vos documents. Tout s'exécute dans
           votre navigateur — <strong>aucun fichier n'est envoyé sur un serveur</strong>.
@@ -34,7 +53,6 @@
           Inspects and strips provenance metadata from your documents. Everything runs in your
           browser — <strong>no file is ever sent to a server</strong>.
         </p>
-        <button id="lang-toggle" class="lang-toggle" type="button">English</button>
       </div>
     </header>
 
@@ -52,8 +70,8 @@
         <div id="dropzone" class="dropzone" tabindex="0" role="button">
           <p class="dropzone-title" data-lang="fr">Déposez un fichier ici</p>
           <p class="dropzone-title" data-lang="en">Drop a file here</p>
-          <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, et tout fichier texte ou source</p>
-          <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, and any text or source file</p>
+          <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, e-mails (.eml), et tout fichier texte ou source</p>
+          <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, email (.eml), and any text or source file</p>
           <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.zip,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.json,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
         </div>
         <div id="file-results" class="results"></div>
@@ -101,6 +119,12 @@
               <li>Manifestes C2PA : PDF, Office, OpenDocument, SVG, et images (JUMBF <code>APP11</code>, chunk <code>caBX</code>)</li>
               <li>Caractères Unicode invisibles dans le texte, avec décodage des charges stéganographiques</li>
               <li>Fichiers texte et code source : <code>.txt</code>, <code>.py</code>, <code>.js</code>, <code>.json</code>… — un contrôle bidirectionnel dans du code est le cas Trojan Source</li>
+              <li><strong>Secrets oubliés</strong> : clés Anthropic, OpenAI, Google, AWS, GitHub, Slack, Stripe, blocs de clé privée PEM — cherchés dans le corps des documents et des archives, et jamais affichés en entier</li>
+              <li><strong>Quand le fichier le déclare</strong> : le champ <code>digitalSourceType</code> de l'IPTC, sur lequel sont écrites les obligations de transparence européennes</li>
+              <li>Archives ZIP et EPUB : chaque membre repasse par la détection normale</li>
+              <li>Les canaux qui ne sont pas un caractère bizarre : lettres sosies, mélange de formes Unicode, sosies du trait d'union, espaces en fin de ligne — <strong>signalés, jamais réécrits</strong></li>
+              <li><strong>Une réponse en tête de rapport</strong> : produit par une IA, et laquelle ? Y compris quand la réponse est « rien ne nomme d'outil », qui n'est pas la même chose que « pas d'IA »</li>
+              <li>Sur le texte collé : une lecture du <strong>style</strong> — tournures, rythme des phrases, ponctuation — donnée en mesures, sans score ni verdict</li>
             </ul>
             <ul data-lang="en">
               <li>PDF metadata: the <code>/Info</code> dictionary, XMP packet, trailer <code>/ID</code></li>
@@ -121,6 +145,12 @@
               <li>C2PA manifests: PDF, Office, OpenDocument, SVG, and images (JUMBF <code>APP11</code>, <code>caBX</code> chunk)</li>
               <li>Invisible Unicode in text, with steganographic payloads decoded</li>
               <li>Text and source files: <code>.txt</code>, <code>.py</code>, <code>.js</code>, <code>.json</code>… — a bidirectional control in source is the Trojan Source case</li>
+              <li><strong>Forgotten credentials</strong>: Anthropic, OpenAI, Google, AWS, GitHub, Slack, Stripe keys, PEM private key blocks — looked for in document and archive bodies, and never printed in full</li>
+              <li><strong>When the file declares it</strong>: the IPTC <code>digitalSourceType</code> field, which the EU transparency obligations are written around</li>
+              <li>ZIP and EPUB archives: every member goes back through the normal detection path</li>
+              <li>The channels that are not a strange character: lookalike letters, mixed Unicode forms, hyphen lookalikes, trailing whitespace — <strong>reported, never rewritten</strong></li>
+              <li><strong>One answer at the top of the report</strong>: made by an AI, and which one? Including when the answer is "nothing names a tool", which is not the same as "not AI"</li>
+              <li>On pasted text: a reading of the <strong>style</strong> — turns of phrase, sentence rhythm, punctuation — given as measurements, with no score and no verdict</li>
             </ul>
           </div>
           <div class="scope-item scope-no">
@@ -133,14 +163,23 @@
                 elle-même, et le lire exige la clé secrète de l'éditeur du modèle.
               </p>
               <p>
-                Aucun outil local ne peut le détecter ni le retirer — celui-ci pas davantage, et il ne
-                le prétend pas. Méfiez-vous de ceux qui l'affirment : sans la clé, ils n'ont aucun
-                moyen de vérifier ce qu'ils annoncent.
+                Ce n'est plus théorique. Anthropic indique que les futurs modèles Claude en portent un,
+                une version de SynthID-Text, au titre du code de transparence européen en vigueur
+                depuis le 2 août 2026 ; les modèles antérieurs suivent dans les mois à venir. Une API
+                de détection est annoncée, mais elle n'est pas publiée — et sans la clé, il n'y a
+                aucune quantité à mesurer.
+              </p>
+              <p>
+                Aucun outil local ne peut donc le détecter ni le retirer — celui-ci pas davantage, et
+                il ne le prétend pas. Méfiez-vous de ceux qui l'affirment. Ce que Cirta fait à la
+                place : il indique <strong>ce que vaut son propre silence</strong> à la longueur du
+                texte que vous lui donnez.
               </p>
               <p>
                 À ne pas confondre avec les caractères invisibles ci-contre : Anthropic écrit que
                 « rien n'est ajouté au texte et qu'il n'y a aucun caractère caché ». Ce sont deux
-                mécanismes distincts, et retirer l'un ne touche pas à l'autre.
+                mécanismes distincts, et retirer l'un ne touche pas à l'autre. La moitié C2PA de la
+                même annonce, elle, est lue et signalée par cet outil.
               </p>
             </div>
             <div data-lang="en">
@@ -150,14 +189,21 @@
                 requires the model vendor's secret key.
               </p>
               <p>
-                No local tool can detect or remove one — this one included, and it does not claim to.
-                Be wary of any service that says otherwise: without the key they have no way to verify
-                what they announce.
+                This is no longer theoretical. Anthropic states that future Claude models carry one, a
+                version of SynthID-Text, under the EU transparency code in force since 2 August 2026;
+                earlier models follow over the coming months. A detection API is announced but not
+                published — and without the key there is no quantity to measure.
+              </p>
+              <p>
+                So no local tool can detect or remove one — this one included, and it does not claim
+                to. Be wary of any service that says otherwise. What Cirta does instead: it tells you
+                <strong>what its own silence is worth</strong> at the length of the text you gave it.
               </p>
               <p>
                 Not to be confused with the invisible characters opposite: Anthropic states that
                 “nothing is added to the text and there are no hidden characters”. They are two
-                distinct mechanisms, and removing one leaves the other untouched.
+                distinct mechanisms, and removing one leaves the other untouched. The C2PA half of the
+                same announcement is read and reported by this tool.
               </p>
             </div>
           </div>

@@ -62,12 +62,26 @@ body {
 }
 
 .masthead h1 {
-  margin: 0 0 0.35rem;
+  margin: 0;
   font-size: 1.75rem;
   letter-spacing: -0.015em;
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+/*
+ * The title and the language button share a row. This was an absolutely
+ * positioned button, which put it over the tagline text on a phone and left it
+ * stranded outside the content column on a wide screen. In flow it stays beside
+ * the title at every width, and needs no breakpoint.
+ */
+.masthead-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
 }
 
 .masthead h1 img {
@@ -459,6 +473,13 @@ tr.flagged td.value::after {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  /*
+   * Each card ends where its content ends. The two lists are deliberately
+   * uneven — what the tool handles is a long enumeration, what it refuses is
+   * four paragraphs — and stretching the short one to match drew a tall empty
+   * box next to the long one.
+   */
+  align-items: start;
 }
 
 .scope-item {
@@ -536,9 +557,7 @@ a {
 }
 
 .lang-toggle {
-  position: absolute;
-  top: 1.5rem;
-  right: 1.25rem;
+  flex: none;
   font: inherit;
   font-size: 0.85rem;
   color: var(--text-muted);
@@ -552,8 +571,4 @@ a {
 .lang-toggle:hover {
   color: var(--text);
   border-color: var(--accent);
-}
-
-.masthead .wrap {
-  position: relative;
 }

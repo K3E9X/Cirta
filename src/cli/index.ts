@@ -288,7 +288,6 @@ async function expandPaths(paths: string[], skip: string[] = []): Promise<string
   return out;
 }
 
-
 /**
  * State what a silent report is worth at this length.
  *
@@ -537,13 +536,8 @@ async function runText(args: Args): Promise<number> {
     input = decodeTextInput(raw, { allowBinary: args.forceText });
   } catch (error) {
     if (!(error instanceof BinaryInputError)) throw error;
-    console.error(red(`cirta text: ${error.message}.`));
-    console.error(
-      dim(
-        'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
-          'or pass --force-text if you are certain these bytes are text.',
-      ),
-    );
+    console.error(red(`cirta text: ${t().binaryReasons[error.reason]}.`));
+    console.error(dim(t().binaryRefused));
     return 2;
   }
 

@@ -63,6 +63,12 @@ const FR = {
   outputSingle: '--output n’accepte qu’un seul fichier d’entrée ; utilisez --in-place pour plusieurs.',
   unknownCommand: (cmd: string) => `Commande inconnue : ${cmd}`,
   unknownOption: (opt: string) => `Option inconnue : ${opt}`,
+  binaryReasons: {
+    signature: 'l’entrée ressemble à un fichier binaire, pas à du texte',
+    'nul-bytes': 'l’entrée contient des octets NUL : ce n’est pas du texte',
+    'control-dense': 'l’entrée est dense en octets de contrôle : ce n’est pas du texte',
+    'not-utf8': 'l’entrée n’est pas de l’UTF-8 valide',
+  },
   binaryRefused:
     'Nettoyer un document comme s’il s’agissait de texte le corrompt. Utilisez plutôt\n' +
     '`cirta redact <fichier>`, ou passez --force-text si vous êtes certain que ces octets\n' +
@@ -216,6 +222,12 @@ const EN: Strings = {
   outputSingle: '--output takes a single input file; use --in-place for several.',
   unknownCommand: (cmd) => `Unknown command: ${cmd}`,
   unknownOption: (opt) => `Unknown option: ${opt}`,
+  binaryReasons: {
+    signature: 'the input looks like a binary file, not text',
+    'nul-bytes': 'the input contains NUL bytes, so it is not text',
+    'control-dense': 'the input is dense in control bytes, so it is not text',
+    'not-utf8': 'the input is not valid UTF-8',
+  },
   binaryRefused:
     'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
     'or pass --force-text if you are certain these bytes are text.',
