@@ -9,6 +9,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
+import { NOTE_TEXT_EN } from '../core/notes.js';
 import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
@@ -297,28 +298,7 @@ async function expandPaths(paths: string[], skip: string[] = []): Promise<string
   return out;
 }
 
-const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
-  'scope:pdf-metadata-only': () =>
-    'Metadata, plus a scan of decompressed streams for credentials and provider identifiers, and of page text decoded through each font\'s ToUnicode map. That map is what turns a subset font\'s glyph codes back into characters; a page whose font carries none is still read as raw codes, where a hit is real but a miss proves nothing. A statistical model watermark would not show up either way.',
-  'scope:ooxml-metadata-only': () =>
-    'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
-  'scope:invisible-characters-only': () =>
-    'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
-  'scope:markup-metadata-only': () =>
-    'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
-  'scope:image-metadata-only': () =>
-    'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
-  'removed:c2pa': (detail) =>
-    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Two things this does not mean. C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential, so a removed manifest does not mean no provenance remains. And the reverse: a credential is metadata attached to the file rather than embedded in it, so re-saving, converting or resizing strips it without a trace — its absence from any file proves nothing about origin.`,
-  'scope:archive': () =>
-    'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
-  'limit:archive-truncated': (detail) =>
-    `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
-  'kept:in-content': (detail) =>
-    `Not removed: ${detail ?? 'traces inside the content'}. These sit in the document's own content rather than in a metadata field, and rewriting it would change what the document says. Edit the source and regenerate — and if a credential is listed, rotate it.`,
-  'kept:content': (detail) =>
-    `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
-};
+const NOTE_TEXT = NOTE_TEXT_EN;
 
 /**
  * State what a silent report is worth at this length.

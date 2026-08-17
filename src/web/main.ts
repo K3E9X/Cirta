@@ -16,9 +16,11 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 import { cleanText } from '../core/text.js';
 import { inspectPlainText } from '../core/plaintext.js';
 import { stripToolHeaders } from '../core/email.js';
+import { NOTE_TEXT_EN } from '../core/notes.js';
+import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
-import { stylometry, type StyleBand } from '../core/stylometry.js';
+import { stylometry } from '../core/stylometry.js';
 import {
   preview,
   type Confidence,
@@ -75,20 +77,6 @@ const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult
     hint,
   );
   return { ...reply.result, ...(reply.data ? { data: new Uint8Array(reply.data) } : {}) };
-};
-
-const CONFIDENCE_LABEL: Record<Confidence, string> = {
-  confirmed: 'confirmé',
-  probable: 'probable',
-  informational: 'informatif',
-};
-
-const KIND_LABEL: Record<Finding['kind'], string> = {
-  identity: 'identité',
-  provenance: 'provenance',
-  timestamp: 'horodatage',
-  environment: 'environnement',
-  'invisible-character': 'invisible',
 };
 
 /**
@@ -276,10 +264,12 @@ const CONTENT_KIND: Record<string, string> = {
 };
 
 const translateDetail = (detail: string): string =>
-  detail
-    .split(', ')
-    .map((part) => CONTENT_KIND[part] ?? translateLabel(part))
-    .join(', ');
+  lang() === 'en'
+    ? detail
+    : detail
+        .split(', ')
+        .map((part) => CONTENT_KIND[part] ?? translateLabel(part))
+        .join(', ');
 
 const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:pdf-metadata-only': () =>
@@ -305,28 +295,6 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
 };
 
 /**
- * State what a silent report is worth at this length.
- *
- * Deliberately not a verdict: reading a keyed watermark requires the vendor's
- * key. What can be reported is how much power a detector holding that key would
- * have on a passage this size, so that "nothing found" is not read as "clean".
- */
-const EXPOSURE_TEXT: Record<Exposure['band'], string> = {
-  'too-short':
-    "À cette longueur, même l'éditeur du modèle peut ne pas obtenir de résultat fiable. Ne rien trouver ici ne signifierait presque rien.",
-  uncertain:
-    "Assez long pour qu'un détecteur détenant la clé ait une certaine puissance, assez court pour que l'issue dépende du schéma et du seuil retenu.",
-  ample:
-    'Assez long pour que la littérature (Kirchenbauer et al., ICLR 2024) ait observé un signal survivant à une reformulation humaine soutenue, à 1e-5 de faux positifs.',
-};
-
-const STYLE_TEXT: Record<Exclude<StyleBand, 'too-short'>, string> = {
-  many: "Plusieurs de ces marqueurs sont présents en même temps. C'est à ça que ressemble de la prose générée — et aussi un brouillon d'entreprise écrit vite.",
-  several: "Quelques-uns sont présents. Pris isolément, chacun a une explication parfaitement innocente.",
-  few: 'Peu de ces marqueurs sont présents.',
-};
-
-/**
  * À quoi ressemble le texte, pas d'où il vient.
  *
  * Même forme que la carte du filigrane : des mesures, et un décompte. Pas de
@@ -338,7 +306,7 @@ function styleCard(text: string): HTMLElement | undefined {
   const report = stylometry(text);
   if (report.band === 'too-short') return undefined;
 
-  const node = card('Style', undefined, 'des indices, pas un verdict');
+  const node = card(t().styleTitle, undefined, t().styleBadge);
   const scroll = el('div', 'table-scroll');
   const table = el('table');
   const body = el('tbody');
@@ -349,40 +317,27 @@ function styleCard(text: string): HTMLElement | undefined {
     body.append(tr);
   };
 
-  row('forme', `${report.sentences} phrases, ${report.meanSentence.toFixed(1)} mots en moyenne`);
-  row(
-    'variation',
-    `${report.burstiness.toFixed(2)} — de combien la longueur des phrases bouge. Les gens varient ` +
-      "généralement plus qu'un modèle ; la documentation technique varie moins que les deux.",
-  );
-  row('tirets', `${report.dashRate.toFixed(1)} cadratins ou demi-cadratins pour 1000 mots`);
+  row(t().styleRowShape, t().styleShape(report.sentences, report.meanSentence.toFixed(1)));
+  row(t().styleRowVariation, t().styleVariation(report.burstiness.toFixed(2)));
+  row(t().styleRowDashes, t().styleDashes(report.dashRate.toFixed(1)));
   if (report.boldLeadIns > 0) {
-    row('amorces', `${Math.round(report.boldLeadIns * 100)}% des paragraphes ouvrent sur une phrase en gras`);
+    row(t().styleRowLeadIns, t().styleLeadIns(Math.round(report.boldLeadIns * 100)));
   }
   if (report.indicators.length) {
-    row(
-      'tournures',
-      report.indicators.map((i) => `${i.label} ×${i.count}`).join(' · '),
-    );
+    row(t().styleRowPhrases, report.indicators.map((i) => `${i.label} ×${i.count}`).join(' · '));
   }
-  row('lecture', STYLE_TEXT[report.band]);
+  row(t().styleRowReading, t().styleBands[report.band]);
 
   table.append(body);
   scroll.append(table);
   node.append(scroll);
-  node.append(
-    el(
-      'p',
-      'note',
-      "Ce sont des signaux de style, pas une preuve de paternité. Les gommer change la façon dont le texte se lit, pas son origine. Utile pour relire votre propre brouillon avant de l'envoyer.",
-    ),
-  );
+  node.append(el('p', 'note', t().styleNote));
   return node;
 }
 
 function exposureCard(text: string): HTMLElement {
   const report = exposure(text);
-  const node = card('Filigrane statistique', undefined, 'aucun verdict local possible');
+  const node = card(t().exposureTitle, undefined, t().exposureBadge);
 
   const scroll = el('div', 'table-scroll');
   const table = el('table');
@@ -395,63 +350,29 @@ function exposureCard(text: string): HTMLElement {
     body.append(tr);
   };
   row(
-    'longueur',
-    `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
+    t().exposureRowLength,
+    t().exposureLength(report.low, report.high, report.characters, report.words),
   );
-  row('portée', EXPOSURE_TEXT[report.band]);
+  row(t().exposureRowReach, t().exposureBands[report.band]);
   // La longueur n'est pas seule à gouverner la détectabilité : la marque vit
   // dans les choix libres entre mots équivalents, et le code n'en offre guère.
   if (report.freeChoice.code) {
     const { commentLines, nonBlankLines } = report.freeChoice;
     const share = Math.round((commentLines / nonBlankLines) * 100);
-    row(
-      'prise',
-      `Lu comme du code source : ${nonBlankLines} lignes non vides, dont ${commentLines} de ` +
-        `commentaire (${share} %). Anthropic indique que le code porte moins de filigrane parce ` +
-        `qu’il doit être exact ; la marque vit là où le choix est libre — ` +
-        (commentLines > 0
-          ? `ici surtout dans ces lignes de commentaire.`
-          : `et ce fichier n’en laisse presque aucun.`),
-    );
+    row(t().exposureRowRoom, t().exposureRoom(nonBlankLines, commentLines, share));
   }
   // Depuis août 2026 la question n'est plus théorique.
-  row(
-    'où en est-on',
-    'Anthropic indique que les futurs modèles Claude portent un filigrane — une version de ' +
-      'SynthID-Text (DeepMind) — au titre du code de transparence européen en vigueur depuis le ' +
-      '2 août 2026 ; les modèles antérieurs suivront dans les mois à venir. Une API de détection ' +
-      'est annoncée mais pas publiée, et lire la marque suppose leur clé. Les fichiers reçoivent ' +
-      'à la place un « content credential » C2PA signé — celui-là, Cirta le lit et le signale.',
-  );
+  row(t().exposureRowStatus, t().exposureStatus);
   // Le point le plus facile à confondre avec le sujet même de cet outil. La
   // presse a fusionné les deux sous le mot « invisible » ; Anthropic écrit le
   // contraire noir sur blanc.
-  row(
-    'ce n’est pas ça',
-    '« Rien n’est ajouté au texte et il n’y a aucun caractère caché. » Le filigrane statistique ' +
-      'n’est pas de l’Unicode invisible. Les codepoints invisibles trouvés ci-dessus relèvent ' +
-      'd’un autre mécanisme, mis là par quelqu’un d’autre — et les retirer tous ne touche pas au ' +
-      'filigrane. La marque ne contient par ailleurs aucune information identifiante : ni ' +
-      'personne, ni organisation, ni conversation.',
-  );
-  row(
-    'attention',
-    'Au mieux, elle répond à « quelle est la probabilité que Claude soit intervenu ? ». Pas si ' +
-      'un humain a écrit le texte, pas si un autre modèle l’a écrit — un autre éditeur aurait une ' +
-      'autre clé. Et elle ne distingue pas « Claude a écrit ça » de « Claude a beaucoup remanié ' +
-      'ça » : une simple relecture ne lui laisse presque aucune prise.',
-  );
+  row(t().exposureRowNotThis, t().exposureNotThis);
+  row(t().exposureRowCareful, t().exposureCareful);
 
   table.append(body);
   scroll.append(table);
   node.append(scroll);
-  node.append(
-    el(
-      'p',
-      'note',
-      "Cirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut : il faut la clé secrète de l'éditeur. Le nombre de tokens est estimé, pas tokenisé.",
-    ),
-  );
+  node.append(el('p', 'note', t().exposureNote));
   return node;
 }
 
@@ -466,6 +387,7 @@ const LABEL_PREFIX: Array<[RegExp, string]> = [
 ];
 
 function translateLabel(label: string): string {
+  if (lang() === 'en') return label;
   const mapped = FIELD_LABEL[label];
   if (mapped) return mapped;
   for (const [pattern, prefix] of LABEL_PREFIX) {
@@ -494,6 +416,7 @@ const LOCATION_TEXT: Record<string, string> = {
 
 /** The core marks derived findings with an English prefix naming their source. */
 const translateLocation = (location: string) => {
+  if (lang() === 'en') return location;
   const mapped = LOCATION_TEXT[location];
   if (mapped) return mapped;
   // Body findings arrive as "part (location)", so the inner half needs it too.
@@ -670,6 +593,7 @@ function translateReasons(value: string): string {
 }
 
 function translateValue(finding: Finding): string {
+  if (lang() === 'en') return finding.value;
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
@@ -778,7 +702,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
 
   const head = el('thead');
   const headRow = el('tr');
-  for (const label of ['Niveau', 'Type', 'Champ', 'Valeur', 'Emplacement']) {
+  for (const label of t().columns) {
     headRow.append(el('th', undefined, label));
   }
   head.append(headRow);
@@ -788,9 +712,9 @@ function findingsTable(findings: Finding[]): HTMLElement {
     const row = el('tr');
     if (finding.affectsVerifiability) row.className = 'flagged';
     row.append(
-      el('td', `confidence confidence-${finding.confidence}`, CONFIDENCE_LABEL[finding.confidence]),
+      el('td', `confidence confidence-${finding.confidence}`, t().confidence[finding.confidence]),
     );
-    row.append(el('td', 'kind', KIND_LABEL[finding.kind]));
+    row.append(el('td', 'kind', t().kinds[finding.kind]));
     row.append(el('td', undefined, translateLabel(finding.label)));
     row.append(el('td', 'value', preview(translateValue(finding), 120)));
     row.append(el('td', 'location', translateLocation(finding.location)));
@@ -818,63 +742,40 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
     // Une déclaration prime sur une déduction : le fichier l'affirme lui-même,
     // dans le vocabulaire IPTC sur lequel les règles de transparence reposent.
     node.classList.add('is-declared');
-    node.append(el('strong', undefined, 'Produit par un modèle génératif — le fichier le déclare'));
+    node.append(el('strong', undefined, t().provDeclared));
     node.append(
       el(
         'span',
         'provenance-caveat',
-        tools.length
-          ? `Champ digitalSourceType (IPTC). Outils nommés : ${tools.join(' · ')}.`
-          : 'Champ digitalSourceType (IPTC).',
+        tools.length ? t().provDeclaredTools(tools.join(' · ')) : t().provDeclaredBare,
       ),
     );
     return node;
   }
   if (attributed) {
-    node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
-    node.append(
-      el(
-        'span',
-        'provenance-caveat',
-        'd’après les métadonnées du fichier lui-même, qui peuvent être absentes, erronées ou falsifiées.',
-      ),
-    );
+    node.append(el('strong', undefined, t().provBy(tools.join(' · '))));
+    node.append(el('span', 'provenance-caveat', t().provAttributedCaveat));
     return node;
   }
   if (tools.length) {
-    node.append(el('strong', undefined, `Produit par ${tools.join(' · ')}`));
+    node.append(el('strong', undefined, t().provBy(tools.join(' · '))));
     node.append(
       el(
         'span',
         'provenance-caveat',
-        'Le logiciel qui a écrit le fichier. Aucun assistant n’est nommé, ce qui ne veut pas dire qu’il n’y en a pas eu.' +
-          (machineAssembled
-            ? ' La forme du conteneur le confirme : un programme l’a fabriqué, pas un traitement de texte.'
-            : ''),
+        t().provToolCaveat + (machineAssembled ? t().provToolShapeAgrees : ''),
       ),
     );
     return node;
   }
   if (machineAssembled) {
     node.classList.add('is-attributed');
-    node.append(el('strong', undefined, 'Aucun outil nommé, mais un programme a fabriqué ce fichier.'));
-    node.append(
-      el(
-        'span',
-        'provenance-caveat',
-        'Le conteneur a la forme que laisse une bibliothèque, pas celle d’un traitement de texte. Ce que cela ne dit pas : quel programme, ni si un modèle a écrit les mots.',
-      ),
-    );
+    node.append(el('strong', undefined, t().provMachine));
+    node.append(el('span', 'provenance-caveat', t().provMachineCaveat));
     return node;
   }
-  node.append(el('strong', undefined, 'Aucune métadonnée ne nomme d’outil.'));
-  node.append(
-    el(
-      'span',
-      'provenance-caveat',
-      'Ce n’est pas la même chose que « pas d’IA » : les champs ont pu être vidés, jamais écrits, ou le texte collé à la main — et la formulation elle-même est illisible ici.',
-    ),
-  );
+  node.append(el('strong', undefined, t().provNone));
+  node.append(el('span', 'provenance-caveat', t().provNoneCaveat));
   return node;
 }
 
@@ -891,7 +792,9 @@ function card(title: string, badge?: string, count?: string): HTMLElement {
 function appendNotes(node: HTMLElement, notes: Note[]): void {
   for (const note of notes) {
     const warn = note.code === 'removed:c2pa';
-    node.append(el('p', warn ? 'note note-warn' : 'note', NOTE_TEXT[note.code](note.detail)));
+    const text =
+      lang() === 'en' ? NOTE_TEXT_EN[note.code](note.detail) : NOTE_TEXT[note.code](note.detail);
+    node.append(el('p', warn ? 'note note-warn' : 'note', text));
   }
 }
 
@@ -942,16 +845,12 @@ function renderSummary(anchor: HTMLElement): void {
   ).length;
   const failures = done.filter((entry) => entry.error).length;
 
-  const parts = [`${done.length} fichier${done.length > 1 ? 's' : ''}`];
-  parts.push(
-    flagged
-      ? `${flagged} portant des données identifiantes confirmées`
-      : 'aucun ne porte de données identifiantes confirmées',
-  );
-  if (failures) parts.push(`${failures} illisible${failures > 1 ? 's' : ''}`);
+  const parts = [t().fileCount(done.length)];
+  parts.push(flagged ? t().flaggedCount(flagged) : t().noneFlagged);
+  if (failures) parts.push(t().failureCount(failures));
 
   const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
-  const button = el('button', 'button button-small', 'Exporter le rapport (JSON)');
+  const button = el('button', 'button button-small', t().exportReport);
   button.addEventListener('click', () => {
     const json = JSON.stringify(done, null, 2);
     download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
@@ -963,7 +862,7 @@ function renderSummary(anchor: HTMLElement): void {
 }
 
 async function handleFile(file: File, container: HTMLElement): Promise<void> {
-  const node = card(file.name, undefined, 'analyse…');
+  const node = card(file.name, undefined, t().analysing);
   node.classList.add('is-busy');
   container.prepend(node);
 
@@ -980,8 +879,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
   try {
     data = new Uint8Array(await file.arrayBuffer());
   } catch {
-    node.append(el('p', 'error', 'Lecture du fichier impossible.'));
-    record({ error: 'Lecture du fichier impossible.' });
+    node.append(el('p', 'error', t().unreadable));
+    record({ error: t().unreadable });
     return;
   }
 
@@ -994,15 +893,15 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
     node.querySelector('.card-head')?.insertBefore(badge, count);
     if (count) {
       count.textContent = result.findings.length
-        ? `${result.findings.length} élément${result.findings.length > 1 ? 's' : ''}`
-        : 'aucune métadonnée';
+        ? t().itemCount(result.findings.length)
+        : t().noMetadata;
     }
 
     // Les images et les archives n'ont pas de champ producteur à interroger.
     if (result.format !== 'zip') node.append(provenanceBanner(result.findings));
 
     if (result.findings.length === 0) {
-      node.append(el('p', 'empty', 'Aucune métadonnée identifiante trouvée.'));
+      node.append(el('p', 'empty', t().nothingIdentifying));
     } else {
       node.append(findingsTable(result.findings));
 
@@ -1014,19 +913,19 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
           el(
             'p',
             'note',
-            'Archive analysée, pas réécrite. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
+            t().archiveNote,
           ),
         );
       } else {
         const foot = el('div', 'card-foot');
-        const button = el('button', 'button button-primary', 'Télécharger la version nettoyée');
+        const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
           button.textContent = 'Nettoyage…';
           try {
             const redacted = await redactFile(data, formatHint(file.name));
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
-            button.textContent = 'Téléchargé';
+            button.textContent = t().downloaded;
             // Redaction surfaces caveats inspection cannot: a dropped C2PA
             // manifest, and — more importantly — what was found and left in
             // place. Dropping those on the floor would make the browser claim
@@ -1036,7 +935,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             );
             if (fresh.length) appendNotes(node, fresh);
           } catch (error) {
-            button.textContent = 'Échec du nettoyage';
+            button.textContent = t().cleanFailed;
             node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
           }
         });
@@ -1112,13 +1011,13 @@ function setupText(): void {
     // caractères bizarres.
     const findings = inspectPlainText(input.value);
     const node = card(
-      'Analyse',
+      t().scanTitle,
       undefined,
-      findings.length ? `${findings.length} élément${findings.length > 1 ? 's' : ''}` : 'rien trouvé',
+      findings.length ? t().itemCount(findings.length) : t().textFound,
     );
     node.append(provenanceBanner(findings));
     if (findings.length === 0) {
-      node.append(el('p', 'empty', 'Rien trouvé dans ce texte.'));
+      node.append(el('p', 'empty', t().textNothing));
     } else {
       node.append(findingsTable(findings));
     }
@@ -1137,19 +1036,19 @@ function setupText(): void {
     input.value = stripped.text;
 
     const node = card(
-      'Nettoyage',
+      t().cleanTitle,
       undefined,
       result.removed.length
-        ? `${result.removed.length} type${result.removed.length > 1 ? 's' : ''} retiré${result.removed.length > 1 ? 's' : ''}`
-        : 'rien à retirer',
+        ? t().removedCount(result.removed.length)
+        : t().nothingToRemove,
     );
     if (result.removed.length === 0) {
-      node.append(el('p', 'empty', 'Le texte ne contenait aucun caractère invisible.'));
+      node.append(el('p', 'empty', t().textNoInvisible));
     } else {
       node.append(findingsTable(result.removed));
     }
     for (const payload of result.decoded) {
-      node.append(el('p', 'decoded', `Charge retirée — ${payload}`));
+      node.append(el('p', 'decoded', t().payloadRemoved(payload)));
     }
 
     // Les lettres sosies font partie d'un mot : le nettoyage ne les touche pas.
@@ -1166,19 +1065,19 @@ function setupText(): void {
     }
 
     if (result.kept.length) {
-      node.append(el('p', 'note note-warn', 'Trouvé mais laissé en place — à vous de trancher :'));
+      node.append(el('p', 'note note-warn', t().keptWarning));
       node.append(findingsTable(result.kept));
     }
 
     const foot = el('div', 'card-foot');
-    const copy = el('button', 'button', 'Copier le texte nettoyé');
+    const copy = el('button', 'button', t().copyCleaned);
     copy.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(stripped.text);
-        copy.textContent = 'Copié';
+        copy.textContent = t().copied;
       } catch {
         input.select();
-        copy.textContent = 'Sélectionné — Ctrl+C';
+        copy.textContent = t().selected;
       }
     });
     foot.append(copy);
@@ -1189,6 +1088,42 @@ function setupText(): void {
   });
 }
 
+/**
+ * The language switch.
+ *
+ * Static copy is already in the page twice and CSS picks a half, so switching
+ * is one attribute. What script has to redo is everything it built itself:
+ * every card in the results is French or English prose generated at the time it
+ * was rendered, and there is no way to relabel it in place. Clearing the
+ * results is the honest option — the alternative is a page in two languages at
+ * once. The files stay in `session`, so the summary and its JSON export
+ * survive; only the rendered cards go.
+ */
+function setupLanguage(): void {
+  const button = must<HTMLButtonElement>('#lang-toggle');
+  const input = must<HTMLTextAreaElement>('#text-input');
+
+  const apply = () => {
+    button.textContent = t().langLabel;
+    button.title = t().langTitle;
+    input.placeholder = t().placeholder;
+  };
+
+  setLang(lang());
+  apply();
+
+  button.addEventListener('click', () => {
+    setLang(lang() === 'fr' ? 'en' : 'fr');
+    apply();
+    for (const id of ['#file-results', '#text-results']) {
+      document.querySelector(id)?.replaceChildren();
+    }
+    document.querySelector('#file-summary')?.remove();
+    session.length = 0;
+  });
+}
+
+setupLanguage();
 setupTabs();
 setupFiles();
 setupText();
