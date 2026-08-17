@@ -473,6 +473,13 @@ tr.flagged td.value::after {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  /*
+   * Each card ends where its content ends. The two lists are deliberately
+   * uneven — what the tool handles is a long enumeration, what it refuses is
+   * four paragraphs — and stretching the short one to match drew a tall empty
+   * box next to the long one.
+   */
+  align-items: start;
 }
 
 .scope-item {
