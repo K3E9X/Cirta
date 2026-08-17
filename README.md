@@ -522,6 +522,30 @@ Deux autres précisions de la même page, qui ferment des portes qu'on croit ouv
   text was written by a different AI »* — un autre éditeur aurait une autre clé, voire une autre
   méthode.
 
+#### Une prise de mesure tirée de l'article : « où la marque peut-elle vivre ? »
+
+La longueur n'est pas seule à gouverner la détectabilité, et c'est le point le plus exploitable de la
+page. Le filigrane s'accroche aux choix entre mots **également bons** — « overcast » ou « grey ». Là
+où une seule réponse est correcte, il ne s'applique pas : après « Principia… » il n'y a qu'un mot
+juste, et `2 + 2 =` n'a qu'une réponse. Le code est le cas systématique : *« code—which in very many
+cases has to be exact—has generally less watermarking »*, mais les **commentaires** à l'intérieur
+sont de la prose ordinaire et peuvent, eux, porter la marque.
+
+La densité factuelle d'un texte ne se mesure pas sans modèle, et inventer un chiffre serait
+exactement ce que ce projet refuse. **Le code, si.** Cirta reconnaît donc une source et compte :
+
+```
+room        Reads as source: 153 non-blank lines, 109 of them comment (71%).
+            Anthropic states code carries less watermarking because it has to be exact; the
+            mark lives where a choice is free, which here is mostly those comment lines.
+```
+
+Deux garde-fous. Le seuil est haut — plus d'un quart des lignes doivent porter une syntaxe
+qu'aucune prose ne produit — parce que qualifier la lettre de quelqu'un de « code source » rendrait
+toute la carte fausse ; un mémo avec des listes à puces et une commande shell citée reste de la
+prose. Et le résultat est **rapporté en décomptes, pas fondu dans la bande de longueur** : mélanger
+les deux produirait un nombre qui ne voudrait plus dire ni l'un ni l'autre.
+
 #### Ce qu'un futur détecteur pourra, et ne pourra pas, affirmer
 
 Au mieux : *« quelle est la probabilité que Claude soit intervenu dans l'écriture de ce texte ? »*
@@ -661,6 +685,24 @@ rotate it.
 
 Le corollaire est net : **quand aucun avertissement de ce type n'apparaît, c'est que la ré-inspection
 n'a rien trouvé** — pas que le code croit avoir bien travaillé.
+
+### L'asymétrie des deux marques
+
+L'article oppose explicitement les deux mécanismes, et l'opposition est utile à qui veut décider quoi
+nettoyer :
+
+| | Filigrane de texte | Content credential C2PA |
+|---|---|---|
+| Où | Dans le choix des mots | Dans les métadonnées du fichier — *« Nothing in the file changes »* |
+| Survit au copier-coller | **Oui** | Non : le texte copié laisse le fichier derrière |
+| Survit à un réenregistrement | Oui | **Non** — conversion, redimensionnement, capture d'écran l'effacent sans trace |
+| Cirta peut le lire | Non (clé) | **Oui** |
+| Cirta peut le retirer | Non | **Oui** |
+
+La conséquence, que Cirta énonce désormais quand il retire un manifeste : **son absence sur un
+fichier ne prouve rien**. N'importe quel passage par un éditeur l'a effacé, sans intention. Un
+contrôle qui lirait « pas de credential donc pas d'IA » se tromperait sur la majorité des fichiers
+du monde.
 
 ### Sur le retrait des manifestes C2PA
 
