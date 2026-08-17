@@ -176,6 +176,59 @@ describe('statistical watermark exposure', () => {
     expect(exposure('mot '.repeat(2000)).band).toBe('ample');
   });
 
+  /**
+   * Anthropic states the mark rides on choices between equally good words, and
+   * that code carries less of it because it has to be exact. Length alone
+   * therefore overstates what a long source file exposes.
+   */
+  it('recognises source code, where most lines admit only one right answer', () => {
+    const source = [
+      '// Compte les lignes non vides.',
+      "import { readFile } from 'node:fs/promises';",
+      'export function count(text: string): number {',
+      '  const lines = text.split(/\\n/);',
+      '  return lines.length;',
+      '}',
+    ].join('\n');
+    const { freeChoice } = exposure(source);
+    expect(freeChoice.code).toBe(true);
+    expect(freeChoice.commentLines).toBe(1);
+    expect(freeChoice.nonBlankLines).toBe(6);
+  });
+
+  it('does not call an ordinary memo source code', () => {
+    // The control that matters: a letter reported as code would make the whole
+    // card wrong, and memos are full of lists, colons and quoted commands.
+    const memo = [
+      'Objet : compte rendu de la réunion',
+      '',
+      'Points abordés :',
+      '- Le prestataire a livré en retard.',
+      '- Le budget reste tenu.',
+      '',
+      'Pour lancer la sauvegarde :',
+      '  pg_dump -U app -Fc base > sauvegarde.dump',
+      '',
+      'Merci de vos retours avant mercredi.',
+    ].join('\n');
+    expect(exposure(memo).freeChoice.code).toBe(false);
+  });
+
+  it('does not call French prose source code', () => {
+    expect(exposure('Le texte ordinaire ne finit pas par une accolade. '.repeat(30)).freeChoice.code).toBe(
+      false,
+    );
+  });
+
+  it('reports counts rather than adjusting the band', () => {
+    // The band stays a statement about length. Mixing the two would produce a
+    // number that means neither thing.
+    const source = 'const x = 1;\n'.repeat(300);
+    const report = exposure(source);
+    expect(report.freeChoice.code).toBe(true);
+    expect(report.band).toBe(exposure('mot '.repeat(report.words)).band);
+  });
+
   it('judges on the lower bound, so the band is never overstated', () => {
     const report = exposure('mot '.repeat(400));
     expect(report.low).toBeLessThan(800);

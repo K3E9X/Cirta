@@ -309,7 +309,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:image-metadata-only': () =>
     'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
   'removed:c2pa': (detail) =>
-    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Note that C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential: a removed manifest does not mean no provenance remains.`,
+    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Two things this does not mean. C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential, so a removed manifest does not mean no provenance remains. And the reverse: a credential is metadata attached to the file rather than embedded in it, so re-saving, converting or resizing strips it without a trace — its absence from any file proves nothing about origin.`,
   'scope:archive': () =>
     'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
   'limit:archive-truncated': (detail) =>
@@ -339,6 +339,62 @@ function printExposure(report: Exposure): void {
         ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
         : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
   console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
+
+  // Length is not the only thing that governs detectability. The mark rides on
+  // choices between equally good words, and code mostly has one right answer.
+  if (report.freeChoice.code) {
+    const { commentLines, nonBlankLines } = report.freeChoice;
+    const share = Math.round((commentLines / nonBlankLines) * 100);
+    console.log(
+      `  ${dim('room'.padEnd(11))} ${`Reads as source: ${nonBlankLines} non-blank lines, ${commentLines} of them comment (${share}%).`}`,
+    );
+    console.log(
+      `  ${dim(' '.repeat(11))} ${dim('Anthropic states code carries less watermarking because it has to be exact; the')}`,
+    );
+    console.log(
+      `  ${dim(' '.repeat(11))} ${dim(
+        commentLines > 0
+          ? 'mark lives where a choice is free, which here is mostly those comment lines.'
+          : 'mark lives where a choice is free, and this file leaves almost none of that.',
+      )}`,
+    );
+  }
+  // Since August 2026 this is a live question rather than a theoretical one.
+  console.log(
+    `  ${dim('status'.padEnd(11))} ${dim('Anthropic states that future Claude models carry a watermark — a version of')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('DeepMind\'s SynthID-Text — under the EU transparency code in force since 2 Aug')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('2026; earlier models follow over the coming months. A detection API is announced')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('but not published, and reading the mark needs their key. Files instead get a')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('signed C2PA credential, which this tool does read and report.')}`,
+  );
+  // The point most likely to be conflated with this tool's own subject, said in
+  // Anthropic's own words because the press coverage merged the two.
+  console.log(
+    `  ${dim('not this'.padEnd(11))} ${dim('"Nothing is added to the text and there are no hidden characters." The invisible')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('codepoints found above are a different mechanism, by someone else; removing them')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('leaves a statistical watermark untouched. It also carries no identifying data.')}`,
+  );
+  console.log(
+    `  ${dim('careful'.padEnd(11))} ${dim('At best it answers how likely Claude was involved — not whether a person wrote')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('it, and not whether some other model did. It cannot separate "Claude wrote this"')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('from "Claude heavily edited this"; light proofreading leaves it almost nothing.')}`,
+  );
   console.log(
     `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,
   );

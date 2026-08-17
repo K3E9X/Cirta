@@ -73,7 +73,16 @@ const TELLS: Tell[] = [
   { pattern: /\bin the realm of\b|\bin today'?s (?:fast-paced|digital|ever-evolving)\b/gi, label: 'in the realm of / in today’s…', language: 'en' },
   { pattern: /\b(?:pivotal|multifaceted|meticulous|nuanced|holistic|robust|seamless)\b/gi, label: 'pivotal / multifaceted / seamless', language: 'en', minRate: 2 },
   { pattern: /\b(?:leverage|harness|foster|underscore|elevate)\w*\b/gi, label: 'leverage / harness / foster', language: 'en', minRate: 2 },
-  { pattern: /\bnot just\b[^.!?]{0,50}\bit'?s\b|\bisn'?t (?:just )?about\b[^.!?]{0,50}\bit'?s about\b/gi, label: "not just X, it's Y", language: 'en' },
+  // Named by Anthropic itself, in the passage of "How Claude's text watermark
+  // works" that contrasts watermarking with detection software: models "appear
+  // to be fond of the construction 'this isn't [X], it's [Y]'". Worth keeping
+  // separate from the rest of the list because the source is the vendor rather
+  // than a corpus study — the strongest provenance any entry here has.
+  { pattern: /\bnot just\b[^.!?]{0,50}\bit'?s\b|\bisn'?t (?:just )?about\b[^.!?]{0,50}\bit'?s about\b|\bthis isn'?t\b[^.!?]{0,50}\bit'?s\b/gi, label: "not just X, it's Y", language: 'en' },
+  // Named in the same passage: models "use the word 'quietly' a lot more than
+  // you might expect". An ordinary adverb, so it needs both halves of the rule
+  // — two occurrences and a rate — before it counts as anything.
+  { pattern: /\bquietly\b/gi, label: 'quietly', language: 'en', minRate: 1.5 },
   { pattern: /\b(?:in conclusion|in summary|to sum up|overall,)\b/gi, label: 'in conclusion / in summary', language: 'en' },
   { pattern: /\blet'?s dive in\b|\bbuckle up\b/gi, label: "let's dive in", language: 'en' },
   { pattern: /\bi hope this helps\b|\bfeel free to\b/gi, label: 'I hope this helps / feel free to', language: 'en' },

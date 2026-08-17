@@ -293,7 +293,7 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
   'scope:image-metadata-only': () =>
     "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
   'removed:c2pa': (detail) =>
-    `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. À noter : le C2PA prévoit aussi le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance. Un manifeste retiré ne signifie donc pas qu'il ne reste aucune provenance.`,
+    `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. Deux choses que cela ne signifie pas. Le C2PA prévoit le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance : un manifeste retiré ne veut pas dire qu'il ne reste aucune provenance. Et l'inverse : un « content credential » est une note attachée au fichier, pas incrustée dedans — un simple réenregistrement, une conversion ou un redimensionnement l'efface sans laisser de trace. Son absence, sur n'importe quel fichier, ne prouve donc rien sur l'origine.`,
   'scope:archive': () =>
     "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne reconnaît du tout ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
   'limit:archive-truncated': (detail) =>
@@ -399,6 +399,48 @@ function exposureCard(text: string): HTMLElement {
     `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
   );
   row('portée', EXPOSURE_TEXT[report.band]);
+  // La longueur n'est pas seule à gouverner la détectabilité : la marque vit
+  // dans les choix libres entre mots équivalents, et le code n'en offre guère.
+  if (report.freeChoice.code) {
+    const { commentLines, nonBlankLines } = report.freeChoice;
+    const share = Math.round((commentLines / nonBlankLines) * 100);
+    row(
+      'prise',
+      `Lu comme du code source : ${nonBlankLines} lignes non vides, dont ${commentLines} de ` +
+        `commentaire (${share} %). Anthropic indique que le code porte moins de filigrane parce ` +
+        `qu’il doit être exact ; la marque vit là où le choix est libre — ` +
+        (commentLines > 0
+          ? `ici surtout dans ces lignes de commentaire.`
+          : `et ce fichier n’en laisse presque aucun.`),
+    );
+  }
+  // Depuis août 2026 la question n'est plus théorique.
+  row(
+    'où en est-on',
+    'Anthropic indique que les futurs modèles Claude portent un filigrane — une version de ' +
+      'SynthID-Text (DeepMind) — au titre du code de transparence européen en vigueur depuis le ' +
+      '2 août 2026 ; les modèles antérieurs suivront dans les mois à venir. Une API de détection ' +
+      'est annoncée mais pas publiée, et lire la marque suppose leur clé. Les fichiers reçoivent ' +
+      'à la place un « content credential » C2PA signé — celui-là, Cirta le lit et le signale.',
+  );
+  // Le point le plus facile à confondre avec le sujet même de cet outil. La
+  // presse a fusionné les deux sous le mot « invisible » ; Anthropic écrit le
+  // contraire noir sur blanc.
+  row(
+    'ce n’est pas ça',
+    '« Rien n’est ajouté au texte et il n’y a aucun caractère caché. » Le filigrane statistique ' +
+      'n’est pas de l’Unicode invisible. Les codepoints invisibles trouvés ci-dessus relèvent ' +
+      'd’un autre mécanisme, mis là par quelqu’un d’autre — et les retirer tous ne touche pas au ' +
+      'filigrane. La marque ne contient par ailleurs aucune information identifiante : ni ' +
+      'personne, ni organisation, ni conversation.',
+  );
+  row(
+    'attention',
+    'Au mieux, elle répond à « quelle est la probabilité que Claude soit intervenu ? ». Pas si ' +
+      'un humain a écrit le texte, pas si un autre modèle l’a écrit — un autre éditeur aurait une ' +
+      'autre clé. Et elle ne distingue pas « Claude a écrit ça » de « Claude a beaucoup remanié ' +
+      'ça » : une simple relecture ne lui laisse presque aucune prise.',
+  );
 
   table.append(body);
   scroll.append(table);
