@@ -8,6 +8,22 @@
       name="description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
     />
+    <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14130f" media="(prefers-color-scheme: dark)" />
+    <!--
+      Link previews. Deliberately no og:image: the only artwork here is an SVG,
+      which most preview renderers refuse, and an absent image beats a broken
+      one. These stay in the page's authoring language; a static tag cannot
+      follow the toggle, and the title and description that a reader sees do.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cirta — nettoyage des métadonnées de documents" />
+    <meta
+      property="og:description"
+      content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
+    />
+    <meta property="og:url" content="https://k3e9x.github.io/Cirta/" />
+    <meta name="twitter:card" content="summary" />
     <!-- Same file the README shows and the CLI transcribes. -->
     <link rel="icon" href="./logo.svg" />
     <link rel="stylesheet" href="./style.css" />
@@ -22,10 +38,13 @@
     -->
     <header class="masthead">
       <div class="wrap">
-        <h1>
-          <img src="./logo.svg" alt="" width="34" height="34" />
-          Cirta
-        </h1>
+        <div class="masthead-top">
+          <h1>
+            <img src="./logo.svg" alt="" width="34" height="34" />
+            Cirta
+          </h1>
+          <button id="lang-toggle" class="lang-toggle" type="button">English</button>
+        </div>
         <p class="tagline" data-lang="fr">
           Inspecte et retire les métadonnées de provenance de vos documents. Tout s'exécute dans
           votre navigateur — <strong>aucun fichier n'est envoyé sur un serveur</strong>.
@@ -34,7 +53,6 @@
           Inspects and strips provenance metadata from your documents. Everything runs in your
           browser — <strong>no file is ever sent to a server</strong>.
         </p>
-        <button id="lang-toggle" class="lang-toggle" type="button">English</button>
       </div>
     </header>
 
@@ -52,8 +70,8 @@
         <div id="dropzone" class="dropzone" tabindex="0" role="button">
           <p class="dropzone-title" data-lang="fr">Déposez un fichier ici</p>
           <p class="dropzone-title" data-lang="en">Drop a file here</p>
-          <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, et tout fichier texte ou source</p>
-          <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, and any text or source file</p>
+          <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, e-mails (.eml), et tout fichier texte ou source</p>
+          <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, email (.eml), and any text or source file</p>
           <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.zip,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.json,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
         </div>
         <div id="file-results" class="results"></div>

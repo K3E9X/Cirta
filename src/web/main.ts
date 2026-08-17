@@ -652,6 +652,13 @@ function setupLanguage(): void {
     button.textContent = t().langLabel;
     button.title = t().langTitle;
     input.placeholder = t().placeholder;
+    // The tab title and the description a search engine or a link preview
+    // quotes are part of the page, and stayed French when everything visible
+    // had switched.
+    document.title = t().docTitle;
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute('content', t().docDescription);
   };
 
   setLang(lang());
