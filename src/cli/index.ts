@@ -339,19 +339,26 @@ function printExposure(report: Exposure): void {
         ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
         : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
   console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
-  // The question this answers, asked often enough to belong in the output:
-  // "SynthID is open source, why not just use it?"
+  // Since 11 August 2026 this is a live question rather than a theoretical one.
   console.log(
-    `  ${dim('why not'.padEnd(11))} ${dim('SynthID-Text is published (DeepMind, Nature 2024) and its detector is open source, but')}`,
+    `  ${dim('status'.padEnd(11))} ${dim('Anthropic turned on text watermarking across Claude on 11 August 2026, using a')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('it scores token n-grams against the keys used at generation. The keys shipped with')}`,
+    `  ${dim(' '.repeat(11))} ${dim('variant of DeepMind\'s SynthID-Text. Files get signed C2PA manifests, which this')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('the reference code are demo keys; a vendor\'s production keys are not published, and')}`,
+    `  ${dim(' '.repeat(11))} ${dim('tool does read and report. The text mark it cannot: scoring token n-grams needs')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('the scheme is Google\'s — a detector for it would answer "no" to every other model.')}`,
+    `  ${dim(' '.repeat(11))} ${dim('the keys used at generation, and the detection API announced is not published yet.')}`,
+  );
+  // The distinction most likely to be lost, and the one that costs someone their
+  // credibility if it is.
+  console.log(
+    `  ${dim('careful'.padEnd(11))} ${dim('The mark records that text came out of the model, not that a model composed it.')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('Text you wrote and asked Claude to reformat comes back marked.')}`,
   );
   console.log(
     `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,

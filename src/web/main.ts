@@ -399,15 +399,20 @@ function exposureCard(text: string): HTMLElement {
     `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
   );
   row('portée', EXPOSURE_TEXT[report.band]);
-  // « SynthID est open source, pourquoi ne pas s'en servir ? » — la question
-  // revient assez souvent pour mériter sa réponse dans le rapport lui-même.
+  // Depuis le 11 août 2026 la question n'est plus théorique.
   row(
-    'et SynthID ?',
-    'SynthID-Text est publié (DeepMind, Nature 2024) et son détecteur est open source. Mais il ' +
-      'note des n-grammes de tokens contre les clés utilisées à la génération : celles livrées ' +
-      'avec le code de référence sont des clés de démonstration, les clés de production d’un ' +
-      'éditeur ne sont pas publiées, et le schéma est celui de Google — un détecteur SynthID ' +
-      'répondrait « non » à tout document produit par un autre modèle.',
+    'où en est-on',
+    'Anthropic a activé le filigrane de texte sur Claude le 11 août 2026, avec une variante de ' +
+      'SynthID-Text (DeepMind). Les fichiers reçoivent des manifestes C2PA signés — ceux-là, ' +
+      'Cirta les lit et les signale. La marque dans le texte, non : la noter suppose les clés ' +
+      'utilisées à la génération, et l’API de détection annoncée n’est pas publiée.',
+  );
+  // La nuance la plus facile à perdre, et la plus coûteuse à perdre.
+  row(
+    'attention',
+    'La marque atteste que le texte est sorti du modèle, pas qu’un modèle l’a rédigé. Un ' +
+      'paragraphe que vous avez écrit et fait reformater revient marqué. C’est une affirmation ' +
+      'plus étroite que « c’est de l’IA », et bien plus étroite que « ce n’est pas de vous ».',
   );
 
   table.append(body);

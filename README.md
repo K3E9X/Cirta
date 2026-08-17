@@ -459,7 +459,7 @@ comptent pas. Chaque élément porte donc son propre niveau, et les rapports son
 |---|---|
 | Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
 | Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
-| Biais dans la sélection des tokens | **Non**, et c'est structurel. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
+| Biais dans la sélection des tokens | **Non**, et c'est structurel. **Actif sur Claude depuis le 11 août 2026** (variante de SynthID-Text) : la question n'est plus théorique, mais la lire suppose les clés d'Anthropic, et l'API de détection annoncée n'est pas publiée. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
 
 ## Ce qu'il ne fait pas, et pourquoi
 
@@ -479,28 +479,33 @@ statistique, et aucune ne dépose de caractère repérable.
 
 #### « Mais SynthID est open source, pourquoi ne pas l'intégrer ? »
 
-C'est la bonne question à poser, et la réponse tient en trois obstacles indépendants. Elle est
-vérifiée sur le code du paquet officiel `synthid-text` de DeepMind, pas de mémoire.
+C'est devenu la bonne question au bon moment. **Le 11 août 2026, Anthropic a activé le filigrane de
+texte sur l'ensemble de Claude**, avec une *variante de SynthID-Text*, sous le code de transparence
+de l'AI Act européen. La famille d'algorithmes est donc désormais la bonne — ce n'est plus « le
+schéma d'un autre éditeur ». Il reste deux obstacles, vérifiés sur le code du paquet officiel
+`synthid-text` de DeepMind et non de mémoire.
 
 **1. Les clés.** Le détecteur calcule des *g-values* à partir d'un hachage `(n-gramme de tokens,
 clé)`. Le paquet livre bien des clés — trente entiers dans `DEFAULT_WATERMARKING_CONFIG` — mais ce
 sont des **clés de démonstration publiées dans un dépôt public**. Elles ne détectent que le texte que
-vous avez vous-même filigrané avec ces mêmes clés : un autotest, pas un détecteur. Les clés de
-production d'un éditeur ne sont pas publiées, et le README de DeepMind dit lui-même que la fonction
-de hachage de référence *« ne fournit aucune garantie de sécurité cryptographique »*.
+vous avez vous-même filigrané avec ces mêmes clés : un autotest, pas un détecteur. Le README de
+DeepMind précise que sa fonction de hachage de référence *« ne fournit aucune garantie de sécurité
+cryptographique »* et que le code *« n'est pas destiné à un usage en production »*. Anthropic a
+annoncé une **API de détection** ouverte aux tiers ; à la date de cette écriture elle n'est pas
+publiée, pas plus que ses seuils de précision ou sa procédure de contestation.
 
 **2. Les tokens.** Les g-values portent sur des identifiants de tokens, pas sur des caractères. Il
-faudrait donc embarquer le tokenizer exact du modèle. Celui de Gemma est public, celui de Gemini ne
-l'est pas — et Cirta est du TypeScript qui tourne dans un onglet sans aucun appel réseau.
+faudrait embarquer le tokenizer exact du modèle — et Cirta est du TypeScript qui tourne dans un
+onglet sans aucun appel réseau.
 
-**3. Le mauvais éditeur, et c'est l'obstacle décisif ici.** SynthID est le schéma de Google. Sur un
-document produit avec Claude, un détecteur SynthID parfaitement fonctionnel répondrait « aucun
-filigrane » — et cette réponse serait **pire qu'aucune réponse**, parce qu'elle se lirait comme
-« ce n'est pas de l'IA ». Un outil qui ajoute une case verte fausse est moins honnête que celui qui
-n'ajoute rien.
+**Et une raison de ne pas se précipiter, même le jour où l'API sortira.** La marque atteste que le
+texte **est sorti du modèle**, pas qu'un modèle l'a rédigé. Un paragraphe que vous avez écrit et fait
+relire revient marqué. Un outil qui afficherait « filigrane Claude détecté » sans cette phrase
+transformerait une information exacte en accusation fausse — et c'est le mode de défaillance que ce
+projet refuse depuis le début.
 
-Ce qui existe côté détection publique — le portail SynthID Detector de Google — suppose d'**envoyer
-le fichier chez Google**. C'est exactement la propriété que cet outil refuse de perdre.
+Enfin, ce qui existe côté détection publique aujourd'hui suppose d'**envoyer le fichier chez
+l'éditeur**. C'est exactement la propriété que cet outil refuse de perdre.
 
 En conséquence, un outil local — celui-ci compris — ne peut ni confirmer la présence d'un tel
 filigrane, ni prouver son absence après traitement. Cirta ne le prétend pas. Méfiez-vous des services
