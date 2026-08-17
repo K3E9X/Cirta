@@ -79,10 +79,6 @@ const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult
   return { ...reply.result, ...(reply.data ? { data: new Uint8Array(reply.data) } : {}) };
 };
 
-
-
-
-
 function styleCard(text: string): HTMLElement | undefined {
   const report = stylometry(text);
   if (report.band === 'too-short') return undefined;
@@ -156,16 +152,6 @@ function exposureCard(text: string): HTMLElement {
   node.append(el('p', 'note', t().exposureNote));
   return node;
 }
-
-
-
-
-
-
-
-
-
-
 
 const MIME: Record<Format, string> = {
   pdf: 'application/pdf',
@@ -618,8 +604,7 @@ function setupText(): void {
         el(
           'p',
           'note',
-          `En-têtes de courrier retirés : ${stripped.removed.join(', ')}. Ils nomment le logiciel, ` +
-            'pas le message.',
+          t().headersRemoved(stripped.removed.join(', ')),
         ),
       );
     }

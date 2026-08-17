@@ -60,7 +60,7 @@ export function isOdf(parts: Parts): boolean {
   return Boolean(mimetype && strFromU8(mimetype).startsWith('application/vnd.oasis.opendocument'));
 }
 
-export function detectOdfFormat(parts: Parts): Format {
+function detectOdfFormat(parts: Parts): Format {
   const mimetype = parts['mimetype'] ? strFromU8(parts['mimetype']) : '';
   for (const [pattern, format] of ODF_MIMETYPES) {
     if (pattern.test(mimetype)) return format;

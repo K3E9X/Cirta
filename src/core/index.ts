@@ -51,8 +51,7 @@ import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
-import { decodeTextInput, scanText, cleanText } from './text.js';
-import { scanContent } from './archive.js';
+import { decodeTextInput, cleanText } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
@@ -191,8 +190,6 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   }
   throw new UnsupportedFormatError(UNSUPPORTED);
 }
-
-
 
 /**
  * Re-inspect the redacted output and report whatever survived.

@@ -84,7 +84,7 @@ const ANONYMOUS_AUTHOR = 'Author';
  */
 const PLACEHOLDER_VALUES = new Set(['Un-named', 'Unknown', 'unknown', 'Anonymous', ANONYMOUS_AUTHOR]);
 
-export function detectOoxmlFormat(parts: Parts): Format {
+function detectOoxmlFormat(parts: Parts): Format {
   if (parts['word/document.xml']) return 'docx';
   if (parts['ppt/presentation.xml']) return 'pptx';
   if (parts['xl/workbook.xml']) return 'xlsx';

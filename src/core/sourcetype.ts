@@ -82,11 +82,6 @@ function term(value: string): string | undefined {
   return last && last in VOCABULARY ? last : undefined;
 }
 
-export interface SourceDeclaration {
-  term: string;
-  generative: boolean;
-}
-
 /** Build the finding for one declaration, or nothing if the term is unknown. */
 export function describeSourceType(value: string, location: string): Finding[] {
   const name = term(value);

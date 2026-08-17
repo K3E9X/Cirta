@@ -196,10 +196,26 @@ function isFunctional(cp: number, prev: number | undefined, next: number | undef
   }
 }
 
+/**
+ * Why a byte string was refused as text.
+ *
+ * A code rather than a sentence, for the same reason notes are codes: the
+ * library reports in English and each front-end words things for its own
+ * audience. Without it the command line printed an English sentence above a
+ * French explanation of the same refusal.
+ */
+export type BinaryReason = 'signature' | 'nul-bytes' | 'control-dense' | 'not-utf8';
+
 export class BinaryInputError extends Error {
-  constructor(reason: string) {
-    super(reason);
+  readonly reason: BinaryReason;
+  /** The format name, when `reason` is `'signature'`. */
+  readonly signature?: string;
+
+  constructor(reason: BinaryReason, message: string, signature?: string) {
+    super(message);
     this.name = 'BinaryInputError';
+    this.reason = reason;
+    if (signature !== undefined) this.signature = signature;
   }
 }
 
@@ -317,19 +333,19 @@ export function decodeTextInput(data: Uint8Array, options: DecodeTextOptions = {
   if (!options.allowBinary) {
     const signature = matchSignature(data);
     if (signature) {
-      throw new BinaryInputError(`input looks like ${signature}, not text`);
+      throw new BinaryInputError('signature', `input looks like ${signature}, not text`, signature);
     }
     if (data.includes(0)) {
-      throw new BinaryInputError('input contains NUL bytes, so it is not text');
+      throw new BinaryInputError('nul-bytes', 'input contains NUL bytes, so it is not text');
     }
     if (isControlDense(data)) {
-      throw new BinaryInputError('input is dense in control bytes, so it is not text');
+      throw new BinaryInputError('control-dense', 'input is dense in control bytes, so it is not text');
     }
   }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(data);
   } catch {
-    throw new BinaryInputError('input is not valid UTF-8');
+    throw new BinaryInputError('not-utf8', 'input is not valid UTF-8');
   }
 }
 

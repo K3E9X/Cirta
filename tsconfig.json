@@ -6,6 +6,13 @@
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    // Dead code fails the build rather than accumulating. Every one of these
+    // found this session was a leftover from a move: imports left behind when a
+    // function changed module, an alias kept after its use was rewritten, a
+    // local whose statement was deleted around it. None would ever have been
+    // noticed by reading.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,

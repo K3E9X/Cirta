@@ -17,7 +17,9 @@
  * string appearing unannounced in an English page.
  */
 
-export type Lang = 'fr' | 'en';
+// One declaration of this union, in the module that owns the French tables.
+export type { Lang } from '../shared/french.js';
+import type { Lang } from '../shared/french.js';
 
 const FR = {
   /* --------------------------------------------------------------- chrome */
