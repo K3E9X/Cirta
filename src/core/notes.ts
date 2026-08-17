@@ -32,3 +32,27 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
+
+/** The same caveats in French, for the surfaces that report in it. */
+export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
+  'scope:pdf-metadata-only': () =>
+    "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur) et du texte des pages, décodé via la table ToUnicode de chaque police. C'est cette table qui retransforme les codes de glyphes d'une police sous-ensemble en caractères ; une page dont la police n'en porte pas est lue en codes bruts, où une détection reste fiable mais une absence ne prouve rien. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
+  'scope:ooxml-metadata-only': () =>
+    "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
+  'scope:invisible-characters-only': () =>
+    "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
+  'scope:markup-metadata-only': () =>
+    "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
+  'scope:image-metadata-only': () =>
+    "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
+  'removed:c2pa': (detail) =>
+    `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. Deux choses que cela ne signifie pas. Le C2PA prévoit le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance : un manifeste retiré ne veut pas dire qu'il ne reste aucune provenance. Et l'inverse : un « content credential » est une note attachée au fichier, pas incrustée dedans — un simple réenregistrement, une conversion ou un redimensionnement l'efface sans laisser de trace. Son absence, sur n'importe quel fichier, ne prouve donc rien sur l'origine.`,
+  'scope:archive': () =>
+    "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne reconnaît du tout ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
+  'limit:archive-truncated': (detail) =>
+    `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
+  'kept:in-content': (detail) =>
+    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
+  'kept:content': (detail) =>
+    `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
+};
