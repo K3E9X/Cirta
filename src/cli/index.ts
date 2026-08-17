@@ -9,6 +9,8 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
+import { lang, setLang, detectLang, t } from './i18n.js';
+import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
 import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
@@ -59,53 +61,37 @@ const green = (t: string) => paint('32', t);
 // 173 is the 256-colour cell nearest the #9a4b1f of assets/logo.svg.
 const accent = (t: string) => paint('38;5;173', t);
 
-const KIND_LABEL: Record<Finding['kind'], string> = {
-  identity: 'identity',
-  provenance: 'provenance',
-  timestamp: 'timestamp',
-  environment: 'environment',
-  'invisible-character': 'invisible',
-};
-
-const HELP = `
+const help = () =>
+  `
 ${banner({
   unicode: useUnicode,
   paint: accent,
-  lines: [
-    bold('cirta'),
-    'inspect and strip provenance metadata from documents',
-    '',
-    dim('everything runs locally; no network calls are made'),
-  ],
+  lines: [bold('cirta'), t().tagline, '', dim(t().taglineLocal)],
 })}
 
-${bold('Usage')}
-  cirta inspect <path...>            Report metadata carried by each file
-  cirta redact  <path...> [options]  Write a copy with that metadata removed
-  cirta text [--clean]               Read text on stdin; report or clean it
+${bold(t().usage)}
+  cirta inspect <path...>            ${t().usageInspect}
+  cirta redact  <path...> [options]  ${t().usageRedact}
+  cirta text [--clean]               ${t().usageText}
 
-Paths may be files or directories. Directories are walked recursively for
-documents, images and text files; build and dependency directories such as
-node_modules, .git and dist are skipped.
+${t().paths}
 
-${bold('Options')}
-  -o, --output <path>   Destination for a single redacted file
-      --in-place        Overwrite the input files (keeps a .bak)
-      --skip <names>    Extra directory names to skip, comma-separated
-      --force-text      Treat the input as text even if it looks binary
-      --json            Machine-readable output
-  -h, --help            Show this message
+${bold(t().options)}
+  -o, --output <path>   ${t().optOutput}
+      --in-place        ${t().optInPlace}
+      --skip <names>    ${t().optSkip}
+      --force-text      ${t().optForceText}
+      --lang <fr|en>    ${t().optLang}
+      --json            ${t().optJson}
+  -h, --help            ${t().optHelp}
 
-${bold('Confidence')}
-  confirmed      Verbatim identifying data — a name, a company, a local path
-  probable       Real information about you or your workflow, not always sensitive
-  informational  Names the software rather than the author
+${bold(t().confidenceTitle)}
+  confirmed      ${t().confConfirmed}
+  probable       ${t().confProbable}
+  informational  ${t().confInformational}
 
-${bold('Scope')}
-  Handles document metadata (PDF /Info and XMP, Office docProps) and invisible
-  Unicode in text. It does not detect or remove statistical model watermarks:
-  those live in word choice, not in a field, and reading one requires the
-  vendor's secret key. No local tool can do it, including this one.
+${bold(t().scopeTitle)}
+  ${t().scopeBody}
 `.replace(/^\n+|\n+$/g, '');
 
 interface Args {
@@ -118,6 +104,7 @@ interface Args {
   help: boolean;
   forceText: boolean;
   skip: string[];
+  lang?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -150,6 +137,9 @@ function parseArgs(argv: string[]): Args {
       case '--force-text':
         args.forceText = true;
         break;
+      case '--lang':
+        args.lang = argv[++i];
+        break;
       case '--skip':
         args.skip.push(...(argv[++i] ?? '').split(',').map((name) => name.trim()).filter(Boolean));
         break;
@@ -158,7 +148,7 @@ function parseArgs(argv: string[]): Args {
         args.output = argv[++i];
         break;
       default:
-        if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
+        if (arg.startsWith('-')) throw new Error(t().unknownOption(arg));
         if (!args.command) args.command = arg;
         else args.files.push(arg);
     }
@@ -175,19 +165,20 @@ const CONFIDENCE_STYLE: Record<Confidence, (text: string) => string> = {
 
 function printFindings(findings: Finding[]): void {
   if (findings.length === 0) {
-    console.log(`  ${green('No metadata found.')}`);
+    console.log(`  ${green(t().noMetadata)}`);
     return;
   }
-  const width = Math.max(...findings.map((f) => f.label.length));
+  const width = Math.max(...findings.map((f) => translateLabel(f.label, lang()).length));
   for (const finding of findings) {
     const flag = finding.affectsVerifiability ? yellow(' [verifiable provenance]') : '';
-    const mark = CONFIDENCE_STYLE[finding.confidence](finding.confidence.padEnd(13));
+    const mark = CONFIDENCE_STYLE[finding.confidence](t().confidence[finding.confidence].padEnd(13));
     console.log(
-      `  ${mark} ${dim(KIND_LABEL[finding.kind].padEnd(11))} ${finding.label.padEnd(width)}  ${preview(
-        finding.value,
-      )}${flag}`,
+      `  ${mark} ${dim(t().kinds[finding.kind].padEnd(11))} ${translateLabel(
+        finding.label,
+        lang(),
+      ).padEnd(width)}  ${preview(translateValue(finding, lang()))}${flag}`,
     );
-    console.log(`  ${dim(' '.repeat(26) + finding.location)}`);
+    console.log(`  ${dim(' '.repeat(26) + translateLocation(finding.location, lang()))}`);
   }
 }
 
@@ -291,34 +282,12 @@ async function expandPaths(paths: string[], skip: string[] = []): Promise<string
       continue;
     }
     const found = (await walkDirectory(path, skipSet)).sort();
-    if (found.length === 0) console.error(dim(`${path}: no supported files found`));
+    if (found.length === 0) console.error(dim(t().noSupported(path)));
     out.push(...found);
   }
   return out;
 }
 
-const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
-  'scope:pdf-metadata-only': () =>
-    'Metadata, plus a scan of decompressed streams for credentials and provider identifiers, and of page text decoded through each font\'s ToUnicode map. That map is what turns a subset font\'s glyph codes back into characters; a page whose font carries none is still read as raw codes, where a hit is real but a miss proves nothing. A statistical model watermark would not show up either way.',
-  'scope:ooxml-metadata-only': () =>
-    'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
-  'scope:invisible-characters-only': () =>
-    'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
-  'scope:markup-metadata-only': () =>
-    'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
-  'scope:image-metadata-only': () =>
-    'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
-  'removed:c2pa': (detail) =>
-    `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Two things this does not mean. C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential, so a removed manifest does not mean no provenance remains. And the reverse: a credential is metadata attached to the file rather than embedded in it, so re-saving, converting or resizing strips it without a trace — its absence from any file proves nothing about origin.`,
-  'scope:archive': () =>
-    'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
-  'limit:archive-truncated': (detail) =>
-    `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
-  'kept:in-content': (detail) =>
-    `Not removed: ${detail ?? 'traces inside the content'}. These sit in the document's own content rather than in a metadata field, and rewriting it would change what the document says. Edit the source and regenerate — and if a credential is listed, rotate it.`,
-  'kept:content': (detail) =>
-    `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
-};
 
 /**
  * State what a silent report is worth at this length.
@@ -327,77 +296,58 @@ const NOTE_TEXT: Record<Note['code'], (detail?: string) => string> = {
  * the vendor's key. What can be said is how much statistical power a detector
  * that *did* hold the key would have on a passage this size.
  */
-function printExposure(report: Exposure): void {
-  const size = `~${report.low}-${report.high} tokens (${report.characters} characters, ${report.words} words)`;
-  console.log(`\n  ${bold('Statistical watermark')}  ${dim('no local verdict is possible')}`);
-  console.log(`  ${dim('length'.padEnd(11))} ${size}`);
+/**
+ * Wrap a long sentence under a label, so the prose lives in one string in the
+ * translation table instead of being hand-broken across console.log calls. It
+ * was hand-broken, and every edit to the wording meant re-breaking four lines.
+ */
+function field(label: string, body: string, width = 78): void {
+  const indent = ' '.repeat(11);
+  // French sets a space before ? ! : ; and inside guillemets. Those are spaces
+  // to a naive wrapper, which happily ends a line on the space and drops the
+  // punctuation onto the next one. Tying them makes the wrap respect the
+  // typography instead of mangling it.
+  const words = body
+    .replace(/ ([?!:;»])/g, '\u00a0$1')
+    .replace(/« /g, '«\u00a0')
+    .split(' ')
+    .map((word) => word.replace(/\u00a0/g, ' '));
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (line && line.length + 1 + word.length > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) lines.push(line);
+  console.log(`  ${dim(label.padEnd(11))} ${lines[0] ?? ''}`);
+  for (const rest of lines.slice(1)) console.log(`  ${indent} ${dim(rest)}`);
+}
 
-  const verdict =
-    report.band === 'too-short'
-      ? 'At this length even the vendor may not get a reliable result; finding nothing here would mean almost nothing.'
-      : report.band === 'uncertain'
-        ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
-        : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
-  console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
+function printExposure(report: Exposure): void {
+  console.log(`\n  ${bold(t().exposureTitle)}  ${dim(t().exposureBadge)}`);
+  field(
+    t().exposureRowLength,
+    t().exposureLength(report.low, report.high, report.characters, report.words),
+  );
+  field(t().exposureRowMeaning, t().exposureBands[report.band]);
 
   // Length is not the only thing that governs detectability. The mark rides on
   // choices between equally good words, and code mostly has one right answer.
   if (report.freeChoice.code) {
     const { commentLines, nonBlankLines } = report.freeChoice;
     const share = Math.round((commentLines / nonBlankLines) * 100);
-    console.log(
-      `  ${dim('room'.padEnd(11))} ${`Reads as source: ${nonBlankLines} non-blank lines, ${commentLines} of them comment (${share}%).`}`,
-    );
-    console.log(
-      `  ${dim(' '.repeat(11))} ${dim('Anthropic states code carries less watermarking because it has to be exact; the')}`,
-    );
-    console.log(
-      `  ${dim(' '.repeat(11))} ${dim(
-        commentLines > 0
-          ? 'mark lives where a choice is free, which here is mostly those comment lines.'
-          : 'mark lives where a choice is free, and this file leaves almost none of that.',
-      )}`,
-    );
+    field(t().exposureRowRoom, t().exposureRoom(nonBlankLines, commentLines, share));
   }
   // Since August 2026 this is a live question rather than a theoretical one.
-  console.log(
-    `  ${dim('status'.padEnd(11))} ${dim('Anthropic states that future Claude models carry a watermark — a version of')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('DeepMind\'s SynthID-Text — under the EU transparency code in force since 2 Aug')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('2026; earlier models follow over the coming months. A detection API is announced')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('but not published, and reading the mark needs their key. Files instead get a')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('signed C2PA credential, which this tool does read and report.')}`,
-  );
-  // The point most likely to be conflated with this tool's own subject, said in
-  // Anthropic's own words because the press coverage merged the two.
-  console.log(
-    `  ${dim('not this'.padEnd(11))} ${dim('"Nothing is added to the text and there are no hidden characters." The invisible')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('codepoints found above are a different mechanism, by someone else; removing them')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('leaves a statistical watermark untouched. It also carries no identifying data.')}`,
-  );
-  console.log(
-    `  ${dim('careful'.padEnd(11))} ${dim('At best it answers how likely Claude was involved — not whether a person wrote')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('it, and not whether some other model did. It cannot separate "Claude wrote this"')}`,
-  );
-  console.log(
-    `  ${dim(' '.repeat(11))} ${dim('from "Claude heavily edited this"; light proofreading leaves it almost nothing.')}`,
-  );
-  console.log(
-    `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,
-  );
+  field(t().exposureRowStatus, t().exposureStatus);
+  // The point most likely to be conflated with this tool's own subject.
+  field(t().exposureRowNotThis, t().exposureNotThis);
+  field(t().exposureRowCareful, t().exposureCareful);
+  console.log(`  ${dim('note:')} ${dim(t().exposureNote)}`);
 }
 
 /**
@@ -409,46 +359,34 @@ function printExposure(report: Exposure): void {
  */
 function printProvenance(findings: Finding[]): void {
   const { tools, attributed, declared, machineAssembled } = provenance(findings);
+  const head = (value: string) => console.log(`  ${bold(t().producedBy)}  ${value}`);
+  const under = (value: string) => console.log(`  ${dim(' '.repeat(14))}${dim(value)}`);
+
   if (declared) {
     // A declaration outranks an inference: the file states this about itself
     // in the IPTC vocabulary, which is what the transparency rules are built on.
-    console.log(`  ${bold('Produced by')}  ${red('a generative model — the file declares it')}`);
+    head(red(t().provDeclared));
     if (tools.length) console.log(`  ${dim('              ')}${tools.join(' \u00b7 ')}`);
     return;
   }
   if (attributed) {
-    console.log(`  ${bold('Produced by')}  ${yellow(tools.join(' · '))}`);
-    console.log(`  ${dim('              according to the file\'s own metadata, which can be absent, wrong or forged')}`);
+    head(yellow(tools.join(' \u00b7 ')));
+    under(t().provAttributedCaveat);
     return;
   }
   if (tools.length) {
-    console.log(
-      `  ${bold('Produced by')}  ${tools.join(' · ')} ` +
-        dim('— the software that wrote the file; nothing names an assistant'),
-    );
-    if (machineAssembled) {
-      console.log(
-        `  ${dim('              the container\'s shape agrees: a program built it, not a word processor.')}`,
-      );
-    }
+    head(`${tools.join(' \u00b7 ')} ${dim(t().provToolCaveat)}`);
+    if (machineAssembled) under(t().provShapeAgrees);
     return;
   }
   if (machineAssembled) {
     // No name, but the container's shape is evidence in itself.
-    console.log(`  ${bold('Produced by')}  ${yellow('no tool is named, but a program assembled this file')}`);
-    console.log(
-      `  ${dim('              the container has the shape a library leaves, not the one a word processor does.')}`,
-    );
-    console.log(`  ${dim('              What it does not say is which program, or whether a model wrote the words.')}`);
+    head(yellow(t().provMachine));
+    under(t().provMachineCaveat);
     return;
   }
-  console.log(
-    `  ${bold('Produced by')}  ${dim('nothing in the metadata names a tool. That is not the same as "not AI":')}`,
-  );
-  console.log(
-    `  ${dim('              the fields may have been cleared, never written, or the text pasted in by hand,')}`,
-  );
-  console.log(`  ${dim('              and the wording itself cannot be read here at all.')}`);
+  head(dim(t().provNone));
+  under(t().provNoneCaveat);
 }
 
 /**
@@ -462,47 +400,36 @@ function printProvenance(findings: Finding[]): void {
  */
 function printStyle(report: Stylometry): void {
   if (report.band === 'too-short') return;
-  console.log(`\n  ${bold('Style')}  ${dim('indicators, not a verdict')}`);
+  console.log(`\n  ${bold(t().styleTitle)}  ${dim(t().styleBadge)}`);
 
-  const line = (name: string, value: string) => console.log(`  ${dim(name.padEnd(11))} ${value}`);
-  line('shape', `${report.sentences} sentences, ${report.meanSentence.toFixed(1)} words on average`);
-  line(
-    'variation',
-    `${report.burstiness.toFixed(2)} — how much sentence length moves; people usually vary more than models, ` +
-      'and documentation varies less than either',
-  );
-  line('dashes', `${report.dashRate.toFixed(1)} em/en dashes per 1000 words`);
+  field(t().styleRowShape, t().styleShape(report.sentences, report.meanSentence.toFixed(1)));
+  field(t().styleRowVariation, t().styleVariation(report.burstiness.toFixed(2)));
+  field(t().styleRowDashes, t().styleDashes(report.dashRate.toFixed(1)));
   if (report.boldLeadIns > 0) {
-    line('lead-ins', `${Math.round(report.boldLeadIns * 100)}% of paragraphs open with a bold phrase`);
+    field(t().styleRowLeadIns, t().styleLeadIns(Math.round(report.boldLeadIns * 100)));
   }
 
   if (report.indicators.length) {
-    line('phrases', `${report.indicators.length} of the turns of phrase assistants overuse:`);
+    field(t().styleRowPhrases, t().stylePhrases(report.indicators.length));
     for (const indicator of report.indicators.slice(0, 8)) {
-      console.log(`  ${' '.repeat(11)}   ${yellow(indicator.label)} ${dim(`×${indicator.count}`)}`);
+      console.log(`  ${' '.repeat(11)}   ${yellow(indicator.label)} ${dim(`\u00d7${indicator.count}`)}`);
     }
     if (report.indicators.length > 8) {
-      console.log(`  ${' '.repeat(11)}   ${dim(`and ${report.indicators.length - 8} more`)}`);
+      console.log(`  ${' '.repeat(11)}   ${dim(t().styleMore(report.indicators.length - 8))}`);
     }
   }
 
-  const meaning =
-    report.band === 'many'
-      ? 'Many of these are present at once. That is what generated prose tends to look like — and also what a rushed corporate draft looks like.'
-      : report.band === 'several'
-        ? 'A few are present. Individually every one of them has an innocent explanation.'
-        : 'Few of these are present.';
-  line('meaning', meaning);
-  console.log(
-    `  ${dim('note:')} ${dim('These are style signals, not evidence of authorship. Editing them away changes how the text reads, not where it came from.')}`,
-  );
+  field(t().styleRowReading, t().styleBands[report.band]);
+  console.log(`  ${dim('note:')} ${dim(t().styleNote)}`);
 }
 
+/**
+ * Notes are codes rather than sentences so each front-end words them for its
+ * own audience; both languages now live in the shared renderer.
+ */
 function printNotes(notes: Note[]): void {
   for (const note of notes) {
-    const text = NOTE_TEXT[note.code](note.detail);
-    const label = note.code === 'removed:c2pa' ? yellow('note:') : dim('note:');
-    console.log(`  ${label} ${dim(text)}`);
+    console.log(`  ${dim('note:')} ${dim(noteText(note, lang()))}`);
   }
 }
 
@@ -561,7 +488,7 @@ async function runInspect(args: Args): Promise<number> {
 
 async function runRedact(args: Args): Promise<number> {
   if (args.output && args.files.length > 1) {
-    console.error(red('--output takes a single input file; use --in-place for several.'));
+    console.error(red(t().outputSingle));
     return 2;
   }
 
@@ -625,11 +552,15 @@ async function runText(args: Args): Promise<number> {
     process.stdout.write(result.text);
     if (process.stderr.isTTY) {
       const count = result.removed.length;
-      console.error(dim(count ? `\ncirta: removed ${count} invisible character type(s)` : '\ncirta: nothing to remove'));
+      console.error(dim(count ? t().removedTypes(count) : t().nothingRemoved));
       // Lookalike letters are part of a word, so cleaning leaves them; saying so
       // on stderr keeps the count above from reading as "the text is now clean".
       for (const finding of result.kept) {
-        console.error(yellow(`cirta: left in place — ${finding.label}: ${finding.value}`));
+        console.error(
+          yellow(
+            t().leftInPlace(translateLabel(finding.label, lang()), translateValue(finding, lang())),
+          ),
+        );
       }
     }
     return 0;
@@ -655,6 +586,12 @@ async function runText(args: Args): Promise<number> {
 }
 
 async function main(): Promise<number> {
+  // The locale first, so that even a parse error is reported in the right
+  // language; --lang then overrides it. An unrecognised value is ignored rather
+  // than rejected: failing a whole run over a typo in a cosmetic flag would be
+  // out of proportion.
+  setLang(detectLang(process.env));
+
   let args: Args;
   try {
     args = parseArgs(process.argv.slice(2));
@@ -662,21 +599,22 @@ async function main(): Promise<number> {
     console.error(red(error instanceof Error ? error.message : String(error)));
     return 2;
   }
+  if (args.lang === 'fr' || args.lang === 'en') setLang(args.lang);
 
   // Asking for help succeeded; being invoked with nothing did not.
   if (args.help) {
-    console.log(HELP);
+    console.log(help());
     return 0;
   }
   if (!args.command) {
-    console.log(HELP);
+    console.log(help());
     return 1;
   }
 
   switch (args.command) {
     case 'inspect':
       if (!args.files.length) {
-        console.error(red('inspect needs at least one file or directory.'));
+        console.error(red(t().needFiles('inspect')));
         return 2;
       }
       args.files = await expandPaths(args.files, args.skip);
@@ -684,7 +622,7 @@ async function main(): Promise<number> {
       return runInspect(args);
     case 'redact':
       if (!args.files.length) {
-        console.error(red('redact needs at least one file or directory.'));
+        console.error(red(t().needFiles('redact')));
         return 2;
       }
       args.files = await expandPaths(args.files, args.skip);
@@ -693,8 +631,8 @@ async function main(): Promise<number> {
     case 'text':
       return runText(args);
     default:
-      console.error(red(`Unknown command: ${args.command}`));
-      console.log(HELP);
+      console.error(red(t().unknownCommand(String(args.command))));
+      console.log(help());
       return 2;
   }
 }

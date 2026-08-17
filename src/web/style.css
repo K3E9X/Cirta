@@ -521,3 +521,39 @@ footer p {
 a {
   color: var(--accent);
 }
+
+/* ------------------------------------------------------------- language -- */
+
+/*
+ * Static copy is written into the page twice, once per language, and the root
+ * attribute decides which half is shown. Doing it in CSS rather than in script
+ * means the page is already correct in French before any JavaScript parses, and
+ * a visitor with scripting blocked still reads a coherent page.
+ */
+[data-ui-lang='fr'] [data-lang='en'],
+[data-ui-lang='en'] [data-lang='fr'] {
+  display: none;
+}
+
+.lang-toggle {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.25rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+}
+
+.lang-toggle:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.masthead .wrap {
+  position: relative;
+}
