@@ -339,26 +339,41 @@ function printExposure(report: Exposure): void {
         ? 'Long enough for a keyed detector to have some power, short enough that the outcome depends on the scheme and the threshold chosen.'
         : 'Long enough that published work (Kirchenbauer et al., ICLR 2024) found watermark signal surviving even sustained paraphrasing at a 1e-5 false-positive rate.';
   console.log(`  ${dim('meaning'.padEnd(11))} ${verdict}`);
-  // Since 11 August 2026 this is a live question rather than a theoretical one.
+  // Since August 2026 this is a live question rather than a theoretical one.
   console.log(
-    `  ${dim('status'.padEnd(11))} ${dim('Anthropic turned on text watermarking across Claude on 11 August 2026, using a')}`,
+    `  ${dim('status'.padEnd(11))} ${dim('Anthropic states that future Claude models carry a watermark — a version of')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('variant of DeepMind\'s SynthID-Text. Files get signed C2PA manifests, which this')}`,
+    `  ${dim(' '.repeat(11))} ${dim('DeepMind\'s SynthID-Text — under the EU transparency code in force since 2 Aug')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('tool does read and report. The text mark it cannot: scoring token n-grams needs')}`,
+    `  ${dim(' '.repeat(11))} ${dim('2026; earlier models follow over the coming months. A detection API is announced')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('the keys used at generation, and the detection API announced is not published yet.')}`,
-  );
-  // The distinction most likely to be lost, and the one that costs someone their
-  // credibility if it is.
-  console.log(
-    `  ${dim('careful'.padEnd(11))} ${dim('The mark records that text came out of the model, not that a model composed it.')}`,
+    `  ${dim(' '.repeat(11))} ${dim('but not published, and reading the mark needs their key. Files instead get a')}`,
   );
   console.log(
-    `  ${dim(' '.repeat(11))} ${dim('Text you wrote and asked Claude to reformat comes back marked.')}`,
+    `  ${dim(' '.repeat(11))} ${dim('signed C2PA credential, which this tool does read and report.')}`,
+  );
+  // The point most likely to be conflated with this tool's own subject, said in
+  // Anthropic's own words because the press coverage merged the two.
+  console.log(
+    `  ${dim('not this'.padEnd(11))} ${dim('"Nothing is added to the text and there are no hidden characters." The invisible')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('codepoints found above are a different mechanism, by someone else; removing them')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('leaves a statistical watermark untouched. It also carries no identifying data.')}`,
+  );
+  console.log(
+    `  ${dim('careful'.padEnd(11))} ${dim('At best it answers how likely Claude was involved — not whether a person wrote')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('it, and not whether some other model did. It cannot separate "Claude wrote this"')}`,
+  );
+  console.log(
+    `  ${dim(' '.repeat(11))} ${dim('from "Claude heavily edited this"; light proofreading leaves it almost nothing.')}`,
   );
   console.log(
     `  ${dim('note:')} ${dim('Cirta cannot read this class of mark, and neither can any other local tool. Token counts are estimated, not tokenized.')}`,

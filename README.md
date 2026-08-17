@@ -459,7 +459,7 @@ comptent pas. Chaque élément porte donc son propre niveau, et les rapports son
 |---|---|
 | Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
 | Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
-| Biais dans la sélection des tokens | **Non**, et c'est structurel. **Actif sur Claude depuis le 11 août 2026** (variante de SynthID-Text) : la question n'est plus théorique, mais la lire suppose les clés d'Anthropic, et l'API de détection annoncée n'est pas publiée. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
+| Biais dans la sélection des tokens | **Non**, et c'est structurel. Anthropic indique que les futurs modèles Claude en portent un (version de SynthID-Text), au titre du code de transparence européen en vigueur depuis le 2 août 2026 ; les modèles antérieurs suivent dans les mois à venir. Le lire suppose leur clé, et l'API de détection annoncée n'est pas publiée. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
 
 ## Ce qu'il ne fait pas, et pourquoi
 
@@ -479,33 +479,72 @@ statistique, et aucune ne dépose de caractère repérable.
 
 #### « Mais SynthID est open source, pourquoi ne pas l'intégrer ? »
 
-C'est devenu la bonne question au bon moment. **Le 11 août 2026, Anthropic a activé le filigrane de
-texte sur l'ensemble de Claude**, avec une *variante de SynthID-Text*, sous le code de transparence
-de l'AI Act européen. La famille d'algorithmes est donc désormais la bonne — ce n'est plus « le
-schéma d'un autre éditeur ». Il reste deux obstacles, vérifiés sur le code du paquet officiel
-`synthid-text` de DeepMind et non de mémoire.
+C'est devenu la bonne question au bon moment. Dans
+[« How Claude's text watermark works »](https://www.anthropic.com/news/claude-text-watermark),
+Anthropic indique que **les futurs modèles Claude génèrent du texte filigrané**, avec une *version
+de SynthID-Text*, pour se conformer au code de transparence européen entré en vigueur le
+**2 août 2026** ; les modèles antérieurs bénéficient d'une période de transition et suivront dans les
+mois à venir. La famille d'algorithmes est donc la bonne — ce n'est plus « le schéma d'un autre
+éditeur ». Il reste deux obstacles, vérifiés sur le code du paquet officiel `synthid-text` de
+DeepMind et non de mémoire.
 
 **1. Les clés.** Le détecteur calcule des *g-values* à partir d'un hachage `(n-gramme de tokens,
 clé)`. Le paquet livre bien des clés — trente entiers dans `DEFAULT_WATERMARKING_CONFIG` — mais ce
 sont des **clés de démonstration publiées dans un dépôt public**. Elles ne détectent que le texte que
 vous avez vous-même filigrané avec ces mêmes clés : un autotest, pas un détecteur. Le README de
 DeepMind précise que sa fonction de hachage de référence *« ne fournit aucune garantie de sécurité
-cryptographique »* et que le code *« n'est pas destiné à un usage en production »*. Anthropic a
-annoncé une **API de détection** ouverte aux tiers ; à la date de cette écriture elle n'est pas
-publiée, pas plus que ses seuils de précision ou sa procédure de contestation.
+cryptographique »* et que le code *« n'est pas destiné à un usage en production »*. Anthropic écrit
+de son côté : *« We will soon be offering a watermark detection API. We're in the process of working
+out the details of its implementation. »*
 
 **2. Les tokens.** Les g-values portent sur des identifiants de tokens, pas sur des caractères. Il
 faudrait embarquer le tokenizer exact du modèle — et Cirta est du TypeScript qui tourne dans un
 onglet sans aucun appel réseau.
 
-**Et une raison de ne pas se précipiter, même le jour où l'API sortira.** La marque atteste que le
-texte **est sorti du modèle**, pas qu'un modèle l'a rédigé. Un paragraphe que vous avez écrit et fait
-relire revient marqué. Un outil qui afficherait « filigrane Claude détecté » sans cette phrase
-transformerait une information exacte en accusation fausse — et c'est le mode de défaillance que ce
-projet refuse depuis le début.
+#### Le filigrane statistique n'est *pas* un caractère invisible
 
-Enfin, ce qui existe côté détection publique aujourd'hui suppose d'**envoyer le fichier chez
-l'éditeur**. C'est exactement la propriété que cet outil refuse de perdre.
+C'est la confusion la plus répandue, et la couverture presse l'a entretenue en appelant les deux
+« invisible ». Anthropic est explicite : **« Nothing is added to the text and there are no hidden
+characters. »**
+
+La conséquence pour cet outil est nette, et va dans les deux sens :
+
+- Tout ce que trouve l'analyse au niveau des caractères — espaces de largeur nulle, sélecteurs de
+  variation, sosies — **n'est pas le filigrane d'Anthropic**. C'est un autre mécanisme, mis là par
+  quelqu'un d'autre : un pipeline, un CMS, un outil de suivi, ou quelqu'un qui vous marque.
+- Et **les retirer tous ne touche pas au filigrane statistique**, qui vit dans le choix des mots.
+
+Deux autres précisions de la même page, qui ferment des portes qu'on croit ouvertes :
+
+- La marque **ne contient aucune information identifiante** : ni personne, ni organisation, ni
+  conversation. Elle ne « remonte » à personne.
+- Elle ne dit pas non plus quel autre modèle aurait écrit un texte : *« it can't tell whether the
+  text was written by a different AI »* — un autre éditeur aurait une autre clé, voire une autre
+  méthode.
+
+#### Ce qu'un futur détecteur pourra, et ne pourra pas, affirmer
+
+Au mieux : *« quelle est la probabilité que Claude soit intervenu dans l'écriture de ce texte ? »*
+Pas « un humain a-t-il écrit ça ». Pas « quelle IA ». Et surtout, dans les mots d'Anthropic :
+**« It cannot distinguish "Claude wrote this" from "Claude heavily edited this". »**
+
+Attention au sens de cette limite, facile à prendre à l'envers — je l'avais moi-même inversée avant
+de lire la source. Une **relecture légère ne laisse presque aucune prise** au filigrane : la quasi-
+totalité des mots restent les vôtres, et il n'y a que quelques corrections où la marque pourrait
+s'inscrire. Ce n'est pas « votre texte relu revient marqué » ; c'est « plus Claude écrit, plus il
+y a de place pour la marque ». Une **traduction**, en revanche, est intégralement filigranée : chaque
+mot y est choisi par le modèle.
+
+Le filigrane est aussi **plus clairsemé sur les passages factuels** — après « Principia… », le mot
+suivant n'a qu'une bonne réponse — et sur le **code**, où l'exactitude ne laisse pas de choix libre.
+Il peut en revanche s'inscrire dans les **commentaires** du code.
+
+Un outil qui afficherait « filigrane Claude détecté » sans ces phrases transformerait une information
+exacte en accusation fausse. C'est le mode de défaillance que ce projet refuse depuis le début.
+
+Enfin, ce qui existe côté détection publique suppose d'**envoyer le fichier chez l'éditeur** —
+Anthropic annonce son propre outil de dépôt de fichier pour le C2PA. C'est exactement la propriété
+que cet outil refuse de perdre.
 
 En conséquence, un outil local — celui-ci compris — ne peut ni confirmer la présence d'un tel
 filigrane, ni prouver son absence après traitement. Cirta ne le prétend pas. Méfiez-vous des services
@@ -525,9 +564,12 @@ pose trois limites explicites, et aucune ne va dans le sens qu'on attend :
 2. **L'absence de marque ne prouve pas une origine humaine.** C'est exactement ce que le bloc
    « filigrane statistique » de Cirta existe pour dire : un rapport silencieux sur un texte court ne
    signifie presque rien.
-3. **La relecture, la traduction ou le résumé peuvent estampiller du texte humain.** C'est le cas le
-   plus courant et le moins évident : vous écrivez vous-même, vous demandez une correction, et votre
-   texte ressort marqué. Le marquage suit le passage par le modèle, pas la paternité de la rédaction.
+3. **La traduction et le résumé estampillent du texte d'origine humaine ; la relecture, non ou
+   presque.** La distinction est fine et je l'avais inversée avant de lire la source. Une traduction
+   est intégralement filigranée — chaque mot y est choisi par le modèle. Une **relecture légère**, à
+   l'inverse, ne laisse presque aucune prise : la quasi-totalité des mots restent les vôtres. La
+   règle est « plus le modèle écrit, plus il y a de place pour la marque », pas « tout ce qui passe
+   par le modèle ressort marqué ».
 
 ### Ce que dit la littérature sur l'atténuation
 

@@ -20,19 +20,33 @@
  *     paraphrasing a watermark remained detectable at a 1e-5 false-positive
  *     rate once roughly 800 tokens had been observed.
  *
- * As of 11 August 2026 this stopped being hypothetical. Anthropic turned on
- * text watermarking across Claude, using a variant of DeepMind's SynthID-Text,
- * under the EU AI Act's transparency code. Files get signed C2PA manifests,
- * which this tool does read; the text mark it does not, because the detection
- * API Anthropic has announced is not published yet and the keys are theirs.
+ * In August 2026 this stopped being hypothetical. Anthropic's own explanation
+ * ("How Claude's text watermark works") states that future Claude models will
+ * carry a watermark — a version of DeepMind's SynthID-Text — to comply with the
+ * EU Code of Practice on Transparency of AI-Generated Content, which took
+ * effect on 2 August 2026. Models released before that date are covered by a
+ * transition period and are being rolled out over the following months, so on
+ * any given file "does it carry one" depends on which model wrote it and when.
  *
- * That deployment makes one caveat load-bearing rather than academic. The mark
- * is applied to what the model *emits*, so it records that text passed through
- * Claude — not that Claude composed it. Paste your own paragraph in, ask for it
- * to be reformatted, and the reply carries the mark. Any future detector,
- * Anthropic's included, answers "this came out of the model", which is a
- * narrower claim than "a machine wrote this" and much narrower than "this
- * person did not write it".
+ * Three points from that page change what this tool should say, and one of them
+ * is about this tool's own subject matter:
+ *
+ *   - "Nothing is added to the text and there are no hidden characters." The
+ *     watermark is not invisible Unicode. Everything the character-level scan
+ *     finds is somebody else's doing, and removing all of it leaves the
+ *     watermark exactly as it was. The two are unrelated mechanisms that the
+ *     press coverage merged into one word, "invisible".
+ *   - The mark carries no identifying information and cannot be traced to a
+ *     person, an organisation or a conversation.
+ *   - It answers, at best, "how likely is it that Claude was involved in
+ *     writing this" — not whether a human wrote it, and not whether some other
+ *     model did, since another vendor's watermark uses a different key.
+ *
+ * The caveat worth stating precisely, because it is easy to get backwards:
+ * light editing gives the watermark almost nothing to attach to, since nearly
+ * all the words remain the person's. What a detector cannot do is separate
+ * "Claude wrote this" from "Claude heavily edited this". So a future positive
+ * result is a claim about involvement, not about authorship.
  *
  * The purpose is calibration, not targeting. This says what a silent report is
  * worth; it does not tell anyone what length to aim for.

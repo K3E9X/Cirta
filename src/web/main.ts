@@ -399,20 +399,32 @@ function exposureCard(text: string): HTMLElement {
     `~${report.low}–${report.high} tokens (${report.characters} caractères, ${report.words} mots)`,
   );
   row('portée', EXPOSURE_TEXT[report.band]);
-  // Depuis le 11 août 2026 la question n'est plus théorique.
+  // Depuis août 2026 la question n'est plus théorique.
   row(
     'où en est-on',
-    'Anthropic a activé le filigrane de texte sur Claude le 11 août 2026, avec une variante de ' +
-      'SynthID-Text (DeepMind). Les fichiers reçoivent des manifestes C2PA signés — ceux-là, ' +
-      'Cirta les lit et les signale. La marque dans le texte, non : la noter suppose les clés ' +
-      'utilisées à la génération, et l’API de détection annoncée n’est pas publiée.',
+    'Anthropic indique que les futurs modèles Claude portent un filigrane — une version de ' +
+      'SynthID-Text (DeepMind) — au titre du code de transparence européen en vigueur depuis le ' +
+      '2 août 2026 ; les modèles antérieurs suivront dans les mois à venir. Une API de détection ' +
+      'est annoncée mais pas publiée, et lire la marque suppose leur clé. Les fichiers reçoivent ' +
+      'à la place un « content credential » C2PA signé — celui-là, Cirta le lit et le signale.',
   );
-  // La nuance la plus facile à perdre, et la plus coûteuse à perdre.
+  // Le point le plus facile à confondre avec le sujet même de cet outil. La
+  // presse a fusionné les deux sous le mot « invisible » ; Anthropic écrit le
+  // contraire noir sur blanc.
+  row(
+    'ce n’est pas ça',
+    '« Rien n’est ajouté au texte et il n’y a aucun caractère caché. » Le filigrane statistique ' +
+      'n’est pas de l’Unicode invisible. Les codepoints invisibles trouvés ci-dessus relèvent ' +
+      'd’un autre mécanisme, mis là par quelqu’un d’autre — et les retirer tous ne touche pas au ' +
+      'filigrane. La marque ne contient par ailleurs aucune information identifiante : ni ' +
+      'personne, ni organisation, ni conversation.',
+  );
   row(
     'attention',
-    'La marque atteste que le texte est sorti du modèle, pas qu’un modèle l’a rédigé. Un ' +
-      'paragraphe que vous avez écrit et fait reformater revient marqué. C’est une affirmation ' +
-      'plus étroite que « c’est de l’IA », et bien plus étroite que « ce n’est pas de vous ».',
+    'Au mieux, elle répond à « quelle est la probabilité que Claude soit intervenu ? ». Pas si ' +
+      'un humain a écrit le texte, pas si un autre modèle l’a écrit — un autre éditeur aurait une ' +
+      'autre clé. Et elle ne distingue pas « Claude a écrit ça » de « Claude a beaucoup remanié ' +
+      'ça » : une simple relecture ne lui laisse presque aucune prise.',
   );
 
   table.append(body);
