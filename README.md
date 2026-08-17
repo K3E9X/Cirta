@@ -2,181 +2,166 @@
 
 # Cirta
 
-Inspecte et retire les métadonnées de provenance des **PDF, documents Office et OpenDocument, SVG,
-HTML et Markdown**, l'**Exif des images intégrées**, et les **caractères Unicode invisibles** dans le
-texte. Reconstitue aussi les **traces de l'outil producteur** — assistant nommé, système, nom de
-compte, répertoire de travail. Disponible en interface web et en ligne de commande.
+Inspects and strips provenance metadata from **PDF, Office and OpenDocument files, SVG, HTML and
+Markdown**, the **Exif in embedded pictures**, and the **invisible Unicode** in text. It also
+reconstructs the **traces the producing tool left** — assistant named, operating system, account
+name, working directory. Available as a web interface and a command line.
 
-Tout s'exécute localement. L'interface web ne fait aucune requête réseau : aucun document ne quitte
-votre machine.
+Everything runs locally. The web interface makes no network requests: no document leaves your
+machine.
 
-## Ce que fait cet outil
+*[Version française](README.fr.md) · the interface itself is bilingual, French and English.*
 
-| Support | Traité |
+## What this tool does
+
+| Support | Handled |
 |---|---|
-| PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
-| `customXml/` | Le second magasin de propriétés, que `docProps` ne couvre pas : liaisons de contrôles de contenu, colonnes de bibliothèque SharePoint, étiquettes de classification |
-| XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
-| ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
-| SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
-| HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; attributs `data-ai-*` ; commentaires de génération ; JSON-LD signalé |
-| Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
-| JPEG / PNG | Exif (dont GPS), XMP, IPTC/Photoshop, commentaires ; chunks `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` — en fichier autonome comme intégrés dans un document |
-| C2PA | Manifestes signés dans les PDF (XMP), Office et OpenDocument (parties dédiées), SVG (`<metadata>`) et images (JUMBF en `APP11` pour le JPEG, chunk `caBX` pour le PNG) |
-| ZIP / EPUB | Parcours récursif : chaque membre passe par la détection normale, ceux qu'aucun analyseur ne revendique sont scannés pour secrets et identifiants de fournisseur |
-| Texte | Caractères invisibles (zero-width, sélecteurs de variation, tag characters, contrôles bidi, espaces exotiques), avec décodage des charges stéganographiques ; **plus un filet générique sur la catégorie Unicode `Cf`**, pour que la liste ne prenne pas de retard sur la norme |
-| **E-mails** | Bloc d'en-têtes RFC 5322 : `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, et **tout en-tête `X-` inconnu** — c'est là qu'un pipeline se signe. Les en-têtes-outil sont retirés au nettoyage ; `From`, `Subject`, `Date` et `Message-ID` restent, ce sont le message |
-| Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
-| Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
-| Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
-| Normalisation Unicode | Un document contenant à la fois `é` (U+00E9) et `e`+U+0301 — même rendu, deux encodages, **un bit libre par lettre accentuée** |
-| Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française |
-| Contrôles C0 | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — catégorie `Cc`, que le filet `Cf` ne couvre pas. Signalés, jamais retirés : un journal de terminal en couleurs est plein d'`ESC` légitimes |
-| Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
+| PDF | The `/Info` dictionary **including non-standard keys**, XMP packet, trailer `/ID`, C2PA manifests, attachments, and a **scan of decompressed streams** — page text, JavaScript, attachments |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, custom properties, thumbnail, `rsid` identifiers, comment authors, links to local or network paths, hidden slides, speaker notes, **and the invisible characters in the document body** |
+| `customXml/` | The second property store, which `docProps` does not cover: content-control bindings, SharePoint library columns, classification labels |
+| XLSX in particular | Comment authors (`<author>`, the `xl/persons` registry), defined names pointing outside the workbook, `xl/externalLinks/` parts — carriers neither Word nor PowerPoint uses |
+| ODT / ODS / ODP | `meta.xml`: generator, initial creator, last modified by, dates, edit cycles and duration, user-defined properties, thumbnail, **and the invisible characters in the body** |
+| SVG | The `<metadata>` block (RDF/Dublin Core, C2PA), editor namespaces (Inkscape, Figma, Sketch…), generator comments |
+| HTML | `generator`, `author`, `creator`, `copyright`, `date` meta tags; `data-ai-*` attributes; generator comments; JSON-LD reported |
+| Markdown | Front-matter keys, HTML generator comments, trailing attribution lines |
+| JPEG / PNG | Exif (including GPS), XMP, IPTC/Photoshop, comments; `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME` chunks — standalone as well as embedded in a document |
+| C2PA | Signed manifests in PDF (XMP), Office and OpenDocument (dedicated parts), SVG (`<metadata>`) and images (JUMBF in `APP11` for JPEG, `caBX` chunk for PNG) |
+| ZIP / EPUB | Recursive traversal: every member goes through the normal detection path, and members no parser claims are scanned for credentials and provider identifiers |
+| Text | Invisible characters (zero-width, variation selectors, tag characters, bidi controls, exotic spaces), with steganographic payloads decoded; **plus a generic net over the Unicode `Cf` category**, so the list does not fall behind the standard |
+| **Email** | The RFC 5322 header block: `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, and **any unknown `X-` header** — that is where a pipeline signs itself. Tool headers are removed on cleaning; `From`, `Subject`, `Date` and `Message-ID` stay, they are the message |
+| Text and source files | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… and dotfiles (`.env`, `.npmrc`, `.netrc`) — same checks, same removal. A bidirectional control in source is the **Trojan Source** case (CVE-2021-42574) |
+| Credentials | Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe keys; **PEM private key blocks**; call identifiers and LLM endpoints. Only patterns that cannot occur in ordinary prose — never a product name |
+| Lookalike letters | Words mixing two scripts (`pаssword` with a Cyrillic `а`) or two widths (`Ａdmin`) — **reported, never replaced** |
+| Unicode normalisation | A document containing both `é` (U+00E9) and `e`+U+0301 — same rendering, two encodings, **one free bit per accented letter** |
+| Hyphen lookalikes | U+2010, U+2011, U+2012, U+2212 — indistinguishable from `-` on screen. Em and en dashes are excluded: they are visible and correct in typography |
+| C0 controls | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — category `Cc`, which the `Cf` net does not cover. Reported, never removed: a colourised terminal log is full of legitimate `ESC` |
+| Spacing channels | Trailing whitespace, inconsistent spacing after full stops, mixed CRLF/LF line endings — **reported, never rewritten** |
 
-### Ce à quoi le texte ressemble
+### What the text looks like
 
-Troisième et dernière chose qu'un outil local peut dire — et la plus facile à détourner, donc sa
-forme compte autant que son contenu. **Il mesure, il ne conclut pas.**
+The third and last thing a local tool can say — and the one most easily abused, so its shape matters
+as much as its content. **It measures; it does not conclude.**
 
-Ce n'est pas de la modestie. OpenAI a retiré son propre classifieur de texte IA en juillet 2023 :
-26 % de vrais positifs, 9 % de faux positifs. Et
-[Liang et al. (Stanford, 2023)](https://arxiv.org/abs/2304.02819) ont montré que les détecteurs
-encore sur le marché classaient **61 % des copies TOEFL d'anglophones non natifs** comme générées —
-un faux positif qui tombe systématiquement sur les gens les moins en mesure de le contester. Tout
-verdict bâti sur ces signaux en hérite.
+This is not modesty. OpenAI withdrew its own AI-text classifier in July 2023 at 26% true positives
+and 9% false positives. And [Liang et al. (Stanford, 2023)](https://arxiv.org/abs/2304.02819) showed
+that the detectors still on the market flagged **61% of TOEFL essays by non-native English writers**
+as machine-written — a false positive that lands, systematically, on the people least able to argue
+with it. Any verdict built on these signals inherits that.
 
-Ce qui résiste à l'examen, ce sont les indices pris un par un :
+What survives honest scrutiny is the individual indicators:
 
 ```
-Style  des indices, pas un verdict
-forme       7 phrases, 17.9 mots en moyenne
-variation   0.50 — de combien la longueur des phrases bouge
-tirets      24.0 cadratins ou demi-cadratins pour 1000 mots
-amorces     60% des paragraphes ouvrent sur une phrase en gras
-tournures   crucial / primordial / holistique ×3 · il est important de noter ×2 · dans le paysage… ×1
-lecture     Plusieurs de ces marqueurs sont présents en même temps.
+Style  indicators, not a verdict
+shape       7 sentences, 17.9 words on average
+variation   0.50 — how much sentence length moves
+dashes      24.0 em/en dashes per 1000 words
+lead-ins    60% of paragraphs open with a bold phrase
+phrases     crucial / holistic ×3 · it is important to note ×2 · in the landscape… ×1
+reading     Several of these are present at once.
 ```
 
-Quatre familles de mesures :
+Four families of measurement:
 
-- **Lexique** — une liste **d'abord française**, parce que presque tous les détecteurs publiés sont
-  entraînés sur l'anglais, ce qui les rend inutiles sur les documents que cet outil vise. Les
-  tournures distinctives (« dans le paysage numérique en constante évolution ») comptent dès la
-  première occurrence ; les mots ordinaires (« crucial ») exigent **au moins deux occurrences et un
-  taux minimal**, parce qu'un seul ne veut rien dire.
-- **Rythme** — la variation de longueur des phrases. Les gens varient plus qu'un modèle ; la
-  documentation technique varie moins que les deux. Le nombre est donné, le seuil ne l'est pas.
-- **Ponctuation** — cadratins pour 1000 mots.
-- **Structure** — proportion de paragraphes ouvrant sur une amorce en gras.
+- **Lexicon** — a **French-first** list, because nearly every published detector is trained on
+  English, which makes them useless on the documents this tool exists for. Distinctive turns of
+  phrase ("in today's ever-evolving digital landscape") count from the first occurrence; ordinary
+  words ("crucial") need **at least two occurrences and a minimum rate**, because one means nothing.
+- **Rhythm** — the variation in sentence length. People vary more than a model does; technical
+  documentation varies less than either. The number is given, the threshold is not.
+- **Punctuation** — em dashes per 1000 words.
+- **Structure** — the share of paragraphs opening with a bolded lead-in.
 
-**Aucun score, et c'est délibéré.** Pondérer ces signaux impliquerait qu'ils ont été calibrés contre
-un corpus étiqueté, ce qui n'est pas le cas, et le nombre serait lu comme une probabilité quel que
-soit son nom. L'agrégation se limite donc à *combien* sont présents.
+**No score, and that is deliberate.** Weighting these signals would imply they had been calibrated
+against a labelled corpus, which they have not, and the number would be read as a probability
+whatever it was called. Aggregation therefore stops at *how many* are present.
 
-Le contrôle qui compte : sur *L'Étranger* de Camus, la lecture est « peu de ces marqueurs sont
-présents ». Un module qui signale Camus est pire que pas de module.
+The control that matters: on Camus's *L'Étranger* the reading is "few of these markers are present".
+A module that flags Camus is worse than no module.
 
-L'usage visé est celui pour lequel l'outil a été construit : relire **votre propre brouillon** avant
-de l'envoyer. « Six de ces marqueurs sont dans votre texte, les voici » est actionnable. « 78 % IA »
-ne l'est pas, et serait faux.
+The intended use is the one the tool was built for: reading **your own draft** before you send it.
+"Six of these markers are in your text, here is where" is actionable. "78% AI" is not, and would not
+be true.
 
-### Le texte collé reçoit la même lecture qu'un fichier
+### Pasted text gets the same reading as a file
 
-Un défaut réel, trouvé en mesurant plutôt qu'en supposant : **les mêmes octets ne donnaient pas la
-même réponse selon leur extension.** Un brouillon d'e-mail enregistré en `.md` déclarait sa source
-générative et nommait l'assistant ; le fichier identique en `.txt` ne signalait que ses caractères
-bizarres. Trois chemins menaient au texte — un fichier, l'entrée standard, la zone de collage de la
-page — et les trois avaient divergé.
+A real defect, found by measuring rather than assuming: **the same bytes did not give the same answer
+depending on their extension.** A mail draft saved as `.md` declared its generative source and named
+the assistant; the identical file as `.txt` reported nothing but its odd characters. Three paths led
+to text — a file, standard input, the paste box on the page — and the three had drifted apart.
 
-Ils passent maintenant par une seule fonction, `inspectPlainText()`, qui empile :
+They now go through one function, `inspectPlainText()`, which stacks:
 
-1. Le niveau caractère — invisibles, sosies, canaux d'espacement.
-2. Les charges cachées **dans** ces caractères.
-3. Les en-têtes de courrier, quand le texte se révèle être un message.
-4. Le `digitalSourceType` déclaré.
-5. Les secrets et identifiants de fournisseur.
-6. `fingerprint()`, qui relit tout ce qui précède **et le corps du texte lui-même**.
+1. The character level — invisibles, lookalikes, spacing channels.
+2. Payloads hidden **in** those characters.
+3. Mail headers, when the text turns out to be a message.
+4. The declared `digitalSourceType`.
+5. Credentials and provider identifiers.
+6. `fingerprint()`, which reads all of the above **and the body itself**.
 
-Le point 6 mérite sa précaution. Le corps est passé sous une étiquette qui **désactive la
-reconnaissance des noms d'outils** : un chemin `/home/lotfi/…` ou un `session_01ABCdef99` dans une
-signature est une fuite quel que soit le sujet du texte, mais un *nom de fournisseur* dans le corps
-est le sujet. Quelqu'un qui écrit un e-mail **sur** Claude n'a pas écrit cet e-mail **avec** Claude.
-Le test qui garde cette distinction est dans `test/email.test.ts`, et c'est le plus important du
-fichier.
+Step 6 earns its caveat. The body is passed under a label that **disables tool-name matching**: a
+`/home/lotfi/…` path or a `session_01ABCdef99` in a signature is a leak whatever the text is about,
+but a *vendor name* in the body is the subject. Somebody writing an email **about** Claude has not
+written that email **with** Claude. The test that keeps that distinction is in `test/email.test.ts`,
+and it is the most important one in the file.
 
-### Les filigranes zéro-largeur, décodés pour de vrai
+### Zero-width watermarks, actually decoded
 
-Compter les caractères invisibles ne suffit pas : la question est **ce qu'ils disent**. Le schéma le
-plus répandu — celui qu'implémente chaque bibliothèque « invisible watermark » sur npm — se sert de
-U+200B et U+200C comme des chiffres binaires. Un `KGX-2026` caché derrière une signature, c'est
-64 caractères invisibles qui ne ressemblent à rien tant qu'on ne les relit pas comme des bits.
+Counting invisible characters is not enough: the question is **what they say**. The most widespread
+scheme — the one every "invisible watermark" library on npm implements — uses U+200B and U+200C as
+binary digits. A `KGX-2026` hidden behind a signature is 64 invisible characters that look like
+nothing until you read them back as bits.
 
-Cirta essaie **les deux polarités** (aucune norme ne dit lequel des deux vaut 1) et lit
-additionnellement un alphabet à quatre symboles en base 4. Deux garde-fous, tous deux issus d'un
-test qui a échoué :
+Cirta tries **both polarities** (no standard says which of the two means 1) and additionally reads a
+four-symbol alphabet as base-4. Two guards, both of which came from a failing test:
 
-- Le seuil se compte **en bits, pas en caractères**. Un plancher à 24 caractères jetait
-  silencieusement une charge de cinq octets en base 4, qui n'en occupe que vingt.
-- Le résultat doit dire **plus d'une chose**. Une alternance régulière de deux porteurs décode en
-  `0101…`, soit `UUUU` — parfaitement imprimable, parfaitement vide de sens. Un décodeur qui trouve
-  toujours quelque chose ne vaut rien.
+- The threshold counts **bits, not characters**. A 24-character floor silently discarded a five-byte
+  base-4 payload, which occupies only twenty.
+- The result must say **more than one thing**. A regular alternation of two carriers decodes to
+  `0101…`, that is `UUUU` — perfectly printable, perfectly meaningless. A decoder that always finds
+  something is worth nothing.
 
-Quand rien ne se décode, les caractères restent comptés et retirés : l'absence de charge lisible ne
-veut pas dire l'absence de canal.
+When nothing decodes, the characters are still counted and removed: the absence of a readable payload
+does not mean the absence of a channel.
 
-### Quand le fichier le déclare lui-même
+### When the file declares it itself
 
-Il existe un champ standard où un générateur *déclare* comment le contenu a été fabriqué :
-`digitalSourceType`, le vocabulaire de l'IPTC. C'est ce que porte le C2PA dans son assertion
-`c2pa.actions`, et c'est autour de lui que les obligations de transparence de l'AI Act européen sont
-rédigées. Un outil honnête y écrit qu'il a généré le contenu — un URI, dans les métadonnées, fait
-pour être lu.
+There is a standard field where a generator *declares* how content was made: `digitalSourceType`,
+the IPTC vocabulary. It is what C2PA carries in its `c2pa.actions` assertion, and it is what the EU
+AI Act's transparency obligations are written around. An honest tool writes there that it generated
+the content — a URI, in the metadata, meant to be read.
 
-Cirta le lit dans le paquet XMP, dans l'assertion C2PA, dans les parties OOXML et ODF, et dans le
-balisage HTML/SVG. Le vocabulaire est lu **terme par terme**, parce qu'une recherche par mot-clé
-écrase des distinctions qui comptent :
+Cirta reads it in the XMP packet, in the C2PA assertion, in OOXML and ODF parts, and in the body of
+text and markup. The vocabulary is distinguished term by term, because the terms do not mean the same
+thing: `trainedAlgorithmicMedia` is a generative model, `algorithmicMedia` is a program that is not
+necessarily a model, `digitalCapture` is a camera.
 
-| Terme | Ce que ça veut dire |
-|---|---|
-| `trainedAlgorithmicMedia` | **Créé par un modèle génératif** — le fichier l'affirme |
-| `compositeWithTrainedAlgorithmicMedia` | Composite incluant du contenu de modèle génératif |
-| `algorithmicallyEnhanced` | Fait par un humain, puis altéré par un algorithme |
-| `algorithmicMedia` | Produit par un algorithme — **un dégradé, une fractale** : pas un modèle entraîné |
-| `digitalCapture` | Capturé par un appareil photo : l'affirmation explicite que ce n'est *pas* généré |
-
-La quatrième ligne est la raison d'être de cette lecture fine. La fixture C2PA signée du dépôt
-déclare `algorithmicMedia` : c'est un dégradé généré par un script, pas de l'IA. Un outil qui cherche
-`digitalSourceType` au mot-clé la classerait « générée par IA ». Le nôtre dit ce qu'elle dit.
-
-Quand le terme est génératif, la ligne de synthèse change de ton — c'est une déclaration, pas une
-déduction :
+When a file declares itself, the report leads with it — a declaration outranks any inference drawn
+from a producer string:
 
 ```
 Produced by  a generative model — the file declares it
-             pdf-lib
+             digitalSourceType field (IPTC)
 ```
 
-### Reconnaître un programme qui ne signe pas son travail
+### Recognising a program that does not sign its work
 
-Toutes les détections précédentes lisent un champ qui **nomme** un outil. Elles ne trouvent rien dès
-que l'outil ne signe pas — et la plupart ne signent pas.
+Every detection above reads a field that **names** a tool. They find nothing the moment the tool does
+not sign itself — and most do not.
 
-Un rapport réel, examiné pendant ce développement, avait `dc:creator` renseigné avec un nom de
-service, `cp:lastModifiedBy` à « Un-named », et **aucun outil nommé nulle part**. Il avait aussi été,
-sans le moindre doute, fabriqué par une bibliothèque. Tout ce qui le disait était structurel :
+A real report examined during this development had `dc:creator` filled with a department name,
+`cp:lastModifiedBy` set to "Un-named", and **no tool named anywhere**. It had also, beyond any doubt,
+been built by a library. Everything that said so was structural:
 
-| Signal | Pourquoi |
+| Signal | Why |
 |---|---|
-| `docProps/app.xml` présent mais **vide** | Word le remplit toujours : `Application`, `AppVersion`, `Words`, `Characters`, `DocSecurity`. Une partie créée pour le schéma OPC et jamais remplie n'est pas ce que produit une application Office |
-| Horodatage `…T15:22:28.698Z` | Des millisecondes et un `Z` : c'est ce qu'émet `Date.prototype.toISOString()` en JavaScript. Word écrit des secondes entières |
-| Média nommé `0ff0d056…98.png` | Quarante caractères hexadécimaux, un SHA-1. Convention de bibliothèque ; Word écrit `image1.png` |
-| `word/settings.xml` sans aucun `rsid` | Word enregistre toujours des identifiants de session de révision |
-| `créé` == `modifié` à la milliseconde | Jamais rouvert, jamais réenregistré |
+| `docProps/app.xml` present but **empty** | Word always fills it: `Application`, `AppVersion`, `Words`, `Characters`, `DocSecurity`. A part created for the OPC schema and never filled is not what an Office application produces |
+| Timestamp `…T15:22:28.698Z` | Milliseconds and a `Z`: that is what `Date.prototype.toISOString()` emits in JavaScript. Word writes whole seconds |
+| Media named `0ff0d056…98.png` | Forty hex characters, a SHA-1. A library convention; Word writes `image1.png` |
+| `word/settings.xml` with no `rsid` | Word always records revision session identifiers |
+| `created` == `modified` to the millisecond | Never reopened, never saved again |
 
-Chacun est faible isolément — un convertisseur peut en produire un — donc **deux au minimum** sont
-exigés avant que l'outil dise quoi que ce soit. Et ce qu'il conclut est étroit et vérifiable :
+Each is weak on its own — a converter can produce one — so **at least two** are required before the
+tool says anything. And what it concludes is narrow and checkable:
 
 ```
 Produced by  no tool is named, but a program assembled this file
@@ -184,89 +169,84 @@ Produced by  no tool is named, but a program assembled this file
              What it does not say is which program, or whether a model wrote the words.
 ```
 
-Le contrôle : un `.docx` réellement enregistré depuis Word — `app.xml` rempli, `rsid` présents,
-secondes entières — n'est pas accusé, et sa ligne de synthèse répond avec le champ le plus simple
-qui soit : `Microsoft Office Word`.
+The control: a `.docx` genuinely saved from Word — `app.xml` filled, `rsid` present, whole seconds —
+is not accused, and its summary line answers with the plainest field there is: `Microsoft Office
+Word`.
 
-Le même raisonnement est appliqué aux deux autres conteneurs, chacun dans son vocabulaire :
+The same reasoning applies to the other two containers, each in its own vocabulary:
 
-- **PDF** — deux signaux ont du poids : un trailer **sans `/ID`** (le format le demande ; Acrobat,
-  Word, LibreOffice et pdfTeX l'écrivent tous) et `créé` == `modifié` au même instant. L'absence de
-  XMP et de balisage d'accessibilité ne fait que corroborer, parce qu'un fichier *imprimé en PDF*
-  depuis un navigateur n'a ni l'un ni l'autre — et c'est une personne qui a fait ça. Sans au moins
-  un signal lourd, l'outil ne dit rien.
-- **ODF** — le signal le plus propre de tous les formats : `settings.xml` enregistre la taille de la
-  fenêtre, la position du curseur, le zoom. **C'est l'état de l'écran de quelqu'un.** Rien d'autre
-  qu'une application ouverte dans une fenêtre ne l'écrit. S'y ajoutent le compteur
-  `meta:editing-cycles`, la miniature et `manifest.rdf`. L'intérêt : `meta:generator` est un champ
-  libre — une bibliothèque peut y écrire `LibreOffice/7.5` et être crue. Elle peut beaucoup plus
-  difficilement simuler d'avoir été ouverte dans une fenêtre, et le rapport le dit alors
-  explicitement : *« … alors même que meta:generator déclare LibreOffice/7.5 »*.
+- **PDF** — two signals carry weight: a trailer with **no `/ID`** (the format asks for one; Acrobat,
+  Word, LibreOffice and pdfTeX all write it) and `created` == `modified` at the same instant. Missing
+  XMP and missing accessibility tagging only corroborate, because a file *printed to PDF* from a
+  browser has neither — and a person did that. Without at least one weighty signal the tool says
+  nothing.
+- **ODF** — the cleanest signal of any format: `settings.xml` records window size, cursor position,
+  zoom level. **That is the state of somebody's screen.** Nothing writes it but an application that
+  had a window. Add the `meta:editing-cycles` counter, the thumbnail and `manifest.rdf`. The point:
+  `meta:generator` is free text — a library can write `LibreOffice/7.5` into it and be believed. It
+  cannot as easily fake having been open in a window, and the report then says so explicitly:
+  *"… despite meta:generator naming LibreOffice/7.5"*.
 
-Ces constats **structurels** survivent au nettoyage, par définition : ils décrivent comment le
-fichier est construit, et un outil de nettoyage ne reconstruit pas le fichier. Un fichier nettoyé
-par Cirta continue donc de les rapporter — c'est l'état honnête du fichier, pas un échec du
-nettoyage. La seule façon de changer la forme d'un document est de le refaire dans l'application
-dont on veut la forme.
+These **structural** findings survive cleaning by definition: they describe how the file is built,
+and a cleaning tool does not rebuild the file. A file cleaned by Cirta therefore keeps reporting
+them — that is the honest state of the file, not a failure of the cleaning. The only way to change a
+document's shape is to remake it in the application whose shape you want.
 
-Et le nettoyage lui-même est tenu au même standard : vider les métadonnées sans les retirer
-laisserait une trace que personne d'autre ne produit — un `/Info` présent et vide dans un PDF, un
-`<meta:generator/>` vide dans un ODF. Cirta **supprime** ces éléments plutôt que de les vider, et
-signale la forme « nettoyé par quelqu'un d'autre » quand il la rencontre :
+And the cleaning is held to the same standard: emptying metadata without removing it would leave a
+trace nobody else produces — a present-but-empty `/Info` in a PDF, an empty `<meta:generator/>` in an
+ODF. Cirta **removes** those elements rather than blanking them, and reports the "cleaned by somebody
+else" shape when it meets it:
 
 ```
 confirmed  provenance  Metadata has been stripped from this file
 ```
 
-### Le sujet d'un document n'est pas sa provenance
+### What a document is about is not where it came from
 
-Une distinction qui semble évidente écrite comme ça, et qui manquait.
+A distinction that looks obvious written down, and that was missing.
 
-Un rapport intitulé « Comparatif Claude contre ChatGPT », tapé à la main dans Word par une personne,
-était rapporté comme **attribué à une IA** — parce que le titre était scanné à la recherche de noms
-de fournisseurs au même titre que les champs producteur. Écrire *sur* un outil n'est pas avoir été
-écrit *par* lui, et un outil incapable de faire la différence accuse tous ceux qui traitent du sujet.
+A report titled "Claude versus ChatGPT: a comparison", typed by hand in Word by a person, was
+reported as **attributed to an AI** — because the title was scanned for vendor names exactly like the
+producer fields. Writing *about* a tool is not having been written *by* it, and a tool that cannot
+tell the difference accuses everyone who covers the subject.
 
-Les champs qui décrivent le contenu — titre, objet, description, mots-clés, catégorie — ne sont plus
-lus comme des noms d'outils. Les champs auteur le restent : `dc:creator` valant « Claude Code » est
-une vraie attribution, et le nom d'une personne n'y correspond à rien de toute façon.
+Fields that describe the content — title, subject, description, keywords, category — are no longer
+read as tool names. Author fields still are: `dc:creator` set to "Claude Code" is a real attribution,
+and a person's name matches nothing there anyway.
 
-Ce qui **continue** d'être lu dans un titre : les chemins, les comptes système, les identifiants de
-session. Un chemin `C:\Users\lotfi\` reste une fuite où qu'il se trouve.
+What **is still** read in a title: paths, system accounts, session identifiers. A `C:\Users\lotfi\`
+path is a leak wherever it sits.
 
-### La question directe : produit par une IA, et laquelle ?
+### The direct question: made by an AI, and which one?
 
-Chaque rapport commence par une ligne qui y répond, parce que la réponse était jusqu'ici éparpillée
-sur cinq lignes du tableau qu'il fallait assembler soi-même :
+Every report opens with a line that answers it, because the answer used to be spread over five rows
+of the table that you had to assemble yourself:
 
 ```
 Produced by  claude-opus-5 (Claude) · Claude / Anthropic · LangChain · ReportLab
              according to the file's own metadata, which can be absent, wrong or forged
 ```
 
-Trois réponses possibles, et la troisième est la plus importante :
+Three possible answers, and the third matters most:
 
-1. **Un assistant, un modèle ou un agent est nommé** — la ligne les liste, du plus précis au plus
-   général, avec le rappel que ce sont les métadonnées du fichier qui l'affirment.
-2. **Seule une bibliothèque est nommée** (`ReportLab`, `python-docx`) — le conteneur a été fabriqué
-   par un programme, ce qui ne dit rien de qui a écrit les mots. L'outil le dit et ne va pas plus
-   loin.
-3. **Rien ne nomme quoi que ce soit** — et le rapport le formule explicitement, au lieu de se taire :
-   *ce n'est pas la même chose que « pas d'IA »*. Les champs ont pu être vidés, jamais écrits, ou le
-   texte collé à la main dans Word. Et la formulation elle-même — là où vit un filigrane statistique
-   — n'est pas lisible ici.
+1. **An assistant, a model or an agent is named** — the line lists them, most specific first, with
+   the reminder that it is the file's own metadata making the claim.
+2. **Only a library is named** (`ReportLab`, `python-docx`) — a program built the container, which
+   says nothing about who wrote the words. The tool says that and goes no further.
+3. **Nothing names anything** — and the report says so explicitly instead of staying silent: *that is
+   not the same as "not AI"*. The fields may have been cleared, never written, or the text pasted in
+   by hand. And the wording itself — where a statistical watermark lives — cannot be read here.
 
-Un rapport silencieux se lit comme un acquittement. Ce n'en est pas un.
+A silent report reads as an acquittal. It is not one.
 
-### Traces de l'outil producteur
+### Traces of the producing tool
 
-Un document produit par un assistant, un agent ou un script ne s'annonce jamais dans un seul champ.
-Il fuit par morceaux : une chaîne de producteur qui nomme la bibliothèque, un chemin de modèle qui
-porte le système et le nom de compte, un répertoire de travail sous un identifiant de session. Pris
-isolément ces éléments semblent anodins ; recoupés, ils décrivent la machine sur laquelle le fichier
-a été fabriqué.
+A document produced by an assistant, an agent or a script never announces itself in a single field.
+It leaks in pieces: a producer string naming the library, a template path carrying the operating
+system and the account name, a working directory under a session identifier. Individually these look
+innocuous; cross-referenced, they describe the machine the file was built on.
 
-Cirta effectue ce recoupement et signale explicitement d'où chaque déduction provient :
+Cirta does that cross-referencing and says explicitly where each inference came from:
 
 ```
 confirmed  provenance   Document generated programmatically  python-pptx
@@ -277,68 +257,64 @@ confirmed  environment  Windows temporary directory          scratch directory
                         derived from docProps/app.xml:Template
 ```
 
-Sont reconnus :
+Recognised:
 
 - **Assistants** — Claude, ChatGPT/OpenAI, Gemini/Vertex, Copilot, Mistral, Llama, Perplexity,
   DeepSeek, Grok/xAI, Qwen, Cohere
-- **Agents de codage** — Claude Code, Cursor, Windsurf/Codeium, Devin, Aider, Cline, Bolt, v0,
+- **Coding agents** — Claude Code, Cursor, Windsurf/Codeium, Devin, Aider, Cline, Bolt, v0,
   Replit Agent, Codex, Continue
-- **Frameworks et runtimes** — LangChain, LlamaIndex, AutoGen, CrewAI, Haystack, Semantic Kernel,
+- **Frameworks and runtimes** — LangChain, LlamaIndex, AutoGen, CrewAI, Haystack, Semantic Kernel,
   Ollama, vLLM, llama.cpp, LM Studio, transformers
-- **Identifiants de modèle** — `claude-opus-5`, `gpt-4o-mini`, `gemini-2.0-flash`… plus précis qu'un
-  nom d'éditeur : ils datent la génération
-- **Identifiants d'appel** — `msg_…`, `chatcmpl-…`, `thread_…`, `run_…`, identifiants de requête et
-  de conversation
-- **Bibliothèques de génération** — python-pptx, python-docx, ReportLab, Pandoc, wkhtmltopdf,
-  WeasyPrint, Puppeteer, Playwright, Skia, LibreOffice…
-- **Environnement** — système d'exploitation et nom de compte déduits de la forme des chemins,
-  répertoires temporaires, identifiants de session ou d'exécution (UUID)
+- **Model identifiers** — `claude-opus-5`, `gpt-4o-mini`, `gemini-2.0-flash`… more precise than a
+  vendor name: they date the generation
+- **Call identifiers** — `msg_…`, `chatcmpl-…`, `thread_…`, `run_…`, request and conversation ids
+- **Generation libraries** — python-pptx, python-docx, ReportLab, Pandoc, wkhtmltopdf, WeasyPrint,
+  Puppeteer, Playwright, Skia, LibreOffice…
+- **Environment** — operating system and account name inferred from path shapes, temporary
+  directories, session or run identifiers (UUID)
 
-### Profondeur par format
+### Depth by format
 
-L'analyse ne s'arrête pas aux champs de métadonnées connus.
+The analysis does not stop at the known metadata fields.
 
-**PDF — lire le texte des pages pour de vrai.** Une chaîne PDF ne contient pas d'Unicode : elle
-contient des codes qui signifient ce que la police en dit. Or dès qu'un texte porte un accent, le
-producteur intègre une police *sous-ensemble*, qui numérote ses glyphes à partir de 1 dans l'ordre
-où elle les a rencontrés. Une page affichant « Réduire les flux » apparaît alors dans le flux comme
-`<000100020003…>`, et y chercher une espace de largeur nulle ne trouve jamais rien.
+**PDF — reading page text for real.** A PDF string does not contain Unicode: it contains codes that
+mean whatever the font says they mean. And as soon as text carries an accent, the producer embeds a
+*subset* font, which numbers its glyphs from 1 in the order it met them. A page showing "Réduire les
+flux" then appears in the stream as `<000100020003…>`, and looking for a zero-width space there never
+finds anything.
 
-La correspondance inverse est dans le fichier : chaque police de ce type porte une table
-`/ToUnicode`. Cirta la lit, suit l'opérateur `Tf` pour savoir quelle police est active à chaque
-instant, et décode. Mesuré sur un corpus furtif rendu en PDF avec police embarquée : **2067
-caractères sur 2088 récupérés**, et les 21 manquants n'avaient jamais été écrits — la police n'avait
-pas de glyphe pour eux, ils ont été perdus à la génération, pas à l'analyse.
+The reverse mapping is in the file: every such font carries a `/ToUnicode` table. Cirta reads it,
+follows the `Tf` operator to know which font is active at each moment, and decodes. Measured on a
+stealth corpus rendered to PDF with an embedded font: **2067 characters out of 2088 recovered**, and
+the 21 missing had never been written — the font had no glyph for them, so they were lost at
+generation, not at analysis.
 
-Une page dont la police ne porte pas de table `ToUnicode` reste lue en codes bruts : là, une
-détection est fiable mais une absence ne prouve rien.
+A page whose font carries no `ToUnicode` table is still read as raw codes: there, a hit is real but a
+miss proves nothing.
 
-**PDF** — le dictionnaire `/Info` est ouvert : une chaîne de génération peut y écrire n'importe quelle
-clé, et ce sont souvent les plus parlantes. Toutes les clés non standard sont donc énumérées et
-signalées. Par ailleurs le texte des pages, le JavaScript et les pièces jointes vivent dans des flux
-compressés : ils sont décompressés, et les **opérandes de chaîne** décodés — le texte de page est
-stocké en hexadécimal (`<436F6E…>`), donc une recherche d'octets sur un flux décompressé ne trouve
-rien même quand les mots y sont en clair.
+**PDF** — the `/Info` dictionary is open-ended: a generation pipeline can write any key into it, and
+those are often the most telling. Every non-standard key is therefore enumerated and reported.
+Separately, page text, JavaScript and attachments live in compressed streams: they are decompressed
+and the **string operands** decoded — page text is stored in hexadecimal (`<436F6E…>`), so a byte
+search over a decompressed stream finds nothing even when the words are there in clear.
 
-**Markdown** — au-delà du front matter, les commentaires HTML de génération et les lignes
-d'attribution en fin de document (`*Généré par …*`) sont détectés. Le repérage se fait sur la
-**tournure de génération**, pas sur le nom de l'éditeur, et seulement dans les dernières lignes : une
-signature est en pied de page, une mention en plein corps est de la prose.
+**Markdown** — beyond front matter, HTML generator comments and trailing attribution lines
+(`*Generated by …*`) are detected. The match is on the **generation phrasing**, not on the publisher
+name, and only in the last lines: a signature is in a footer, a mention mid-body is prose.
 
-### Caractères invisibles dans le corps des documents
+### Invisible characters in document bodies
 
-Un espace de largeur nulle dans un paragraphe survit au copier-coller hors du document exactement
-comme dans un fichier texte. Le corps est donc scanné sur **tous** les formats, pas seulement les
-documents Office :
+A zero-width space in a paragraph survives a copy-paste out of the document exactly as it does in a
+text file. The body is therefore scanned in **every** format, not just Office documents:
 
-| Format | Détection | Retrait |
+| Format | Detection | Removal |
 |---|---|---|
-| DOCX / PPTX / XLSX / ODT | Exacte, références numériques comprises | Oui |
-| Markdown | Exacte | Oui |
-| HTML / SVG | Exacte, texte entre balises uniquement | Oui |
-| PDF | **Exacte** quand la police porte une table `ToUnicode`, ce qui est le cas dès qu'un accent est présent ; sinon fiable en détection, une absence ne prouvant rien | Non — voir plus bas |
+| DOCX / PPTX / XLSX / ODT | Exact, numeric references included | Yes |
+| Markdown | Exact | Yes |
+| HTML / SVG | Exact, text between tags only | Yes |
+| PDF | **Exact** when the font carries a `ToUnicode` table, which is the case as soon as an accent is present; otherwise reliable for detection, with an absence proving nothing | No — see below |
 
-Le rapport ressemble à ceci :
+The report looks like this:
 
 ```
 confirmed      zero-width space                  2 occurrences
@@ -349,41 +325,40 @@ informational  no-break space                    1 occurrence
                                                  word/document.xml (U+00A0)
 ```
 
-Trois précisions qui comptent :
+Three points that matter:
 
-- **Les références numériques sont résolues.** `&#x200B;` est un espace de largeur nulle écrit
-  autrement ; ne pas le voir rendrait le contrôle trivial à contourner.
-- **Seul le texte visible est touché.** La réécriture opère entre `>` et `<` : jamais les noms de
-  balises, jamais les attributs. La structure XML reste intacte.
-- **Les parties structurelles sont ignorées.** Les mêmes codepoints dans un thème ou un fichier de
-  relations sont du bruit, pas un marquage.
+- **Numeric references are resolved.** `&#x200B;` is a zero-width space written another way; not
+  seeing it would make the check trivial to bypass.
+- **Only visible text is touched.** Rewriting operates between `>` and `<`: never tag names, never
+  attributes. The XML structure stays intact.
+- **Structural parts are ignored.** The same codepoints in a theme or a relationships file are noise,
+  not a mark.
 
-Les liants d'emoji et les anti-liants persans et indiens sont préservés dans le corps comme ailleurs.
+Emoji joiners and Persian and Indic non-joiners are preserved in bodies as everywhere else.
 
-**Les espaces typographiques sont conservés dans les documents.** Une espace insécable avant un
-deux-points est de la typographie française correcte : la normaliser dégraderait le document. Elle
-est donc signalée en `informatif` et laissée en place — contrairement à l'onglet Texte, où le
-nettoyage d'un extrait collé les normalise. La différence est délibérée.
+**Typographic spaces are kept in documents.** A no-break space before a colon is correct French
+typography: normalising it would degrade the document. It is therefore reported as `informational`
+and left in place — unlike the Text tab, where cleaning a pasted excerpt does normalise them. The
+difference is deliberate.
 
-**Le cas du PDF est plus faible, et c'est structurel.** Un opérande de chaîne PDF contient des codes
-de glyphes, pas de l'Unicode. Avec un encodage simple les deux coïncident, mais une police
-sous-ensemble intégrée les associe arbitrairement et seule sa table `ToUnicode` permet de revenir en
-arrière. Une détection est donc réelle, une absence ne prouve rien — la note de portée le dit. Et le
-retrait est impossible sans réécrire le flux de contenu, donc le rapport annonce explicitement ce
-qu'il n'a pas pu retirer :
+**The PDF case is weaker, and structurally so.** A PDF string operand contains glyph codes, not
+Unicode. With a simple encoding the two coincide, but an embedded subset font maps them arbitrarily
+and only its `ToUnicode` table allows the reverse. A hit is therefore real, an absence proves nothing
+— the scope note says so. And removal is impossible without rewriting the content stream, so the
+report states explicitly what it could not remove:
 
 ```
 Not removed: zero-width space, Hidden payload in page text.
 ```
 
-Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leurs chaînes en UTF-16BE
-**sans marque d'ordre d'octets**. Lues en Latin-1, un espace de largeur nulle devient une espace
-suivie d'une tabulation verticale — le caractère recherché, détruit silencieusement. La présence d'un
-octet NUL, impossible dans une vraie chaîne mono-octet, sert donc à reconnaître cette forme.
+One detail that cost a round trip: many producers write their strings in UTF-16BE **with no byte
+order mark**. Read as Latin-1, a zero-width space becomes a space followed by a vertical tab — the
+character being looked for, silently destroyed. The presence of a NUL byte, impossible in a real
+single-byte string, is therefore used to recognise that shape.
 
-### Ce qu'un PDF peut révéler sur sa génération
+### What a PDF can reveal about its generation
 
-Sur un PDF produit par une chaîne LLM typique, le rapport ressemble à ceci :
+On a PDF produced by a typical LLM pipeline, the report looks like this:
 
 ```
 confirmed  C2PA content credentials              signed provenance manifest
@@ -394,42 +369,41 @@ confirmed  Session identifier                    session_01ABCdef99
 confirmed  Model identifier                      claude-opus-5 (Claude)
 confirmed  Coding agent named in metadata        Claude Code
 confirmed  Anthropic message id                  msg_01XyZaBcDeFgHiJkLmNoPqRs
-probable   Tool credited by the C2PA manifest    claude/1.0 — déclaré par le
-                                                 manifeste, signature non vérifiée
+probable   Tool credited by the C2PA manifest    claude/1.0 — asserted by the
+                                                 manifest, signature not verified
 ```
 
-Le même traitement s'applique à **tous les formats**, pas seulement au PDF. La partie ouverte de
-chaque format — celle où une chaîne de génération écrit ce qu'elle veut — est lue avec ses valeurs :
+The same treatment applies to **every format**, not just PDF. The open-ended part of each format —
+the one where a generation pipeline writes whatever it likes — is read with its values:
 
-| Format | Partie ouverte lue |
+| Format | Open-ended part read |
 |---|---|
-| PDF | Toutes les clés `/Info`, y compris non standard |
-| DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
-| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur |
-| Markdown | Toutes les clés de front matter reconnues |
-| SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
+| PDF | Every `/Info` key, non-standard included |
+| DOCX / PPTX / XLSX | `docProps/custom.xml`, each property with its value |
+| ODT / ODS / ODP | `meta:user-defined`, each property with its value |
+| Markdown | Every recognised front-matter key |
+| SVG / HTML | The `<metadata>` block, `generator` tags, comments |
 
-Une clé nommée `Model` ne dit rien ; sa valeur `claude-opus-5` dit tout — et seule la valeur alimente
-la déduction du modèle. Le manifeste C2PA est lu de la même façon dans chaque conteneur : PDF, Office,
-OpenDocument, SVG et images.
+A key named `Model` says nothing; its value `claude-opus-5` says everything — and only the value
+feeds the model inference. The C2PA manifest is read the same way in every container: PDF, Office,
+OpenDocument, SVG and images.
 
-**L'asymétrie est fondamentale et il faut la garder en tête.** Tout cela repose sur ce que le
-producteur a *laissé*. Ce sont des traces, pas un filigrane : une chaîne de génération propre — ou un
-passage par le nettoyage de cet outil — les fait toutes disparaître. Donc une détection est une
-preuve solide, une absence ne prouve rien du tout.
+**The asymmetry is fundamental and worth keeping in mind.** All of this rests on what the producer
+*left behind*. These are traces, not a watermark: a clean generation pipeline — or a pass through
+this tool's cleaning — makes all of them disappear. So a hit is solid evidence, and an absence proves
+nothing at all.
 
-**Le manifeste C2PA est lu, pas vérifié.** Sa présence est un fait sur les octets, donc `confirmé`.
-Le `claim_generator` qu'il contient est en revanche la *déclaration* du producteur : vérifier qu'elle
-est authentique demanderait de remonter une chaîne de certificats jusqu'à la liste de confiance C2PA,
-ce que Cirta ne fait pas. N'importe qui peut écrire un manifeste créditant n'importe qui — d'où le
-niveau `probable` et la mention explicite dans la valeur.
+**The C2PA manifest is read, not verified.** Its presence is a fact about the bytes, hence
+`confirmed`. The `claim_generator` inside it is, however, the producer's *assertion*: checking that
+it is authentic would mean walking a certificate chain up to the C2PA trust list, which Cirta does
+not do. Anyone can write a manifest crediting anyone — hence the `probable` level and the explicit
+mention in the value.
 
-### Secrets laissés dans les fichiers
+### Credentials left in files
 
-Une clé d'API oubliée dans un fichier généré est la chose la plus grave que cet outil puisse
-trouver. Les formes `sk-ant-`, `sk-proj-`, `AIza`, `hf_`, `gsk_`, `xai-` et `ghp_` sont cherchées
-**dans le corps des documents et des archives**, pas seulement dans les métadonnées, et la valeur
-n'est **jamais affichée en entier** :
+An API key forgotten in a generated file is the most serious thing this tool can find. The `sk-ant-`,
+`sk-proj-`, `AIza`, `hf_`, `gsk_`, `xai-` and `ghp_` shapes are looked for **in document and archive
+bodies**, not only in metadata, and the value is **never printed in full**:
 
 ```
 confirmed  identity  Credential left in file: Anthropic API key
@@ -437,102 +411,95 @@ confirmed  identity  Credential left in file: Anthropic API key
                      export/.env
 ```
 
-Le scan de contenu ne cherche **que** ce qui ne peut pas être de la prose innocente : secrets,
-identifiants émis par un fournisseur, points de terminaison d'API. Les noms de produits en sont
-délibérément absents — un document qui *parle* de Claude n'est pas un document *produit* par Claude,
-et confondre les deux est ce qui rend ces outils peu fiables.
+The content scan looks **only** for what cannot be innocent prose: credentials, provider-issued
+identifiers, API endpoints. Product names are deliberately absent — a document that *talks about*
+Claude is not a document *produced by* Claude, and conflating the two is what makes these tools
+untrustworthy.
 
-### Niveaux de signalement
+### Reporting levels
 
-Signaler tous les champs au même poids enterre les deux lignes qui comptent sous une douzaine qui ne
-comptent pas. Chaque élément porte donc son propre niveau, et les rapports sont triés en conséquence.
+Reporting every field at the same weight buries the two lines that matter under a dozen that do not.
+Each item therefore carries its own level, and reports are sorted accordingly.
 
-| Niveau | Signification | Exemples |
+| Level | Meaning | Examples |
 |---|---|---|
-| `confirmé` | Donnée identifiante littérale, lue directement dans un champ connu | Auteur, société, responsable, chemin de modèle contenant votre nom de session, propriétés personnalisées, auteurs de commentaires, manifeste C2PA |
-| `probable` | Information réelle sur vous ou votre travail, pas nécessairement sensible | Titre, objet, horodatages, numéro de révision, temps d'édition, miniature, `rsid` |
-| `informatif` | Désigne le logiciel, pas l'auteur | Application productrice, version, espaces typographiques non-ASCII |
+| `confirmed` | Verbatim identifying data, read directly from a known field | Author, company, manager, a template path containing your session name, custom properties, comment authors, C2PA manifest |
+| `probable` | Real information about you or your work, not necessarily sensitive | Title, subject, timestamps, revision number, editing time, thumbnail, `rsid` |
+| `informational` | Names the software, not the author | Producing application, version, non-ASCII typographic spaces |
 
-### Les trois mécanismes annoncés par Anthropic
+### The three mechanisms Anthropic describes
 
-| Mécanisme | Couvert |
+| Mechanism | Covered |
 |---|---|
-| Caractères invisibles | **Oui** — détection, décodage des charges, retrait |
-| Métadonnées C2PA dans les fichiers | **Oui** pour le *hard binding* (le manifeste dans le conteneur). Le *soft binding* — une marque dans le contenu lui-même — n'est ni détecté ni retiré |
-| Biais dans la sélection des tokens | **Non**, et c'est structurel. Anthropic indique que les futurs modèles Claude en portent un (version de SynthID-Text), au titre du code de transparence européen en vigueur depuis le 2 août 2026 ; les modèles antérieurs suivent dans les mois à venir. Le lire suppose leur clé, et l'API de détection annoncée n'est pas publiée. Cirta rapporte en revanche ce qu'un rapport silencieux vaut à cette longueur — voir ci-dessous |
+| Invisible characters | **Yes** — detection, payload decoding, removal |
+| C2PA metadata in files | **Yes** for *hard binding* (the manifest in the container). *Soft binding* — a mark in the content itself — is neither detected nor removed |
+| Bias in token selection | **No**, and structurally so. Anthropic states that future Claude models carry one (a version of SynthID-Text), under the EU transparency code in force since 2 August 2026; earlier models follow over the coming months. Reading it needs their key, and the announced detection API is not published. Cirta instead reports what a silent report is worth at this length — see below |
 
-## Ce qu'il ne fait pas, et pourquoi
+## What it does not do, and why
 
-**Il ne détecte ni ne retire les filigranes statistiques des modèles de langage.**
+**It does not detect or remove statistical language-model watermarks.**
 
-Ce type de filigrane ne réside dans aucun champ effaçable : il est intégré au **choix des tokens**
-pendant la génération. Le détecteur doit rejouer, token par token, le même hachage
-`(contexte + clé secrète)` que celui utilisé à la génération, puis mesurer si les choix penchent vers
-le motif de la clé plus que le hasard ne l'expliquerait. Sans la clé, il n'y a pas de test à faire —
-il n'existe aucune quantité à mesurer.
+This class of watermark lives in no erasable field: it is embedded in the **choice of tokens** during
+generation. A detector must replay, token by token, the same `(context + secret key)` hash used at
+generation, then measure whether the choices lean toward the key's pattern more than chance explains.
+Without the key there is no test to run — there is no quantity to measure.
 
-Trois familles publiées illustrent le principe : les listes vertes de
-[Kirchenbauer et al. (2023)](https://arxiv.org/abs/2301.10226), l'échantillonnage de Gumbel
-d'Aaronson, et [SynthID-Text](https://www.nature.com/articles/s41586-024-08025-4) (DeepMind, *Nature*
-2024). Toutes sont clefées, toutes exigent un volume de texte suffisant pour une puissance
-statistique, et aucune ne dépose de caractère repérable.
+Three published families illustrate the principle: the green lists of
+[Kirchenbauer et al. (2023)](https://arxiv.org/abs/2301.10226), Aaronson's Gumbel sampling, and
+[SynthID-Text](https://www.nature.com/articles/s41586-024-08025-4) (DeepMind, *Nature* 2024). All are
+keyed, all need enough text for statistical power, and none deposits a findable character.
 
-#### « Mais SynthID est open source, pourquoi ne pas l'intégrer ? »
+#### "But SynthID is open source, why not use it?"
 
-C'est devenu la bonne question au bon moment. Dans
-[« How Claude's text watermark works »](https://www.anthropic.com/news/claude-text-watermark),
-Anthropic indique que **les futurs modèles Claude génèrent du texte filigrané**, avec une *version
-de SynthID-Text*, pour se conformer au code de transparence européen entré en vigueur le
-**2 août 2026** ; les modèles antérieurs bénéficient d'une période de transition et suivront dans les
-mois à venir. La famille d'algorithmes est donc la bonne — ce n'est plus « le schéma d'un autre
-éditeur ». Il reste deux obstacles, vérifiés sur le code du paquet officiel `synthid-text` de
-DeepMind et non de mémoire.
+It has become the right question at the right time. In
+["How Claude's text watermark works"](https://www.anthropic.com/news/claude-text-watermark),
+Anthropic states that **future Claude models generate watermarked text**, using a *version of
+SynthID-Text*, to comply with the EU transparency code that took effect on **2 August 2026**; models
+released earlier are in a transition period and follow over the coming months. The algorithm family
+is therefore the right one — it is no longer "another vendor's scheme". Two obstacles remain,
+verified against DeepMind's official `synthid-text` package rather than from memory.
 
-**1. Les clés.** Le détecteur calcule des *g-values* à partir d'un hachage `(n-gramme de tokens,
-clé)`. Le paquet livre bien des clés — trente entiers dans `DEFAULT_WATERMARKING_CONFIG` — mais ce
-sont des **clés de démonstration publiées dans un dépôt public**. Elles ne détectent que le texte que
-vous avez vous-même filigrané avec ces mêmes clés : un autotest, pas un détecteur. Le README de
-DeepMind précise que sa fonction de hachage de référence *« ne fournit aucune garantie de sécurité
-cryptographique »* et que le code *« n'est pas destiné à un usage en production »*. Anthropic écrit
-de son côté : *« We will soon be offering a watermark detection API. We're in the process of working
-out the details of its implementation. »*
+**1. The keys.** The detector computes *g-values* from a hash of `(token n-gram, key)`. The package
+does ship keys — thirty integers in `DEFAULT_WATERMARKING_CONFIG` — but those are **demo keys
+published in a public repository**. They detect only text you watermarked yourself with those same
+keys: a self-test, not a detector. DeepMind's own README states that the reference hashing function
+*"does not provide any guarantees of cryptographic security"* and that the code *"is not intended for
+production use"*. Anthropic, for their part, write: *"We will soon be offering a watermark detection
+API. We're in the process of working out the details of its implementation."*
 
-**2. Les tokens.** Les g-values portent sur des identifiants de tokens, pas sur des caractères. Il
-faudrait embarquer le tokenizer exact du modèle — et Cirta est du TypeScript qui tourne dans un
-onglet sans aucun appel réseau.
+**2. The tokens.** The g-values are computed over token identifiers, not characters. That would mean
+shipping the model's exact tokenizer — and Cirta is TypeScript running in a tab with no network
+calls.
 
-#### Le filigrane statistique n'est *pas* un caractère invisible
+#### A statistical watermark is *not* an invisible character
 
-C'est la confusion la plus répandue, et la couverture presse l'a entretenue en appelant les deux
-« invisible ». Anthropic est explicite : **« Nothing is added to the text and there are no hidden
-characters. »**
+This is the most widespread confusion, and the press coverage fed it by calling both "invisible".
+Anthropic is explicit: **"Nothing is added to the text and there are no hidden characters."**
 
-La conséquence pour cet outil est nette, et va dans les deux sens :
+The consequence for this tool is sharp, and cuts both ways:
 
-- Tout ce que trouve l'analyse au niveau des caractères — espaces de largeur nulle, sélecteurs de
-  variation, sosies — **n'est pas le filigrane d'Anthropic**. C'est un autre mécanisme, mis là par
-  quelqu'un d'autre : un pipeline, un CMS, un outil de suivi, ou quelqu'un qui vous marque.
-- Et **les retirer tous ne touche pas au filigrane statistique**, qui vit dans le choix des mots.
+- Everything the character-level analysis finds — zero-width spaces, variation selectors, lookalikes
+  — **is not Anthropic's watermark**. It is a different mechanism, put there by somebody else: a
+  pipeline, a CMS, a tracking tool, or somebody marking you.
+- And **removing all of it does not touch the statistical watermark**, which lives in word choice.
 
-Deux autres précisions de la même page, qui ferment des portes qu'on croit ouvertes :
+Two further points from the same page, which close doors people assume are open:
 
-- La marque **ne contient aucune information identifiante** : ni personne, ni organisation, ni
-  conversation. Elle ne « remonte » à personne.
-- Elle ne dit pas non plus quel autre modèle aurait écrit un texte : *« it can't tell whether the
-  text was written by a different AI »* — un autre éditeur aurait une autre clé, voire une autre
-  méthode.
+- The mark **carries no identifying information**: not a person, an organisation or a chat. It does
+  not "trace back" to anyone.
+- Nor can it say which other model wrote a text: *"it can't tell whether the text was written by a
+  different AI"* — another vendor would have another key, possibly another method entirely.
 
-#### Une prise de mesure tirée de l'article : « où la marque peut-elle vivre ? »
+#### A measurement taken from the article: "where can the mark live?"
 
-La longueur n'est pas seule à gouverner la détectabilité, et c'est le point le plus exploitable de la
-page. Le filigrane s'accroche aux choix entre mots **également bons** — « overcast » ou « grey ». Là
-où une seule réponse est correcte, il ne s'applique pas : après « Principia… » il n'y a qu'un mot
-juste, et `2 + 2 =` n'a qu'une réponse. Le code est le cas systématique : *« code—which in very many
-cases has to be exact—has generally less watermarking »*, mais les **commentaires** à l'intérieur
-sont de la prose ordinaire et peuvent, eux, porter la marque.
+Length is not the only thing governing detectability, and this is the most usable point on the page.
+The watermark rides on choices between **equally good** words — "overcast" or "grey". Where only one
+answer is correct, it is not applied: after "Principia…" there is one right word, and `2 + 2 =` has
+one right answer. Code is the systematic case: *"code—which in very many cases has to be exact—has
+generally less watermarking"*, though the **comments** inside it are ordinary prose and can carry it.
 
-La densité factuelle d'un texte ne se mesure pas sans modèle, et inventer un chiffre serait
-exactement ce que ce projet refuse. **Le code, si.** Cirta reconnaît donc une source et compte :
+A text's factual density cannot be measured without a model, and inventing a number would be exactly
+what this project refuses. **Code can be.** Cirta therefore recognises source and counts:
 
 ```
 room        Reads as source: 153 non-blank lines, 109 of them comment (71%).
@@ -540,95 +507,88 @@ room        Reads as source: 153 non-blank lines, 109 of them comment (71%).
             mark lives where a choice is free, which here is mostly those comment lines.
 ```
 
-Deux garde-fous. Le seuil est haut — plus d'un quart des lignes doivent porter une syntaxe
-qu'aucune prose ne produit — parce que qualifier la lettre de quelqu'un de « code source » rendrait
-toute la carte fausse ; un mémo avec des listes à puces et une commande shell citée reste de la
-prose. Et le résultat est **rapporté en décomptes, pas fondu dans la bande de longueur** : mélanger
-les deux produirait un nombre qui ne voudrait plus dire ni l'un ni l'autre.
+Two guards. The threshold is high — over a quarter of lines must carry syntax no prose produces —
+because calling somebody's letter "source code" would make the whole card wrong; a memo with bullet
+lists and a quoted shell command stays prose. And the result is **reported as counts, not folded into
+the length band**: mixing the two would produce a number that means neither thing.
 
-#### Ce qu'un futur détecteur pourra, et ne pourra pas, affirmer
+#### What a future detector will, and will not, be able to claim
 
-Au mieux : *« quelle est la probabilité que Claude soit intervenu dans l'écriture de ce texte ? »*
-Pas « un humain a-t-il écrit ça ». Pas « quelle IA ». Et surtout, dans les mots d'Anthropic :
-**« It cannot distinguish "Claude wrote this" from "Claude heavily edited this". »**
+At best: *"how likely is it that Claude was involved in writing this text?"* Not "did a human write
+this". Not "which AI". And above all, in Anthropic's words: **"It cannot distinguish 'Claude wrote
+this' from 'Claude heavily edited this'."**
 
-Attention au sens de cette limite, facile à prendre à l'envers — je l'avais moi-même inversée avant
-de lire la source. Une **relecture légère ne laisse presque aucune prise** au filigrane : la quasi-
-totalité des mots restent les vôtres, et il n'y a que quelques corrections où la marque pourrait
-s'inscrire. Ce n'est pas « votre texte relu revient marqué » ; c'est « plus Claude écrit, plus il
-y a de place pour la marque ». Une **traduction**, en revanche, est intégralement filigranée : chaque
-mot y est choisi par le modèle.
+Mind the direction of that limit, which is easy to take backwards — I had it backwards myself before
+reading the source. A **light proofread leaves the watermark almost nothing to hold on to**: nearly
+all the words remain yours, and there are only a handful of corrections where the mark could land. It
+is not "your text, proofread, comes back marked"; it is "the more Claude writes, the more room the
+mark has". A **translation**, by contrast, is fully watermarked: every word in it is chosen by the
+model.
 
-Le filigrane est aussi **plus clairsemé sur les passages factuels** — après « Principia… », le mot
-suivant n'a qu'une bonne réponse — et sur le **code**, où l'exactitude ne laisse pas de choix libre.
-Il peut en revanche s'inscrire dans les **commentaires** du code.
+The watermark is also **sparser on factual passages** — after "Principia…" the next word has only one
+right answer — and on **code**, where exactness leaves no free choice. It can, however, land in code
+**comments**.
 
-Un outil qui afficherait « filigrane Claude détecté » sans ces phrases transformerait une information
-exacte en accusation fausse. C'est le mode de défaillance que ce projet refuse depuis le début.
+A tool that displayed "Claude watermark detected" without those sentences would turn accurate
+information into a false accusation. That is the failure mode this project has refused from the
+start.
 
-Enfin, ce qui existe côté détection publique suppose d'**envoyer le fichier chez l'éditeur** —
-Anthropic annonce son propre outil de dépôt de fichier pour le C2PA. C'est exactement la propriété
-que cet outil refuse de perdre.
+Finally, what exists on the public detection side means **sending the file to the vendor** —
+Anthropic announce their own drop-a-file C2PA checker. That is exactly the property this tool refuses
+to give up.
 
-En conséquence, un outil local — celui-ci compris — ne peut ni confirmer la présence d'un tel
-filigrane, ni prouver son absence après traitement. Cirta ne le prétend pas. Méfiez-vous des services
-qui l'affirment : sans la clé, ils n'ont aucun moyen de vérifier ce qu'ils annoncent, dans un sens
-comme dans l'autre.
+Consequently, a local tool — this one included — can neither confirm the presence of such a watermark
+nor prove its absence after processing. Cirta does not claim to. Be wary of services that do: without
+the key they have no way to verify what they announce, in either direction.
 
-Nettoyer les caractères invisibles d'un texte **n'a aucun effet** sur un filigrane statistique. Ce
-sont deux mécanismes indépendants, et les confondre est l'erreur la plus répandue dans ce domaine.
+Cleaning the invisible characters out of a text **has no effect** on a statistical watermark.
 
-### Trois précisions d'Anthropic, qui vont dans les deux sens
+### Three clarifications from Anthropic, which cut both ways
 
-La [documentation d'Anthropic](https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content)
-pose trois limites explicites, et aucune ne va dans le sens qu'on attend :
+Anthropic's [documentation](https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content)
+sets out three explicit limits, and none of them goes the way you would expect:
 
-1. **Une marque détectée ne prouve pas une paternité.** Elle indique que le contenu *a pu être
-   traité* par le modèle — pas qu'il a été écrit par lui.
-2. **L'absence de marque ne prouve pas une origine humaine.** C'est exactement ce que le bloc
-   « filigrane statistique » de Cirta existe pour dire : un rapport silencieux sur un texte court ne
-   signifie presque rien.
-3. **La traduction et le résumé estampillent du texte d'origine humaine ; la relecture, non ou
-   presque.** La distinction est fine et je l'avais inversée avant de lire la source. Une traduction
-   est intégralement filigranée — chaque mot y est choisi par le modèle. Une **relecture légère**, à
-   l'inverse, ne laisse presque aucune prise : la quasi-totalité des mots restent les vôtres. La
-   règle est « plus le modèle écrit, plus il y a de place pour la marque », pas « tout ce qui passe
-   par le modèle ressort marqué ».
+1. **A detected mark does not prove authorship.** It indicates the content *may have been processed*
+   by the model — not that the model wrote it.
+2. **The absence of a mark does not prove human origin.** This is exactly what Cirta's "statistical
+   watermark" block exists to say: a silent report on a short text means almost nothing.
+3. **Translation and summarising do stamp text of human origin; proofreading barely does.** The
+   distinction is fine and I had it inverted before reading the source. A translation is fully
+   watermarked — every word is chosen by the model. A **light proofread**, by contrast, leaves almost
+   no purchase: nearly all the words remain yours. The rule is "the more the model writes, the more
+   room the mark has", not "anything that passes through the model comes back marked".
 
-### Ce que dit la littérature sur l'atténuation
+### What the literature says about mitigation
 
-La reformulation est l'attaque étudiée, et la recherche est précise sur son efficacité réelle.
-[Krishna et al. (NeurIPS 2023)](https://arxiv.org/abs/2303.13408) font tomber DetectGPT de 70,3 % à
-4,6 % de détection à 1 % de faux positifs avec un paraphraseur dédié.
-[Sadasivan et al.](https://arxiv.org/abs/2303.11156) font chuter le taux de vrais positifs d'un
-filigrane de 99,8 % à 9,7 % après cinq reformulations récursives, sur des passages d'environ
-300 tokens.
+Paraphrasing is the studied attack, and the research is precise about how well it actually works.
+[Krishna et al. (NeurIPS 2023)](https://arxiv.org/abs/2303.13408) drop DetectGPT from 70.3% to 4.6%
+detection at 1% false positives with a dedicated paraphraser.
+[Sadasivan et al.](https://arxiv.org/abs/2303.11156) drop a watermark's true-positive rate from 99.8%
+to 9.7% after five recursive paraphrases, on passages of around 300 tokens.
 
-Mais le résultat le plus important pour un usage quotidien est celui que ces deux articles ne disent
-pas, et que le suivi de
-[Kirchenbauer et al. (ICLR 2024)](https://arxiv.org/abs/2306.04634) établit : **la reformulation
-dilue le signal, elle ne l'efface pas**. À 1e-5 de faux positifs, une reformulation humaine soutenue
-laissait encore le filigrane détectable après environ **800 tokens observés**. La fiabilité est une
-fonction de la longueur : un extrait court paraît propre, un document long accumule des n-grammes
-résiduels.
+But the result that matters most for everyday use is the one neither paper states, and which the
+follow-up by [Kirchenbauer et al. (ICLR 2024)](https://arxiv.org/abs/2306.04634) establishes:
+**paraphrasing dilutes the signal, it does not erase it**. At a 1e-5 false-positive rate, sustained
+human paraphrasing still left the watermark detectable after roughly **800 observed tokens**.
+Reliability is a function of length: a short excerpt looks clean, a long document accumulates
+residual n-grams.
 
-C'est la raison pour laquelle Cirta ne propose pas de couche de réécriture. Elle ne pourrait produire
-qu'une affirmation invérifiable, et la littérature indique qu'elle serait fausse sur les documents
-longs. Pour un courriel que vous relisez et signez, la longueur joue déjà en votre faveur sans
-outillage.
+That is why Cirta offers no rewriting layer. It could only produce an unverifiable claim, and the
+literature indicates the claim would be false on long documents. For an email you read over and sign,
+length is already on your side without any tooling.
 
-À surveiller : [SemStamp](https://aclanthology.org/2024.naacl-long.226/) (NAACL 2024) et
-[PostMark](https://aclanthology.org/2024.emnlp-main.506/) (EMNLP 2024) marquent au niveau de la
-phrase et du sens plutôt que du token. Ils ne sont pas déployés en production aujourd'hui ; s'ils le
-sont, l'atténuation par reformulation devient nettement plus difficile.
+Worth watching: [SemStamp](https://aclanthology.org/2024.naacl-long.226/) (NAACL 2024) and
+[PostMark](https://aclanthology.org/2024.emnlp-main.506/) (EMNLP 2024) mark at the sentence and
+meaning level rather than the token. They are not in production today; if they are, mitigation by
+paraphrase becomes markedly harder.
 
-### Ce qu'on peut quand même dire sur le biais de tokens
+### What can still be said about token bias
 
-Aucun verdict local n'est possible, et Cirta n'en donne pas. Mais il rapporte la variable qui
-gouverne réellement la lisibilité de ce marquage : **la longueur**. La détection est un test
-d'hypothèse sur des choix de tokens, et sa puissance statistique croît avec le nombre de tokens
-observés. « On n'a rien trouvé » ne veut donc pas dire la même chose à 80 tokens et à 8 000 — et un
-rapport qui ne le précise pas invite à surinterpréter son silence.
+No local verdict is possible, and Cirta gives none. But it reports the variable that actually governs
+whether such a mark is readable: **length**. Detection is a hypothesis test over token choices, and
+its statistical power grows with the number of tokens observed. "We found nothing" therefore does not
+mean the same thing at 80 tokens and at 8000 — and a report that does not say which invites the
+reader to over-conclude.
 
 ```
 Statistical watermark  no local verdict is possible
@@ -637,44 +597,47 @@ meaning     Long enough for a keyed detector to have some power, short enough
             that the outcome depends on the scheme and the threshold chosen.
 ```
 
-Trois bandes, volontairement grossières puisque le seuil exact dépend du schéma, de la clé et du taux
-de faux positifs retenu par le vérificateur :
+Three bands, deliberately coarse since the exact cut-off depends on the scheme, the key and the
+false-positive rate the verifier chooses:
 
-| Bande | Ce que vaut un rapport silencieux |
+| Band | What a silent report is worth |
 |---|---|
-| < 200 tokens | Même l'éditeur peut ne pas obtenir de résultat fiable ; ne rien trouver ne signifie presque rien |
-| 200–800 | Un détecteur détenant la clé a une certaine puissance ; l'issue dépend du schéma et du seuil |
-| > 800 | Kirchenbauer et al. (ICLR 2024) ont observé du signal survivant à une reformulation humaine soutenue à 1e-5 de faux positifs |
+| < 200 tokens | Even the vendor may not get a reliable result; finding nothing means almost nothing |
+| 200–800 | A detector holding the key has some power; the outcome depends on the scheme and threshold |
+| > 800 | Kirchenbauer et al. (ICLR 2024) observed signal surviving sustained human paraphrasing at 1e-5 false positives |
 
-C'est de la **calibration, pas du ciblage** : cela dit ce que vaut un silence, pas quelle longueur
-viser. Le nombre de tokens est estimé par densité de caractères, pas tokenisé — aucun tokenizer n'est
-embarqué, et le compte est donc donné sous forme de fourchette.
+These are **calibration, not targeting**: they say what a silence is worth, not what length to aim
+for. The thresholds are this tool's own choice, not a vendor's published figures — Anthropic give a
+direction ("doesn't work well on small samples") but no number, and a "~100 tokens" figure that
+circulates in the press coverage is not in their text. Token counts are estimated from character
+density, not tokenized — no tokenizer ships with the package — so the count is given as a range.
 
-## Ce que fait le nettoyage
+## What the cleaning does
 
-| Support | Retiré | Conservé délibérément |
+| Support | Removed | Deliberately kept |
 |---|---|---|
-| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA | Le contenu des pages |
-| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires (attribut `w:author`, élément `<author>`, `displayName`), Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur, noms définis et liens entre classeurs — les retirer transformerait des cellules vivantes en `#REF!` |
-| ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
-| SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
-| HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération | JSON-LD — ce qu'indexe un moteur de recherche |
-| Markdown | Clés de front matter identifiantes ; délimiteurs retirés s'il ne reste rien dedans | Le corps, les autres clés, les lignes d'attribution |
-| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
-| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
-| ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
-| Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
-| Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
-| Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |
+| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests | Page content |
+| PPTX / DOCX / XLSX | `core.xml`, `app.xml`, custom properties, thumbnail, `rsid`, comment author names (`w:author` attribute, `<author>` element, `displayName`), Exif in embedded pictures, C2PA manifests | Local links, hidden slides, speaker notes, defined names and links between workbooks — removing them would turn live cells into `#REF!` |
+| ODT / ODS / ODP | `meta.xml`, user-defined properties, statistics, thumbnail, picture Exif, C2PA manifests | The content |
+| SVG | The `<metadata>` block, editor attributes and namespaces, generator comments | `<title>` and `<desc>` — what a screen reader announces |
+| HTML | `generator`/`author`/`creator`/`copyright`/`date` tags, generator comments | JSON-LD — what a search engine indexes |
+| Markdown | Identifying front-matter keys; delimiters removed if nothing is left inside | The body, other keys, attribution lines |
+| JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF | JFIF and the ICC profile — removing them would change the rendering |
+| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX` | `IHDR`, `PLTE`, `IDAT`, `IEND` |
+| Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
+| ZIP | **Nothing** — refused | Repacking would change compression, ordering and timestamps of every member |
+| Text | Invisible characters, exotic spaces normalised, NFC | Emoji joiners and Persian/Indic non-joiners |
+| Document bodies | Invisible characters and their numeric-reference equivalents, in visible text only | XML structure, tag names, attributes, **typographic spaces** |
+| PDF bodies | Nothing — reported but not removable without rewriting the content stream | Page text |
 
-### Le nettoyage est mesuré, pas affirmé
+### The cleaning is measured, not asserted
 
-La détection et la suppression peuvent diverger — un champ finit par être reconnu sans être effacé —
-et c'est le pire défaut possible ici : un rapport qui liste un élément puis rend un fichier qui le
-porte encore. C'est arrivé une fois dans ce projet, avec les clés `/Info` personnalisées.
+Detection and removal can drift apart — a field ends up recognised without being cleared — and that
+is the worst defect available here: a report that lists something and then hands back a file still
+carrying it. It happened once in this project, with custom `/Info` keys.
 
-Le nettoyage **ré-inspecte donc sa propre sortie** et nomme ce qui a survécu, au lieu de faire
-confiance au code de suppression :
+Cleaning therefore **re-inspects its own output** and names what survived, instead of trusting the
+removal code:
 
 ```
 Not removed: Anthropic API key. These sit in the document's own content rather
@@ -683,228 +646,237 @@ document says. Edit the source and regenerate — and if a credential is listed,
 rotate it.
 ```
 
-Le corollaire est net : **quand aucun avertissement de ce type n'apparaît, c'est que la ré-inspection
-n'a rien trouvé** — pas que le code croit avoir bien travaillé.
+The corollary is sharp: **when no such warning appears, it is because the re-inspection found
+nothing** — not because the code believes it did its job.
 
-### L'asymétrie des deux marques
+### The asymmetry of the two marks
 
-L'article oppose explicitement les deux mécanismes, et l'opposition est utile à qui veut décider quoi
-nettoyer :
+Anthropic's article contrasts the two mechanisms explicitly, and the contrast is useful to anyone
+deciding what to clean:
 
-| | Filigrane de texte | Content credential C2PA |
+| | Text watermark | C2PA content credential |
 |---|---|---|
-| Où | Dans le choix des mots | Dans les métadonnées du fichier — *« Nothing in the file changes »* |
-| Survit au copier-coller | **Oui** | Non : le texte copié laisse le fichier derrière |
-| Survit à un réenregistrement | Oui | **Non** — conversion, redimensionnement, capture d'écran l'effacent sans trace |
-| Cirta peut le lire | Non (clé) | **Oui** |
-| Cirta peut le retirer | Non | **Oui** |
+| Where | In the choice of words | In the file's metadata — *"Nothing in the file changes"* |
+| Survives copy-paste | **Yes** | No: copied text leaves the file behind |
+| Survives a re-save | Yes | **No** — conversion, resizing, a screenshot strip it without a trace |
+| Cirta can read it | No (key) | **Yes** |
+| Cirta can remove it | No | **Yes** |
 
-La conséquence, que Cirta énonce désormais quand il retire un manifeste : **son absence sur un
-fichier ne prouve rien**. N'importe quel passage par un éditeur l'a effacé, sans intention. Un
-contrôle qui lirait « pas de credential donc pas d'IA » se tromperait sur la majorité des fichiers
-du monde.
+The consequence, which Cirta now states when it removes a manifest: **its absence from a file proves
+nothing**. Any pass through an editor erased it, without intent. A check reading "no credential,
+therefore not AI" would be wrong about most files in the world.
 
-### Sur le retrait des manifestes C2PA
+### On removing C2PA manifests
 
-Retirer un manifeste C2PA ne rend pas un fichier « propre » — il le rend **inconnu**. Un vérificateur
-distingue trois états : manifeste valide (provenance prouvée), manifeste altéré (échec de
-vérification, altération visible), manifeste absent (aucune conclusion). Là où le C2PA se généralise,
-l'absence devient un signal en soi. Cirta signale explicitement chaque retrait de manifeste plutôt
-que de l'effectuer en silence.
+Removing a C2PA manifest does not make a file "clean" — it makes it **unknown**. A verifier
+distinguishes three states: valid manifest (provenance proven), altered manifest (verification fails,
+tampering visible), absent manifest (no conclusion). Where C2PA becomes common, absence becomes a
+signal in itself. Cirta reports every manifest removal explicitly rather than doing it silently.
 
-Second point, plus rarement dit : le C2PA prévoit deux modes de liaison. Le *hard binding* est le
-manifeste signé dans le conteneur — c'est celui que Cirta retire, et le retrait est vérifiable. Le
-*soft binding* est une marque imperceptible dans le contenu lui-même, qui permet à un vérificateur de
-retrouver le manifeste à distance. **Un manifeste retiré ne signifie donc pas qu'il ne reste aucune
-provenance.** Cirta le rappelle dans son rapport de nettoyage.
+A second point, more rarely said: C2PA defines two binding modes. *Hard binding* is the signed
+manifest in the container — that is the one Cirta removes, and the removal is verifiable. *Soft
+binding* is an imperceptible mark in the content itself, letting a verifier fetch the manifest
+remotely. **A removed manifest therefore does not mean no provenance remains.** Cirta says so in its
+cleaning report.
 
-## Interface web
+## Web interface
 
-Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,
-téléchargez la version nettoyée. Le traitement a lieu dans l'onglet ; rien n'est téléversé.
+Open the [published page](https://k3e9x.github.io/Cirta/), drop a file, read the report, download the
+cleaned copy. Processing happens in the tab; nothing is uploaded.
 
-Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décompte que la ligne
-`Summary` du CLI — avec un export JSON du rapport. Cet export a exactement la forme qu'émet
-`cirta inspect --json`, donc un rapport produit depuis la page et un rapport produit en ligne de
-commande se comparent sans traduction. L'analyse tourne dans un *worker* : un PDF volumineux ne fige
-pas l'onglet, et un worker reste un fil d'exécution de la même page, pas une autre machine.
+The interface is **bilingual**. It follows the browser's language, a toggle in the header switches it,
+and the choice is remembered. Drop several files and a summary bar appears — the same tally as the
+CLI's `Summary` line — with a JSON export of the report. That export has exactly the shape
+`cirta inspect --json` emits, so a report produced from the page and one produced on the command line
+compare without translation. Analysis runs in a *worker*: a large PDF does not freeze the tab, and a
+worker is another thread of the same page, not another machine.
 
-Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les flèches
-(et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux.
+The tabs follow ARIA practice: one stop in the tab order, arrow keys (and <kbd>Home</kbd>/<kbd>End</kbd>)
+move between them.
 
-Pour l'exécuter localement :
+To run it locally:
 
 ```bash
 npm install
 npm run dev:web
 ```
 
-## Ligne de commande
+## Command line
 
-Fonctionne sur **Windows, Linux et macOS**, sur Node 20 et 22. La CI exécute la suite de tests et un
-scénario de bout en bout du binaire sur les trois systèmes à chaque commit — la portabilité est
-vérifiée, pas supposée.
+Works on **Windows, Linux and macOS**, on Node 20 and 22. CI runs the test suite and an end-to-end
+scenario of the binary on all three systems at every commit — portability is verified, not assumed.
 
 ```bash
 npm install
 npm run build
-npm link          # rend la commande `cirta` disponible
+npm link          # makes the `cirta` command available
 ```
 
-Notes de plateforme : la couleur suit `NO_COLOR` et `FORCE_COLOR` ; sur les consoles Windows
-héritées en page de code non-UTF-8, les caractères non-ASCII de l'affichage sont automatiquement
-remplacés par des équivalents ASCII plutôt que de produire du mojibake.
+Output is **bilingual**: it follows `LC_ALL`/`LC_MESSAGES`/`LANG`, and `--lang fr|en` overrides. The
+default is English, unlike the web page's — a terminal with no locale set is a server or a CI runner,
+not somebody expressing a preference.
+
+Platform notes: colour follows `NO_COLOR` and `FORCE_COLOR`; on legacy Windows consoles in a
+non-UTF-8 code page, non-ASCII characters in the display are automatically replaced by ASCII
+equivalents rather than producing mojibake.
 
 ```bash
-# Signaler les métadonnées portées par des fichiers
-cirta inspect rapport.pdf presentation.pptx
+# Report the metadata carried by files
+cirta inspect report.pdf presentation.pptx
 
-# Auditer un dossier entier avant envoi — parcours récursif, verdict en fin de sortie
-cirta inspect ./contrats
+# Audit a whole folder before sending — recursive, with a verdict at the end
+cirta inspect ./deliverables
 
-# Les répertoires de dépendances et de build sont ignorés (node_modules, .git,
-# dist, target, .venv…), sinon un dépôt ordinaire noie le rapport : sur celui-ci,
-# 118 des 125 fichiers trouvés venaient de node_modules.
-cirta inspect ./mon-projet --skip fixtures,snapshots
+# Dependency and build directories are skipped (node_modules, .git, dist, target,
+# .venv…), otherwise an ordinary repository drowns the report: on this one,
+# 118 of the 125 files found came from node_modules.
+cirta inspect . --skip fixtures,vendor
 
-# Les fichiers texte et code source passent par le même chemin
-cirta inspect ./src
-cirta redact src/auth.py           # retire un contrôle bidi de type Trojan Source
+# Text and source files go through the same path
+cirta inspect src/
 
-# Écrire une copie nettoyée (rapport.clean.pdf par défaut)
-cirta redact rapport.pdf
-cirta redact *.docx --in-place
-cirta redact rapport.pdf -o public/rapport.pdf
+# Write a cleaned copy (report.clean.pdf by default)
+cirta redact report.pdf
+cirta redact report.pdf -o cleaned.pdf
+cirta redact ./deliverables --in-place      # keeps a .bak
 
-# Sortie exploitable par script
-cirta inspect rapport.pdf --json
+# Machine-readable output
+cirta inspect report.pdf --json
 
-# Texte sur l'entrée standard
-cirta text < brouillon.txt                    # analyser
-cirta text --clean < brouillon.txt > propre.txt
+# Text on standard input
+cirta text < draft.txt
+cirta text --clean < draft.txt > clean.txt
+cirta text --lang fr < draft.txt
 
-# La garde binaire refuse un document ; --force-text passe outre si vous savez
-# ce que vous faites (elle est délibérément grossière, donc faillible)
-cirta text --force-text < fichier-au-format-inhabituel
+# The binary guard refuses a document; --force-text overrides it if you know
+# what you are doing (it is deliberately coarse, therefore fallible)
+cirta text --force-text < odd.bin
 
-# Presse-papiers, selon le système
-pbpaste | cirta text --clean | pbcopy                      # macOS
-xclip -o | cirta text --clean | xclip -i                   # Linux (X11)
-wl-paste | cirta text --clean | wl-copy                    # Linux (Wayland)
-Get-Clipboard | cirta text --clean | Set-Clipboard          # Windows PowerShell
+# Clipboard, depending on the system
+pbpaste | cirta text --clean | pbcopy                    # macOS
+xclip -o -sel clip | cirta text --clean | xclip -i -sel clip   # Linux
+Get-Clipboard | cirta text --clean | Set-Clipboard        # Windows
 ```
 
-Codes de sortie : `0` succès, `1` au moins un fichier en échec, `2` erreur d'usage.
+## Processing detail
 
-## Détail du traitement
+**PDF** — `/Info` dictionary keys are deleted rather than emptied, so no trace remains of which
+fields existed; the `/Metadata` stream is removed from the catalog. The document is loaded with
+`updateMetadata: false` so the library does not stamp its own modification date and producer name at
+save time. Page content is never modified.
 
-**PDF** — les clés du dictionnaire `/Info` sont supprimées plutôt que vidées, pour ne pas laisser
-trace des champs qui existaient ; le flux `/Metadata` est retiré du catalogue. Le document est chargé
-avec `updateMetadata: false` afin que la bibliothèque n'appose pas sa propre date de modification ni
-son nom de producteur au moment de l'enregistrement. Le contenu des pages n'est jamais modifié.
+**OOXML** — text fields are emptied, date elements removed (an empty `dcterms:created` is not a valid
+W3CDTF value). When a whole part is removed — custom properties, thumbnail, C2PA manifest — the
+corresponding declaration in `[Content_Types].xml` and the relationship in `_rels/.rels` go too: that
+is the usual way a naive cleaner corrupts an Office file. The container is rebuilt with
+`[Content_Types].xml` as the first entry.
 
-**OOXML** — les champs textuels sont vidés, les éléments de date supprimés (un `dcterms:created` vide
-n'est pas une valeur W3CDTF valide). Lorsqu'une partie entière est retirée — propriétés
-personnalisées, miniature, manifeste C2PA — la déclaration correspondante dans `[Content_Types].xml`
-et la relation dans `_rels/.rels` le sont également : c'est la façon habituelle dont un nettoyeur
-naïf corrompt un fichier Office. Le conteneur est reconstruit avec `[Content_Types].xml` en première
-entrée.
+**Content left in place** — links to local paths, hidden slides, speaker notes, cross-workbook
+references and lookalike letters are reported but **never removed**. They are content, not metadata:
+removing them would change what the recipient reads. The cleaning report names them explicitly so
+the decision stays yours.
 
-**Contenu laissé en place** — les liens vers des chemins locaux, les diapositives masquées, les
-notes du présentateur, les références entre classeurs et les lettres sosies sont signalés mais
-**jamais supprimés**. Ce sont du contenu, pas des
-métadonnées : les retirer changerait ce que lit le destinataire. Le rapport de nettoyage les rappelle
-explicitement pour que la décision vous revienne.
+**Embedded pictures** — Exif, XMP, IPTC and comments are removed from JPEGs, and the text, timestamp
+and Exif chunks from PNGs. The JFIF segment and the ICC colour profile are kept: removing them would
+change how the image renders.
 
-**Images intégrées** — l'Exif, le XMP, l'IPTC et les commentaires sont retirés des JPEG, et les
-chunks de texte, d'horodatage et d'Exif des PNG. Le segment JFIF et le profil colorimétrique ICC sont
-conservés : les supprimer changerait le rendu de l'image.
+**Text** — invisible characters are removed, except where they do legitimate typographic work: emoji
+sequence joiners (`👩‍💻`), presentation selectors after a pictographic character, and non-joiners
+between two letters, which Persian and Indic orthographies require. Exotic spaces are normalised to
+`U+0020`, then the text goes to NFC.
 
-**Texte** — les caractères invisibles sont retirés, sauf lorsqu'ils accomplissent un travail
-typographique légitime : liants de séquences emoji (`👩‍💻`), sélecteurs de présentation après un
-caractère pictographique, et anti-liants entre deux lettres, indispensables aux orthographes persane
-et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte passe en NFC.
+Behind the named list, a net catches the whole Unicode `Cf` category — otherwise every format
+character added to the standard would pass unnoticed. That net has its own exceptions, for the
+opposite reason: Arabic number signs (`U+0600`–`U+0605`), end-of-ayah marks (`U+06DD`, `U+08E2`), the
+Kaithi sign and musical ligature controls are invisible but part of what the document says. Removing
+them would be data loss, not cleaning.
 
-Derrière la liste nommée, un filet attrape toute la catégorie Unicode `Cf` — sinon chaque caractère
-de format ajouté à la norme passerait sans bruit. Ce filet a lui aussi ses exceptions, pour la raison
-inverse : les signes de nombre arabes (`U+0600`–`U+0605`), les fins de verset coranique (`U+06DD`,
-`U+08E2`), le signe kaithi et les contrôles de ligature musicale sont invisibles mais font partie de
-ce que dit le document. Les supprimer serait une perte de données, pas un nettoyage.
+**Lookalike letters** — a Cyrillic `а` and a Latin `a` are two codepoints that render identically, so
+`pаssword` reads as an ordinary English word and matches nothing. The signal is not the character —
+Cyrillic is legitimately full of them — but the *mixture*: a word drawing on two scripts at once.
+They are **reported and never replaced**: substituting the "wrong" script is a bet on which half of
+the word was intended, and guessing the wrong way damages genuine Cyrillic or Greek text. The
+decision stays yours.
 
-**Lettres sosies** — un `а` cyrillique et un `a` latin sont deux codepoints qui s'affichent
-identiquement, donc `pаssword` se lit comme un mot anglais ordinaire et ne correspond à rien. Le
-signal n'est pas le caractère — le cyrillique en est légitimement plein — mais le *mélange* : un mot
-puisant dans deux alphabets à la fois. Ils sont **signalés et jamais remplacés** : substituer le
-« mauvais » alphabet est un pari sur la moitié du mot qui était voulue, et se tromper de sens abîme
-du vrai texte cyrillique ou grec. La décision vous revient.
+### The channels that are not a strange character
 
-### Les canaux qui ne sont pas un caractère bizarre
+A detector working from a blacklist of codepoints finds nothing in a text that contains none — and it
+is entirely possible to mark a document without using a single one. Four families are covered for
+that reason:
 
-Un détecteur qui travaille sur une liste noire de codepoints trouve zéro résultat sur un texte qui
-n'en contient aucun — et il est parfaitement possible de marquer un document sans en utiliser un
-seul. Quatre familles sont couvertes pour cette raison :
+**Normalisation.** `é` is written as one codepoint (U+00E9) or two (`e` + U+0301). Both render
+identically, neither is suspicious, and the choice between them is a free bit per accented letter. On
+ordinary French text that is about a hundred bits.
 
-**La normalisation.** `é` s'écrit en un codepoint (U+00E9) ou en deux (`e` + U+0301). Les deux
-s'affichent identiquement, aucun n'est suspect, et le choix entre les deux est un bit gratuit par
-lettre accentuée. Sur un texte français ordinaire, cela fait une centaine de bits.
+The signal is not decomposition but the **mixture**. A fully decomposed file is a Mac: HFS+ stores in
+NFD and several toolchains follow. A file containing both forms is a file where something chose,
+letter by letter. Hence two distinct levels: `confirmed` for the mixture, `informational` for uniform
+NFD.
 
-Le signal n'est pas la décomposition mais le **mélange**. Un fichier entièrement décomposé, c'est un
-Mac : HFS+ stocke en NFD et plusieurs chaînes d'outils suivent. Un fichier qui contient les deux
-formes est un fichier où quelque chose a choisi, lettre par lettre. D'où deux niveaux distincts :
-`confirmé` pour le mélange, `informatif` pour le NFD uniforme.
+**Hyphen lookalikes.** U+2010 and U+2011 are pixel-identical to the ASCII `-` in most fonts. En and
+em dashes are deliberately absent from the list: they are visibly longer, they are correct
+typography, and flagging them would drown the two that really hide.
 
-**Les sosies du trait d'union.** U+2010 et U+2011 sont au pixel près le `-` ASCII dans la plupart
-des polices. Les tirets demi-cadratin et cadratin sont délibérément absents de la liste : ils sont
-visiblement plus longs, ils sont corrects en français, et les signaler noierait les deux qui se
-cachent vraiment.
+**Spacing.** One or two spaces after a full stop passes for a typing habit; a trailing space is
+invisible in any editor; mixed CRLF and LF line endings carry a bit per line. Again the signal is
+irregularity: a document that doubles *all* its spaces follows a convention, a document that
+alternates chose sentence by sentence. These channels are **reported and never rewritten** — spacing
+belongs to the author.
 
-**L'espacement.** Une ou deux espaces après un point passe pour une habitude de frappe ; une espace
-en fin de ligne est invisible dans tout éditeur ; des fins de ligne CRLF et LF mélangées portent un
-bit par ligne. Là encore le signal est l'irrégularité : un document qui double *toutes* ses espaces
-suit une convention, un document qui alterne a choisi phrase par phrase. Ces canaux sont **signalés
-et jamais réécrits** — l'espacement appartient à l'auteur.
+The CRLF/LF channel only appears on a **file**. A `<textarea>` normalises line endings on read, so
+text pasted into the page no longer carries it. The report says so.
 
-Le canal CRLF/LF n'apparaît que sur un **fichier**. Un `<textarea>` normalise les fins de ligne à la
-lecture, donc un texte collé dans la page ne le porte plus. Le rapport le dit.
+**The invisibles the `Cf` category does not cover.** U+3164 HANGUL FILLER is classified as a *letter*
+by Unicode and renders empty; U+2800 is a blank braille cell; U+034F is a combining mark. None is a
+format character, all look like nothing. The braille cell is kept when surrounded by braille — it is
+that script's space — and removed everywhere else.
 
-**Les invisibles que la catégorie `Cf` ne couvre pas.** U+3164 HANGUL FILLER est classé *lettre* par
-Unicode et se rend vide ; U+2800 est une cellule braille blanche ; U+034F est une marque combinante.
-Aucun n'est un caractère de formatage, tous se voient comme rien. La cellule braille est conservée
-quand elle est entourée de braille — c'est l'espace de cette écriture — et retirée partout ailleurs.
+### Refusing rather than damaging
 
-### Refuser plutôt qu'abîmer
+Two guards exist because silent failure costs more than a refusal.
 
-Deux gardes existent parce que l'échec silencieux coûte plus cher que le refus.
+**A binary file does not enter the text tools.** Running a document through the text cleaner destroys
+it: the bytes are decoded at a loss, removal applies to the wreckage, and the result is written back
+over the top. Detection rests on a **format signature** (25 headers), then NUL bytes, then control-byte
+density. The signature first, because it alone is reliable: a PDF whose streams are uncompressed
+contains no NUL and decodes cleanly as UTF-8 — it passed both other tests. Signatures that are also
+common words (`OTTO`, `RIFF`) additionally require a binary structure in the first bytes, so a
+document beginning with that word is still treated as text.
 
-**Un fichier binaire n'entre pas dans les outils texte.** Passer un document au nettoyeur de texte le
-détruit : les octets sont décodés en pure perte, le retrait s'applique à l'épave, et le résultat est
-réécrit par-dessus. La détection repose sur une **signature de format** (25 en-têtes), puis les
-octets NUL, puis la densité d'octets de contrôle. La signature d'abord, parce qu'elle seule est
-fiable : un PDF dont les flux ne sont pas compressés ne contient aucun NUL et décode proprement en
-UTF-8 — il traversait les deux autres tests. Les signatures qui sont aussi des mots courants (`OTTO`,
-`RIFF`) exigent en plus une structure binaire dans les premiers octets, pour qu'un document qui
-commence par ce mot reste traité comme du texte.
+**An archive is refused on the size it declares**, before any decompression. An 800 KB container can
+declare 800 MB; caps applied afterwards bound what is *reported*, not what is *decompressed* — the
+memory is already spent. The declared size is the archive's claim and a forged file can lie: this is
+a guard, not a proof.
 
-**Une archive est refusée sur la taille qu'elle annonce**, avant toute décompression. Un conteneur de
-800 Ko peut déclarer 800 Mo ; les plafonds appliqués après coup bornent ce qui est *rapporté*, pas ce
-qui est *décompressé* — la mémoire est déjà dépensée. La taille annoncée est la revendication de
-l'archive et un fichier forgé peut mentir : c'est une garde, pas une preuve.
+**A write cannot lose the original.** Every output goes through a temporary file in the same
+directory then an atomic rename; a symbolic link at the destination is refused rather than followed;
+and `--in-place` keeps a `.bak` created before any replacement.
 
-**Une écriture ne peut pas perdre l'original.** Toute sortie passe par un fichier temporaire du même
-répertoire puis un renommage atomique ; un lien symbolique en destination est refusé plutôt que suivi ;
-et `--in-place` conserve un `.bak` créé avant tout remplacement.
-
-## Développement
+## Development
 
 ```bash
-npm run verify     # typage, 263 tests, build, scénario CLI de bout en bout, build web
+npm run verify     # typecheck, tests, build, end-to-end CLI scenario, web build
 ```
 
-### Le logo
+`verify` is the single entry point, and it is exactly what CI runs. The steps are chained with `&&`,
+so the first failure stops everything and the exit code propagates — a green terminal and a green
+pipeline cannot disagree about what was checked.
 
-`assets/logo.svg` est la source unique de la marque. Le site l'affiche et l'utilise comme favicon,
-le README le montre ci-dessus, et `src/cli/logo.ts` en est une transcription en cellules de
-caractères — un terminal ne sait pas afficher du SVG :
+The individual steps stay available:
+
+```bash
+npm run typecheck
+npm test
+npm run build      # library + CLI to dist/
+npm run build:web  # static site to dist-web/
+node scripts/smoke.mjs
+```
+
+### The logo
+
+`assets/logo.svg` is the single source of the mark. The site displays it and uses it as a favicon,
+the README shows it above, and `src/cli/logo.ts` is a transcription of it into character cells — a
+terminal cannot display SVG:
 
 ```
   ╭───────╮   cirta
@@ -913,55 +885,41 @@ caractères — un terminal ne sait pas afficher du SVG :
   ╰───────╯   everything runs locally; no network calls are made
 ```
 
-Deux transcriptions existent, parce que les caractères de dessin de boîte ne sont pas sûrs partout :
-une console Windows héritée en page de code non-UTF-8 les rend en mojibake, et une bannière qui
-arrive en charabia est pire qu'une bannière simple. Le repli est purement ASCII et la colonne de
-texte reste alignée au même décalage dans les deux cas.
+Two transcriptions exist, because box-drawing characters are not safe everywhere: a legacy Windows
+console in a non-UTF-8 code page renders them as mojibake, and a banner that arrives as garbage is
+worse than a plain one. The fallback is pure ASCII and the text column stays aligned at the same
+offset either way.
 
-`verify` est l'unique porte d'entrée, et c'est exactement ce que lance la CI. Les étapes sont
-enchaînées par `&&`, donc la première qui échoue arrête tout et le code de sortie remonte — un
-terminal vert et un pipeline vert ne peuvent pas être en désaccord sur ce qui a été vérifié.
+### Real files
 
-Les étapes individuelles restent disponibles :
+Every unit fixture is built by hand: that is fast and precise, but a container built here shares the
+assumptions of the parser that reads it back. The one genuinely signed image in the suite
+(`test/fixtures/signed.jpg`, from c2pa-rs) is what caught the CBOR reader out, when it assumed a
+manifest contains no indefinite-length items.
 
-```bash
-npm run typecheck
-npm test
-npm run build      # bibliothèque + CLI vers dist/
-npm run build:web  # site statique vers dist-web/
-node scripts/smoke.mjs
-```
-
-### Fichiers réels
-
-Toutes les fixtures unitaires sont construites à la main : c'est rapide et précis, mais un conteneur
-fabriqué ici partage les hypothèses de l'analyseur qui le relit. La seule image réellement signée de
-la suite (`test/fixtures/signed.jpg`, tirée de c2pa-rs) est ce qui a pris le lecteur CBOR en défaut,
-lui qui supposait qu'un manifeste ne contient aucun élément de longueur indéfinie.
-
-`scripts/real-files.mjs` va plus loin : LibreOffice produit un document, Cirta le nettoie,
-LibreOffice rouvre le résultat. Corrompre un fichier Word est le pire échec possible ici, et rien
-d'autre dans la suite ne le remarquerait. La première conversion sert de témoin — si LibreOffice ne
-sait même pas fabriquer l'entrée, le script s'arrête en le disant plutôt qu'en échouant, parce que
-cela ne prouve rien sur le nettoyage. La CI l'exécute sur Linux, après `verify`.
+`scripts/real-files.mjs` goes further: LibreOffice produces a document, Cirta cleans it, LibreOffice
+reopens the result. Corrupting a Word file is the worst failure available here, and nothing else in
+the suite would notice. The first conversion acts as a control — if LibreOffice cannot even produce
+the input, the script stops and says so rather than failing, because that proves nothing about the
+cleaning. CI runs it on Linux, after `verify`.
 
 ```bash
 node scripts/real-files.mjs
 ```
 
-La base d'URL du site vaut `/Cirta/` pour GitHub Pages ; utilisez `CIRTA_BASE=/ npm run build:web`
-pour un domaine personnalisé.
+The site's base URL is `/Cirta/` for GitHub Pages; use `CIRTA_BASE=/ npm run build:web` for a custom
+domain.
 
-## Références
+## References
 
-Plusieurs idées viennent de [watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
-(MIT) et de l'article de son auteur sur les quatre couches du problème : la classification par niveaux
-de signalement, l'audit récursif de dossier, le refus des entrées binaires dans les outils texte, et
-la liste des conteneurs à couvrir. Ce projet ne reprend pas sa couche de retrait par régénération en
-domaine pixel ni sa couche de réécriture statistique : toutes deux produisent des affirmations
-invérifiables localement, et n'ont pas d'objet pour des PDF ou des documents Office.
+Several ideas come from [watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
+(MIT) and its author's article on the four layers of the problem: the classification by reporting
+level, recursive folder auditing, refusing binary input in text tools, and the list of containers to
+cover. This project does not take up its pixel-domain regeneration layer or its statistical rewriting
+layer: both produce claims that cannot be verified locally, and neither applies to PDFs or Office
+documents.
 
-Travaux cités dans ce README :
+Work cited in this README:
 
 1. Kirchenbauer, J., Geiping, J., Wen, Y., Katz, J., Miers, I., & Goldstein, T. (2023).
    [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226). ICML 2023.
@@ -978,11 +936,13 @@ Travaux cités dans ce README :
 6. Hou, A. B., et al. (2024). [SemStamp](https://aclanthology.org/2024.naacl-long.226/). NAACL 2024.
 7. Chang, Y., et al. (2024). [PostMark](https://aclanthology.org/2024.emnlp-main.506/). EMNLP 2024.
 8. Boucher, N., & Anderson, R. (2023).
-   [Trojan Source: Invisible Vulnerabilities](https://arxiv.org/abs/2111.00169). IEEE S&P ; CVE-2021-42574.
+   [Trojan Source: Invisible Vulnerabilities](https://arxiv.org/abs/2111.00169). IEEE S&P; CVE-2021-42574.
 9. Coalition for Content Provenance and Authenticity.
    [C2PA specifications](https://c2pa.org/specifications/).
-10. Règlement (UE) 2024/1689 (AI Act),
+10. Regulation (EU) 2024/1689 (AI Act),
     [Article 50](https://artificialintelligenceact.eu/article/50/).
+11. Anthropic. [How Claude's text watermark works](https://www.anthropic.com/news/claude-text-watermark)
+    and [How Claude marks AI-generated content](https://support.claude.com/en/articles/16266773-how-claude-marks-ai-generated-content).
 
 ## Licence
 
