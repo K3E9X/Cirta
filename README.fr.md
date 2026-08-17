@@ -10,7 +10,15 @@ compte, répertoire de travail. Disponible en interface web et en ligne de comma
 Tout s'exécute localement. L'interface web ne fait aucune requête réseau : aucun document ne quitte
 votre machine.
 
-*[English version](README.md) · l'interface elle-même est bilingue, français et anglais.*
+## ▸ [Utilisez-le maintenant — k3e9x.github.io/Cirta](https://k3e9x.github.io/Cirta/)
+
+**Rien à installer, aucun compte à créer, et aucun fichier n'est téléversé.** Déposez un document
+dans la page, lisez le rapport, téléchargez la version nettoyée — tout se passe dans votre propre
+onglet. L'interface est en français et en anglais, et suit la langue de votre navigateur.
+
+Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne de commande](#ligne-de-commande).
+
+*[English version](README.md)*
 
 ## Ce que fait cet outil
 

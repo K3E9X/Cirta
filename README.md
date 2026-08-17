@@ -10,7 +10,15 @@ name, working directory. Available as a web interface and a command line.
 Everything runs locally. The web interface makes no network requests: no document leaves your
 machine.
 
-*[Version française](README.fr.md) · the interface itself is bilingual, French and English.*
+## ▸ [Use it now — k3e9x.github.io/Cirta](https://k3e9x.github.io/Cirta/)
+
+**Nothing to install, nothing to sign up for, and no file is uploaded.** Drop a document in the page,
+read the report, download the cleaned copy — the work happens in your own browser tab. The interface
+is in English and French, and follows your browser's language.
+
+Prefer a terminal, or a whole folder at once? [Jump to the command line](#command-line).
+
+*[Version française](README.fr.md)*
 
 ## What this tool does
 
