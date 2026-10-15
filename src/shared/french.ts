@@ -98,6 +98,19 @@ const FIELD_LABEL: Record<string, string> = {
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
+  // Contenu que le paquet conserve alors que le document ne le montre plus.
+  'Earlier versions of this document are still in the file':
+    'Des versions antérieures de ce document sont encore dans le fichier',
+  'Annotation authors': 'Auteurs des annotations',
+  'Cropped pictures keep their original image':
+    'Les images recadrées conservent leur original',
+  'Pivot table cache holds a copy of the source rows':
+    'Le cache du tableau croisé garde une copie des lignes sources',
+  'Hidden worksheets': 'Feuilles masquées',
+  'Image generation settings, including the prompt':
+    'Réglages de génération d’image, prompt compris',
+  'Image generator named in metadata': 'Générateur d’images nommé dans les métadonnées',
+  'Letters styled with mathematical symbols': 'Lettres stylisées en symboles mathématiques',
   // Liens trompeurs.
   'Hostname written entirely in a lookalike alphabet':
     'Nom de domaine écrit entièrement dans un alphabet sosie',
@@ -232,6 +245,10 @@ const LOCATION_TEXT: Record<string, string> = {
   'bidirectional controls': 'contrôles bidirectionnels',
   'document body': 'corps du document',
   links: 'liens',
+  'file revisions': 'révisions du fichier',
+  'page annotations (/T)': 'annotations de page (/T)',
+  'mathematical alphanumerics': 'alphanumériques mathématiques',
+  'xl/workbook.xml:sheet': 'xl/workbook.xml:sheet',
   'container structure': 'structure du conteneur',
   'file structure': 'structure du fichier',
   'package structure': 'structure du paquet',
@@ -494,12 +511,72 @@ function translateReasons(value: string): string {
   return parts.join(' ; ') + suffix;
 }
 
+/**
+ * Values from the checks that report retained content and generated images.
+ * Each module composes one sentence around a count or a name, so each shape is
+ * matched whole — a half-translated line reads as a bug because it is one.
+ */
+const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    /^(\d+) revisions are present(.*?)\. A reader shows only the newest; the previous ones were appended to, never removed, and the first ends ([\d,]+) bytes in — about (\d+)% of the file\. Text covered or deleted in a later revision is still readable in an earlier one$/,
+    (m) =>
+      `${m[1]} révisions sont présentes${m[2] ? ' (une section de références croisées décomptée comme linéarisation)' : ''}. ` +
+      `Un lecteur n'affiche que la plus récente ; les précédentes ont été complétées, jamais retirées, ` +
+      `et la première s'achève à ${m[3]} octets — environ ${m[4]} % du fichier. Un texte masqué ou ` +
+      `supprimé dans une révision ultérieure reste lisible dans une révision antérieure`,
+  ],
+  [
+    /^(.+) — named on (\d+) annotations? carried by the pages$/,
+    (m) => `${m[1]} — nommés sur ${m[2]} annotation(s) portées par les pages`,
+  ],
+  [
+    /^(\d+) parts? crops? an image with a:srcRect\. Cropping only changes which rectangle is displayed — the full picture is still in the package, so whatever was cropped out can be recovered by unzipping the file$/,
+    (m) =>
+      `${m[1]} partie(s) recadrent une image avec a:srcRect. Le recadrage ne change que le rectangle ` +
+      `affiché — l'image entière est toujours dans le paquet, donc ce qui a été rogné se récupère en ` +
+      `décompressant le fichier`,
+  ],
+  [
+    /^(\d+) cache parts?, ([\d,]+) bytes\. A pivot table keeps its own copy of the data it was built from, so deleting or hiding the source sheet leaves the rows in the file$/,
+    (m) =>
+      `${m[1]} partie(s) de cache, ${m[2]} octets. Un tableau croisé garde sa propre copie des données ` +
+      `dont il est issu : supprimer ou masquer la feuille source laisse les lignes dans le fichier`,
+  ],
+  [
+    /^(.+) — their cells travel with the workbook(\. A veryHidden sheet cannot be unhidden from the Excel interface, so it is easy to forget one is there)?$/,
+    (m) =>
+      `${m[1]} — leurs cellules voyagent avec le classeur` +
+      (m[2]
+        ? `. Une feuille veryHidden ne peut pas être réaffichée depuis l'interface d'Excel, ` +
+          `il est donc facile d'en oublier une`
+        : ''),
+  ],
+  [
+    /^written by (.+?)( — begins "(.*)")?\. The prompt, the model and the seed travel with the file$/,
+    (m) =>
+      `écrit par ${m[1]}` +
+      (m[3] ? ` — commence par « ${m[3]} »` : '') +
+      `. Le prompt, le modèle et la seed voyagent avec le fichier`,
+  ],
+  [
+    /^(\d+) characters? from the Mathematical Alphanumeric Symbols block, reading as "(.*)"\. A filter or a search matching the ordinary letters does not match these, while a reader sees no difference\. Legitimate in a formula$/,
+    (m) =>
+      `${m[1]} caractère(s) du bloc Mathematical Alphanumeric Symbols, qui se lisent « ${m[2]} ». ` +
+      `Un filtre ou une recherche portant sur les lettres ordinaires ne les trouve pas, alors qu'un ` +
+      `lecteur ne voit aucune différence. Légitime dans une formule`,
+  ],
+];
+
 export function translateValue(finding: Finding, lang: Lang): string {
   if (lang === 'en') return finding.value;
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
   if (/\bstructure$/.test(finding.location)) return translateReasons(finding.value);
+  for (const [pattern, render] of RETAINED_PATTERNS) {
+    const match = pattern.exec(finding.value);
+    if (match) return render(match);
+  }
   if (finding.location === 'links') {
     for (const [pattern, render] of LINK_PATTERNS) {
       const match = pattern.exec(finding.value);

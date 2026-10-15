@@ -39,6 +39,11 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | **Email** | The RFC 5322 header block: `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, and **any unknown `X-` header** — that is where a pipeline signs itself. Tool headers are removed on cleaning; `From`, `Subject`, `Date` and `Message-ID` stay, they are the message |
 | Text and source files | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… and dotfiles (`.env`, `.npmrc`, `.netrc`) — same checks, same removal. A bidirectional control in source is the **Trojan Source** case (CVE-2021-42574) |
 | Credentials | Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe keys; **PEM private key blocks**; call identifiers and LLM endpoints. Only patterns that cannot occur in ordinary prose — never a product name |
+| **Earlier PDF revisions** | A PDF saved incrementally keeps every previous version inside the file. Text covered by a black box and saved is still readable underneath — the mechanism behind most published redaction failures. Linearised files are discounted so "fast web view" is not mistaken for an update |
+| **Content a package still holds** | Cropped pictures (`a:srcRect` changes which rectangle is shown; the full image stays), pivot caches (a copy of the source rows survives deleting the sheet), and hidden or `veryHidden` worksheets |
+| **PDF annotation authors** | `/T` on every sticky note, highlight and review comment names who wrote it |
+| **Generated images** | `parameters`, `prompt` and `workflow` chunks from Stable Diffusion web UI, ComfyUI and InvokeAI — **the prompt, the model and the seed travel with the file** |
+| **Mathematical alphanumerics** | 𝘂𝗿𝗴𝗲𝗻𝘁 reads as "urgent" to a person and matches nothing for a filter or a search. Reported with what it folds back to, never rewritten — in a formula the notation is the meaning |
 | **Deceptive links** | Hostnames written in a lookalike alphabet — `аррӏе.com` in Cyrillic renders pixel-for-pixel as `apple.com` and mixes no scripts at all, which is how it got past every browser in 2017. Also mixed-alphabet hostnames, invisible characters inside a domain, and the `@` trick where the recognisable part of a URL is a username the browser discards. **Reported, never rewritten** |
 | Lookalike letters | Words mixing two scripts (`pаssword` with a Cyrillic `а`) or two widths (`Ａdmin`) — **reported, never replaced** |
 | Unicode normalisation | A document containing both `é` (U+00E9) and `e`+U+0301 — same rendering, two encodings, **one free bit per accented letter** |
@@ -766,6 +771,23 @@ pbpaste | cirta text --clean | pbcopy                    # macOS
 xclip -o -sel clip | cirta text --clean | xclip -i -sel clip   # Linux
 Get-Clipboard | cirta text --clean | Set-Clipboard        # Windows
 ```
+
+### Running it in a pipeline
+
+`--sarif` emits SARIF 2.1.0, which GitHub Code Scanning, GitLab and most IDEs
+read directly, so findings land on a pull request next to the compiler warnings
+rather than in a report nobody opens. `--fail-on <level>` turns them into a
+gate.
+
+```bash
+cirta inspect . --sarif > cirta.sarif
+cirta inspect . --fail-on confirmed    # exit 1 if any verbatim identifying data
+```
+
+Without `--fail-on` a scan reports and still succeeds: scanning is not the same
+as failing, and a check that exits non-zero for every document with a title is
+a check somebody disables within a week. Ready-made copies are in
+[`examples/`](examples/) — a GitHub Actions workflow and a pre-commit hook.
 
 ## Processing detail
 

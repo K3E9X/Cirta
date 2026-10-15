@@ -17,6 +17,9 @@ import {
   redactFile,
   inspectPlainText,
   cleanText,
+  toSarif,
+  meetsThreshold,
+  type SarifInput,
   UnsupportedFormatError,
   decodeTextInput,
   BinaryInputError,
@@ -83,6 +86,8 @@ ${bold(t().options)}
       --force-text      ${t().optForceText}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
+      --sarif           ${t().optSarif}
+      --fail-on <level> ${t().optFailOn}
   -h, --help            ${t().optHelp}
 
 ${bold(t().confidenceTitle)}
@@ -105,6 +110,8 @@ interface Args {
   forceText: boolean;
   skip: string[];
   lang?: string;
+  sarif: boolean;
+  failOn?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -117,6 +124,7 @@ function parseArgs(argv: string[]): Args {
     help: false,
     forceText: false,
     skip: [],
+    sarif: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -139,6 +147,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--lang':
         args.lang = argv[++i];
+        break;
+      case '--sarif':
+        args.sarif = true;
+        break;
+      case '--fail-on':
+        args.failOn = argv[++i];
         break;
       case '--skip':
         args.skip.push(...(argv[++i] ?? '').split(',').map((name) => name.trim()).filter(Boolean));
@@ -437,6 +451,31 @@ function defaultOutputPath(input: string): string {
   return join(dirname(input), `${basename(input, ext)}.clean${ext}`);
 }
 
+/**
+ * What the process exits with.
+ *
+ * A failure to read a file is always an error. Beyond that, `--fail-on` turns
+ * findings into a gate: a pipeline that should stop when a document carries
+ * verbatim identifying data asks for `--fail-on confirmed`, and gets exit 1.
+ * Without the flag, findings are reported and the run still succeeds — scanning
+ * is not the same as failing, and a tool that exits non-zero for every document
+ * with a title would be disabled within a week.
+ */
+function exitCode(
+  args: Args,
+  results: SarifInput[],
+  failures: number,
+): number {
+  if (failures > 0) return 1;
+  if (!args.failOn) return 0;
+  const level = args.failOn.toLowerCase();
+  if (level !== 'confirmed' && level !== 'probable' && level !== 'informational') {
+    console.error(red(t().unknownLevel(args.failOn)));
+    return 2;
+  }
+  return meetsThreshold(results, level) ? 1 : 0;
+}
+
 async function runInspect(args: Args): Promise<number> {
   const results: Array<{ file: string; result?: InspectResult; error?: string }> = [];
   let failures = 0;
@@ -448,7 +487,7 @@ async function runInspect(args: Args): Promise<number> {
         formatHint(file, args.forceText),
       );
       results.push({ file, result });
-      if (!args.json) {
+      if (!args.json && !args.sarif) {
         console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
         printProvenance(result.findings);
         printFindings(result.findings);
@@ -457,14 +496,20 @@ async function runInspect(args: Args): Promise<number> {
     } catch (error) {
       failures++;
       const message = error instanceof Error ? error.message : String(error);
-      if (args.json) results.push({ file, error: message });
+      if (args.json || args.sarif) results.push({ file, error: message });
       else console.error(`\n${bold(file)}\n  ${red(message)}`);
     }
   }
 
+  // SARIF is what a pipeline reads, so it is emitted alone on stdout with
+  // nothing else mixed in — a stray banner makes the file unparseable.
+  if (args.sarif) {
+    console.log(JSON.stringify(toSarif(results), null, 2));
+    return exitCode(args, results, failures);
+  }
   if (args.json) {
     console.log(JSON.stringify(results, null, 2));
-    return failures > 0 ? 1 : 0;
+    return exitCode(args, results, failures);
   }
 
   // A folder audit is only useful if it ends with a verdict rather than pages
@@ -482,7 +527,7 @@ async function runInspect(args: Args): Promise<number> {
     );
   }
 
-  return failures > 0 ? 1 : 0;
+  return exitCode(args, results, failures);
 }
 
 async function runRedact(args: Args): Promise<number> {

@@ -395,10 +395,110 @@ function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
   return out;
 }
 
+/**
+ * Earlier revisions of the document, still inside the file.
+ *
+ * A PDF can be saved incrementally: the writer appends a new body and a new
+ * cross-reference table pointing back at the old one with `/Prev`, and leaves
+ * everything that came before exactly where it was. The reader shows the latest
+ * revision. The bytes of every earlier one are still there.
+ *
+ * This is the mechanism behind most published redaction failures. A name is
+ * covered with a black rectangle, the file is saved, and the original text sits
+ * in the previous revision for anyone who opens the file in a text editor. The
+ * tool cannot extract what is in there — doing that properly means parsing each
+ * revision as its own document — but it can say that it exists, which is the
+ * part the author needs to know before sending the file.
+ *
+ * Linearised files are the false positive to avoid. "Fast web view" writes a
+ * second cross-reference section at the front so a viewer can render page one
+ * before the rest arrives, and that section carries a `/Prev` like an update
+ * would. It is one revision in two pieces, not two revisions, so a file that
+ * declares `/Linearized` gets one section discounted.
+ */
+function priorRevisions(data: Uint8Array): Finding[] {
+  // ASCII-only markers, so a byte scan is exact and never decodes the file.
+  const text = Buffer.from(data).toString('latin1');
+  const eof = (text.match(/%%EOF/g) ?? []).length;
+  const linearised = /\/Linearized/.test(text.slice(0, 4096));
+  const revisions = eof - (linearised ? 1 : 0);
+  if (revisions < 2) return [];
+
+  const firstEof = text.indexOf('%%EOF');
+  const retained = firstEof > 0 ? firstEof : 0;
+  const share = Math.round((retained / data.length) * 100);
+
+  return [
+    {
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'file revisions',
+      label: 'Earlier versions of this document are still in the file',
+      value:
+        `${revisions} revisions are present${linearised ? ' (one cross-reference section discounted as linearisation)' : ''}. ` +
+        `A reader shows only the newest; the previous ones were appended to, never removed, and the ` +
+        `first ends ${retained.toLocaleString('en-US')} bytes in — about ${share}% of the file. ` +
+        `Text covered or deleted in a later revision is still readable in an earlier one`,
+    },
+  ];
+}
+
+/**
+ * Annotation authors, which are comment metadata rather than page content.
+ *
+ * A sticky note, a highlight or a review comment carries `/T` — the title of
+ * the annotation, which every reader fills with the commenter's name — and
+ * often `/M`, when they wrote it. A document that went through review names
+ * everyone who touched it, and nothing on the page shows that.
+ */
+function annotationAuthors(doc: PDFDocument): Finding[] {
+  const authors = new Map<string, number>();
+  let annotations = 0;
+
+  let pages: ReturnType<PDFDocument['getPages']>;
+  try {
+    pages = doc.getPages();
+  } catch {
+    return [];
+  }
+
+  for (const page of pages) {
+    const annots = page.node.lookup(PDFName.of('Annots'));
+    if (!annots || !('asArray' in annots)) continue;
+    for (const ref of (annots as { asArray(): unknown[] }).asArray()) {
+      const annot = doc.context.lookup(ref as Parameters<typeof doc.context.lookup>[0]);
+      if (!annot || !('get' in annot)) continue;
+      annotations++;
+      const title = (annot as PDFDict).get(PDFName.of('T'));
+      const name = title && 'decodeText' in title
+        ? (title as { decodeText(): string }).decodeText()
+        : undefined;
+      if (name?.trim()) authors.set(name.trim(), (authors.get(name.trim()) ?? 0) + 1);
+    }
+  }
+
+  if (authors.size === 0) return [];
+  const listed = [...authors]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, n]) => (n > 1 ? `${name} (${n})` : name));
+  return [
+    {
+      kind: 'identity',
+      confidence: 'confirmed',
+      location: 'page annotations (/T)',
+      label: 'Annotation authors',
+      value: `${listed.join(', ')} — named on ${annotations} annotation${annotations > 1 ? 's' : ''} carried by the pages`,
+    },
+  ];
+}
+
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   const doc = await load(data);
   const findings: Finding[] = [];
   const notes: Note[] = [];
+
+  findings.push(...priorRevisions(data));
+  findings.push(...annotationAuthors(doc));
 
   const info = doc.context.lookup(doc.context.trailerInfo.Info);
   if (info && 'get' in info) {

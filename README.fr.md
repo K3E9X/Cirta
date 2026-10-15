@@ -39,6 +39,11 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | **E-mails** | Bloc d'en-têtes RFC 5322 : `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, et **tout en-tête `X-` inconnu** — c'est là qu'un pipeline se signe. Les en-têtes-outil sont retirés au nettoyage ; `From`, `Subject`, `Date` et `Message-ID` restent, ce sont le message |
 | Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
 | Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
+| **Révisions PDF antérieures** | Un PDF enregistré en incrémental garde chaque version précédente dans le fichier. Un texte masqué par un rectangle noir puis enregistré reste lisible dessous — le mécanisme derrière la plupart des échecs de caviardage publiés. Les fichiers linéarisés sont décomptés pour ne pas confondre « affichage web rapide » et mise à jour |
+| **Contenu que le paquet conserve** | Images recadrées (`a:srcRect` ne change que le rectangle affiché ; l'image entière reste), caches de tableaux croisés (une copie des lignes sources survit à la suppression de la feuille), et feuilles masquées ou `veryHidden` |
+| **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit |
+| **Images générées** | Chunks `parameters`, `prompt` et `workflow` de Stable Diffusion web UI, ComfyUI et InvokeAI — **le prompt, le modèle et la seed voyagent avec le fichier** |
+| **Alphanumériques mathématiques** | 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » pour une personne et ne correspond à rien pour un filtre ou une recherche. Signalés avec ce à quoi ils se replient, jamais réécrits — dans une formule, la notation est le sens |
 | **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 | Normalisation Unicode | Un document contenant à la fois `é` (U+00E9) et `e`+U+0301 — même rendu, deux encodages, **un bit libre par lettre accentuée** |
@@ -813,6 +818,23 @@ Get-Clipboard | cirta text --clean | Set-Clipboard          # Windows PowerShell
 ```
 
 Codes de sortie : `0` succès, `1` au moins un fichier en échec, `2` erreur d'usage.
+
+### L'exécuter dans un pipeline
+
+`--sarif` produit du SARIF 2.1.0, que GitHub Code Scanning, GitLab et la plupart
+des IDE lisent directement : les constats arrivent sur la pull request à côté
+des avertissements du compilateur, plutôt que dans un rapport que personne
+n'ouvre. `--fail-on <niveau>` en fait une porte.
+
+```bash
+cirta inspect . --sarif > cirta.sarif
+cirta inspect . --fail-on confirmed    # sort en erreur si donnée identifiante littérale
+```
+
+Sans `--fail-on`, une analyse signale et réussit quand même : analyser n'est pas
+échouer, et un contrôle qui sort en erreur pour chaque document ayant un titre
+est un contrôle désactivé en une semaine. Des copies prêtes à l'emploi sont dans
+[`examples/`](examples/) — un workflow GitHub Actions et un hook pre-commit.
 
 ## Détail du traitement
 

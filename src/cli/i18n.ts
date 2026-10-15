@@ -35,6 +35,10 @@ const FR = {
   optForceText: 'Traite l’entrée comme du texte même si elle semble binaire',
   optLang: 'Langue de sortie (défaut : la locale, sinon en)',
   optJson: 'Sortie exploitable par un programme',
+  optSarif: 'Sortie SARIF 2.1.0, lue par GitHub Code Scanning et les IDE',
+  optFailOn: 'Sort en erreur si un constat atteint ce niveau (confirmed|probable|informational)',
+  unknownLevel: (level: string) =>
+    `Niveau inconnu : ${level}. Attendu : confirmed, probable ou informational.`,
   optHelp: 'Affiche ce message',
   confidenceTitle: 'Niveaux',
   confConfirmed: 'Donnée identifiante littérale — un nom, une société, un chemin local',
@@ -194,6 +198,10 @@ const EN: Strings = {
   optForceText: 'Treat the input as text even if it looks binary',
   optLang: 'Output language (default: the locale, else en)',
   optJson: 'Machine-readable output',
+  optSarif: 'SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs',
+  optFailOn: 'Exit non-zero if any finding reaches this level (confirmed|probable|informational)',
+  unknownLevel: (level) =>
+    `Unknown level: ${level}. Expected confirmed, probable or informational.`,
   optHelp: 'Show this message',
   confidenceTitle: 'Confidence',
   confConfirmed: 'Verbatim identifying data — a name, a company, a local path',

@@ -42,6 +42,8 @@ export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export { emailHeaders, stripToolHeaders } from './email.js';
 export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
+export { toSarif, ruleId, meetsThreshold } from './sarif.js';
+export type { SarifInput } from './sarif.js';
 export { inspectPlainText } from './plaintext.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
@@ -55,6 +57,7 @@ import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
 import { decodeTextInput, cleanText } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
+import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
 import { byConfidence } from './types.js';
@@ -157,6 +160,12 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   }
 }
 
+/** Image metadata, plus whatever the fingerprinter derives from it. */
+function imageFindings(data: Uint8Array, image: Format): Finding[] {
+  const found = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+  return [...found, ...fingerprint(found)].sort(byConfidence);
+}
+
 export async function inspectFile(data: Uint8Array, hint?: string): Promise<InspectResult> {
   if (isPdf(data)) return inspectPdf(data);
   if (isZip(data)) {
@@ -169,7 +178,11 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   if (image) {
     return {
       format: image,
-      findings: inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks'),
+      // fingerprint() runs here as it does for every other format. Without it
+      // a picture whose chunk named Stable Diffusion still had the report open
+      // with "nothing names a tool" — the headline contradicting the table
+      // directly under it.
+      findings: imageFindings(data, image),
       notes: [{ code: 'scope:image-metadata-only' }],
     };
   }

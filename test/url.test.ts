@@ -113,3 +113,24 @@ describe('links inside a document scan', () => {
     expect(result.removed.some((f) => f.location === 'links')).toBe(false);
   });
 });
+
+describe('mathematical alphanumerics', () => {
+  it('reads styled letters back to what they say', () => {
+    // 𝘂𝗿𝗴𝗲𝗻𝘁 — a filter matching "urgent" does not match this.
+    const found = scanText('Message \u{1D602}\u{1D5FF}\u{1D5F4}\u{1D5F2}\u{1D5FB}\u{1D601} : virement');
+    const styled = found.findings.find((f) => f.label === 'Letters styled with mathematical symbols');
+    expect(styled?.value).toContain('"urgent"');
+  });
+
+  it('is reported and never rewritten, because in a formula it is the notation', () => {
+    const text = 'Soit \u{1D53D} le corps';
+    const result = cleanText(text);
+    expect(result.text).toContain('\u{1D53D}');
+    expect(result.kept.some((f) => f.location === 'mathematical alphanumerics')).toBe(true);
+  });
+
+  it('says nothing about ordinary prose', () => {
+    const found = scanText('Un message tout a fait ordinaire, urgent meme.');
+    expect(found.findings.some((f) => f.location === 'mathematical alphanumerics')).toBe(false);
+  });
+});
