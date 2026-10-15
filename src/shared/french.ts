@@ -98,6 +98,14 @@ const FIELD_LABEL: Record<string, string> = {
   'Custom XML data store': 'Magasin de données XML personnalisé',
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
+  // Liens trompeurs.
+  'Hostname written entirely in a lookalike alphabet':
+    'Nom de domaine écrit entièrement dans un alphabet sosie',
+  'Hostname mixing two alphabets': 'Nom de domaine mêlant deux alphabets',
+  'Link that reads as one site and resolves to another':
+    'Lien qui se lit comme un site et mène à un autre',
+  'Invisible character inside a hostname': 'Caractère invisible dans un nom de domaine',
+  'Internationalised hostname': 'Nom de domaine internationalisé',
   // En-têtes de courrier.
   'Mail client': 'Client de messagerie',
   'Composing agent': 'Agent de rédaction',
@@ -223,6 +231,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'tracked changes / comments': 'suivi de modifications / commentaires',
   'bidirectional controls': 'contrôles bidirectionnels',
   'document body': 'corps du document',
+  links: 'liens',
   'container structure': 'structure du conteneur',
   'file structure': 'structure du fichier',
   'package structure': 'structure du paquet',
@@ -233,7 +242,58 @@ const SCRIPT_TEXT: Record<string, string> = {
   Latin: 'latin',
   Cyrillic: 'cyrillique',
   Greek: 'grec',
+  Armenian: 'arménien',
+  Cherokee: 'cherokee',
+  Han: 'han',
 };
+
+/** "Cyrillic and Greek" as the URL module joins them, rendered in French. */
+const scripts = (list: string) =>
+  list
+    .split(' and ')
+    .map((name) => SCRIPT_TEXT[name] ?? name.toLowerCase())
+    .join(' et ');
+
+/**
+ * Deceptive-link values, which the URL module builds by interpolating a
+ * hostname into a sentence. Same arrangement as the structural reasons: the
+ * shapes are few and fixed, so each is matched and rewritten whole rather than
+ * stitched together from fragments that would read as translated machinery.
+ */
+const LINK_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    /^(.+) — the part before "@" is a username, not a destination: this goes to (\S+), while "(.*)" is what a reader sees first$/,
+    (m) =>
+      `${m[1]} — ce qui précède le « @ » est un nom d'utilisateur, pas une destination : ce lien ` +
+      `mène à ${m[2]}, alors que « ${m[3]} » est ce qu'un lecteur voit d'abord`,
+  ],
+  [
+    /^(.+) — a format or bidi control sits in the authority, where nothing renders it$/,
+    (m) =>
+      `${m[1]} — un caractère de format ou de sens d'écriture se trouve dans le nom de domaine, ` +
+      `où rien ne l'affiche`,
+  ],
+  [
+    /^(.+) — "(.*)" draws on Latin and (.+?) at once(, written in the address bar as (\S+?))?( — it renders as "(.*)")?$/,
+    (m) =>
+      `${m[1]} — « ${m[2]} » puise à la fois dans le latin et ${scripts(m[3]!)}` +
+      (m[5] ? `, écrit dans la barre d'adresse ${m[5]}` : '') +
+      (m[7] ? ` — il s'affiche comme « ${m[7]} »` : ''),
+  ],
+  [
+    /^(.+) — "(.*)" is (.+?) throughout, so nothing about it is mixed — but it renders as "(.*)"(\. The address is really (\S+))?$/,
+    (m) =>
+      `${m[1]} — « ${m[2]} » est entièrement en ${scripts(m[3]!)}, donc rien n'y est mêlé — ` +
+      `mais il s'affiche comme « ${m[4]} »` +
+      (m[6] ? `. L'adresse réelle est ${m[6]}` : ''),
+  ],
+  [
+    /^(.+) — (\S+) is displayed as "(.*)" — legitimate for a non-Latin name, and the shape a homograph also takes$/,
+    (m) =>
+      `${m[1]} — ${m[2]} s'affiche « ${m[3]} » — légitime pour un nom non latin, et c'est aussi ` +
+      `la forme que prend un homographe`,
+  ],
+];
 
 /** Values the core builds by interpolating a count, matched by shape. */
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
@@ -440,6 +500,12 @@ export function translateValue(finding: Finding, lang: Lang): string {
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
   if (/\bstructure$/.test(finding.location)) return translateReasons(finding.value);
+  if (finding.location === 'links') {
+    for (const [pattern, render] of LINK_PATTERNS) {
+      const match = pattern.exec(finding.value);
+      if (match) return render(match);
+    }
+  }
   for (const [pattern, render] of VALUE_PATTERNS) {
     const match = pattern.exec(finding.value);
     if (match) return render(match);

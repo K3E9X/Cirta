@@ -11,6 +11,7 @@
 
 import type { Finding } from './types.js';
 import { preview } from './types.js';
+import { findDeceptiveUrls } from './url.js';
 
 const CP = {
   SOFT_HYPHEN: 0x00ad,
@@ -740,6 +741,7 @@ export function scanText(input: string): TextScan {
     });
   }
 
+  findings.push(...findDeceptiveUrls(input));
   findings.push(...findConfusables(input));
   findings.push(...findNormalizationChannel(input));
   findings.push(...findHyphenTwins(input));
@@ -776,6 +778,9 @@ export interface CleanTextResult {
  * was removed never covers for what is still there.
  */
 const REPORTED_NOT_REMOVED = new Set([
+  // A deceptive link is content: where it points is what the document says, and
+  // rewriting it would change where a reader ends up. Reported, never touched.
+  'links',
   'mixed-script words',
   'mixed-width words',
   'hyphen lookalikes',

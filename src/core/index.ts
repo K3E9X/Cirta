@@ -41,6 +41,7 @@ export type { Stylometry, StyleBand, StyleIndicator } from './stylometry.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export { emailHeaders, stripToolHeaders } from './email.js';
+export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
 export { inspectPlainText } from './plaintext.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
