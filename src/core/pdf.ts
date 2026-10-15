@@ -39,12 +39,27 @@ async function load(data: Uint8Array): Promise<PDFDocument> {
 }
 
 /** Read the XMP packet, inflating it when the stream is Flate-encoded. */
+/**
+ * The document catalog, but only when it really is a dictionary.
+ *
+ * `doc.catalog` is typed as one, and with `throwOnInvalidObject: false` a
+ * damaged file can leave something else there entirely — a number, a string,
+ * whatever the trailer pointed at. Optional chaining guards against it being
+ * absent and says nothing about it being the wrong shape, so `catalog?.get(…)`
+ * threw a TypeError on a corrupted file. Found by fuzzing, which is the only
+ * way this shape of input ever reaches the code.
+ */
+function catalogDict(doc: PDFDocument): PDFDict | undefined {
+  const catalog = doc.catalog as unknown;
+  return catalog instanceof PDFDict ? catalog : undefined;
+}
+
 function readXmp(doc: PDFDocument): string | undefined {
   // `throwOnInvalidObject: false` lets a damaged file load with no catalog at
   // all, and reading through it then fails as a TypeError rather than as
   // something a caller can report. A file that starts with %PDF is not a
   // promise that the rest of it parses.
-  const ref = doc.catalog?.get(PDFName.of('Metadata'));
+  const ref = catalogDict(doc)?.get(PDFName.of('Metadata'));
   if (!ref) return undefined;
   const stream = doc.context.lookup(ref);
   if (!(stream instanceof PDFRawStream)) return undefined;
@@ -373,8 +388,8 @@ function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
   if (created && created === modified) strong.push('created and modified at the same instant');
 
   const weak: string[] = [];
-  if (!doc.catalog?.get(PDFName.of('Metadata'))) weak.push('no XMP metadata packet');
-  if (!doc.catalog?.get(PDFName.of('StructTreeRoot'))) weak.push('not tagged for accessibility');
+  if (!catalogDict(doc)?.get(PDFName.of('Metadata'))) weak.push('no XMP metadata packet');
+  if (!catalogDict(doc)?.get(PDFName.of('StructTreeRoot'))) weak.push('not tagged for accessibility');
 
   // One weighty signal is the entry price. Without it the file is only missing
   // things that a print-to-PDF driver also leaves out, and saying anything
@@ -395,10 +410,121 @@ function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
   return out;
 }
 
+/**
+ * Earlier revisions of the document, still inside the file.
+ *
+ * A PDF can be saved incrementally: the writer appends a new body and a new
+ * cross-reference table pointing back at the old one with `/Prev`, and leaves
+ * everything that came before exactly where it was. The reader shows the latest
+ * revision. The bytes of every earlier one are still there.
+ *
+ * This is the mechanism behind most published redaction failures. A name is
+ * covered with a black rectangle, the file is saved, and the original text sits
+ * in the previous revision for anyone who opens the file in a text editor. The
+ * tool cannot extract what is in there — doing that properly means parsing each
+ * revision as its own document — but it can say that it exists, which is the
+ * part the author needs to know before sending the file.
+ *
+ * Linearised files are the false positive to avoid. "Fast web view" writes a
+ * second cross-reference section at the front so a viewer can render page one
+ * before the rest arrives, and that section carries a `/Prev` like an update
+ * would. It is one revision in two pieces, not two revisions, so a file that
+ * declares `/Linearized` gets one section discounted.
+ */
+function priorRevisions(data: Uint8Array): Finding[] {
+  /*
+   * ASCII-only markers, so a byte scan is exact and never decodes the file.
+   *
+   * This read `Buffer.from(data).toString('latin1')` and broke the web build:
+   * `Buffer` is a Node global with no browser equivalent, so every PDF dropped
+   * on the page failed with "Buffer is not defined". The whole test suite
+   * passed, because every test runs under Node. `latin1` here is the WHATWG
+   * label for windows-1252, which differs from true Latin-1 only in 0x80–0x9F —
+   * irrelevant when the only things looked for are `%%EOF` and `/Linearized`.
+   * What matters is that it stays a single byte per character, so every index
+   * below is a byte offset.
+   */
+  const text = new TextDecoder('latin1').decode(data);
+  const eof = (text.match(/%%EOF/g) ?? []).length;
+  const linearised = /\/Linearized/.test(text.slice(0, 4096));
+  const revisions = eof - (linearised ? 1 : 0);
+  if (revisions < 2) return [];
+
+  const firstEof = text.indexOf('%%EOF');
+  const retained = firstEof > 0 ? firstEof : 0;
+  const share = Math.round((retained / data.length) * 100);
+
+  return [
+    {
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'file revisions',
+      label: 'Earlier versions of this document are still in the file',
+      value:
+        `${revisions} revisions are present${linearised ? ' (one cross-reference section discounted as linearisation)' : ''}. ` +
+        `A reader shows only the newest; the previous ones were appended to, never removed, and the ` +
+        `first ends ${retained.toLocaleString('en-US')} bytes in — about ${share}% of the file. ` +
+        `Text covered or deleted in a later revision is still readable in an earlier one`,
+    },
+  ];
+}
+
+/**
+ * Annotation authors, which are comment metadata rather than page content.
+ *
+ * A sticky note, a highlight or a review comment carries `/T` — the title of
+ * the annotation, which every reader fills with the commenter's name — and
+ * often `/M`, when they wrote it. A document that went through review names
+ * everyone who touched it, and nothing on the page shows that.
+ */
+function annotationAuthors(doc: PDFDocument): Finding[] {
+  const authors = new Map<string, number>();
+  let annotations = 0;
+
+  let pages: ReturnType<PDFDocument['getPages']>;
+  try {
+    pages = doc.getPages();
+  } catch {
+    return [];
+  }
+
+  for (const page of pages) {
+    const annots = page.node.lookup(PDFName.of('Annots'));
+    if (!annots || !('asArray' in annots)) continue;
+    for (const ref of (annots as { asArray(): unknown[] }).asArray()) {
+      const annot = doc.context.lookup(ref as Parameters<typeof doc.context.lookup>[0]);
+      if (!annot || !('get' in annot)) continue;
+      annotations++;
+      const title = (annot as PDFDict).get(PDFName.of('T'));
+      const name = title && 'decodeText' in title
+        ? (title as { decodeText(): string }).decodeText()
+        : undefined;
+      if (name?.trim()) authors.set(name.trim(), (authors.get(name.trim()) ?? 0) + 1);
+    }
+  }
+
+  if (authors.size === 0) return [];
+  const listed = [...authors]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, n]) => (n > 1 ? `${name} (${n})` : name));
+  return [
+    {
+      kind: 'identity',
+      confidence: 'confirmed',
+      location: 'page annotations (/T)',
+      label: 'Annotation authors',
+      value: `${listed.join(', ')} — named on ${annotations} annotation${annotations > 1 ? 's' : ''} carried by the pages`,
+    },
+  ];
+}
+
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   const doc = await load(data);
   const findings: Finding[] = [];
   const notes: Note[] = [];
+
+  findings.push(...priorRevisions(data));
+  findings.push(...annotationAuthors(doc));
 
   const info = doc.context.lookup(doc.context.trailerInfo.Info);
   if (info && 'get' in info) {
@@ -486,7 +612,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   findings.push(...scanPageFonts(doc));
   findings.push(...structuralPdf(doc, findings));
 
-  const names = doc.catalog?.get(PDFName.of('Names'));
+  const names = catalogDict(doc)?.get(PDFName.of('Names'));
   if (names) {
     const resolved = doc.context.lookup(names);
     if (resolved && 'get' in resolved && (resolved as { get(k: PDFName): unknown }).get(PDFName.of('EmbeddedFiles'))) {
@@ -543,9 +669,9 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   }
 
   if (removeXmp) {
-    const hadXmp = Boolean(doc.catalog?.get(PDFName.of('Metadata')));
+    const hadXmp = Boolean(catalogDict(doc)?.get(PDFName.of('Metadata')));
     const xmp = readXmp(doc);
-    doc.catalog?.delete(PDFName.of('Metadata'));
+    catalogDict(doc)?.delete(PDFName.of('Metadata'));
     if (hadXmp && xmp && looksLikeC2pa(xmp)) {
       notes.push({ code: 'removed:c2pa', detail: '/Metadata' });
     }

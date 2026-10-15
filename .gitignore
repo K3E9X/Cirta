@@ -3,3 +3,4 @@ dist/
 dist-web/
 *.tsbuildinfo
 .DS_Store
+fuzz-findings/

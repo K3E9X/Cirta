@@ -35,6 +35,10 @@ const FR = {
   optForceText: 'Traite l’entrée comme du texte même si elle semble binaire',
   optLang: 'Langue de sortie (défaut : la locale, sinon en)',
   optJson: 'Sortie exploitable par un programme',
+  optSarif: 'Sortie SARIF 2.1.0, lue par GitHub Code Scanning et les IDE',
+  optFailOn: 'Sort en erreur si un constat atteint ce niveau (confirmed|probable|informational)',
+  unknownLevel: (level: string) =>
+    `Niveau inconnu : ${level}. Attendu : confirmed, probable ou informational.`,
   optHelp: 'Affiche ce message',
   confidenceTitle: 'Niveaux',
   confConfirmed: 'Donnée identifiante littérale — un nom, une société, un chemin local',
@@ -56,6 +60,7 @@ const FR = {
     timestamp: 'horodatage',
     environment: 'environnement',
     'invisible-character': 'invisible',
+    'deceptive-link': 'lien trompeur',
   },
   noMetadata: 'Aucune métadonnée trouvée.',
   noSupported: (path: string) => `${path} : aucun fichier pris en charge`,
@@ -74,6 +79,8 @@ const FR = {
     '`cirta redact <fichier>`, ou passez --force-text si vous êtes certain que ces octets\n' +
     'sont du texte.',
   removedTypes: (n: number) => `\ncirta : ${n} type(s) de caractère invisible retiré(s)`,
+  fieldsRemoved: (n: number) => `${n} champ${n === 1 ? '' : 's'} retiré${n === 1 ? '' : 's'}`,
+  originalKept: (path: string) => `original conservé sous ${path}`,
   nothingRemoved: '\ncirta : rien à retirer',
   leftInPlace: (label: string, value: string) => `cirta : laissé en place — ${label} : ${value}`,
 
@@ -194,6 +201,10 @@ const EN: Strings = {
   optForceText: 'Treat the input as text even if it looks binary',
   optLang: 'Output language (default: the locale, else en)',
   optJson: 'Machine-readable output',
+  optSarif: 'SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs',
+  optFailOn: 'Exit non-zero if any finding reaches this level (confirmed|probable|informational)',
+  unknownLevel: (level) =>
+    `Unknown level: ${level}. Expected confirmed, probable or informational.`,
   optHelp: 'Show this message',
   confidenceTitle: 'Confidence',
   confConfirmed: 'Verbatim identifying data — a name, a company, a local path',
@@ -215,6 +226,7 @@ const EN: Strings = {
     timestamp: 'timestamp',
     environment: 'environment',
     'invisible-character': 'invisible',
+    'deceptive-link': 'deceptive link',
   },
   noMetadata: 'No metadata found.',
   noSupported: (path) => `${path}: no supported files found`,
@@ -232,6 +244,8 @@ const EN: Strings = {
     'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
     'or pass --force-text if you are certain these bytes are text.',
   removedTypes: (n) => `\ncirta: removed ${n} invisible character type(s)`,
+  fieldsRemoved: (n) => `${n} field${n === 1 ? '' : 's'} removed`,
+  originalKept: (path) => `original kept as ${path}`,
   nothingRemoved: '\ncirta: nothing to remove',
   leftInPlace: (label, value) => `cirta: left in place — ${label}: ${value}`,
 

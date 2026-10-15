@@ -39,6 +39,12 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | **E-mails** | Bloc d'en-têtes RFC 5322 : `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, et **tout en-tête `X-` inconnu** — c'est là qu'un pipeline se signe. Les en-têtes-outil sont retirés au nettoyage ; `From`, `Subject`, `Date` et `Message-ID` restent, ce sont le message |
 | Fichiers texte et code source | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… et les fichiers à point (`.env`, `.npmrc`, `.netrc`) — mêmes contrôles, même retrait. Un contrôle bidirectionnel dans du code est le cas **Trojan Source** (CVE-2021-42574) |
 | Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
+| **Révisions PDF antérieures** | Un PDF enregistré en incrémental garde chaque version précédente dans le fichier. Un texte masqué par un rectangle noir puis enregistré reste lisible dessous — le mécanisme derrière la plupart des échecs de caviardage publiés. Les fichiers linéarisés sont décomptés pour ne pas confondre « affichage web rapide » et mise à jour |
+| **Contenu que le paquet conserve** | Images recadrées (`a:srcRect` ne change que le rectangle affiché ; l'image entière reste), caches de tableaux croisés (une copie des lignes sources survit à la suppression de la feuille), et feuilles masquées ou `veryHidden` |
+| **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit |
+| **Images générées** | Chunks `parameters`, `prompt` et `workflow` de Stable Diffusion web UI, ComfyUI et InvokeAI — **le prompt, le modèle et la seed voyagent avec le fichier** |
+| **Alphanumériques mathématiques** | 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » pour une personne et ne correspond à rien pour un filtre ou une recherche. Signalés avec ce à quoi ils se replient, jamais réécrits — dans une formule, la notation est le sens |
+| **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 | Normalisation Unicode | Un document contenant à la fois `é` (U+00E9) et `e`+U+0301 — même rendu, deux encodages, **un bit libre par lettre accentuée** |
 | Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française |
@@ -813,6 +819,23 @@ Get-Clipboard | cirta text --clean | Set-Clipboard          # Windows PowerShell
 
 Codes de sortie : `0` succès, `1` au moins un fichier en échec, `2` erreur d'usage.
 
+### L'exécuter dans un pipeline
+
+`--sarif` produit du SARIF 2.1.0, que GitHub Code Scanning, GitLab et la plupart
+des IDE lisent directement : les constats arrivent sur la pull request à côté
+des avertissements du compilateur, plutôt que dans un rapport que personne
+n'ouvre. `--fail-on <niveau>` en fait une porte.
+
+```bash
+cirta inspect . --sarif > cirta.sarif
+cirta inspect . --fail-on confirmed    # sort en erreur si donnée identifiante littérale
+```
+
+Sans `--fail-on`, une analyse signale et réussit quand même : analyser n'est pas
+échouer, et un contrôle qui sort en erreur pour chaque document ayant un titre
+est un contrôle désactivé en une semaine. Des copies prêtes à l'emploi sont dans
+[`examples/`](examples/) — un workflow GitHub Actions et un hook pre-commit.
+
 ## Détail du traitement
 
 **PDF** — les clés du dictionnaire `/Info` sont supprimées plutôt que vidées, pour ne pas laisser
@@ -948,6 +971,62 @@ npm run build      # bibliothèque + CLI vers dist/
 npm run build:web  # site statique vers dist-web/
 node scripts/smoke.mjs
 ```
+
+### Fuzzing des parseurs
+
+Cirta est pointé vers des fichiers venus de gens en qui l'utilisateur n'a aucune
+raison d'avoir confiance. C'est le modèle de menace où un bug de parseur cesse
+d'être un plantage pour devenir une vulnérabilité, et neuf modules ici mangent
+des octets hostiles : PDF, ZIP, OOXML, ODF, CBOR, JUMBF, conteneurs d'images,
+XML et punycode.
+
+```bash
+npm run fuzz                                  # passe courte
+node scripts/fuzz.mjs --iterations 12000 --seed 31337
+node scripts/fuzz.mjs --target pdf
+```
+
+Sans dépendance, par mutation : des fichiers valides sont construits, puis on
+inverse des bits, on tronque, on recolle, on répète, et on écrase les champs de
+longueur avec les bornes entières qui cassent l'arithmétique. Partir de graines
+valides est essentiel — des octets aléatoires passent tout leur budget à se
+faire rejeter par le détecteur de format, sans jamais atteindre le parseur.
+
+**Ce qui compte comme bug** mérite d'être énoncé, et la première passe s'est
+trompée : elle a signalé 231 constats, presque tous fflate refusant correctement
+de décompresser un ZIP corrompu. Un parseur qui rejette une entrée malformée
+fait son travail. Les constats sont donc gradués — `crash` pour une exception
+que le module n'a jamais voulu lever, `hang` pour une boucle qui ne finit pas,
+`leak` pour un refus échappé en `Error` nu, signalé une fois par type et non une
+fois par entrée.
+
+**Ce qu'il a trouvé.** Un PDF dont le catalogue n'est pas un dictionnaire.
+`doc.catalog` est typé comme tel, et un fichier abîmé chargé avec
+`throwOnInvalidObject: false` peut y laisser n'importe quoi ; `catalog?.get(…)`
+se prémunit contre l'absence et ne dit rien sur la forme, d'où un `TypeError`.
+Personne n'aurait écrit ce fichier à la main — c'est précisément pour ça que
+l'hypothèse avait survécu.
+
+Il a aussi motivé un second changement. Vingt et un refus distincts
+s'échappaient de l'entrée publique en `Error` nus — « invalid zip data », « No
+PDF header found » — tous corrects, et qu'aucun appelant ne pouvait attraper. Un
+fichier corrompu est un fichier non pris en charge : `inspectFile` lève donc
+`UnsupportedFormatError` en conservant les mots du parseur. `TypeError` et
+`RangeError` ne sont **délibérément pas** enveloppés : ce sont nos erreurs à
+nous, et les déguiser en refus masquerait exactement le bug que le fuzzer existe
+pour trouver.
+
+Une passe courte fait partie de `npm run verify`, avec une graine différente à
+chaque fois, pour que le build explore du terrain neuf plutôt que de rejouer les
+mêmes entrées. Chaque exécution affiche sa graine, donc un échec se reproduit à
+l'identique. La dernière campagne longue : **107 779 entrées, aucun crash, aucun
+blocage** ; les entrées qui plantaient sont gardées comme tests dans
+`test/fuzz-regressions.test.ts`.
+
+Un fuzzer guidé par la couverture (Jazzer.js, libFuzzer) trouve des bugs plus
+profonds et devrait suivre. Il demande une installation, une chaîne d'outils et
+une campagne longue — c'est la différence entre un fuzzer intégré au build et un
+fuzzer que personne ne lance.
 
 ### Fichiers réels
 

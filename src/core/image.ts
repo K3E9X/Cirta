@@ -8,6 +8,7 @@
  */
 
 import type { Finding } from './types.js';
+import { preview } from './types.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 
@@ -184,6 +185,78 @@ function stripPng(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   return out;
 }
 
+/**
+ * Image generators that write their own settings into a text chunk.
+ *
+ * Every one of these stores the prompt in clear. That is the leak: a prompt is
+ * the author's working notes, often naming the client, the person depicted, the
+ * style being imitated or the model and LoRA used, and it travels with the file
+ * to anyone who opens it in a metadata viewer. The chunk is also what proves
+ * the picture was generated at all, which is the other half of why it matters.
+ *
+ * Matched on the keyword rather than on the body, because the keyword is what
+ * each tool fixes and the body is free text.
+ */
+const GENERATOR_KEYWORDS = new Map<string, string>([
+  ['parameters', 'Stable Diffusion web UI (AUTOMATIC1111)'],
+  ['prompt', 'ComfyUI'],
+  ['workflow', 'ComfyUI'],
+  ['sd-metadata', 'InvokeAI'],
+  ['invokeai_metadata', 'InvokeAI'],
+  ['invokeai_graph', 'InvokeAI'],
+  ['dream', 'InvokeAI (legacy)'],
+  ['comfy', 'ComfyUI'],
+  ['aiart', 'AI image generator'],
+]);
+
+/**
+ * The keyword of a PNG text chunk, and the text after it.
+ *
+ * tEXt is `keyword\0text`. iTXt adds a compression flag, a method byte and two
+ * language fields between them; zTXt compresses the text, so only its keyword
+ * is readable here, which is enough to name the tool.
+ */
+function pngTextKeyword(type: string, body: Uint8Array): { keyword: string; text: string } {
+  const nul = body.indexOf(0);
+  if (nul < 0) return { keyword: '', text: '' };
+  const keyword = ASCII.decode(body.subarray(0, nul));
+  if (type === 'tEXt') return { keyword, text: ASCII.decode(body.subarray(nul + 1)) };
+  if (type === 'iTXt') {
+    // keyword \0 flag method langTag \0 translatedKeyword \0 text
+    let cursor = nul + 3;
+    for (let seen = 0; seen < 2 && cursor < body.length; cursor++) {
+      if (body[cursor] === 0) seen++;
+    }
+    return { keyword, text: ASCII.decode(body.subarray(cursor)) };
+  }
+  return { keyword, text: '' };
+}
+
+/** A generation chunk, reported with the tool named and the prompt called out. */
+function describeGenerator(
+  type: string,
+  body: Uint8Array,
+  location: string,
+): Finding | undefined {
+  const { keyword, text } = pngTextKeyword(type, body);
+  const tool = GENERATOR_KEYWORDS.get(keyword.toLowerCase());
+  if (!tool) return undefined;
+
+  // The first line of an AUTOMATIC1111 "parameters" block is the prompt itself;
+  // ComfyUI stores a JSON graph. Either way the opening is the useful preview.
+  const opening = text.trim().split('\n')[0] ?? '';
+  return {
+    kind: 'provenance',
+    confidence: 'confirmed',
+    location: `${location} (${type}:${keyword})`,
+    label: 'Image generation settings, including the prompt',
+    value:
+      `written by ${tool}` +
+      (opening ? ` — begins "${preview(opening, 70)}"` : '') +
+      '. The prompt, the model and the seed travel with the file',
+  };
+}
+
 /* ---------------------------------------------------------------- public -- */
 
 /**
@@ -225,7 +298,13 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       findings.push(...describeC2pa(ASCII.decode(body), location, body));
       continue;
     }
-    findings.push(...findSourceTypes(ASCII.decode(data.subarray(chunk.start + 8, chunk.end - 4)), location));
+    const body = data.subarray(chunk.start + 8, chunk.end - 4);
+    findings.push(...findSourceTypes(ASCII.decode(body), location));
+    const generator = describeGenerator(chunk.type, body, location);
+    if (generator) {
+      findings.push(generator);
+      continue;
+    }
     findings.push({
       kind: chunk.type === 'tIME' ? 'timestamp' : 'identity',
       confidence: chunk.type === 'eXIf' ? 'confirmed' : 'probable',

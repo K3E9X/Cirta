@@ -250,6 +250,8 @@ function structuralGenerator(parts: Parts, format: Format): Finding[] {
     reasons.push('docProps/app.xml is present but empty');
   }
 
+  findings.push(...retainedContent(parts, format));
+
   const core = readText(parts, 'docProps/core.xml');
   if (core) {
     const created = getElementText(core, 'dcterms:created');
@@ -333,6 +335,93 @@ function inspectBodyText(parts: Parts): Finding[] {
       });
     }
   }
+  return findings;
+}
+
+/**
+ * Content the package still holds that the document no longer shows.
+ *
+ * Three shapes, and what they have in common is that the application presents
+ * them as gone while the ZIP keeps them whole. A reader who unzips the file
+ * gets everything back, which makes these worse than ordinary metadata: the
+ * author believes the information was removed.
+ */
+function retainedContent(parts: Parts, format: Format): Finding[] {
+  const findings: Finding[] = [];
+
+  // Cropping a picture in Word or PowerPoint sets a:srcRect, which tells the
+  // renderer which rectangle to display. The image part is untouched: the
+  // cropped-away face, address or signature is still every pixel it was.
+  const cropped = new Set<string>();
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!/^(word|ppt|xl)\/.*\.xml$/.test(path)) continue;
+    const text = strFromU8(raw);
+    for (const match of text.matchAll(/<a:srcRect\b([^>]*)\/?>/g)) {
+      // A srcRect with no edge attributes crops nothing.
+      if (/[lrtb]=["'][1-9]/.test(match[1] ?? '')) cropped.add(path);
+    }
+  }
+  if (cropped.size) {
+    findings.push({
+      kind: 'identity',
+      confidence: 'confirmed',
+      location: [...cropped].sort().join(', '),
+      label: 'Cropped pictures keep their original image',
+      value:
+        `${cropped.size} part${cropped.size > 1 ? 's crop' : ' crops'} an image with a:srcRect. ` +
+        'Cropping only changes which rectangle is displayed — the full picture is still in the ' +
+        'package, so whatever was cropped out can be recovered by unzipping the file',
+    });
+  }
+
+  // A pivot table caches its own copy of the source rows. Deleting the sheet
+  // they came from does not delete the cache.
+  const caches = Object.keys(parts).filter((p) => /^xl\/pivotCache\/pivotCacheRecords/.test(p));
+  if (caches.length) {
+    const bytes = caches.reduce((sum, p) => sum + (parts[p]?.length ?? 0), 0);
+    findings.push({
+      kind: 'identity',
+      confidence: 'confirmed',
+      location: caches.sort().join(', '),
+      label: 'Pivot table cache holds a copy of the source rows',
+      value:
+        `${caches.length} cache part${caches.length > 1 ? 's' : ''}, ${bytes.toLocaleString('en-US')} bytes. ` +
+        'A pivot table keeps its own copy of the data it was built from, so deleting or hiding the ' +
+        'source sheet leaves the rows in the file',
+    });
+  }
+
+  // A hidden sheet is one click from visible. veryHidden cannot be unhidden
+  // from the interface at all, which is why it is used to park working data.
+  if (format === 'xlsx') {
+    const workbook = readText(parts, 'xl/workbook.xml');
+    if (workbook) {
+      const hidden: string[] = [];
+      let veryHidden = 0;
+      for (const match of workbook.matchAll(/<sheet\b[^>]*>/g)) {
+        const tag = match[0];
+        const state = /state=["'](\w+)["']/.exec(tag)?.[1];
+        if (state !== 'hidden' && state !== 'veryHidden') continue;
+        const name = /name=["']([^"']*)["']/.exec(tag)?.[1] ?? '(unnamed)';
+        hidden.push(state === 'veryHidden' ? `${name} (veryHidden)` : name);
+        if (state === 'veryHidden') veryHidden++;
+      }
+      if (hidden.length) {
+        findings.push({
+          kind: 'identity',
+          confidence: 'confirmed',
+          location: 'xl/workbook.xml:sheet',
+          label: 'Hidden worksheets',
+          value:
+            `${hidden.join(', ')} — their cells travel with the workbook` +
+            (veryHidden
+              ? '. A veryHidden sheet cannot be unhidden from the Excel interface, so it is easy to forget one is there'
+              : ''),
+        });
+      }
+    }
+  }
+
   return findings;
 }
 

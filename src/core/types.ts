@@ -35,7 +35,17 @@ export type FindingKind =
   /** Local filesystem paths, template locations, printer names. */
   | 'environment'
   /** Characters with no visual rendering that survive copy/paste. */
-  | 'invisible-character';
+  | 'invisible-character'
+  /**
+   * An address that reads as one destination and resolves to another: a
+   * lookalike alphabet, a mixed-script hostname, credentials before an "@".
+   *
+   * Separate from `invisible-character` because these characters render
+   * perfectly well — that is the whole attack. Filing a Cyrillic "а" under
+   * "invisible" contradicted this union's own definition and showed up in the
+   * report as a row labelled "invisible" next to a domain a reader can see.
+   */
+  | 'deceptive-link';
 
 /**
  * How much a finding actually tells someone who receives the file.

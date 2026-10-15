@@ -215,6 +215,27 @@ const AUTOMATION_TOOLS: Array<[RegExp, string]> = [
   [/\bdocx\b\s*(?:js|npm)/i, 'docx (JavaScript)'],
 ];
 
+/**
+ * Tools that generate pictures rather than text.
+ *
+ * Kept apart from the assistants because the claim is different: these name
+ * what drew the image, which is a stronger statement than naming a library
+ * that assembled a container. A file that says AUTOMATIC1111 was not
+ * photographed.
+ */
+const IMAGE_GENERATORS: Array<[RegExp, string]> = [
+  [/automatic1111|stable diffusion web ui|\bsd[-_ ]?webui\b/i, 'Stable Diffusion web UI'],
+  [/\bcomfyui\b/i, 'ComfyUI'],
+  [/\binvokeai\b/i, 'InvokeAI'],
+  [/stable[- ]?diffusion|\bsdxl\b/i, 'Stable Diffusion'],
+  [/\bmidjourney\b/i, 'Midjourney'],
+  [/\bdall[·.\-]?e\b/i, 'DALL·E'],
+  [/\bfirefly\b.*adobe|adobe firefly/i, 'Adobe Firefly'],
+  [/\bnovelai\b/i, 'NovelAI'],
+  [/\bflux\.1|black forest labs/i, 'FLUX'],
+  [/\bimagen\b|\bnano banana\b/i, 'Imagen'],
+];
+
 interface ToolMatch {
   label: string;
   detail: string;
@@ -249,6 +270,9 @@ function matchTool(value: string): ToolMatch[] {
   }
   for (const [pattern, tool] of ASSISTANT_TOOLS) {
     if (pattern.test(value)) add('Assistant or agent named in metadata', tool, 'provenance');
+  }
+  for (const [pattern, tool] of IMAGE_GENERATORS) {
+    if (pattern.test(value)) add('Image generator named in metadata', tool, 'provenance');
   }
   for (const [pattern, tool] of FRAMEWORK_TOOLS) {
     if (pattern.test(value)) add('LLM framework or runtime', tool, 'provenance');
@@ -397,6 +421,7 @@ const TOOL_LABELS = [
   'Model identifier',
   'Assistant or agent named in metadata',
   'Coding agent named in metadata',
+  'Image generator named in metadata',
   'LLM framework or runtime',
   // Credited by a signed manifest rather than inferred from a free-text field.
   'Tool credited by the C2PA manifest',
@@ -440,6 +465,7 @@ export function provenance(findings: Finding[]): Provenance {
     (finding) =>
       finding.label === 'Model identifier' ||
       finding.label === 'Assistant or agent named in metadata' ||
+      finding.label === 'Image generator named in metadata' ||
       finding.label === 'Coding agent named in metadata',
   );
   // Each container phrases this in its own vocabulary — a word processor for

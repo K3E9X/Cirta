@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cirta — nettoyage des métadonnées de documents</title>
+    <title>Cirta — ce que vos documents disent de vous</title>
     <meta
       name="description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
     />
-    <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#14130f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)" />
     <!--
       Link previews. Deliberately no og:image: the only artwork here is an SVG,
       which most preview renderers refuse, and an absent image beats a broken
@@ -17,7 +17,7 @@
       follow the toggle, and the title and description that a reader sees do.
     -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cirta — nettoyage des métadonnées de documents" />
+    <meta property="og:title" content="Cirta — ce que vos documents disent de vous" />
     <meta
       property="og:description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
@@ -36,190 +36,528 @@
       CSS on the root [data-ui-lang] hides the other language; main.ts flips
       that attribute, so switching costs no reflow of content it has to rebuild.
     -->
-    <header class="masthead">
-      <div class="wrap">
-        <div class="masthead-top">
-          <h1>
-            <img src="./logo.svg" alt="" width="34" height="34" />
-            Cirta
-          </h1>
+    <a class="skip" href="#outil">
+      <span data-lang="fr">Aller à l’outil</span><span data-lang="en">Skip to the tool</span>
+    </a>
+
+    <header class="nav">
+      <div class="shell">
+        <a class="brand" href="#top">
+          <img src="./logo.svg" alt="" width="26" height="26" />
+          Cirta
+        </a>
+        <nav class="nav-links">
+          <a href="#outil"><span data-lang="fr">Outil</span><span data-lang="en">Tool</span></a>
+          <a href="#lecture"><span data-lang="fr">Couverture</span><span data-lang="en">Coverage</span></a>
+          <a href="#limites"><span data-lang="fr">Limites</span><span data-lang="en">Limits</span></a>
+          <a href="#cli"><span data-lang="fr">Ligne de commande</span><span data-lang="en">Command line</span></a>
+        </nav>
+        <div class="nav-end">
           <button id="lang-toggle" class="lang-toggle" type="button">English</button>
         </div>
-        <p class="tagline" data-lang="fr">
-          Inspecte et retire les métadonnées de provenance de vos documents. Tout s'exécute dans
-          votre navigateur — <strong>aucun fichier n'est envoyé sur un serveur</strong>.
-        </p>
-        <p class="tagline" data-lang="en">
-          Inspects and strips provenance metadata from your documents. Everything runs in your
-          browser — <strong>no file is ever sent to a server</strong>.
-        </p>
       </div>
     </header>
 
-    <main class="wrap">
-      <nav class="tabs" role="tablist">
-        <button role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
-          <span data-lang="fr">Documents</span><span data-lang="en">Documents</span>
-        </button>
-        <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false">
-          <span data-lang="fr">Texte</span><span data-lang="en">Text</span>
-        </button>
-      </nav>
+    <!-- ------------------------------------------------------------ hero -- -->
 
-      <section id="panel-files" role="tabpanel" aria-labelledby="tab-files">
-        <div id="dropzone" class="dropzone" tabindex="0" role="button">
-          <p class="dropzone-title" data-lang="fr">Déposez un fichier ici</p>
-          <p class="dropzone-title" data-lang="en">Drop a file here</p>
-          <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, e-mails (.eml), et tout fichier texte ou source</p>
-          <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, email (.eml), and any text or source file</p>
-          <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.zip,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.json,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
+    <section class="hero" id="top">
+      <div class="shell">
+        <p class="eyebrow">
+          <span data-lang="fr">Hygiène documentaire · hors ligne</span>
+          <span data-lang="en">Document hygiene · offline</span>
+        </p>
+
+        <h1 class="display" data-lang="fr">Ce que votre fichier dit sans vous.</h1>
+        <h1 class="display" data-lang="en">What your file says without you.</h1>
+
+        <p class="lead" data-lang="fr">
+          Le nom du compte sous lequel il a été écrit. L’outil qui l’a produit. Le texte que
+          l’application affiche comme supprimé et qui est toujours dans les octets. Cirta vous
+          montre tout cela, puis l’enlève — dans cet onglet, sans rien envoyer nulle part.
+        </p>
+        <p class="lead" data-lang="en">
+          The account it was written under. The tool that produced it. The text the application
+          shows as deleted and that is still in the bytes. Cirta shows you all of it, then takes
+          it out — in this tab, without sending anything anywhere.
+        </p>
+
+        <div class="cta">
+          <a class="btn btn-primary" href="#outil">
+            <span data-lang="fr">Analyser un document</span>
+            <span data-lang="en">Inspect a document</span>
+          </a>
+          <a class="btn" href="#cli">
+            <span data-lang="fr">Utiliser en ligne de commande</span>
+            <span data-lang="en">Use from the command line</span>
+          </a>
         </div>
-        <div id="file-results" class="results"></div>
-      </section>
 
-      <section id="panel-text" role="tabpanel" aria-labelledby="tab-text" hidden>
-        <label class="field-label" for="text-input">
-          <span data-lang="fr">Collez votre texte</span><span data-lang="en">Paste your text</span>
-        </label>
-        <textarea id="text-input" rows="10" spellcheck="false"></textarea>
-        <div class="actions">
-          <button id="text-scan" class="button">
-            <span data-lang="fr">Analyser</span><span data-lang="en">Analyse</span>
-          </button>
-          <button id="text-clean" class="button button-primary">
-            <span data-lang="fr">Nettoyer</span><span data-lang="en">Clean</span>
-          </button>
-        </div>
-        <div id="text-results" class="results"></div>
-      </section>
-
-      <section class="scope">
-        <h2 data-lang="fr">Ce que fait cet outil, et ce qu'il ne fait pas</h2>
-        <h2 data-lang="en">What this tool does, and what it does not</h2>
-        <div class="scope-grid">
-          <div class="scope-item scope-yes">
-            <h3 data-lang="fr">Traité</h3>
-            <h3 data-lang="en">Handled</h3>
-            <ul data-lang="fr">
-              <li>Métadonnées PDF : dictionnaire <code>/Info</code>, paquet XMP, identifiant <code>/ID</code></li>
-              <li>Propriétés Office : <code>docProps/core.xml</code>, <code>app.xml</code>, propriétés personnalisées, miniature</li>
-              <li>Identifiants de révision <code>rsid</code> et auteurs de commentaires</li>
-              <li>Classeurs Excel : registre des personnes, noms définis pointant hors du classeur, liens entre classeurs</li>
-              <li>Exif, GPS et IPTC des images intégrées dans les diapositives et documents</li>
-              <li>Liens vers des chemins locaux ou des partages réseau</li>
-              <li>Diapositives masquées et notes du présentateur</li>
-              <li><strong>Traces de l'outil producteur</strong> : assistant ou bibliothèque nommés, système d'exploitation, nom de compte, répertoire temporaire, identifiant de session</li>
-              <li><strong>La forme du fichier</strong> : un conteneur qu'une bibliothèque a fabriqué ne ressemble pas à un fichier enregistré depuis Word ou LibreOffice, même quand aucun champ ne nomme d'outil</li>
-              <li><strong>En-têtes de courrier</strong> : <code>X-Mailer</code>, <code>User-Agent</code>, <code>Message-ID</code>, et tout en-tête <code>X-</code> inconnu</li>
-              <li>OpenDocument : <code>meta.xml</code>, propriétés utilisateur, miniature</li>
-              <li>SVG : bloc <code>&lt;metadata&gt;</code>, espaces de noms d'éditeur, commentaires de génération</li>
-              <li>HTML : balises <code>generator</code> et <code>author</code>, commentaires</li>
-              <li>Markdown : clés de front matter nommant un auteur, un outil ou un modèle</li>
-              <li>JPEG et PNG autonomes : Exif, XMP, IPTC, commentaires</li>
-              <li>Manifestes C2PA : PDF, Office, OpenDocument, SVG, et images (JUMBF <code>APP11</code>, chunk <code>caBX</code>)</li>
-              <li>Caractères Unicode invisibles dans le texte, avec décodage des charges stéganographiques</li>
-              <li>Fichiers texte et code source : <code>.txt</code>, <code>.py</code>, <code>.js</code>, <code>.json</code>… — un contrôle bidirectionnel dans du code est le cas Trojan Source</li>
-              <li><strong>Secrets oubliés</strong> : clés Anthropic, OpenAI, Google, AWS, GitHub, Slack, Stripe, blocs de clé privée PEM — cherchés dans le corps des documents et des archives, et jamais affichés en entier</li>
-              <li><strong>Quand le fichier le déclare</strong> : le champ <code>digitalSourceType</code> de l'IPTC, sur lequel sont écrites les obligations de transparence européennes</li>
-              <li>Archives ZIP et EPUB : chaque membre repasse par la détection normale</li>
-              <li>Les canaux qui ne sont pas un caractère bizarre : lettres sosies, mélange de formes Unicode, sosies du trait d'union, espaces en fin de ligne — <strong>signalés, jamais réécrits</strong></li>
-              <li><strong>Une réponse en tête de rapport</strong> : produit par une IA, et laquelle ? Y compris quand la réponse est « rien ne nomme d'outil », qui n'est pas la même chose que « pas d'IA »</li>
-              <li>Sur le texte collé : une lecture du <strong>style</strong> — tournures, rythme des phrases, ponctuation — donnée en mesures, sans score ni verdict</li>
-            </ul>
-            <ul data-lang="en">
-              <li>PDF metadata: the <code>/Info</code> dictionary, XMP packet, trailer <code>/ID</code></li>
-              <li>Office properties: <code>docProps/core.xml</code>, <code>app.xml</code>, custom properties, thumbnail</li>
-              <li><code>rsid</code> revision identifiers and comment authors</li>
-              <li>Excel workbooks: the person registry, defined names pointing outside the workbook, links between workbooks</li>
-              <li>Exif, GPS and IPTC in pictures embedded in slides and documents</li>
-              <li>Links to local paths or network shares</li>
-              <li>Hidden slides and speaker notes</li>
-              <li><strong>Traces of the producing tool</strong>: assistant or library named, operating system, account name, temporary directory, session identifier</li>
-              <li><strong>The file's shape</strong>: a container a library built does not look like one saved from Word or LibreOffice, even when no field names a tool</li>
-              <li><strong>Mail headers</strong>: <code>X-Mailer</code>, <code>User-Agent</code>, <code>Message-ID</code>, and any unknown <code>X-</code> header</li>
-              <li>OpenDocument: <code>meta.xml</code>, user-defined properties, thumbnail</li>
-              <li>SVG: the <code>&lt;metadata&gt;</code> block, editor namespaces, generator comments</li>
-              <li>HTML: <code>generator</code> and <code>author</code> meta tags, comments</li>
-              <li>Markdown: front-matter keys naming an author, a tool or a model</li>
-              <li>Standalone JPEG and PNG: Exif, XMP, IPTC, comments</li>
-              <li>C2PA manifests: PDF, Office, OpenDocument, SVG, and images (JUMBF <code>APP11</code>, <code>caBX</code> chunk)</li>
-              <li>Invisible Unicode in text, with steganographic payloads decoded</li>
-              <li>Text and source files: <code>.txt</code>, <code>.py</code>, <code>.js</code>, <code>.json</code>… — a bidirectional control in source is the Trojan Source case</li>
-              <li><strong>Forgotten credentials</strong>: Anthropic, OpenAI, Google, AWS, GitHub, Slack, Stripe keys, PEM private key blocks — looked for in document and archive bodies, and never printed in full</li>
-              <li><strong>When the file declares it</strong>: the IPTC <code>digitalSourceType</code> field, which the EU transparency obligations are written around</li>
-              <li>ZIP and EPUB archives: every member goes back through the normal detection path</li>
-              <li>The channels that are not a strange character: lookalike letters, mixed Unicode forms, hyphen lookalikes, trailing whitespace — <strong>reported, never rewritten</strong></li>
-              <li><strong>One answer at the top of the report</strong>: made by an AI, and which one? Including when the answer is "nothing names a tool", which is not the same as "not AI"</li>
-              <li>On pasted text: a reading of the <strong>style</strong> — turns of phrase, sentence rhythm, punctuation — given as measurements, with no score and no verdict</li>
-            </ul>
+        <!--
+          The hero's picture is the product doing its job: one sentence twice,
+          as a reader sees it and as the bytes have it. Every chip below is a
+          real code point this tool reports, not an illustration of one.
+        -->
+        <figure class="reveal">
+          <div class="reveal-bar">
+            <span class="dot" aria-hidden="true"></span>
+            <span data-lang="fr">local · aucune requête réseau</span>
+            <span data-lang="en">local · no network request</span>
           </div>
-          <div class="scope-item scope-no">
-            <h3 data-lang="fr">Non traité</h3>
-            <h3 data-lang="en">Not handled</h3>
-            <div data-lang="fr">
-              <p>
-                Les <strong>filigranes statistiques</strong> intégrés par les modèles de langage dans
-                le choix des mots. Ce signal ne réside dans aucun champ : il <em>est</em> la formulation
-                elle-même, et le lire exige la clé secrète de l'éditeur du modèle.
+
+          <div class="reveal-row">
+            <span class="reveal-tag" data-lang="fr">Ce que vous lisez</span>
+            <span class="reveal-tag" data-lang="en">What you read</span>
+            <p class="reveal-text" data-lang="fr">Virement validé — confirmez sur apple.com</p>
+            <p class="reveal-text" data-lang="en">Payment approved — confirm at apple.com</p>
+          </div>
+
+          <div class="reveal-row is-revealed">
+            <span class="reveal-tag" data-lang="fr">Ce qu’il y a dans le fichier</span>
+            <span class="reveal-tag" data-lang="en">What is in the file</span>
+            <p class="reveal-text" data-lang="fr">
+              Virement validé<span class="cp">U+200B</span> — confirmez sur
+              <span class="glyph">аррӏе.com</span><span class="cp">cyrillique <span class="cp-sub">xn--80ak6aa92e</span></span>
+            </p>
+            <p class="reveal-text" data-lang="en">
+              Payment approved<span class="cp">U+200B</span> — confirm at
+              <span class="glyph">аррӏе.com</span><span class="cp">Cyrillic <span class="cp-sub">xn--80ak6aa92e</span></span>
+            </p>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------- proof -- -->
+
+    <section class="proof">
+      <div class="shell">
+        <div class="proof-item">
+          <span class="proof-figure">0</span>
+          <span class="proof-label" data-lang="fr">appel réseau dans le code</span>
+          <span class="proof-label" data-lang="en">network calls in the code</span>
+        </div>
+        <div class="proof-item">
+          <span class="proof-figure">56</span>
+          <span class="proof-label" data-lang="fr">extensions reconnues</span>
+          <span class="proof-label" data-lang="en">file extensions handled</span>
+        </div>
+        <div class="proof-item">
+          <span class="proof-figure">370</span>
+          <span class="proof-label" data-lang="fr">tests automatisés</span>
+          <span class="proof-label" data-lang="en">automated tests</span>
+        </div>
+        <div class="proof-item">
+          <span class="proof-figure">MIT</span>
+          <span class="proof-label" data-lang="fr">code lisible et réutilisable</span>
+          <span class="proof-label" data-lang="en">source you can read and reuse</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------ tool -- -->
+
+    <main>
+      <section class="band" id="outil">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">01</span> — <span data-lang="fr">Analyse</span><span data-lang="en">Inspect</span></p>
+          <div>
+            <h2 data-lang="fr">Déposez un fichier. Rien ne part.</h2>
+            <h2 data-lang="en">Drop a file. Nothing leaves.</h2>
+            <p class="section-sub" data-lang="fr">
+              Le fichier est lu dans un Web Worker, dans cet onglet. Vous pouvez couper le réseau
+              avant de commencer et tout fonctionnera à l’identique.
+            </p>
+            <p class="section-sub" data-lang="en">
+              The file is read in a Web Worker, in this tab. You can disconnect from the network
+              before you start and everything will work exactly the same.
+            </p>
+
+            <div class="tool">
+              <nav class="tabs" role="tablist">
+                <button role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
+                  <span data-lang="fr">Documents</span><span data-lang="en">Documents</span>
+                </button>
+                <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false">
+                  <span data-lang="fr">Texte</span><span data-lang="en">Text</span>
+                </button>
+              </nav>
+
+              <section id="panel-files" class="panel" role="tabpanel" aria-labelledby="tab-files">
+                <div id="dropzone" class="dropzone" tabindex="0" role="button">
+                  <p class="dropzone-title" data-lang="fr">Déposez un document</p>
+                  <p class="dropzone-title" data-lang="en">Drop a document</p>
+                  <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, e-mails (.eml), et tout fichier texte ou source</p>
+                  <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, ODT, ODS, ODP, SVG, HTML, Markdown, JPEG, PNG, ZIP, email (.eml), and any text or source file</p>
+                  <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.odt,.ods,.odp,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.zip,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.json,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
+                </div>
+                <div id="file-results" class="results"></div>
+              </section>
+
+              <section id="panel-text" class="panel" role="tabpanel" aria-labelledby="tab-text" hidden>
+                <label class="field-label" for="text-input">
+                  <span data-lang="fr">Collez votre texte</span><span data-lang="en">Paste your text</span>
+                </label>
+                <textarea id="text-input" rows="9" spellcheck="false"></textarea>
+                <div class="actions">
+                  <button id="text-scan" class="button">
+                    <span data-lang="fr">Analyser</span><span data-lang="en">Analyse</span>
+                  </button>
+                  <button id="text-clean" class="button button-primary">
+                    <span data-lang="fr">Nettoyer</span><span data-lang="en">Clean</span>
+                  </button>
+                </div>
+                <div id="text-results" class="results"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- sample -- -->
+
+      <section class="band band-paper" id="exemple">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">02</span> — <span data-lang="fr">Résultat</span><span data-lang="en">Output</span></p>
+          <div>
+            <h2 data-lang="fr">Chaque constat, avec son niveau de confiance.</h2>
+            <h2 data-lang="en">Every finding, with its confidence level.</h2>
+            <p class="section-sub" data-lang="fr">
+              Sortie réelle sur un PDF dont le caviardage a échoué. Rien ici n’est une maquette.
+            </p>
+            <p class="section-sub" data-lang="en">
+              Real output on a PDF whose redaction failed. Nothing here is a mock-up.
+            </p>
+
+            <article class="card sample-card">
+              <div class="card-head">
+                <h3 class="card-title">rapport-conseil.pdf</h3>
+                <span class="badge">pdf</span>
+                <span class="count" data-lang="fr">6 éléments</span>
+                <span class="count" data-lang="en">6 items</span>
+              </div>
+
+              <div class="provenance is-attributed">
+                <strong data-lang="fr">Aucun outil nommé, mais un programme a fabriqué ce fichier.</strong>
+                <strong data-lang="en">No tool is named, but a program assembled this file.</strong>
+                <span class="provenance-caveat" data-lang="fr">Le conteneur a la forme que laisse une bibliothèque, pas celle d’un traitement de texte. Ce que cela ne dit pas : quel programme, ni si un modèle a écrit les mots.</span>
+                <span class="provenance-caveat" data-lang="en">The container has the shape a library leaves, not the one a word processor does. What it does not say is which program, or whether a model wrote the words.</span>
+              </div>
+
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr data-lang="fr"><th>Niveau</th><th>Type</th><th>Champ</th><th>Valeur</th></tr>
+                    <tr data-lang="en"><th>Level</th><th>Kind</th><th>Field</th><th>Value</th></tr>
+                  </thead>
+                  <tbody data-lang="fr">
+                    <tr>
+                      <td class="confidence confidence-confirmed">confirmé</td>
+                      <td class="kind">provenance</td>
+                      <td>Des versions antérieures de ce document sont encore dans le fichier</td>
+                      <td class="value">2 révisions présentes. Un texte masqué dans une révision ultérieure reste lisible dans une révision antérieure</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-confirmed">confirmé</td>
+                      <td class="kind">identité</td>
+                      <td>Les images recadrées conservent leur original</td>
+                      <td class="value">1 partie recadre une image avec a:srcRect — ce qui a été rogné se récupère en décompressant</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-probable">probable</td>
+                      <td class="kind">provenance</td>
+                      <td>Assemblé par un programme, pas exporté depuis un éditeur</td>
+                      <td class="value">le trailer ne porte pas d’/ID ; créé et modifié au même instant</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-informational">informatif</td>
+                      <td class="kind">provenance</td>
+                      <td>Application de création</td>
+                      <td class="value">pdf-lib</td>
+                    </tr>
+                    <tr class="more"><td colspan="4">et 2 autres constats informatifs</td></tr>
+                  </tbody>
+                  <tbody data-lang="en">
+                    <tr>
+                      <td class="confidence confidence-confirmed">confirmed</td>
+                      <td class="kind">provenance</td>
+                      <td>Earlier versions of this document are still in the file</td>
+                      <td class="value">2 revisions present. Text covered in a later revision is still readable in an earlier one</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-confirmed">confirmed</td>
+                      <td class="kind">identity</td>
+                      <td>Cropped pictures keep their original image</td>
+                      <td class="value">1 part crops an image with a:srcRect — whatever was cropped out can be recovered by unzipping</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-probable">probable</td>
+                      <td class="kind">provenance</td>
+                      <td>Assembled by a program, not exported from an editor</td>
+                      <td class="value">the trailer carries no /ID; created and modified at the same instant</td>
+                    </tr>
+                    <tr>
+                      <td class="confidence confidence-informational">informational</td>
+                      <td class="kind">provenance</td>
+                      <td>Creating application</td>
+                      <td class="value">pdf-lib</td>
+                    </tr>
+                    <tr class="more"><td colspan="4">and 2 further informational findings</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p class="note note-warn" data-lang="fr">Non retiré : clé d’API Anthropic. Elle est dans le contenu même du document, pas dans un champ de métadonnées. Corrigez la source et régénérez — et révoquez la clé.</p>
+              <p class="note note-warn" data-lang="en">Not removed: Anthropic API key. It sits in the document's own content rather than in a metadata field. Edit the source and regenerate — and rotate the key.</p>
+            </article>
+
+            <p class="sample-foot" data-lang="fr">
+              Le nettoyage <strong>ré-inspecte sa propre sortie</strong> et nomme ce qui a survécu.
+              Quand aucun avertissement n’apparaît, c’est que la ré-inspection n’a rien trouvé —
+              pas que le code croit avoir bien travaillé.
+            </p>
+            <p class="sample-foot" data-lang="en">
+              Cleaning <strong>re-inspects its own output</strong> and names what survived. When no
+              warning appears, it is because the re-inspection found nothing — not because the code
+              believes it did its job.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- steps -- -->
+
+      <section class="band" id="fonctionnement">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">03</span> — <span data-lang="fr">Fonctionnement</span><span data-lang="en">How it works</span></p>
+          <div>
+            <h2 data-lang="fr">Trois étapes, aucune confiance à accorder.</h2>
+            <h2 data-lang="en">Three steps, no trust required.</h2>
+
+            <div class="steps">
+              <div class="step">
+                <span class="step-index">01</span>
+                <h3 data-lang="fr">Lecture</h3>
+                <h3 data-lang="en">Read</h3>
+                <p data-lang="fr">
+                  Le fichier est ouvert dans un Web Worker, à l’intérieur de l’onglet. Il n’y a
+                  pas de serveur, pas de téléversement, pas de file d’attente.
+                </p>
+                <p data-lang="en">
+                  The file is opened in a Web Worker, inside the tab. There is no server, no
+                  upload and no queue.
+                </p>
+              </div>
+              <div class="step">
+                <span class="step-index">02</span>
+                <h3 data-lang="fr">Constat</h3>
+                <h3 data-lang="en">Report</h3>
+                <p data-lang="fr">
+                  Chaque élément est rapporté avec son emplacement exact dans le fichier et son
+                  niveau de confiance, pour que vous puissiez le vérifier vous-même.
+                </p>
+                <p data-lang="en">
+                  Each item is reported with its exact location in the file and its confidence
+                  level, so that you can go and check it yourself.
+                </p>
+              </div>
+              <div class="step">
+                <span class="step-index">03</span>
+                <h3 data-lang="fr">Nettoyage</h3>
+                <h3 data-lang="en">Clean</h3>
+                <p data-lang="fr">
+                  La copie nettoyée est repassée dans l’analyse. Ce qui a survécu est nommé plutôt
+                  que passé sous silence.
+                </p>
+                <p data-lang="en">
+                  The cleaned copy is run back through the inspection. Whatever survived is named
+                  rather than quietly dropped.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ----------------------------------------------------- capability -- -->
+
+      <section class="band band-paper" id="lecture">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">04</span> — <span data-lang="fr">Couverture</span><span data-lang="en">Coverage</span></p>
+          <div>
+            <h2 data-lang="fr">Ce qu’il lit.</h2>
+            <h2 data-lang="en">What it reads.</h2>
+            <p class="section-sub" data-lang="fr">Référence complète, groupée par famille.</p>
+            <p class="section-sub" data-lang="en">Full reference, grouped by family.</p>
+
+            <div class="caps">
+              <div class="cap">
+                <h3 data-lang="fr">Métadonnées de document</h3>
+                <h3 data-lang="en">Document metadata</h3>
+                <p data-lang="fr">PDF : <code>/Info</code> y compris les clés non standard, paquet XMP, identifiant <code>/ID</code>. Office : <code>core.xml</code>, <code>app.xml</code>, propriétés personnalisées, miniature, <code>rsid</code>, <code>customXml</code>. OpenDocument : <code>meta.xml</code>, propriétés utilisateur. SVG, HTML, Markdown, front matter.</p>
+                <p data-lang="en">PDF: <code>/Info</code> including non-standard keys, XMP packet, trailer <code>/ID</code>. Office: <code>core.xml</code>, <code>app.xml</code>, custom properties, thumbnail, <code>rsid</code>, <code>customXml</code>. OpenDocument: <code>meta.xml</code>, user-defined properties. SVG, HTML, Markdown front matter.</p>
+              </div>
+
+              <div class="cap">
+                <h3 data-lang="fr">Ce que le fichier garde</h3>
+                <h3 data-lang="en">What the file keeps</h3>
+                <p data-lang="fr">Révisions PDF antérieures — un texte masqué par un rectangle noir reste lisible dessous. Images recadrées : l’original entier est toujours là. Caches de tableaux croisés, feuilles masquées et <code>veryHidden</code>, diapositives masquées, notes du présentateur.</p>
+                <p data-lang="en">Earlier PDF revisions — text covered by a black box is still readable underneath. Cropped pictures: the full original is still there. Pivot caches, hidden and <code>veryHidden</code> worksheets, hidden slides, speaker notes.</p>
+              </div>
+
+              <div class="cap">
+                <h3 data-lang="fr">Qui et avec quoi</h3>
+                <h3 data-lang="en">Who, and with what</h3>
+                <p data-lang="fr">Assistant ou bibliothèque nommés, identifiant de modèle, système d’exploitation, nom de compte, répertoire temporaire, identifiant de session. <strong>La forme du fichier</strong> quand aucun champ ne nomme d’outil. Auteurs de commentaires et d’annotations PDF.</p>
+                <p data-lang="en">Assistant or library named, model identifier, operating system, account name, temporary directory, session identifier. <strong>The file's shape</strong> when no field names a tool. Comment and PDF annotation authors.</p>
+              </div>
+
+              <div class="cap">
+                <h3 data-lang="fr">Provenance IA</h3>
+                <h3 data-lang="en">AI provenance</h3>
+                <p data-lang="fr">Manifestes C2PA dans les PDF, Office, OpenDocument, SVG et images. Champ <code>digitalSourceType</code> de l’IPTC. Chunks <code>parameters</code> et <code>workflow</code> de Stable Diffusion, ComfyUI et InvokeAI — <strong>le prompt voyage avec le fichier</strong>.</p>
+                <p data-lang="en">C2PA manifests in PDF, Office, OpenDocument, SVG and images. The IPTC <code>digitalSourceType</code> field. <code>parameters</code> and <code>workflow</code> chunks from Stable Diffusion, ComfyUI and InvokeAI — <strong>the prompt travels with the file</strong>.</p>
+              </div>
+
+              <div class="cap">
+                <h3 data-lang="fr">Caractères trompeurs</h3>
+                <h3 data-lang="en">Deceptive characters</h3>
+                <p data-lang="fr">Unicode invisible avec décodage des charges cachées. Lettres sosies, formes Unicode mêlées, sosies du trait d’union, espaces en fin de ligne. Alphanumériques mathématiques — 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » et ne correspond à aucun filtre. Contrôles bidirectionnels : le cas Trojan Source.</p>
+                <p data-lang="en">Invisible Unicode with hidden payloads decoded. Lookalike letters, mixed Unicode forms, hyphen lookalikes, trailing whitespace. Mathematical alphanumerics — 𝘂𝗿𝗴𝗲𝗻𝘁 reads as "urgent" and matches no filter. Bidirectional controls: the Trojan Source case.</p>
+              </div>
+
+              <div class="cap">
+                <h3 data-lang="fr">Liens, courrier, secrets</h3>
+                <h3 data-lang="en">Links, mail, credentials</h3>
+                <p data-lang="fr">Domaines en alphabet sosie — <code>аррӏе.com</code> en cyrillique s’affiche « apple.com ». En-têtes <code>X-Mailer</code>, <code>User-Agent</code>, <code>Message-ID</code>. Clés Anthropic, OpenAI, Google, AWS, GitHub, Stripe et blocs PEM, cherchés dans le corps et jamais affichés en entier.</p>
+                <p data-lang="en">Lookalike-alphabet domains — <code>аррӏе.com</code> in Cyrillic renders as "apple.com". <code>X-Mailer</code>, <code>User-Agent</code>, <code>Message-ID</code> headers. Anthropic, OpenAI, Google, AWS, GitHub and Stripe keys and PEM blocks, looked for in the body and never printed in full.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- limits -- -->
+
+      <section class="band" id="limites">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">05</span> — <span data-lang="fr">Limites</span><span data-lang="en">Limits</span></p>
+          <div>
+            <h2 data-lang="fr">Ce qu’il ne fait pas, et pourquoi.</h2>
+            <h2 data-lang="en">What it does not do, and why.</h2>
+            <p class="section-sub" data-lang="fr">
+              Un outil qui ne dit pas où il s’arrête ne vous dit rien d’utile sur le reste.
+            </p>
+            <p class="section-sub" data-lang="en">
+              A tool that will not say where it stops tells you nothing useful about the rest.
+            </p>
+
+            <div class="limit">
+              <p data-lang="fr">
+                Les <strong>filigranes statistiques</strong> que les modèles de langage intègrent
+                dans le choix des mots. Ce signal ne réside dans aucun champ : il <em>est</em> la
+                formulation elle-même, et le lire exige la clé secrète de l’éditeur.
               </p>
-              <p>
-                Ce n'est plus théorique. Anthropic indique que les futurs modèles Claude en portent un,
-                une version de SynthID-Text, au titre du code de transparence européen en vigueur
-                depuis le 2 août 2026 ; les modèles antérieurs suivent dans les mois à venir. Une API
-                de détection est annoncée, mais elle n'est pas publiée — et sans la clé, il n'y a
-                aucune quantité à mesurer.
+              <p data-lang="en">
+                <strong>Statistical watermarks</strong> that language models embed in their choice
+                of words. That signal lives in no field: it <em>is</em> the wording itself, and
+                reading it requires the vendor's secret key.
               </p>
-              <p>
-                Aucun outil local ne peut donc le détecter ni le retirer — celui-ci pas davantage, et
-                il ne le prétend pas. Méfiez-vous de ceux qui l'affirment. Ce que Cirta fait à la
-                place : il indique <strong>ce que vaut son propre silence</strong> à la longueur du
-                texte que vous lui donnez.
+              <p data-lang="fr">
+                Ce n’est plus théorique — Anthropic indique que les futurs modèles Claude en
+                portent un. Mais l’API de détection annoncée n’est pas publiée, et sans la clé il
+                n’y a <strong>aucune quantité à mesurer</strong>. Aucun outil local ne peut le
+                lire, celui-ci pas davantage, et il ne le prétend pas. Méfiez-vous de ceux qui
+                l’affirment.
               </p>
-              <p>
-                À ne pas confondre avec les caractères invisibles ci-contre : Anthropic écrit que
-                « rien n'est ajouté au texte et qu'il n'y a aucun caractère caché ». Ce sont deux
-                mécanismes distincts, et retirer l'un ne touche pas à l'autre. La moitié C2PA de la
-                même annonce, elle, est lue et signalée par cet outil.
+              <p data-lang="en">
+                This is no longer theoretical — Anthropic states that future Claude models carry
+                one. But the announced detection API is not published, and without the key there
+                is <strong>no quantity to measure</strong>. No local tool can read it, this one
+                included, and it does not claim to. Be wary of any service that says otherwise.
+              </p>
+              <p data-lang="fr">
+                À ne pas confondre avec les caractères invisibles ci-dessus : Anthropic écrit que
+                « rien n’est ajouté au texte et qu’il n’y a aucun caractère caché ». Deux
+                mécanismes distincts ; retirer l’un ne touche pas à l’autre.
+              </p>
+              <p data-lang="en">
+                Not to be confused with the invisible characters above: Anthropic states that
+                “nothing is added to the text and there are no hidden characters”. Two distinct
+                mechanisms; removing one leaves the other untouched.
               </p>
             </div>
-            <div data-lang="en">
-              <p>
-                <strong>Statistical watermarks</strong> that language models embed in their choice of
-                words. That signal lives in no field: it <em>is</em> the wording itself, and reading it
-                requires the model vendor's secret key.
-              </p>
-              <p>
-                This is no longer theoretical. Anthropic states that future Claude models carry one, a
-                version of SynthID-Text, under the EU transparency code in force since 2 August 2026;
-                earlier models follow over the coming months. A detection API is announced but not
-                published — and without the key there is no quantity to measure.
-              </p>
-              <p>
-                So no local tool can detect or remove one — this one included, and it does not claim
-                to. Be wary of any service that says otherwise. What Cirta does instead: it tells you
-                <strong>what its own silence is worth</strong> at the length of the text you gave it.
-              </p>
-              <p>
-                Not to be confused with the invisible characters opposite: Anthropic states that
-                “nothing is added to the text and there are no hidden characters”. They are two
-                distinct mechanisms, and removing one leaves the other untouched. The C2PA half of the
-                same announcement is read and reported by this tool.
-              </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ cli -- -->
+
+      <section class="band band-paper" id="cli">
+        <div class="shell row">
+          <p class="eyebrow"><span class="eyebrow-index">06</span> — <span data-lang="fr">Ligne de commande</span><span data-lang="en">Command line</span></p>
+          <div>
+            <h2 data-lang="fr">La même analyse, scriptable.</h2>
+            <h2 data-lang="en">The same inspection, scriptable.</h2>
+            <p class="section-sub" data-lang="fr">
+              Parcourt un répertoire entier, sort du JSON ou du SARIF, et renvoie un code de
+              sortie — de quoi l’attacher à un hook de commit ou à une étape de CI.
+            </p>
+            <p class="section-sub" data-lang="en">
+              Walks a whole directory, emits JSON or SARIF, and returns an exit code — enough to
+              wire into a commit hook or a CI step.
+            </p>
+
+            <div class="terminal">
+              <div class="terminal-bar">
+                <span data-lang="fr">transcription réelle, abrégée</span>
+                <span data-lang="en">real transcript, abridged</span>
+              </div>
+              <pre data-lang="fr"><code><span class="prompt">$ </span>cirta inspect rapport.pdf
+<span class="out">rapport.pdf (pdf)
+  Produit par   pdf-lib — rien ne nomme d’assistant
+  confirmé      provenance  Des versions antérieures sont encore dans le fichier
+  confirmé      provenance  Document généré par programme      pdf-lib
+  probable      horodatage  Créé le                            D:20261015200053Z
+  informatif    provenance  Application de création            pdf-lib</span>
+
+<span class="prompt">$ </span>cirta redact rapport.pdf -o rapport-propre.pdf
+<span class="out">rapport.pdf → rapport-propre.pdf
+  7 champs retirés</span></code></pre>
+              <pre data-lang="en"><code><span class="prompt">$ </span>cirta inspect report.pdf
+<span class="out">report.pdf (pdf)
+  Produced by   pdf-lib — nothing names an assistant
+  confirmed     provenance  Earlier versions are still in the file
+  confirmed     provenance  Document generated programmatically  pdf-lib
+  probable      timestamp   Created                              D:20261015200053Z
+  informational provenance  Creating application                 pdf-lib</span>
+
+<span class="prompt">$ </span>cirta redact report.pdf -o report-clean.pdf
+<span class="out">report.pdf → report-clean.pdf
+  7 fields removed</span></code></pre>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="wrap">
-      <p data-lang="fr">
-        Traitement entièrement local — le code ne contient aucun appel réseau.
-        <a href="https://github.com/k3e9x/Cirta">Code source</a>
-      </p>
-      <p data-lang="en">
-        Everything runs locally — the code contains no network calls.
-        <a href="https://github.com/k3e9x/Cirta">Source code</a>
-      </p>
+    <footer class="site-foot">
+      <div class="shell">
+        <p data-lang="fr">
+          Cirta — traitement entièrement local, aucun compte, aucune mesure d’audience. Sous
+          licence MIT.
+        </p>
+        <p data-lang="en">
+          Cirta — everything runs locally, no account, no analytics. MIT licensed.
+        </p>
+        <div class="foot-links">
+          <a href="https://github.com/k3e9x/Cirta">
+            <span data-lang="fr">Code source</span><span data-lang="en">Source</span>
+          </a>
+          <a href="https://github.com/k3e9x/Cirta/issues">
+            <span data-lang="fr">Signaler</span><span data-lang="en">Issues</span>
+          </a>
+        </div>
+      </div>
     </footer>
 
     <script type="module" src="./main.ts"></script>

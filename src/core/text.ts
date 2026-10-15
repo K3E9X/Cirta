@@ -11,6 +11,7 @@
 
 import type { Finding } from './types.js';
 import { preview } from './types.js';
+import { findDeceptiveUrls } from './url.js';
 
 const CP = {
   SOFT_HYPHEN: 0x00ad,
@@ -695,6 +696,61 @@ function findControlCharacters(input: string): Finding[] {
   ];
 }
 
+/**
+ * Letters from the Mathematical Alphanumeric Symbols block, used as styling.
+ *
+ * Unicode encodes a full set of bold, italic, script and double-struck Latin
+ * letters for mathematics — 𝐚, 𝑎, 𝒶, 𝕒 are four distinct codepoints that all
+ * read as "a". They were meant for formulae, where the typeface carries
+ * meaning. They are used for two other things.
+ *
+ * The first is cosmetic: pasting 𝐛𝐨𝐥𝐝 text into a field that has no bold.
+ * The second is evasion. A moderation filter, a keyword alert or a mail rule
+ * matching on "urgent" does not match 𝘂𝗿𝗴𝗲𝗻𝘁, while a human reads it without
+ * noticing anything. The same trick defeats search inside a document.
+ *
+ * Reported with what the text folds back to, and never rewritten: in a maths
+ * paper these characters are the notation, and flattening 𝔽 to F would destroy
+ * the meaning the author chose them for.
+ */
+/** Fold a mathematical letter or digit onto the ASCII character it reads as. */
+function foldMathAlphanumeric(cp: number): string | undefined {
+  if (cp < 0x1d400 || cp > 0x1d7ff) return undefined;
+  // The block is a series of 52-letter runs (A-Z then a-z), with a few holes
+  // where a letter was already encoded elsewhere, followed by digit runs.
+  if (cp >= 0x1d7ce) return String((cp - 0x1d7ce) % 10);
+  const offset = (cp - 0x1d400) % 52;
+  return offset < 26
+    ? String.fromCharCode(0x41 + offset)
+    : String.fromCharCode(0x61 + offset - 26);
+}
+
+function findMathAlphanumerics(input: string): Finding[] {
+  const styled: string[] = [];
+  let count = 0;
+  for (const char of input) {
+    const cp = char.codePointAt(0)!;
+    const folded = foldMathAlphanumeric(cp);
+    if (folded === undefined) continue;
+    count++;
+    if (styled.length < 60) styled.push(folded);
+  }
+  if (count === 0) return [];
+
+  return [
+    {
+      kind: 'invisible-character',
+      confidence: 'probable',
+      location: 'mathematical alphanumerics',
+      label: 'Letters styled with mathematical symbols',
+      value:
+        `${count} character${count > 1 ? 's' : ''} from the Mathematical Alphanumeric Symbols block, ` +
+        `reading as "${preview(styled.join(''), 60)}". A filter or a search matching the ordinary ` +
+        'letters does not match these, while a reader sees no difference. Legitimate in a formula',
+    },
+  ];
+}
+
 export function scanText(input: string): TextScan {
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const counts = new Map<number, number>();
@@ -740,6 +796,8 @@ export function scanText(input: string): TextScan {
     });
   }
 
+  findings.push(...findDeceptiveUrls(input));
+  findings.push(...findMathAlphanumerics(input));
   findings.push(...findConfusables(input));
   findings.push(...findNormalizationChannel(input));
   findings.push(...findHyphenTwins(input));
@@ -776,6 +834,10 @@ export interface CleanTextResult {
  * was removed never covers for what is still there.
  */
 const REPORTED_NOT_REMOVED = new Set([
+  // A deceptive link is content: where it points is what the document says, and
+  // rewriting it would change where a reader ends up. Reported, never touched.
+  'links',
+  'mathematical alphanumerics',
   'mixed-script words',
   'mixed-width words',
   'hyphen lookalikes',

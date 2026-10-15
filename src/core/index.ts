@@ -41,19 +41,23 @@ export type { Stylometry, StyleBand, StyleIndicator } from './stylometry.js';
 export type { Exposure, ExposureBand, TokenEstimate } from './exposure.js';
 export { walkArchive, scanContent, ARCHIVE_LIMITS } from './archive.js';
 export { emailHeaders, stripToolHeaders } from './email.js';
+export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
+export { toSarif, ruleId, meetsThreshold } from './sarif.js';
+export type { SarifInput } from './sarif.js';
 export { inspectPlainText } from './plaintext.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
-import { unzipGuarded } from './zip.js';
+import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
 import type { Format, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
-import { decodeTextInput, cleanText } from './text.js';
+import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
+import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
 import { byConfidence } from './types.js';
@@ -156,7 +160,47 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   }
 }
 
+/** Image metadata, plus whatever the fingerprinter derives from it. */
+function imageFindings(data: Uint8Array, image: Format): Finding[] {
+  const found = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+  return [...found, ...fingerprint(found)].sort(byConfidence);
+}
+
+/**
+ * Inspect a file, turning a parser's complaint into a refusal callers can match.
+ *
+ * Fuzzing made the case for this. Twenty-one distinct rejections escaped the
+ * public entry point as a bare `Error` — "invalid zip data", "No PDF header
+ * found" — all of them correct refusals of corrupt input, none of them a type a
+ * caller could catch on. A consumer had no way to tell "this file is not
+ * supported" from "this library broke".
+ *
+ * A corrupt file is an unsupported file, so those become UnsupportedFormatError
+ * with the parser's own words kept. A TypeError or RangeError is *not* wrapped:
+ * that is this code indexing or slicing something it did not check, and
+ * disguising it as a refusal would hide exactly the bug the fuzzer exists to
+ * find.
+ */
 export async function inspectFile(data: Uint8Array, hint?: string): Promise<InspectResult> {
+  try {
+    return await dispatch(data, hint);
+  } catch (error) {
+    if (
+      error instanceof UnsupportedFormatError ||
+      error instanceof BinaryInputError ||
+      error instanceof ArchiveTooLargeError ||
+      error instanceof TypeError ||
+      error instanceof RangeError ||
+      error instanceof ReferenceError
+    ) {
+      throw error;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new UnsupportedFormatError(`This file could not be parsed: ${detail}`);
+  }
+}
+
+async function dispatch(data: Uint8Array, hint?: string): Promise<InspectResult> {
   if (isPdf(data)) return inspectPdf(data);
   if (isZip(data)) {
     const parts = unzipGuarded(data);
@@ -168,7 +212,11 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   if (image) {
     return {
       format: image,
-      findings: inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks'),
+      // fingerprint() runs here as it does for every other format. Without it
+      // a picture whose chunk named Stable Diffusion still had the report open
+      // with "nothing names a tool" — the headline contradicting the table
+      // directly under it.
+      findings: imageFindings(data, image),
       notes: [{ code: 'scope:image-metadata-only' }],
     };
   }
