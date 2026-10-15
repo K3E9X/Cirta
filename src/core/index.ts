@@ -48,13 +48,13 @@ export { inspectPlainText } from './plaintext.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
-import { unzipGuarded } from './zip.js';
+import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
 import type { Format, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
-import { decodeTextInput, cleanText } from './text.js';
+import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
 import { fingerprint } from './fingerprint.js';
@@ -166,7 +166,41 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
   return [...found, ...fingerprint(found)].sort(byConfidence);
 }
 
+/**
+ * Inspect a file, turning a parser's complaint into a refusal callers can match.
+ *
+ * Fuzzing made the case for this. Twenty-one distinct rejections escaped the
+ * public entry point as a bare `Error` — "invalid zip data", "No PDF header
+ * found" — all of them correct refusals of corrupt input, none of them a type a
+ * caller could catch on. A consumer had no way to tell "this file is not
+ * supported" from "this library broke".
+ *
+ * A corrupt file is an unsupported file, so those become UnsupportedFormatError
+ * with the parser's own words kept. A TypeError or RangeError is *not* wrapped:
+ * that is this code indexing or slicing something it did not check, and
+ * disguising it as a refusal would hide exactly the bug the fuzzer exists to
+ * find.
+ */
 export async function inspectFile(data: Uint8Array, hint?: string): Promise<InspectResult> {
+  try {
+    return await dispatch(data, hint);
+  } catch (error) {
+    if (
+      error instanceof UnsupportedFormatError ||
+      error instanceof BinaryInputError ||
+      error instanceof ArchiveTooLargeError ||
+      error instanceof TypeError ||
+      error instanceof RangeError ||
+      error instanceof ReferenceError
+    ) {
+      throw error;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new UnsupportedFormatError(`This file could not be parsed: ${detail}`);
+  }
+}
+
+async function dispatch(data: Uint8Array, hint?: string): Promise<InspectResult> {
   if (isPdf(data)) return inspectPdf(data);
   if (isZip(data)) {
     const parts = unzipGuarded(data);

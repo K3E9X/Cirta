@@ -972,6 +972,62 @@ npm run build:web  # site statique vers dist-web/
 node scripts/smoke.mjs
 ```
 
+### Fuzzing des parseurs
+
+Cirta est pointé vers des fichiers venus de gens en qui l'utilisateur n'a aucune
+raison d'avoir confiance. C'est le modèle de menace où un bug de parseur cesse
+d'être un plantage pour devenir une vulnérabilité, et neuf modules ici mangent
+des octets hostiles : PDF, ZIP, OOXML, ODF, CBOR, JUMBF, conteneurs d'images,
+XML et punycode.
+
+```bash
+npm run fuzz                                  # passe courte
+node scripts/fuzz.mjs --iterations 12000 --seed 31337
+node scripts/fuzz.mjs --target pdf
+```
+
+Sans dépendance, par mutation : des fichiers valides sont construits, puis on
+inverse des bits, on tronque, on recolle, on répète, et on écrase les champs de
+longueur avec les bornes entières qui cassent l'arithmétique. Partir de graines
+valides est essentiel — des octets aléatoires passent tout leur budget à se
+faire rejeter par le détecteur de format, sans jamais atteindre le parseur.
+
+**Ce qui compte comme bug** mérite d'être énoncé, et la première passe s'est
+trompée : elle a signalé 231 constats, presque tous fflate refusant correctement
+de décompresser un ZIP corrompu. Un parseur qui rejette une entrée malformée
+fait son travail. Les constats sont donc gradués — `crash` pour une exception
+que le module n'a jamais voulu lever, `hang` pour une boucle qui ne finit pas,
+`leak` pour un refus échappé en `Error` nu, signalé une fois par type et non une
+fois par entrée.
+
+**Ce qu'il a trouvé.** Un PDF dont le catalogue n'est pas un dictionnaire.
+`doc.catalog` est typé comme tel, et un fichier abîmé chargé avec
+`throwOnInvalidObject: false` peut y laisser n'importe quoi ; `catalog?.get(…)`
+se prémunit contre l'absence et ne dit rien sur la forme, d'où un `TypeError`.
+Personne n'aurait écrit ce fichier à la main — c'est précisément pour ça que
+l'hypothèse avait survécu.
+
+Il a aussi motivé un second changement. Vingt et un refus distincts
+s'échappaient de l'entrée publique en `Error` nus — « invalid zip data », « No
+PDF header found » — tous corrects, et qu'aucun appelant ne pouvait attraper. Un
+fichier corrompu est un fichier non pris en charge : `inspectFile` lève donc
+`UnsupportedFormatError` en conservant les mots du parseur. `TypeError` et
+`RangeError` ne sont **délibérément pas** enveloppés : ce sont nos erreurs à
+nous, et les déguiser en refus masquerait exactement le bug que le fuzzer existe
+pour trouver.
+
+Une passe courte fait partie de `npm run verify`, avec une graine différente à
+chaque fois, pour que le build explore du terrain neuf plutôt que de rejouer les
+mêmes entrées. Chaque exécution affiche sa graine, donc un échec se reproduit à
+l'identique. La dernière campagne longue : **107 779 entrées, aucun crash, aucun
+blocage** ; les entrées qui plantaient sont gardées comme tests dans
+`test/fuzz-regressions.test.ts`.
+
+Un fuzzer guidé par la couverture (Jazzer.js, libFuzzer) trouve des bugs plus
+profonds et devrait suivre. Il demande une installation, une chaîne d'outils et
+une campagne longue — c'est la différence entre un fuzzer intégré au build et un
+fuzzer que personne ne lance.
+
 ### Fichiers réels
 
 Toutes les fixtures unitaires sont construites à la main : c'est rapide et précis, mais un conteneur

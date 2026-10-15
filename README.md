@@ -921,6 +921,57 @@ console in a non-UTF-8 code page renders them as mojibake, and a banner that arr
 worse than a plain one. The fallback is pure ASCII and the text column stays aligned at the same
 offset either way.
 
+### Fuzzing the parsers
+
+Cirta is pointed at files from people the user has no reason to trust. That is
+the threat model in which a parser bug stops being a crash and becomes a
+vulnerability, and nine modules here take hostile bytes: PDF, ZIP, OOXML, ODF,
+CBOR, JUMBF, image containers, XML and punycode.
+
+```bash
+npm run fuzz                                  # a short run
+node scripts/fuzz.mjs --iterations 12000 --seed 31337
+node scripts/fuzz.mjs --target pdf
+```
+
+It is dependency-free and mutation-based: valid files are built, then bit-flipped,
+truncated, spliced, repeated, and had their length fields overwritten with the
+integer boundaries that break arithmetic. Starting from valid seeds matters —
+random bytes spend the whole budget being rejected by the format sniffer, never
+reaching the parser.
+
+**What counts as a bug** is the part worth stating, and the first run got it
+wrong: it reported 231 findings, almost all of them fflate correctly refusing to
+inflate a corrupted ZIP. A parser rejecting malformed input is the code working.
+Findings are therefore graded — `crash` for an exception the module never meant
+to raise, `hang` for a loop that does not end, and `leak` for a refusal that
+escaped as a bare `Error`, reported once per kind rather than once per input.
+
+**What it found.** A PDF whose catalog is not a dictionary. `doc.catalog` is
+typed as one, and a damaged file loaded with `throwOnInvalidObject: false` can
+leave anything there; `catalog?.get(…)` guards against absent and says nothing
+about wrong-shaped, so it threw a `TypeError`. Nobody would have written that
+file by hand, which is exactly why the assumption survived.
+
+It also made the case for a second change. Twenty-one distinct rejections
+escaped the public entry point as bare `Error`s — "invalid zip data", "No PDF
+header found" — all correct refusals that no caller could match on. A corrupt
+file is an unsupported file, so `inspectFile` now raises
+`UnsupportedFormatError` with the parser's own words kept. `TypeError` and
+`RangeError` are deliberately *not* wrapped: those are this code indexing
+something it did not check, and disguising one as a refusal would hide the bug
+the fuzzer exists to find.
+
+A short run is part of `npm run verify`, with a fresh seed each time, so the
+build explores new ground rather than re-running the same inputs. Every run
+prints its seed, so a failure reproduces exactly. The last long campaign was
+**107,779 inputs with no crash and no hang**; the inputs that once crashed are
+kept as tests in `test/fuzz-regressions.test.ts`.
+
+A coverage-guided fuzzer (Jazzer.js, libFuzzer) finds deeper bugs and should
+follow. It needs an install, a toolchain and a long campaign — which is the
+difference between a fuzzer that is part of the build and one nobody starts.
+
 ### Real files
 
 Every unit fixture is built by hand: that is fast and precise, but a container built here shares the

@@ -39,12 +39,27 @@ async function load(data: Uint8Array): Promise<PDFDocument> {
 }
 
 /** Read the XMP packet, inflating it when the stream is Flate-encoded. */
+/**
+ * The document catalog, but only when it really is a dictionary.
+ *
+ * `doc.catalog` is typed as one, and with `throwOnInvalidObject: false` a
+ * damaged file can leave something else there entirely — a number, a string,
+ * whatever the trailer pointed at. Optional chaining guards against it being
+ * absent and says nothing about it being the wrong shape, so `catalog?.get(…)`
+ * threw a TypeError on a corrupted file. Found by fuzzing, which is the only
+ * way this shape of input ever reaches the code.
+ */
+function catalogDict(doc: PDFDocument): PDFDict | undefined {
+  const catalog = doc.catalog as unknown;
+  return catalog instanceof PDFDict ? catalog : undefined;
+}
+
 function readXmp(doc: PDFDocument): string | undefined {
   // `throwOnInvalidObject: false` lets a damaged file load with no catalog at
   // all, and reading through it then fails as a TypeError rather than as
   // something a caller can report. A file that starts with %PDF is not a
   // promise that the rest of it parses.
-  const ref = doc.catalog?.get(PDFName.of('Metadata'));
+  const ref = catalogDict(doc)?.get(PDFName.of('Metadata'));
   if (!ref) return undefined;
   const stream = doc.context.lookup(ref);
   if (!(stream instanceof PDFRawStream)) return undefined;
@@ -373,8 +388,8 @@ function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
   if (created && created === modified) strong.push('created and modified at the same instant');
 
   const weak: string[] = [];
-  if (!doc.catalog?.get(PDFName.of('Metadata'))) weak.push('no XMP metadata packet');
-  if (!doc.catalog?.get(PDFName.of('StructTreeRoot'))) weak.push('not tagged for accessibility');
+  if (!catalogDict(doc)?.get(PDFName.of('Metadata'))) weak.push('no XMP metadata packet');
+  if (!catalogDict(doc)?.get(PDFName.of('StructTreeRoot'))) weak.push('not tagged for accessibility');
 
   // One weighty signal is the entry price. Without it the file is only missing
   // things that a print-to-PDF driver also leaves out, and saying anything
@@ -586,7 +601,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   findings.push(...scanPageFonts(doc));
   findings.push(...structuralPdf(doc, findings));
 
-  const names = doc.catalog?.get(PDFName.of('Names'));
+  const names = catalogDict(doc)?.get(PDFName.of('Names'));
   if (names) {
     const resolved = doc.context.lookup(names);
     if (resolved && 'get' in resolved && (resolved as { get(k: PDFName): unknown }).get(PDFName.of('EmbeddedFiles'))) {
@@ -643,9 +658,9 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   }
 
   if (removeXmp) {
-    const hadXmp = Boolean(doc.catalog?.get(PDFName.of('Metadata')));
+    const hadXmp = Boolean(catalogDict(doc)?.get(PDFName.of('Metadata')));
     const xmp = readXmp(doc);
-    doc.catalog?.delete(PDFName.of('Metadata'));
+    catalogDict(doc)?.delete(PDFName.of('Metadata'));
     if (hadXmp && xmp && looksLikeC2pa(xmp)) {
       notes.push({ code: 'removed:c2pa', detail: '/Metadata' });
     }
