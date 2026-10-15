@@ -79,6 +79,8 @@ const FR = {
     '`cirta redact <fichier>`, ou passez --force-text si vous êtes certain que ces octets\n' +
     'sont du texte.',
   removedTypes: (n: number) => `\ncirta : ${n} type(s) de caractère invisible retiré(s)`,
+  fieldsRemoved: (n: number) => `${n} champ${n === 1 ? '' : 's'} retiré${n === 1 ? '' : 's'}`,
+  originalKept: (path: string) => `original conservé sous ${path}`,
   nothingRemoved: '\ncirta : rien à retirer',
   leftInPlace: (label: string, value: string) => `cirta : laissé en place — ${label} : ${value}`,
 
@@ -242,6 +244,8 @@ const EN: Strings = {
     'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
     'or pass --force-text if you are certain these bytes are text.',
   removedTypes: (n) => `\ncirta: removed ${n} invisible character type(s)`,
+  fieldsRemoved: (n) => `${n} field${n === 1 ? '' : 's'} removed`,
+  originalKept: (path) => `original kept as ${path}`,
   nothingRemoved: '\ncirta: nothing to remove',
   leftInPlace: (label, value) => `cirta: left in place — ${label}: ${value}`,
 

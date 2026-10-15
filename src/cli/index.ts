@@ -183,16 +183,24 @@ function printFindings(findings: Finding[]): void {
     return;
   }
   const width = Math.max(...findings.map((f) => translateLabel(f.label, lang()).length));
+  /*
+   * The kind column was a hardcoded 11, which `environnement` already overran
+   * by two and `lien trompeur` by two more — every row carrying one pushed the
+   * rest of its line out of the table. Measuring it also gives the indent for
+   * the location line below, which was the same width written out again as 26.
+   */
+  const kindWidth = Math.max(...findings.map((f) => t().kinds[f.kind].length));
+  const indent = 13 + 1 + kindWidth + 1;
   for (const finding of findings) {
     const flag = finding.affectsVerifiability ? yellow(' [verifiable provenance]') : '';
     const mark = CONFIDENCE_STYLE[finding.confidence](t().confidence[finding.confidence].padEnd(13));
     console.log(
-      `  ${mark} ${dim(t().kinds[finding.kind].padEnd(11))} ${translateLabel(
+      `  ${mark} ${dim(t().kinds[finding.kind].padEnd(kindWidth))} ${translateLabel(
         finding.label,
         lang(),
       ).padEnd(width)}  ${preview(translateValue(finding, lang()))}${flag}`,
     );
-    console.log(`  ${dim(' '.repeat(26) + translateLocation(finding.location, lang()))}`);
+    console.log(`  ${dim(' '.repeat(indent) + translateLocation(finding.location, lang()))}`);
   }
 }
 
@@ -551,10 +559,8 @@ async function runRedact(args: Args): Promise<number> {
 
       if (!args.json) {
         console.log(`\n${bold(file)} ${dim(SYMBOL.arrow)} ${bold(destination)}`);
-        console.log(
-          `  ${green(`${result.removed.length} field${result.removed.length === 1 ? '' : 's'} removed`)}`,
-        );
-        if (saved) console.log(`  ${dim(`original kept as ${saved}`)}`);
+        console.log(`  ${green(t().fieldsRemoved(result.removed.length))}`);
+        if (saved) console.log(`  ${dim(t().originalKept(saved))}`);
         printFindings(result.removed);
         printNotes(result.notes);
       }
