@@ -60,6 +60,7 @@ const FR = {
     timestamp: 'horodatage',
     environment: 'environnement',
     'invisible-character': 'invisible',
+    'deceptive-link': 'lien trompeur',
   },
 
   /* ----------------------------------------------------------- provenance */
@@ -222,6 +223,7 @@ const EN: Strings = {
     timestamp: 'timestamp',
     environment: 'environment',
     'invisible-character': 'invisible',
+    'deceptive-link': 'deceptive link',
   },
 
   provDeclared: 'Made by a generative model — the file declares it',

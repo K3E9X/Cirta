@@ -183,6 +183,50 @@ const INVISIBLE_IN_HOST = /[­​-‏⁠-⁤⁪-⁯﻿‪-‮⁦-⁩]/u;
  */
 const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`)\]}]+/gi;
 
+/*
+ * Hosts written without a scheme, which is how a link usually appears in an
+ * email or a chat message — the client turns `apple.com` into a link, and the
+ * reader never sees an `https://`. Missing those meant missing the common case
+ * while catching the rare one.
+ *
+ * The pattern stays deliberately greedy about shape and strict about one thing:
+ * the candidate must carry a non-ASCII character or a punycode label. A host
+ * made only of ordinary ASCII letters cannot be a lookalike by this file's own
+ * rules, so considering one buys nothing and risks reading `fichier.pdf`,
+ * `index.html` or `v1.2.3` as an address. That single condition is what keeps
+ * scheme-less matching quiet.
+ */
+/*
+ * The last group is a lookahead rather than `\b`, because `\b` is defined on
+ * ASCII word characters: after a Cyrillic letter it is never a boundary, so a
+ * `\b` here silently skipped every host whose TLD is not Latin — `почта.рф`
+ * among them, which is exactly the legitimate case this file is careful about.
+ */
+/*
+ * The label class must exclude "." itself. With the dot inside it, `(label+\.)+`
+ * can split the same run of characters in exponentially many ways, and a
+ * non-matching tail makes the engine try all of them: `"a."` repeated 26 times
+ * took 1.9 seconds here, and the cost doubles with every further repetition.
+ * This runs on text a stranger pasted, in the page's only thread, so the
+ * pattern has to be unambiguous rather than merely correct. Excluding the
+ * separator from the thing it separates makes each label's extent forced.
+ * Found by the fuzzer.
+ *
+ * The leading lookbehind is the second half of the same problem. Without it
+ * the engine still starts an attempt at every offset inside a token and scans
+ * forward from each, which is quadratic: 50 000 characters of one word cost
+ * three seconds. Requiring a separator before the first label makes every such
+ * attempt fail on its first character.
+ *
+ * The counts come from DNS: a label is at most 63 characters, and no real
+ * hostname has sixteen of them. They also bound what is left of the backtrack
+ * — without them a 40 000-character run of "a." still cost 1.4 seconds,
+ * because one attempt could release twenty thousand labels one at a time.
+ */
+const BARE_HOST_PATTERN =
+  /(?<![^\s<>"'`()\[\]{},;:!?@.\u2010-\u2015])(?:[^\s<>"'`()\[\]{},;:!?@.\u2010-\u2015]{1,63}\.){1,16}[A-Za-z\u00a1-\uffff]{2,24}(?![A-Za-z0-9\u00a1-\uffff])(?:\/[^\s<>"'`)\]}]*)?/gu;
+const WORTH_EXAMINING = /[^\u0000-\u007f]|(?:^|\.)xn--/i;
+
 interface Deception {
   url: string;
   label: string;
@@ -190,12 +234,18 @@ interface Deception {
   confidence: Finding['confidence'];
 }
 
-function examine(raw: string): Deception[] {
+/**
+ * `raw` is shown to the reader exactly as it was written; `parseAs` is what the
+ * URL parser is handed. They differ only for a scheme-less host, where a scheme
+ * has to be supplied to parse at all but must not appear in the report — the
+ * point of the finding is what the document actually says.
+ */
+function examine(raw: string, parseAs: string = raw): Deception[] {
   const out: Deception[] = [];
 
   let parsed: URL;
   try {
-    parsed = new URL(raw);
+    parsed = new URL(parseAs);
   } catch {
     return out;
   }
@@ -217,7 +267,7 @@ function examine(raw: string): Deception[] {
 
   // punycode.hostname is already lowercased and IDNA-processed by URL, so read
   // the raw authority too — that is where an invisible character survives.
-  const authority = raw.slice(raw.indexOf('//') + 2).split(/[/?#]/)[0] ?? '';
+  const authority = parseAs.slice(parseAs.indexOf('//') + 2).split(/[/?#]/)[0] ?? '';
   if (INVISIBLE_IN_HOST.test(authority)) {
     out.push({
       url: raw,
@@ -289,13 +339,35 @@ export function findDeceptiveUrls(text: string, location = 'links'): Finding[] {
   const seen = new Set<string>();
   const findings: Finding[] = [];
 
+  /*
+   * Schemed links first, remembering where each one sat. A scheme-less match
+   * inside one of those spans is the same address seen a second time, and
+   * reporting `https://аррӏе.com` and `аррӏе.com` as two findings would be
+   * noise dressed up as thoroughness.
+   */
+  const candidates: Array<{ raw: string; parseAs: string }> = [];
+  const spans: Array<[number, number]> = [];
+
   for (const match of text.matchAll(URL_PATTERN)) {
-    for (const found of examine(match[0])) {
+    const at = match.index ?? 0;
+    spans.push([at, at + match[0].length]);
+    candidates.push({ raw: match[0], parseAs: match[0] });
+  }
+
+  for (const match of text.matchAll(BARE_HOST_PATTERN)) {
+    const at = match.index ?? 0;
+    if (spans.some(([from, to]) => at >= from && at < to)) continue;
+    if (!WORTH_EXAMINING.test(match[0])) continue;
+    candidates.push({ raw: match[0], parseAs: `https://${match[0]}` });
+  }
+
+  for (const { raw, parseAs } of candidates) {
+    for (const found of examine(raw, parseAs)) {
       const key = `${found.label}\u0000${found.value}`;
       if (seen.has(key)) continue;
       seen.add(key);
       findings.push({
-        kind: 'invisible-character',
+        kind: 'deceptive-link',
         confidence: found.confidence,
         location,
         label: found.label,

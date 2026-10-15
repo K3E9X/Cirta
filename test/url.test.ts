@@ -134,3 +134,109 @@ describe('mathematical alphanumerics', () => {
     expect(found.findings.some((f) => f.location === 'mathematical alphanumerics')).toBe(false);
   });
 });
+
+/*
+ * A link in an email or a chat message is almost never written with a scheme:
+ * the client turns `apple.com` into a link and the reader never sees an
+ * `https://`. Matching only schemed URLs meant catching the rare presentation
+ * and missing the common one.
+ */
+describe('hosts written without a scheme', () => {
+  const CYRILLIC_APPLE = 'аррӏе.com'; // renders as "apple.com"
+
+  it('reads a bare lookalike host the way a mail client would', () => {
+    const found = findDeceptiveUrls(`Confirmez sur ${CYRILLIC_APPLE} — merci.`);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.confidence).toBe('confirmed');
+    expect(found[0]?.value).toContain('"apple"');
+  });
+
+  it('reads it through a www. prefix', () => {
+    expect(findDeceptiveUrls(`www.${CYRILLIC_APPLE}`)).toHaveLength(1);
+  });
+
+  it('reads a bare punycode host', () => {
+    expect(findDeceptiveUrls('xn--80ak6aa92e.com/login')).toHaveLength(1);
+  });
+
+  it('stops at the punctuation around it', () => {
+    for (const text of [`${CYRILLIC_APPLE}.`, `(${CYRILLIC_APPLE})`, `${CYRILLIC_APPLE}, puis`]) {
+      expect(findDeceptiveUrls(text)[0]?.value).toContain(CYRILLIC_APPLE);
+      expect(findDeceptiveUrls(text)[0]?.value).not.toContain(`${CYRILLIC_APPLE}.,`);
+    }
+  });
+
+  it('reports a schemed link once, not twice', () => {
+    // The bare pattern also matches the host inside `https://…`; the span of
+    // the schemed match has to suppress it.
+    const found = findDeceptiveUrls(`Voir https://${CYRILLIC_APPLE} tout de suite`);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.value).toContain('https://');
+  });
+
+  it('treats a bare non-Latin host no more harshly than a schemed one', () => {
+    // почта.рф is the Russian post office. Both forms must land on the same
+    // verdict, and that verdict must not be an accusation.
+    const bare = findDeceptiveUrls('почта.рф');
+    const schemed = findDeceptiveUrls('https://почта.рф');
+    expect(bare.length).toBe(schemed.length);
+    expect(bare.every((f) => f.confidence === 'informational')).toBe(true);
+  });
+
+  /*
+   * The controls. A host made only of ASCII cannot be a lookalike by this
+   * file's rules, so scheme-less matching is restricted to candidates carrying
+   * a non-ASCII character or a punycode label. Without that restriction every
+   * filename and version string in a document becomes a candidate address.
+   */
+  it.each([
+    'apple.com',
+    'Voir le fichier rapport.pdf',
+    'index.html',
+    'v1.2.3 released',
+    'node_modules/.bin/vite',
+    'ecrivez a contact@exemple.com',
+    'Bonjour.Marie, ca va',
+    'Fin de phrase.Debut de la suivante',
+  ])('says nothing about %j', (text) => {
+    expect(findDeceptiveUrls(text)).toEqual([]);
+  });
+});
+
+/*
+ * This pattern runs on text a stranger pasted, on the page's worker thread and
+ * on the CLI's only thread. A pattern that is merely correct is not enough: an
+ * input that makes it backtrack is a way to hang the tool.
+ *
+ * Both failures below were real, and both were introduced by the same change
+ * that taught it to read scheme-less hosts. The first was exponential, the
+ * second quadratic, and neither showed up on any realistic input.
+ */
+describe('cost on hostile input', () => {
+  const cost = (text: string): number => {
+    const started = Date.now();
+    findDeceptiveUrls(text);
+    return Date.now() - started;
+  };
+
+  it('does not backtrack exponentially on a run of separators', () => {
+    // 'a.' x26 took 1.9s before the label class stopped containing '.' itself.
+    expect(cost('a.'.repeat(26) + '!')).toBeLessThan(250);
+  });
+
+  it('stays cheap when that run is long', () => {
+    // And 'a.' x20000 still took 1.4s until the label counts were bounded.
+    expect(cost('a.'.repeat(20_000) + '!')).toBeLessThan(500);
+  });
+
+  it('does not restart inside one long word', () => {
+    // 50k characters of one token cost 3s while every offset began an attempt.
+    expect(cost('x'.repeat(50_000))).toBeLessThan(250);
+  });
+
+  it('handles a document-sized piece of ordinary prose', () => {
+    const prose = 'Bonjour Marie, voir rapport.pdf et apple.com. '.repeat(4_400);
+    expect(prose.length).toBeGreaterThan(190_000);
+    expect(cost(prose)).toBeLessThan(500);
+  });
+});
