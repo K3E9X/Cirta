@@ -16,6 +16,14 @@
   --danger: #a3312a;
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /*
+   * Display face. A serif against the warm paper background says "document"
+   * rather than "dashboard", which is what this tool is about. It has to be a
+   * system stack: the page promises that it makes no network request, and a
+   * hosted webfont would be a request, so the promise comes first.
+   */
+  --serif: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
+    "Book Antiqua", serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,16 +63,16 @@ body {
 }
 
 .masthead {
-  border-bottom: 1px solid var(--border);
   background: var(--surface);
-  padding: 2.5rem 0 1.75rem;
-  margin-bottom: 2rem;
+  padding: 1.5rem 0 0;
 }
 
 .masthead h1 {
   margin: 0;
-  font-size: 1.75rem;
-  letter-spacing: -0.015em;
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -72,7 +80,7 @@ body {
 
 /*
  * The title and the language button share a row. This was an absolutely
- * positioned button, which put it over the tagline text on a phone and left it
+ * positioned button, which put it over the text below on a phone and left it
  * stranded outside the content column on a wide screen. In flow it stays beside
  * the title at every width, and needs no breakpoint.
  */
@@ -81,21 +89,78 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.35rem;
 }
 
 .masthead h1 img {
   border-radius: 7px;
 }
 
-.tagline {
+/* ---------- hero ---------- */
+
+/*
+ * The masthead and the hero are one panel: the masthead draws no bottom border
+ * and the hero closes the block. Before this the page opened with a wordmark, a
+ * grey line, then a dashed rectangle, and nothing said what the tool was for
+ * before the reader had to decide whether to hand it a file.
+ */
+.hero {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1.75rem 0 2.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.hero-lead {
+  margin: 0 0 1rem;
+  font-family: var(--serif);
+  font-size: clamp(1.65rem, 5.5vw, 2.6rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  /* Measured in ch so the line breaks at the same place at every size. */
+  max-width: 28ch;
+  text-wrap: balance;
+}
+
+.hero-sub {
+  margin: 0 0 1.5rem;
+  max-width: 44rem;
+  color: var(--text-muted);
+  font-size: 1.0625rem;
+}
+
+/*
+ * The one claim a visitor has to believe before using this at all, so it gets
+ * its own frame rather than a line of body text. Not a pill: the sentence wraps
+ * to three lines on a phone, and a fully rounded box around three ragged lines
+ * looks like an accident.
+ */
+.hero-guarantee {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
   margin: 0;
-  max-width: 46rem;
+  max-width: 40rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
   color: var(--text-muted);
 }
 
-.tagline strong {
+.hero-guarantee strong {
   color: var(--text);
+}
+
+.hero-guarantee .dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.5rem;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
 }
 
 /* ---------- tabs ---------- */
@@ -131,14 +196,31 @@ body {
 
 /* ---------- dropzone ---------- */
 
+/*
+ * A solid panel with an inset dashed rule, not a dashed rectangle. The dashed
+ * outer border read as a placeholder — the thing a layout shows where a real
+ * element has not been built yet — on what is in fact the page's primary
+ * control. Keeping the dash inset says "you may drop here" while the outer
+ * solid edge says this is a finished component.
+ */
 .dropzone {
-  border: 2px dashed var(--border-strong);
+  position: relative;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 3rem 1.5rem;
+  padding: 3.25rem 1.5rem;
   text-align: center;
   cursor: pointer;
   background: var(--surface);
   transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px dashed var(--border);
+  border-radius: calc(var(--radius) - 3px);
+  pointer-events: none;
 }
 
 .dropzone:hover,
@@ -149,15 +231,27 @@ body {
   outline: none;
 }
 
+.dropzone:hover::before,
+.dropzone:focus-visible::before,
+.dropzone.is-active::before {
+  border-color: var(--accent);
+}
+
 .dropzone-title {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.35rem;
+  font-family: var(--serif);
+  font-size: 1.3rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .dropzone-hint {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 34rem;
   color: var(--text-muted);
   font-size: 0.9rem;
+  /* The French list is one word longer and left a single word on line three. */
+  text-wrap: balance;
 }
 
 /* ---------- text panel ---------- */
@@ -346,10 +440,20 @@ textarea:focus-visible {
 
 .table-scroll {
   overflow-x: auto;
+  /* So the scrollbar does not sit flush against the last row's border. */
+  padding-bottom: 0.1rem;
 }
 
 table {
   width: 100%;
+  /*
+   * The scroll container above existed but never did anything: a table at
+   * width:100% cannot overflow it, so on a phone the browser crushed four
+   * columns into 375px and every row grew to a dozen wrapped lines. A floor on
+   * the width makes the container earn its name — the table scrolls sideways
+   * and each row stays one or two lines.
+   */
+  min-width: 42rem;
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -402,7 +506,13 @@ td.confidence {
 td.location {
   font: 0.8rem/1.5 var(--mono);
   color: var(--text-muted);
-  word-break: break-all;
+  /*
+   * `break-all` split at whatever character reached the edge, so `/Info
+   * /CreationDate` came out as "/Info /Creatio" / "nDate". `anywhere` takes an
+   * existing break first and only splits a word when one word alone overflows,
+   * which is the case this column needs for a long XML path.
+   */
+  overflow-wrap: anywhere;
 }
 
 td.value {
@@ -456,69 +566,155 @@ tr.flagged td.value::after {
   word-break: break-all;
 }
 
-/* ---------- scope ---------- */
+/* ---------- sample report ---------- */
 
-.scope {
-  margin: 3rem 0 2rem;
-  padding-top: 2rem;
+/*
+ * The page used to describe the tool at length without ever showing what it
+ * produces. This is real output, copied from a run on a PDF whose redaction had
+ * failed — not a mock-up, and it reuses the same classes the live report uses,
+ * so if the report's styling drifts this drifts with it.
+ */
+.sample {
+  margin: 3.5rem 0 0;
+  padding-top: 2.5rem;
   border-top: 1px solid var(--border);
 }
 
-.scope h2 {
-  font-size: 1.1rem;
-  margin: 0 0 1rem;
+.section-head {
+  max-width: 44rem;
+  margin-bottom: 1.5rem;
 }
 
+.section-head h2 {
+  margin: 0 0 0.4rem;
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.section-head p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.sample-card {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 10px 28px -16px rgb(0 0 0 / 18%);
+}
+
+/*
+ * The sample shows four of the six findings the real run produced. The card
+ * head states six, so the table has to account for the other two rather than
+ * leave a reader counting rows and finding the page wrong about itself.
+ */
+.sample-card tr.more td {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  border-bottom: 0;
+}
+
+.sample-foot {
+  max-width: 44rem;
+  margin: 1.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.sample-foot strong {
+  color: var(--text);
+}
+
+/* ---------- scope ---------- */
+
+.scope {
+  margin: 3.5rem 0 2rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * Editorial columns, not cards. This was six bordered boxes sitting directly
+ * under another bordered box, which made the page read as a stack of containers
+ * with no order among them. A rule over each heading groups the text without
+ * drawing a fourth frame around it.
+ */
 .scope-grid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  /*
-   * Each card ends where its content ends. The two lists are deliberately
-   * uneven — what the tool handles is a long enumeration, what it refuses is
-   * four paragraphs — and stretching the short one to match drew a tall empty
-   * box next to the long one.
-   */
+  gap: 1.75rem 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   align-items: start;
 }
 
-.scope-item {
+.scope-group {
+  border-top: 2px solid var(--border-strong);
+  padding-top: 0.8rem;
+}
+
+.scope-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.scope-group p {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+.scope-group strong {
+  color: var(--text);
+}
+
+/*
+ * The limits are set apart rather than given a seventh column. They are the one
+ * place where the honest answer is "this tool cannot", and a reader who skims
+ * the capability grid should still land on them.
+ */
+.limit {
+  display: flex;
+  gap: 1.1rem;
+  margin-top: 2.5rem;
+  padding: 1.5rem;
+  background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  background: var(--surface);
 }
 
-.scope-item h3 {
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.limit-mark {
+  flex: none;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--warn);
 }
 
-.scope-yes h3 {
-  color: var(--ok);
+.limit-body {
+  min-width: 0;
 }
 
-.scope-no h3 {
-  color: var(--warn);
+.limit-body h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 600;
 }
 
-.scope-item ul {
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.scope-item li + li {
-  margin-top: 0.35rem;
-}
-
-.scope-item p {
+.limit-body p {
   margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
 }
 
-.scope-item p:last-child {
+.limit-body p:last-child {
   margin-bottom: 0;
+}
+
+.limit-body strong {
+  color: var(--text);
 }
 
 code {
@@ -529,6 +725,7 @@ code {
 }
 
 footer {
+  margin-top: 3.5rem;
   padding: 1.5rem 1.25rem 3rem;
   color: var(--text-muted);
   font-size: 0.9rem;
