@@ -432,8 +432,19 @@ function structuralPdf(doc: PDFDocument, findings: Finding[]): Finding[] {
  * declares `/Linearized` gets one section discounted.
  */
 function priorRevisions(data: Uint8Array): Finding[] {
-  // ASCII-only markers, so a byte scan is exact and never decodes the file.
-  const text = Buffer.from(data).toString('latin1');
+  /*
+   * ASCII-only markers, so a byte scan is exact and never decodes the file.
+   *
+   * This read `Buffer.from(data).toString('latin1')` and broke the web build:
+   * `Buffer` is a Node global with no browser equivalent, so every PDF dropped
+   * on the page failed with "Buffer is not defined". The whole test suite
+   * passed, because every test runs under Node. `latin1` here is the WHATWG
+   * label for windows-1252, which differs from true Latin-1 only in 0x80–0x9F —
+   * irrelevant when the only things looked for are `%%EOF` and `/Linearized`.
+   * What matters is that it stays a single byte per character, so every index
+   * below is a byte offset.
+   */
+  const text = new TextDecoder('latin1').decode(data);
   const eof = (text.match(/%%EOF/g) ?? []).length;
   const linearised = /\/Linearized/.test(text.slice(0, 4096));
   const revisions = eof - (linearised ? 1 : 0);
