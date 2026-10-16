@@ -583,7 +583,7 @@ async function runRedact(args: Args): Promise<number> {
         printFindings(result.removed);
         printNotes(result.notes);
         // Hidden text a cleaner could have taken out, had it been asked to.
-        const removable = ['docx', 'html', 'markdown'].includes(result.format);
+        const removable = ['docx', 'pptx', 'html', 'markdown'].includes(result.format);
         const hidden = (result.kept ?? []).some(removableFinding);
         if (!args.removeHidden && removable && hidden) console.log(`  ${dim(t().removeHiddenHint)}`);
       }

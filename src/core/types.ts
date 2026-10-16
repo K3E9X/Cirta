@@ -160,7 +160,7 @@ export interface InspectOptions {
   onHidden?: (regions: XrayRegion[]) => void;
   /**
    * Cleaning only: also take out text a reader cannot see, in the formats that
-   * mark it (Word, HTML, Markdown). Off by default — it changes what the
+   * mark it (Word, PowerPoint, HTML, Markdown). Off by default — it changes what the
    * document contains, which the rest of the cleaning never does.
    */
   removeHidden?: boolean;

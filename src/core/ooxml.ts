@@ -22,6 +22,7 @@ import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
 import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
+import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
 import {
   getElementText,
   setElementText,
@@ -608,6 +609,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   findings.push(...findWorkbookIdentities(parts));
   findings.push(...inspectBodyText(parts));
   if (format === 'docx') findings.push(...hiddenInDocx(parts));
+  if (format === 'pptx') findings.push(...hiddenInPptx(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
 
@@ -628,7 +630,7 @@ export interface RedactOoxmlOptions {
   stripMedia?: boolean;
   /** Remove invisible characters from the document's visible text. Default true. */
   cleanBodyText?: boolean;
-  /** Remove Word runs a reader cannot see: hidden, page-coloured, under 2 pt. Default false. */
+  /** Remove Word and PowerPoint runs a reader cannot see: hidden, background-coloured, under 2 pt, off the slide. Default false. */
   removeHidden?: boolean;
 }
 
@@ -771,8 +773,8 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     }
   }
 
-  if (removeHidden && format === 'docx') {
-    const removed = stripHiddenDocx(parts);
+  if (removeHidden && (format === 'docx' || format === 'pptx')) {
+    const removed = format === 'docx' ? stripHiddenDocx(parts) : stripHiddenPptx(parts);
     if (removed) notes.push({ code: 'removed:hidden-text', detail: String(removed) });
   }
 

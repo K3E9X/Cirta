@@ -42,7 +42,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | Text and source files | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… and dotfiles (`.env`, `.npmrc`, `.netrc`) — same checks, same removal. A bidirectional control in source is the **Trojan Source** case (CVE-2021-42574) |
 | Credentials | Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe keys; **PEM private key blocks**; call identifiers and LLM endpoints. Only patterns that cannot occur in ordinary prose — never a product name |
 | **Earlier PDF revisions** | A PDF saved incrementally keeps every previous version inside the file. Text covered by a black box and saved is still readable underneath — the mechanism behind most published redaction failures. **The text an earlier revision still holds is recovered and quoted**, not merely counted: each earlier revision is parsed as the document it was and compared with the current one, so what reaches the report is what someone deleted and believed was gone. Linearised files are discounted so "fast web view" is not mistaken for an update |
-| **Text a reader cannot see, which a model reads** | PDF pages are **rendered** and every letter is checked for ink: text under a shape, in the page's colour or the invisible mode, too faint, too small, or past the page edge. In Word, HTML, Markdown, mail and pasted HTML, the markup is read for hidden runs, `display: none`, colour on its own background and one-pixel fonts. The web page shows each hidden line as the page draws it, then as a model reads it. [Details](#text-a-reader-cannot-see-which-a-model-reads) |
+| **Text a reader cannot see, which a model reads** | PDF pages are **rendered** and every letter is checked for ink: text under a shape, in the page's colour or the invisible mode, too faint, too small, or past the page edge. In Word, PowerPoint, HTML, Markdown, mail and pasted HTML, the markup is read for hidden runs, text off the slide, `display: none`, colour on its own background and one-pixel fonts. The web page shows each hidden line as the page draws it, then as a model reads it. [Details](#text-a-reader-cannot-see-which-a-model-reads) |
 | **Content a package still holds** | Cropped pictures (`a:srcRect` changes which rectangle is shown; the full image stays), pivot caches (a copy of the source rows survives deleting the sheet), and hidden or `veryHidden` worksheets |
 | **PDF annotation authors** | `/T` on every sticky note, highlight and review comment names who wrote it. Cleaning removes it, with `/M` and `/CreationDate` — when they wrote it — from every annotation, replies included. The comment text stays: it is what someone chose to write, not what the file says about them |
 | **Generated images** | `parameters`, `prompt` and `workflow` chunks from Stable Diffusion web UI, ComfyUI and InvokeAI — **the prompt, the model and the seed travel with the file** |
@@ -424,7 +424,17 @@ HTML of Markdown, clipboard HTML, and the `text/html` part of a `.eml` through q
 styles only: rules in a `<style>` block are not read, so a colour finding on a page that has them is
 graded probable unless the markup wrote both colours, and the `hidden` attribute — also how a page
 keeps a tab panel — is probable. Size and colour are judged per piece of text: a mail template's
-zero-size layout cell, whose content sets its own size, is not reported. PowerPoint is not covered yet.
+zero-size layout cell, whose content sets its own size, is not reported.
+
+**PowerPoint — what is drawn underneath decides.** A text box dragged off the slide (groups placed
+through their own transform), a shape marked hidden in the selection pane, text with no fill, a run
+under 2 pt, and text coloured as what is behind it. "Behind it" is walked as the slide draws it: the
+shape's own fill or its theme style, then the shapes and pictures under it on the slide, then the
+layout's and the master's drawings, then the background — following theme colours through the colour
+map. A white title on a dark band, on a photograph or on the master's header bar is the most ordinary
+slide there is, and is tested as such: the moment a picture, a gradient, a table or a theme colour
+with modifiers is in the way, the colour is not judged. A placeholder with no position of its own is
+placed where its layout puts it. Checked against decks LibreOffice wrote.
 
 **A hidden instruction to an AI is called one.** Hidden text is often innocent — a mail's preview
 line, a tab panel. A hidden passage that gives an assistant orders is the attack itself: "ignore the
@@ -435,9 +445,10 @@ the report. The phrases are narrow on purpose — "as an AI company" or "ignore 
 prose, and tested as such — and visible text is never read for this: an instruction a reader can see
 is not hidden from anyone.
 
-**Taking it out, on request.** For Word, HTML and Markdown, the page offers "Also remove the hidden
+**Taking it out, on request.** For Word, PowerPoint, HTML and Markdown, the page offers "Also remove the hidden
 passages" above the download button, and the command line takes `--remove-hidden`. What goes is
-exactly what the report listed, found by the same pass: whole runs in Word, so the paragraph stays;
+exactly what the report listed, found by the same pass: whole runs in Word and PowerPoint, so the
+paragraph and the shape stay;
 text in HTML, so the elements and their `alt` stay. Faint text stays unless it is an instruction to a
 model — someone looking closely can read it — and so does anything graded probable, such as a tab
 panel. Re-inspection then counts what went as removed. In a PDF, hidden text is part of the page's

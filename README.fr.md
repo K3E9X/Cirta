@@ -47,7 +47,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit. Le nettoyage le retire, avec `/M` et `/CreationDate` — quand il l'a écrit — de chaque annotation, réponses comprises. Le texte du commentaire reste : c'est ce que quelqu'un a choisi d'écrire, pas ce que le fichier dit de lui |
 | **Images générées** | Chunks `parameters`, `prompt` et `workflow` de Stable Diffusion web UI, ComfyUI et InvokeAI — **le prompt, le modèle et la seed voyagent avec le fichier** |
 | **Ce qu'une réponse de chat laisse dans un e-mail** | Les phrases qu'un assistant *vous* adressait — « Bien sûr ! Voici une proposition : » au-dessus de la salutation, « N'hésitez pas à me dire si vous souhaitez que j'ajuste le ton » sous la signature — signalées seulement quand la position et la formulation concordent, si bien que « Voici le rapport demandé » et « N'hésitez pas à me contacter » dans un vrai e-mail restent silencieux. Les champs de modèle non remplis comme `[Votre nom]`, la ligne d'objet recopiée dans le corps, et le Markdown qu'un client mail affiche en symboles (`**gras**`, `## titres`, `[libellé](url)`). Le nettoyage retire le Markdown — sauf si le texte se lit comme un document Markdown — et vous laisse les phrases et les champs, avec un bouton pour retirer les phrases : ce sont des mots, c'est à vous de trancher |
-| **Le texte qu'un lecteur ne voit pas, et qu'une IA lit** | Les pages PDF sont **rendues** et chaque lettre est vérifiée : y a-t-il de l'encre ? Texte sous une forme, de la couleur de la page ou en mode invisible, trop pâle, trop petit, ou au-delà du bord. Dans Word, HTML, Markdown, e-mail et HTML collé, le balisage est lu : passages masqués, `display: none`, couleur sur son propre fond, police d'un pixel. La page web montre chaque ligne cachée telle que la page la dessine, puis telle qu'une IA la lit. [Détails](#le-texte-quun-lecteur-ne-voit-pas-et-quune-ia-lit) |
+| **Le texte qu'un lecteur ne voit pas, et qu'une IA lit** | Les pages PDF sont **rendues** et chaque lettre est vérifiée : y a-t-il de l'encre ? Texte sous une forme, de la couleur de la page ou en mode invisible, trop pâle, trop petit, ou au-delà du bord. Dans Word, PowerPoint, HTML, Markdown, e-mail et HTML collé, le balisage est lu : passages masqués, texte hors de la diapositive, `display: none`, couleur sur son propre fond, police d'un pixel. La page web montre chaque ligne cachée telle que la page la dessine, puis telle qu'une IA la lit. [Détails](#le-texte-quun-lecteur-ne-voit-pas-et-quune-ia-lit) |
 | **Ce que le presse-papiers emporte** | Coller dans l'onglet Texte lit aussi la version HTML que le presse-papiers proposait à côté du texte : les noms de classes et attributs `data-` de la page d'où il a été copié, les polices et styles en ligne, un `generator` qu'il nomme, et l'adresse de la page quand le presse-papiers l'enregistre. Un éditeur d'e-mail riche garde une partie de ce balisage quand on y colle directement ; l'onglet ne garde que le texte, et « Copier le texte nettoyé » ne remet que du texte dans le presse-papiers. Aucune application n'est nommée sauf si le HTML la nomme lui-même — un nom de classe est montré, pas interprété |
 | **Alphanumériques mathématiques** | 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » pour une personne et ne correspond à rien pour un filtre ou une recherche. Signalés avec ce à quoi ils se replient, jamais réécrits — dans une formule, la notation est le sens |
 | **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
@@ -458,7 +458,19 @@ seulement : les règles d'un bloc `<style>` ne sont pas lues, donc un constat de
 en contient est noté probable sauf si le balisage écrit les deux couleurs, et l'attribut `hidden` —
 qui sert aussi à garder un onglet fermé — est probable. Taille et couleur sont jugées morceau de texte
 par morceau de texte : la cellule de mise en page à taille nulle d'un modèle d'e-mail, dont le contenu
-fixe sa propre taille, n'est pas signalée. PowerPoint n'est pas encore couvert.
+fixe sa propre taille, n'est pas signalée.
+
+**PowerPoint — ce qui est dessiné dessous décide.** Une zone de texte glissée hors de la diapositive
+(les groupes sont placés via leur propre transformation), une forme masquée dans le volet de
+sélection, un texte sans remplissage, un passage sous 2 pt, et un texte de la couleur de ce qui est
+derrière lui. « Derrière lui » est parcouru comme la diapositive le dessine : le remplissage propre de
+la forme ou son style de thème, puis les formes et images placées dessous, puis les dessins de la mise
+en page et du masque, puis l'arrière-plan — en suivant les couleurs du thème à travers la table de
+correspondance. Un titre blanc sur un bandeau sombre, sur une photo ou sur la barre d'en-tête du
+masque est la diapositive la plus ordinaire qui soit, et c'est testé : dès qu'une image, un dégradé,
+un tableau ou une couleur de thème modifiée est en travers, la couleur n'est pas jugée. Un espace
+réservé sans position propre est placé là où sa mise en page le met. Vérifié sur des présentations
+écrites par LibreOffice.
 
 **Une consigne cachée adressée à une IA est appelée ainsi.** Le texte caché est souvent innocent —
 la ligne d'aperçu d'un e-mail, un onglet fermé. Un passage caché qui donne des ordres à un assistant
@@ -469,10 +481,10 @@ une police d'un pixel, et annoncé en tête du rapport. Les formulations sont vo
 « as an AI company » ou « ignore the previous email » sont de la prose, et testés comme tels — et le
 texte visible n'est jamais lu pour cela : une consigne qu'un lecteur voit n'est cachée à personne.
 
-**La retirer, sur demande.** Pour Word, HTML et Markdown, la page propose « Retirer aussi les passages
+**La retirer, sur demande.** Pour Word, PowerPoint, HTML et Markdown, la page propose « Retirer aussi les passages
 cachés » au-dessus du bouton de téléchargement, et la ligne de commande accepte `--remove-hidden`. Ce
 qui part est exactement ce que le rapport a listé, trouvé par le même passage : des segments entiers
-dans Word, pour que le paragraphe reste ; le texte en HTML, pour que les éléments et leur `alt`
+dans Word et PowerPoint, pour que le paragraphe et la forme restent ; le texte en HTML, pour que les éléments et leur `alt`
 restent. Le texte pâle reste, sauf s'il s'agit d'une consigne pour une IA — on peut le lire en
 regardant bien — tout comme ce qui est noté probable, un onglet fermé par exemple. La ré-inspection
 compte ensuite ce qui est parti comme retiré. Dans un PDF, le texte caché fait partie du dessin de la

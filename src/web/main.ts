@@ -706,7 +706,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         // Taking hidden text out changes the document, which nothing else in a
         // clean does, so it is offered where it applies and never assumed.
         const hiddenCount = result.findings.filter(removableFinding).length;
-        const offerRemoval = hiddenCount > 0 && (result.format === 'docx' || result.format === 'html' || result.format === 'markdown');
+        const offerRemoval = hiddenCount > 0 && ['docx', 'pptx', 'html', 'markdown'].includes(result.format);
         const removeHidden = el('input');
         removeHidden.type = 'checkbox';
         if (offerRemoval) {

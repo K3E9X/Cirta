@@ -33,7 +33,7 @@ const FR = {
   optInPlace: 'Remplace les fichiers d’entrée (conserve un .bak)',
   optSkip: 'Répertoires supplémentaires à ignorer, séparés par des virgules',
   optForceText: 'Traite l’entrée comme du texte même si elle semble binaire',
-  optRemoveHidden: 'redact : retire aussi le texte qu’un lecteur ne voit pas (Word, HTML, Markdown)',
+  optRemoveHidden: 'redact : retire aussi le texte qu’un lecteur ne voit pas (Word, PowerPoint, HTML, Markdown)',
   removeHiddenHint: 'Le texte caché est resté. Relancez avec --remove-hidden pour le retirer de la copie.',
   aimedAlert: (n: number) =>
     n > 1
@@ -211,7 +211,7 @@ const EN: Strings = {
   optInPlace: 'Overwrite the input files (keeps a .bak)',
   optSkip: 'Extra directory names to skip, comma-separated',
   optForceText: 'Treat the input as text even if it looks binary',
-  optRemoveHidden: 'redact: also remove text a reader cannot see (Word, HTML, Markdown)',
+  optRemoveHidden: 'redact: also remove text a reader cannot see (Word, PowerPoint, HTML, Markdown)',
   removeHiddenHint: 'Hidden text was left in. Run again with --remove-hidden to take it out of the copy.',
   aimedAlert: (n: number) =>
     n > 1

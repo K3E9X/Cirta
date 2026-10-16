@@ -96,9 +96,9 @@ export const TINY_PT = 2;
 const LETTERS = /[\p{L}\p{N}]/gu;
 /** A stray space in white is layout; three letters are words. */
 const MIN_LETTERS = 3;
-const MAX_FINDINGS = 20;
+export const MAX_FINDINGS = 20;
 
-type Rgb = [number, number, number];
+export type Rgb = [number, number, number];
 
 const channel = (v: number): number => {
   const c = v / 255;
@@ -120,13 +120,14 @@ export function contrastLevel(text: Rgb, background: Rgb): 'hidden' | 'faint' | 
   return undefined;
 }
 
-const hex = (rgb: Rgb): string => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+export const hex = (rgb: Rgb): string => `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 
 function letters(text: string): number {
   return text.match(LETTERS)?.length ?? 0;
 }
 
-interface Hidden {
+/** One hidden passage, as the format modules find it. */
+export interface Hidden {
   how: HiddenHow;
   /** The mechanism, in the format's own terms: `display: none`, `w:vanish`. */
   why: string;
@@ -143,7 +144,7 @@ interface Hidden {
  * closely, and a probable finding — a tab panel, a colour a stylesheet may
  * override — may not be hidden in the first place.
  */
-function removable(item: Hidden): boolean {
+export function removable(item: Hidden): boolean {
   return !item.probable && (item.how !== 'faint' || aimedAtModel(item.text)) && letters(item.text) >= MIN_LETTERS;
 }
 
@@ -160,7 +161,7 @@ export function removableFinding(finding: Finding): boolean {
   return finding.confidence === 'confirmed' || finding.label === HIDDEN_LABEL.tiny;
 }
 
-function toFindings(found: Hidden[], location: string): Finding[] {
+export function toFindings(found: Hidden[], location: string): Finding[] {
   const seen = new Set<string>();
   const out: Finding[] = [];
   for (const item of found) {
@@ -734,7 +735,7 @@ function paragraphRuns(
   return out;
 }
 
-function decodeXml(text: string): string {
+export function decodeXml(text: string): string {
   return text
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
