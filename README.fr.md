@@ -41,7 +41,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | Secrets | Clés Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe ; **blocs de clé privée PEM** ; identifiants d'appel et points de terminaison LLM. Uniquement des motifs qui ne peuvent pas apparaître dans de la prose ordinaire — jamais un nom de produit |
 | **Révisions PDF antérieures** | Un PDF enregistré en incrémental garde chaque version précédente dans le fichier. Un texte masqué par un rectangle noir puis enregistré reste lisible dessous — le mécanisme derrière la plupart des échecs de caviardage publiés. **Le texte qu’une révision antérieure contient encore est extrait et cité**, pas seulement compté : chaque révision antérieure est analysée comme le document qu’elle était, puis comparée à la révision actuelle, de sorte que ce qui arrive dans le rapport est ce que quelqu’un a supprimé en croyant que c’était parti. Les fichiers linéarisés sont décomptés pour ne pas confondre « affichage web rapide » et mise à jour |
 | **Contenu que le paquet conserve** | Images recadrées (`a:srcRect` ne change que le rectangle affiché ; l'image entière reste), caches de tableaux croisés (une copie des lignes sources survit à la suppression de la feuille), et feuilles masquées ou `veryHidden` |
-| **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit |
+| **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit. Le nettoyage le retire, avec `/M` et `/CreationDate` — quand il l'a écrit — de chaque annotation, réponses comprises. Le texte du commentaire reste : c'est ce que quelqu'un a choisi d'écrire, pas ce que le fichier dit de lui |
 | **Images générées** | Chunks `parameters`, `prompt` et `workflow` de Stable Diffusion web UI, ComfyUI et InvokeAI — **le prompt, le modèle et la seed voyagent avec le fichier** |
 | **Alphanumériques mathématiques** | 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » pour une personne et ne correspond à rien pour un filtre ou une recherche. Signalés avec ce à quoi ils se replient, jamais réécrits — dans une formule, la notation est le sens |
 | **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
@@ -389,7 +389,7 @@ retrait est impossible sans réécrire le flux de contenu, donc le rapport annon
 qu'il n'a pas pu retirer :
 
 ```
-Not removed: zero-width space, Hidden payload in page text.
+Still in the cleaned copy: zero-width space, Hidden payload in page text.
 ```
 
 Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leurs chaînes en UTF-16BE
@@ -670,7 +670,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 
 | Support | Retiré | Conservé délibérément |
 |---|---|---|
-| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA | Le contenu des pages |
+| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA, l'auteur et les horodatages de chaque annotation | Le contenu des pages, et ce que disent les annotations |
 | PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires (attribut `w:author`, élément `<author>`, `displayName`), Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur, noms définis et liens entre classeurs — les retirer transformerait des cellules vivantes en `#REF!` |
 | ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
 | SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
@@ -693,10 +693,10 @@ Le nettoyage **ré-inspecte donc sa propre sortie** et nomme ce qui a survécu, 
 confiance au code de suppression :
 
 ```
-Not removed: Anthropic API key. These sit in the document's own content rather
-than in a metadata field, and rewriting page text would change what the
-document says. Edit the source and regenerate — and if a credential is listed,
-rotate it.
+Still in the cleaned copy: Anthropic API key. Cleaning removes what the file
+says about how and by whom it was made, and leaves what the document itself
+says — rewriting that would change what the recipient reads. Fix these in the
+source and regenerate — and if a credential is listed, rotate it.
 ```
 
 Le corollaire est net : **quand aucun avertissement de ce type n'apparaît, c'est que la ré-inspection

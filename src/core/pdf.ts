@@ -709,30 +709,61 @@ export async function revisionLeaks(data: Uint8Array, doc: PDFDocument, parseMs:
  * often `/M`, when they wrote it. A document that went through review names
  * everyone who touched it, and nothing on the page shows that.
  */
-function annotationAuthors(doc: PDFDocument): Finding[] {
-  const authors = new Map<string, number>();
-  let annotations = 0;
+/**
+ * Every annotation dictionary the pages carry.
+ *
+ * One walk, shared by the reader above and the cleaner below, so that the two
+ * can never disagree about which annotations exist — a reader that found a
+ * name the cleaner did not visit would report a removal that never happened.
+ * Popup notes and replies (`/IRT`) are annotations in the same `/Annots`
+ * arrays, so they are covered without being named.
+ */
+function annotationDicts(doc: PDFDocument): PDFDict[] {
+  const found: PDFDict[] = [];
 
+  // Same reason readXmp guards its catalog read: a lenient load can produce a
+  // document with no page tree at all.
   let pages: ReturnType<PDFDocument['getPages']>;
   try {
     pages = doc.getPages();
   } catch {
-    return [];
+    return found;
   }
 
   for (const page of pages) {
-    const annots = page.node.lookup(PDFName.of('Annots'));
-    if (!annots || !('asArray' in annots)) continue;
-    for (const ref of (annots as { asArray(): unknown[] }).asArray()) {
-      const annot = doc.context.lookup(ref as Parameters<typeof doc.context.lookup>[0]);
-      if (!annot || !('get' in annot)) continue;
-      annotations++;
-      const title = (annot as PDFDict).get(PDFName.of('T'));
-      const name = title && 'decodeText' in title
-        ? (title as { decodeText(): string }).decodeText()
-        : undefined;
-      if (name?.trim()) authors.set(name.trim(), (authors.get(name.trim()) ?? 0) + 1);
+    let annots: unknown;
+    try {
+      annots = page.node.lookup(PDFName.of('Annots'));
+    } catch {
+      continue;
     }
+    if (!annots || typeof annots !== 'object' || !('asArray' in annots)) continue;
+    for (const ref of (annots as { asArray(): unknown[] }).asArray()) {
+      let annot: unknown;
+      try {
+        annot = doc.context.lookup(ref as Parameters<typeof doc.context.lookup>[0]);
+      } catch {
+        continue;
+      }
+      // The type says dictionary; a damaged file can put anything here, and
+      // only the class check says what it really is. See catalogDict.
+      if (annot instanceof PDFDict) found.push(annot);
+    }
+  }
+  return found;
+}
+
+function annotationAuthors(doc: PDFDocument): Finding[] {
+  const authors = new Map<string, number>();
+  const annots = annotationDicts(doc);
+  const annotations = annots.length;
+
+  for (const annot of annots) {
+    const title = annot.get(PDFName.of('T'));
+    const name = title && 'decodeText' in title
+      ? (title as { decodeText(): string }).decodeText()
+      : undefined;
+    if (name?.trim()) authors.set(name.trim(), (authors.get(name.trim()) ?? 0) + 1);
   }
 
   if (authors.size === 0) return [];
@@ -748,6 +779,27 @@ function annotationAuthors(doc: PDFDocument): Finding[] {
       value: `${listed.join(', ')} — named on ${annotations} annotation${annotations > 1 ? 's' : ''} carried by the pages`,
     },
   ];
+}
+
+/*
+ * What a clean takes off an annotation, and what it leaves.
+ *
+ * `/T` is the commenter's name, which every PDF reader fills in from the
+ * account it runs under. `/M` and `/CreationDate` say when they wrote it —
+ * enough, across a reviewed document, to reconstruct who worked on it and in
+ * what order. All three go.
+ *
+ * `/Contents` stays. The comment's text is something someone chose to write
+ * into the document, as much as a sentence on the page is, and deleting it
+ * would change what the document says. A clean removes what the file says
+ * about its authors, not what its authors said.
+ */
+const ANNOTATION_AUTHORSHIP = ['T', 'M', 'CreationDate'].map((key) => PDFName.of(key));
+
+function scrubAnnotations(doc: PDFDocument): void {
+  for (const annot of annotationDicts(doc)) {
+    for (const key of ANNOTATION_AUTHORSHIP) annot.delete(key);
+  }
 }
 
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
@@ -911,6 +963,8 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
       notes.push({ code: 'removed:c2pa', detail: '/Metadata' });
     }
   }
+
+  scrubAnnotations(doc);
 
   notes.push(...before.notes);
 

@@ -28,7 +28,11 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
   'kept:in-content': (detail) =>
-    `Not removed: ${detail ?? 'traces inside the content'}. These sit in the document's own content rather than in a metadata field, and rewriting it would change what the document says. Edit the source and regenerate — and if a credential is listed, rotate it.`,
+    // States only what re-inspection proved — these are still in the output —
+    // and the cleaner's rule. It used to say every item sat in the document's
+    // own content, which was false for PDF annotation authors, metadata that
+    // the cleaner simply never visited.
+    `Still in the cleaned copy: ${detail ?? 'traces inside the content'}. Cleaning removes what the file says about how and by whom it was made, and leaves what the document itself says — rewriting that would change what the recipient reads. Fix these in the source and regenerate — and if a credential is listed, rotate it.`,
   'kept:content': (detail) =>
     `Left in place: ${detail ?? 'document content'}. These are content rather than metadata — removing them would change what the recipient reads, so review them yourself.`,
 };
@@ -52,7 +56,7 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:in-content': (detail) =>
-    `Non retiré : ${detail ?? 'traces dans le contenu'}. Ces éléments sont dans le contenu même du document, pas dans un champ de métadonnées, et les réécrire changerait ce que dit le document. Corrigez la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
+    `Toujours dans la copie nettoyée : ${detail ?? 'traces dans le contenu'}. Le nettoyage retire ce que le fichier dit de sa fabrication et de ses auteurs, et laisse ce que dit le document lui-même — le réécrire changerait ce que lit le destinataire. Corrigez-les dans la source et régénérez — et si un secret figure dans la liste, révoquez-le.`,
   'kept:content': (detail) =>
     `Laissé en place : ${detail ?? 'contenu du document'}. Il s'agit de contenu et non de métadonnées — le retirer changerait ce que lit le destinataire, à vous de trancher.`,
 };

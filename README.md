@@ -41,7 +41,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | Credentials | Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe keys; **PEM private key blocks**; call identifiers and LLM endpoints. Only patterns that cannot occur in ordinary prose — never a product name |
 | **Earlier PDF revisions** | A PDF saved incrementally keeps every previous version inside the file. Text covered by a black box and saved is still readable underneath — the mechanism behind most published redaction failures. **The text an earlier revision still holds is recovered and quoted**, not merely counted: each earlier revision is parsed as the document it was and compared with the current one, so what reaches the report is what someone deleted and believed was gone. Linearised files are discounted so "fast web view" is not mistaken for an update |
 | **Content a package still holds** | Cropped pictures (`a:srcRect` changes which rectangle is shown; the full image stays), pivot caches (a copy of the source rows survives deleting the sheet), and hidden or `veryHidden` worksheets |
-| **PDF annotation authors** | `/T` on every sticky note, highlight and review comment names who wrote it |
+| **PDF annotation authors** | `/T` on every sticky note, highlight and review comment names who wrote it. Cleaning removes it, with `/M` and `/CreationDate` — when they wrote it — from every annotation, replies included. The comment text stays: it is what someone chose to write, not what the file says about them |
 | **Generated images** | `parameters`, `prompt` and `workflow` chunks from Stable Diffusion web UI, ComfyUI and InvokeAI — **the prompt, the model and the seed travel with the file** |
 | **Mathematical alphanumerics** | 𝘂𝗿𝗴𝗲𝗻𝘁 reads as "urgent" to a person and matches nothing for a filter or a search. Reported with what it folds back to, never rewritten — in a formula the notation is the meaning |
 | **Deceptive links** | Hostnames written in a lookalike alphabet — `аррӏе.com` in Cyrillic renders pixel-for-pixel as `apple.com` and mixes no scripts at all, which is how it got past every browser in 2017. Also mixed-alphabet hostnames, invisible characters inside a domain, and the `@` trick where the recognisable part of a URL is a username the browser discards. **Reported, never rewritten** |
@@ -362,7 +362,7 @@ and only its `ToUnicode` table allows the reverse. A hit is therefore real, an a
 report states explicitly what it could not remove:
 
 ```
-Not removed: zero-width space, Hidden payload in page text.
+Still in the cleaned copy: zero-width space, Hidden payload in page text.
 ```
 
 One detail that cost a round trip: many producers write their strings in UTF-16BE **with no byte
@@ -630,7 +630,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 
 | Support | Removed | Deliberately kept |
 |---|---|---|
-| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests | Page content |
+| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation | Page content, and what annotations say |
 | PPTX / DOCX / XLSX | `core.xml`, `app.xml`, custom properties, thumbnail, `rsid`, comment author names (`w:author` attribute, `<author>` element, `displayName`), Exif in embedded pictures, C2PA manifests | Local links, hidden slides, speaker notes, defined names and links between workbooks — removing them would turn live cells into `#REF!` |
 | ODT / ODS / ODP | `meta.xml`, user-defined properties, statistics, thumbnail, picture Exif, C2PA manifests | The content |
 | SVG | The `<metadata>` block, editor attributes and namespaces, generator comments | `<title>` and `<desc>` — what a screen reader announces |
@@ -654,10 +654,10 @@ Cleaning therefore **re-inspects its own output** and names what survived, inste
 removal code:
 
 ```
-Not removed: Anthropic API key. These sit in the document's own content rather
-than in a metadata field, and rewriting page text would change what the
-document says. Edit the source and regenerate — and if a credential is listed,
-rotate it.
+Still in the cleaned copy: Anthropic API key. Cleaning removes what the file
+says about how and by whom it was made, and leaves what the document itself
+says — rewriting that would change what the recipient reads. Fix these in the
+source and regenerate — and if a credential is listed, rotate it.
 ```
 
 The corollary is sharp: **when no such warning appears, it is because the re-inspection found
