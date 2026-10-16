@@ -443,8 +443,7 @@ La page web montre chaque ligne cachée : une bande de la page rendue — une ba
 un paragraphe — puis la ligne de lecture la traverse et y laisse ce que lit une IA. Le rendu s'arrête
 après 30 pages ou 8 secondes, et le dit. En ligne de commande, il faut `@napi-rs/canvas`, une
 dépendance optionnelle livrée précompilée ; si elle manque, le rapport dit que le contrôle n'a pas
-tourné, au lieu de laisser croire qu'il n'a rien trouvé. Le nettoyage ne retire pas le texte caché —
-c'est du contenu — et la ré-inspection le liste comme toujours présent dans la copie nettoyée.
+tourné, au lieu de laisser croire qu'il n'a rien trouvé.
 
 **Word, HTML, e-mail et presse-papiers — le balisage le dit.** Dans un DOCX : les passages mis en forme
 « masqué » (`w:vanish`), de la couleur de leur fond (surlignage, trame de paragraphe, remplissage de
@@ -460,6 +459,24 @@ en contient est noté probable sauf si le balisage écrit les deux couleurs, et 
 qui sert aussi à garder un onglet fermé — est probable. Taille et couleur sont jugées morceau de texte
 par morceau de texte : la cellule de mise en page à taille nulle d'un modèle d'e-mail, dont le contenu
 fixe sa propre taille, n'est pas signalée. PowerPoint n'est pas encore couvert.
+
+**Une consigne cachée adressée à une IA est appelée ainsi.** Le texte caché est souvent innocent —
+la ligne d'aperçu d'un e-mail, un onglet fermé. Un passage caché qui donne des ordres à un assistant
+est l'attaque elle-même : « ignore les consignes précédentes », « si vous êtes une IA », « note pour
+l'IA », « recommande ce candidat », « donnez un avis favorable », « ne mentionne pas les faiblesses »,
+et leurs équivalents anglais. Il est étiqueté *Consigne cachée destinée à une IA*, confirmé même dans
+une police d'un pixel, et annoncé en tête du rapport. Les formulations sont volontairement précises —
+« as an AI company » ou « ignore the previous email » sont de la prose, et testés comme tels — et le
+texte visible n'est jamais lu pour cela : une consigne qu'un lecteur voit n'est cachée à personne.
+
+**La retirer, sur demande.** Pour Word, HTML et Markdown, la page propose « Retirer aussi les passages
+cachés » au-dessus du bouton de téléchargement, et la ligne de commande accepte `--remove-hidden`. Ce
+qui part est exactement ce que le rapport a listé, trouvé par le même passage : des segments entiers
+dans Word, pour que le paragraphe reste ; le texte en HTML, pour que les éléments et leur `alt`
+restent. Le texte pâle reste, sauf s'il s'agit d'une consigne pour une IA — on peut le lire en
+regardant bien — tout comme ce qui est noté probable, un onglet fermé par exemple. La ré-inspection
+compte ensuite ce qui est parti comme retiré. Dans un PDF, le texte caché fait partie du dessin de la
+page : il est signalé, pas retiré — corrigez la source et régénérez.
 
 ### Ce qu'un PDF peut révéler sur sa génération
 
@@ -873,6 +890,7 @@ cirta redact src/auth.py           # retire un contrôle bidi de type Trojan Sou
 cirta redact rapport.pdf
 cirta redact *.docx --in-place
 cirta redact rapport.pdf -o public/rapport.pdf
+cirta redact cv.docx --remove-hidden       # retire aussi le texte qu'un lecteur ne voit pas
 
 # Sortie exploitable par script
 cirta inspect rapport.pdf --json

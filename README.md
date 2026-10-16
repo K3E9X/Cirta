@@ -411,8 +411,7 @@ The web page shows each hidden line: a strip of the rendered page — a black ba
 — then the reading line crosses it and leaves what a model reads. Rendering stops after 30 pages or
 8 seconds, and says so. On the command line it needs `@napi-rs/canvas`, an optional dependency with
 prebuilt binaries; where it is missing, the report says the check did not run rather than implying it
-found nothing. Cleaning does not remove hidden text — it is content — and re-inspection lists it as
-still in the cleaned copy.
+found nothing.
 
 **Word, HTML, mail and the clipboard — the markup says so.** In a DOCX: runs formatted as hidden
 (`w:vanish`), coloured as their background (highlight, paragraph shading, cell fill, page background)
@@ -426,6 +425,23 @@ styles only: rules in a `<style>` block are not read, so a colour finding on a p
 graded probable unless the markup wrote both colours, and the `hidden` attribute — also how a page
 keeps a tab panel — is probable. Size and colour are judged per piece of text: a mail template's
 zero-size layout cell, whose content sets its own size, is not reported. PowerPoint is not covered yet.
+
+**A hidden instruction to an AI is called one.** Hidden text is often innocent — a mail's preview
+line, a tab panel. A hidden passage that gives an assistant orders is the attack itself: "ignore the
+previous instructions", "if you are an LLM", "note to the AI reviewer", "recommend this candidate",
+"give a positive review", "do not mention the weaknesses", and the same in French. It is labelled
+*Hidden instruction aimed at an AI*, confirmed even in a one-pixel font, and announced at the top of
+the report. The phrases are narrow on purpose — "as an AI company" or "ignore the previous email" are
+prose, and tested as such — and visible text is never read for this: an instruction a reader can see
+is not hidden from anyone.
+
+**Taking it out, on request.** For Word, HTML and Markdown, the page offers "Also remove the hidden
+passages" above the download button, and the command line takes `--remove-hidden`. What goes is
+exactly what the report listed, found by the same pass: whole runs in Word, so the paragraph stays;
+text in HTML, so the elements and their `alt` stay. Faint text stays unless it is an instruction to a
+model — someone looking closely can read it — and so does anything graded probable, such as a tab
+panel. Re-inspection then counts what went as removed. In a PDF, hidden text is part of the page's
+drawing and is reported, not removed: fix it in the source and regenerate.
 
 ### What a PDF can reveal about its generation
 
@@ -821,6 +837,7 @@ cirta inspect src/
 cirta redact report.pdf
 cirta redact report.pdf -o cleaned.pdf
 cirta redact ./deliverables --in-place      # keeps a .bak
+cirta redact cv.docx --remove-hidden        # also takes out text a reader cannot see
 
 # Machine-readable output
 cirta inspect report.pdf --json
