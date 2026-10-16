@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { nodeXrayEngine } from '../src/cli/xray-engine.js';
 import { xrayPdf, type XrayResult } from '../src/core/xray.js';
-import { degrees } from 'pdf-lib';
+import { readFileSync } from 'node:fs';
+import { PDFName, concatTransformationMatrix, degrees, drawObject, popGraphicsState, pushGraphicsState } from 'pdf-lib';
 import { invisibleText, onePage, png, rgb } from './helpers/hidden-pdf.js';
 
 /*
@@ -149,6 +150,17 @@ describe.runIf(engine)('visible text that must stay unreported', () => {
       invisibleText(c, 'Texte reconnu par OCR sur le scan', 20, 99);
     }));
 
+  it('an OCR layer over a JPEG 2000 scan, which needs PDF.js\'s decoder to be supplied', () =>
+    quiet(async (c) => {
+      const codestream = new Uint8Array(readFileSync(new URL('./fixtures/scan-stripes.j2k', import.meta.url)));
+      const image = c.doc.context.register(
+        c.doc.context.stream(codestream, { Type: 'XObject', Subtype: 'Image', Width: 300, Height: 20, Filter: 'JPXDecode' }),
+      );
+      c.page.node.Resources()!.set(PDFName.of('XObject'), c.doc.context.obj({ Scan: image }));
+      c.page.pushOperators(pushGraphicsState(), concatTransformationMatrix(300, 0, 0, 20, 20, 95), drawObject('Scan'), popGraphicsState());
+      invisibleText(c, 'Texte reconnu par OCR sur le scan', 20, 99);
+    }));
+
   it('punctuation alone, which has no ink where letters do', () =>
     quiet(({ page, font }) => {
       page.drawText('Chapitre un ........................ 12', { x: 20, y: 100, size: 12, font });
@@ -157,6 +169,18 @@ describe.runIf(engine)('visible text that must stay unreported', () => {
 });
 
 describe.runIf(engine)('the bytes and the limits', () => {
+  it('doubts a page where most of a long text drew no ink, rather than asserting it', async () => {
+    const line = 'Le present contrat est conclu entre les parties pour une duree indeterminee';
+    const pdf = await onePage(({ page, font }) => {
+      page.drawText('Contrat', { x: 20, y: 380, size: 12, font });
+      for (let i = 0; i < 6; i++) page.drawText(line, { x: 20, y: 340 - i * 30, size: 9, font, color: rgb(1, 1, 1) });
+    }, [500, 400]);
+    const result = await xray(pdf);
+    expect(result.doubtful).toEqual([1]);
+    expect(result.findings.length).toBeGreaterThan(0);
+    expect(result.findings.every((f) => f.confidence === 'probable')).toBe(true);
+  });
+
   it('leaves the caller\'s buffer whole, though PDF.js transfers what it is given', async () => {
     const pdf = await onePage(({ page, font }) => page.drawText('Texte', { x: 20, y: 100, size: 12, font }));
     const length = pdf.length;

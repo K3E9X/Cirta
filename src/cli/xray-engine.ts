@@ -25,15 +25,22 @@ async function build(): Promise<XrayEngine | undefined> {
   const { createCanvas } = await import('@napi-rs/canvas');
 
   const require = createRequire(import.meta.url);
-  const fontsDir = join(dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts');
-  const fonts = new Map<string, Uint8Array>();
-  for (const name of await readdir(fontsDir)) {
-    if (/\.(?:pfb|ttf)$/i.test(name)) fonts.set(name, new Uint8Array(await readFile(join(fontsDir, name))));
-  }
+  const root = dirname(require.resolve('pdfjs-dist/package.json'));
+  const fonts = await files(join(root, 'standard_fonts'), /\.(?:pfb|ttf)$/i);
+  const wasm = await files(join(root, 'wasm'), /^(?:openjpeg|jbig2)\.wasm$/);
 
   return {
     pdfjs,
     createCanvas: (width, height) => createCanvas(width, height) as unknown as ReturnType<XrayEngine['createCanvas']>,
     standardFont: (filename) => fonts.get(filename),
+    wasm: (filename) => wasm.get(filename),
   };
+}
+
+async function files(dir: string, pattern: RegExp): Promise<Map<string, Uint8Array>> {
+  const out = new Map<string, Uint8Array>();
+  for (const name of await readdir(dir)) {
+    if (pattern.test(name)) out.set(name, new Uint8Array(await readFile(join(dir, name))));
+  }
+  return out;
 }

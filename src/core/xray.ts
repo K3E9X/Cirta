@@ -82,6 +82,14 @@ export interface XrayEngine {
   createCanvas(width: number, height: number): XrayCanvas;
   /** The bytes of one of PDF.js's standard fonts, by file name, from memory. */
   standardFont(filename: string): Uint8Array | undefined;
+  /**
+   * PDF.js's JBIG2 and JPEG 2000 decoders, by file name. Scanned pages are
+   * mostly one or the other, and a scan that fails to decode leaves its OCR
+   * text over blank paper — every word of it would read as hidden.
+   */
+  wasm(filename: string): Uint8Array | undefined;
+  /** Anything the environment needs PDF.js to use: a canvas factory where there is no DOM. */
+  documentOptions?: Record<string, unknown>;
 }
 
 /** A copy of the PDF with every page box pushed far past anything drawn. */
@@ -119,6 +127,9 @@ const MIN_RUN = 3;
 const TINY_PT = 2;
 /** What has ink of its own: a letter or a digit, in any script. */
 const LETTER = /[\p{L}\p{N}]/u;
+const LETTERS = /[\p{L}\p{N}]/gu;
+/** A page with this much text, most of it without ink, is doubted rather than believed. */
+const DOUBT = { letters: 200, share: 0.6 };
 
 /* -------------------------------------------------------------- output -- */
 
@@ -139,6 +150,13 @@ export interface XrayResult {
   regions: XrayRegion[];
   pagesChecked: number;
   pagesTotal: number;
+  /**
+   * Pages where most of a substantial text produced no ink. That is either a
+   * page built to hide it, or a font or image this renderer could not draw;
+   * from pixels alone the two look the same, so findings there are graded
+   * probable and the report says why.
+   */
+  doubtful: number[];
 }
 
 const LABEL: Record<HiddenHow, string> = {
@@ -454,11 +472,14 @@ async function offPageText(data: Uint8Array, engine: XrayEngine, views: Map<numb
 /* ------------------------------------------------------------- driving -- */
 
 function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
-  class InMemoryFonts {
+  class InMemory {
     async fetch({ kind, filename }: { kind: string; filename: string }): Promise<Uint8Array> {
-      const bytes = kind === 'standardFontDataUrl' ? engine.standardFont(filename) : undefined;
-      if (bytes) return bytes;
-      // Never a request: CMaps and wasm are simply unavailable, and PDF.js
+      const bytes =
+        kind === 'standardFontDataUrl' ? engine.standardFont(filename)
+        : kind === 'wasmUrl' ? engine.wasm(filename)
+        : undefined;
+      if (bytes) return bytes.slice();
+      // Never a request: predefined CMaps are simply unavailable, and PDF.js
       // carries on without them.
       throw new Error(`${kind} ${filename} is not bundled`);
     }
@@ -470,15 +491,21 @@ function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
     isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
-    useWasm: false,
-    useWorkerFetch: false,
     isImageDecoderSupported: false,
     enableXfa: false,
-    BinaryDataFactory: InMemoryFonts,
-    // Never fetched: the factory above answers from memory. PDF.js only checks
-    // that a base is set before asking it, and that the base ends with a slash.
+    // Fonts and decoders come from the factory, which answers from memory.
+    // Without worker fetch, PDF.js also never asks for its ICC module, which it
+    // would otherwise load with a synchronous request.
+    useWasm: true,
+    useWorkerFetch: false,
+    BinaryDataFactory: InMemory,
     standardFontDataUrl: 'cirta-fonts/',
+    // Read only if a decoder fails to instantiate: PDF.js then imports a
+    // JavaScript fallback from this base. A data URL holding a comment makes
+    // that import an inert module rather than a request.
+    wasmUrl: 'data:text/javascript,//',
     verbosity: 0,
+    ...engine.documentOptions,
   });
 }
 
@@ -496,13 +523,16 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
   const pagesTotal = doc.numPages;
   let pagesChecked = 0;
 
+  const doubtful: number[] = [];
+
   const report = (page: number, run: Run) => {
     const k = `${page}\u0000${run.how}\u0000${run.text}`;
     if (seen.has(k) || !run.text) return false;
     seen.add(k);
+    const certain = run.how !== 'tiny' && run.how !== 'faint' && !doubtful.includes(page);
     findings.push({
       kind: 'invisible-character',
-      confidence: run.how === 'tiny' || run.how === 'faint' ? 'probable' : 'confirmed',
+      confidence: certain ? 'confirmed' : 'probable',
       location: `page ${page}`,
       label: LABEL[run.how],
       value: preview(run.text, 160),
@@ -531,7 +561,11 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
             height: canvas.height,
             data: context.getImageData(0, 0, canvas.width, canvas.height).data,
           };
-          for (const run of hiddenRuns(items, viewport, engine.pdfjs, raster, scale)) {
+          const runs = hiddenRuns(items, viewport, engine.pdfjs, raster, scale);
+          const letters = items.reduce((sum, item) => sum + ((item.str ?? '').match(LETTERS)?.length ?? 0), 0);
+          const blank = runs.reduce((sum, run) => sum + (run.how === 'faint' ? 0 : (run.text.match(LETTERS)?.length ?? 0)), 0);
+          if (letters >= DOUBT.letters && blank / letters >= DOUBT.share) doubtful.push(n);
+          for (const run of runs) {
             if (!report(n, run) || regions.length >= MAX_REGIONS) continue;
             const { crop: picture, origin } = crop(raster, run.box, 28);
             regions.push({
@@ -559,5 +593,5 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
   const offPage = await offPageText(data, engine, views, deadline);
   for (const [n, runs] of offPage.entries()) for (const run of runs ?? []) report(n, run);
 
-  return { findings, regions, pagesChecked, pagesTotal };
+  return { findings, regions, pagesChecked, pagesTotal, doubtful };
 }

@@ -961,9 +961,12 @@ async function hiddenText(data: Uint8Array, options: InspectOptions, findings: F
     const result = await xrayPdf(data, options.xray);
     findings.push(...result.findings);
     if (result.regions.length) options.onHidden?.(result.regions);
-    return result.pagesChecked < result.pagesTotal
-      ? [{ code: 'limit:hidden-text-truncated', detail: `${result.pagesChecked}/${result.pagesTotal}` }]
-      : [];
+    const notes: Note[] = [];
+    if (result.pagesChecked < result.pagesTotal) {
+      notes.push({ code: 'limit:hidden-text-truncated', detail: `${result.pagesChecked}/${result.pagesTotal}` });
+    }
+    if (result.doubtful.length) notes.push({ code: 'limit:hidden-text-doubtful', detail: result.doubtful.join(', ') });
+    return notes;
   } catch (error) {
     return [{ code: 'limit:hidden-text-unchecked', detail: error instanceof Error ? error.message : String(error) }];
   }

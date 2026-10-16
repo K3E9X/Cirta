@@ -137,7 +137,9 @@ export type NoteCode =
   /** PDF page text was not rendered to look for text a reader cannot see. */
   | 'limit:hidden-text-unchecked'
   /** Hidden-text rendering stopped at a page or time limit. */
-  | 'limit:hidden-text-truncated';
+  | 'limit:hidden-text-truncated'
+  /** Most of a page's text drew no ink: hidden on purpose, or not drawable here. */
+  | 'limit:hidden-text-doubtful';
 
 export interface Note {
   code: NoteCode;
