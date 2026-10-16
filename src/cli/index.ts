@@ -34,6 +34,7 @@ import {
   stylometry,
   type Stylometry,
 } from '../core/index.js';
+import { nodeXrayEngine } from './xray-engine.js';
 
 /**
  * Terminal capabilities differ enough between platforms that both colour and
@@ -498,6 +499,7 @@ async function runInspect(args: Args): Promise<number> {
       const result = await inspectFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
+        { xray: await nodeXrayEngine() },
       );
       results.push({ file, result });
       if (!args.json && !args.sarif) {
@@ -555,6 +557,7 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
+        { xray: await nodeXrayEngine() },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
