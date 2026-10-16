@@ -46,6 +46,7 @@ export { toSarif, ruleId, meetsThreshold } from './sarif.js';
 export type { SarifInput } from './sarif.js';
 export { inspectPlainText, cleanPlainText, type PlainTextClean } from './plaintext.js';
 export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.js';
+export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 

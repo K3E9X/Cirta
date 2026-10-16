@@ -15,6 +15,7 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 // only code that needs them now runs in the worker.
 import { inspectPlainText, cleanPlainText } from '../core/plaintext.js';
 import { removeScaffolding } from '../core/residue.js';
+import { inspectClipboardHtml } from '../core/clipboard.js';
 import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
 import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
@@ -682,6 +683,32 @@ function setupText(): void {
 
   const scopeNote: Note[] = [{ code: 'scope:invisible-characters-only' }];
 
+  /*
+   * The paste itself. A text field keeps only the text; the HTML version the
+   * clipboard also offered is read here, once, and what it carried is shown in
+   * its own slot so that Analyse and Clean, which redraw the results below, do
+   * not wipe it. Nothing is prevented: the text still lands in the field as it
+   * always did. A paste with no HTML at all — from a plain editor — clears the
+   * slot and shows nothing, which is the right amount to say about it.
+   */
+  const clipboardSlot = must<HTMLElement>('#clipboard-results');
+  input.addEventListener('paste', (event) => {
+    const html = event.clipboardData?.getData('text/html') ?? '';
+    if (!html.trim()) {
+      clipboardSlot.replaceChildren();
+      return;
+    }
+    const findings = inspectClipboardHtml(html);
+    const node = card(t().clipboardTitle, undefined, findings.length ? t().itemCount(findings.length) : undefined);
+    if (findings.length) {
+      node.append(findingsTable(findings));
+      node.append(el('p', 'note', t().clipboardNote));
+    } else {
+      node.append(el('p', 'empty', t().clipboardClean));
+    }
+    clipboardSlot.replaceChildren(node);
+  });
+
   scanButton.addEventListener('click', () => {
     // La même lecture qu'un fichier reçoit. Le collage restait plus pauvre que
     // l'onglet Fichiers sur des octets identiques : un brouillon d'e-mail
@@ -836,7 +863,7 @@ function setupLanguage(): void {
     apply();
     // The other language's sentence was hidden, so its chips were never read.
     requestAnimationFrame(playReveal);
-    for (const id of ['#file-results', '#text-results']) {
+    for (const id of ['#file-results', '#text-results', '#clipboard-results']) {
       document.querySelector(id)?.replaceChildren();
     }
     document.querySelector('#file-summary')?.remove();
