@@ -99,6 +99,9 @@ const FIELD_LABEL: Record<string, string> = {
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
   // Contenu que le paquet conserve alors que le document ne le montre plus.
+  'Embedded preview image': 'Aperçu intégré de l’image',
+  'Embedded preview is a different shape from the picture':
+    'L’aperçu intégré n’a pas la même forme que l’image',
   'Text an earlier revision still holds':
     'Du texte qu’une révision antérieure contient encore',
   'Earlier versions of this document are still in the file':
@@ -321,7 +324,21 @@ const LINK_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
 ];
 
 /** Values the core builds by interpolating a count, matched by shape. */
+/** Sizes and weights as they appear inside a longer sentence. */
+const measure = (text: string): string =>
+  text.replace(/of unknown size/, 'de taille inconnue').replace(/ bytes/, ' octets');
+
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    /^(.+) — a second copy of the picture, which not every editor regenerates when the original is cropped or retouched$/,
+    (m) =>
+      `${measure(m[1] ?? '')} — une seconde copie de l’image, que tous les éditeurs ne régénèrent pas quand l’original est recadré ou retouché`,
+  ],
+  [
+    /^preview (.+), picture (.+) — cropping changes the picture and not always the preview, so this one may still show what was cropped away$/,
+    (m) =>
+      `aperçu ${measure(m[1] ?? '')}, image ${m[2]} — un recadrage change l’image et pas toujours l’aperçu, celui-ci peut donc montrer encore ce qui a été rogné`,
+  ],
   [
     /^"([\s\S]*)" — in an earlier revision, not in the current one; in context: "([\s\S]*)"$/,
     (m) =>
