@@ -242,7 +242,121 @@ function setupTabs(): void {
   select(tabs.findIndex((tab) => tab.button.getAttribute('aria-selected') === 'true') || 0);
 }
 
+/* ------------------------------------------------------------------ motion -- */
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+/** A check mark drawn by its own stroke. `delay` waits for whatever it confirms. */
+function check(delay = 0): SVGSVGElement {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('class', 'check');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.setProperty('--draw-after', `${delay}ms`);
+  const path = document.createElementNS(SVG, 'path');
+  path.setAttribute('d', 'M3 8.5l3.2 3.2L13 4.8');
+  svg.append(path);
+  return svg;
+}
+
+/** What a finding is about, the same identity the core uses to check a clean. */
+const findingKey = (finding: Finding): string => `${finding.label}\u0000${finding.location}`;
+
+/** Restart a CSS animation tied to a class, which re-adding the class alone will not do. */
+function replay(node: HTMLElement, className: string): void {
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+}
+
+/*
+ * Mark the rows of a cleaned report, from what the core found by inspecting
+ * the output — never on the cleaner's word alone.
+ *
+ * Struck: gone from the output. Amber edge: still there, and judged worth
+ * saying so by the same rule the core's own note uses. Untouched: survivors
+ * that rule sets aside, such as a structural trait the cleaner's rewrite now
+ * carries itself. Judging that here, from the confidence a row had before the
+ * clean, put "2 left in place" above a note that named one.
+ */
+function markCleaned(
+  node: HTMLElement,
+  removed: Finding[],
+  kept: Finding[] = [],
+): { removed: number; kept: number; last: number } {
+  const gone = new Set(removed.map(findingKey));
+  const remaining = new Set(kept.map(findingKey));
+  let struck = 0;
+  let flagged = 0;
+  for (const row of node.querySelectorAll<HTMLTableRowElement>('tbody tr[data-key]')) {
+    const key = row.dataset.key ?? '';
+    if (gone.has(key)) {
+      row.style.setProperty('--r', String(Math.min(struck, 10)));
+      row.classList.add('is-removed');
+      struck++;
+    } else if (remaining.has(key)) {
+      row.classList.add('is-kept');
+      flagged++;
+    }
+  }
+  // When the last stroke lands: base, the last row's offset, four cell offsets, one stroke.
+  const last = 120 + Math.min(Math.max(struck - 1, 0), 10) * 70 + 4 * 60 + 240;
+  return { removed: struck, kept: flagged, last };
+}
+
+/*
+ * The hero's reading line. Each chip appears as the line reaches it, which
+ * depends on where the chip sits at this width, so the delays are measured
+ * rather than guessed. The line's visible edge is at `left + trail`, and
+ * `left` runs linearly from -trail to the row's width, so the edge reaches x
+ * at x / (width + trail) of the way through the sweep.
+ */
+const REVEAL_START_MS = 300;
+const REVEAL_SWEEP_MS = 1600;
+const TRAIL_PX = 120;
+
+function playReveal(): void {
+  if (!document.documentElement.classList.contains('motion')) return;
+  const row = document.querySelector<HTMLElement>('.reveal-row.is-revealed');
+  const line = [...(row?.querySelectorAll<HTMLElement>('.reveal-text') ?? [])].find(
+    (candidate) => candidate.offsetParent !== null,
+  );
+  if (!row || !line) return;
+
+  /*
+   * Measured with every chip at its final width. The chips start collapsed,
+   * and each one is revealed only after the ones to its left have opened, so
+   * at the moment the line reaches a chip, that chip is already where it ends
+   * up. One synchronous block: the measuring class is never painted.
+   */
+  row.classList.add('is-measuring');
+  const box = row.getBoundingClientRect();
+  for (const mark of line.querySelectorAll<HTMLElement>('.cp, .glyph')) {
+    const rect = mark.getBoundingClientRect();
+    const x = rect.left - box.left;
+    const at = REVEAL_START_MS + (Math.max(x, 0) / (box.width + TRAIL_PX)) * REVEAL_SWEEP_MS;
+    mark.style.setProperty('--at', `${Math.round(at)}ms`);
+    if (mark.classList.contains('cp')) mark.style.setProperty('--w', `${Math.ceil(rect.width)}px`);
+  }
+  row.classList.remove('is-measuring');
+  row.style.setProperty('--reveal-ms', `${REVEAL_SWEEP_MS}ms`);
+  replay(row, 'is-scanning');
+}
+
 /* ------------------------------------------------------------- rendering -- */
+
+/*
+ * The text sits in an inline span rather than directly in the cell, so that a
+ * strike can be drawn through the words themselves. An inline box's background
+ * follows its line breaks, so the stroke crosses a three-line value line by
+ * line, in reading order — where a line drawn across the cell ran through
+ * empty space too and read as one more table rule.
+ */
+function cell(className: string | undefined, text: string): HTMLTableCellElement {
+  const td = el('td', className);
+  td.append(el('span', 'cell-text', text));
+  return td;
+}
 
 function findingsTable(findings: Finding[]): HTMLElement {
   const scroll = el('div', 'table-scroll');
@@ -256,16 +370,19 @@ function findingsTable(findings: Finding[]): HTMLElement {
   head.append(headRow);
 
   const body = el('tbody');
-  for (const finding of findings) {
+  for (const [index, finding] of findings.entries()) {
     const row = el('tr');
     if (finding.affectsVerifiability) row.className = 'flagged';
+    row.dataset.key = findingKey(finding);
+    // Capped, so a long report finishes arriving in a third of a second.
+    row.style.setProperty('--i', String(Math.min(index, 12)));
     row.append(
-      el('td', `confidence confidence-${finding.confidence}`, t().confidence[finding.confidence]),
+      cell(`confidence confidence-${finding.confidence}`, t().confidence[finding.confidence]),
+      cell('kind', t().kinds[finding.kind]),
+      cell(undefined, translateLabel(finding.label, lang())),
+      cell('value', preview(translateValue(finding, lang()), 120)),
+      cell('location', translateLocation(finding.location, lang())),
     );
-    row.append(el('td', 'kind', t().kinds[finding.kind]));
-    row.append(el('td', undefined, translateLabel(finding.label, lang())));
-    row.append(el('td', 'value', preview(translateValue(finding, lang()), 120)));
-    row.append(el('td', 'location', translateLocation(finding.location, lang())));
     body.append(row);
   }
 
@@ -467,11 +584,20 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
-          button.textContent = 'Nettoyage…';
+          button.textContent = t().cleaning;
+          node.classList.add('is-cleaning');
           try {
             const redacted = await redactFile(data, formatHint(file.name));
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
-            button.textContent = t().downloaded;
+            node.classList.remove('is-cleaning');
+            button.replaceChildren(check(), document.createTextNode(t().downloaded));
+            button.classList.add('is-done');
+
+            const marked = markCleaned(node, redacted.removed, redacted.kept);
+            const status = el('span', 'foot-status');
+            status.style.setProperty('--draw-after', `${marked.last}ms`);
+            status.append(check(marked.last), document.createTextNode(t().reinspected(marked.removed, marked.kept)));
+            foot.append(status);
             // Redaction surfaces caveats inspection cannot: a dropped C2PA
             // manifest, and — more importantly — what was found and left in
             // place. Dropping those on the floor would make the browser claim
@@ -481,6 +607,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             );
             if (fresh.length) appendNotes(node, fresh);
           } catch (error) {
+            node.classList.remove('is-cleaning');
             button.textContent = t().cleanFailed;
             node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
           }
@@ -580,6 +707,9 @@ function setupText(): void {
     // c'est du contenu, et ils sont signalés comme laissés en place.
     const stripped = stripToolHeaders(result.text);
     input.value = stripped.text;
+    // Only when something actually changed: a field that flashes "cleaned"
+    // over identical text would be the page claiming work it did not do.
+    if (result.removed.length || stripped.removed.length) replay(input, 'is-cleaned');
 
     const node = card(
       t().cleanTitle,
@@ -591,7 +721,14 @@ function setupText(): void {
     if (result.removed.length === 0) {
       node.append(el('p', 'empty', t().textNoInvisible));
     } else {
-      node.append(findingsTable(result.removed));
+      const table = findingsTable(result.removed);
+      // These rows arrive already removed, so the stroke waits for them to land.
+      node.style.setProperty('--strike-base', '420ms');
+      table.querySelectorAll<HTMLTableRowElement>('tbody tr').forEach((row, index) => {
+        row.style.setProperty('--r', String(Math.min(index, 10)));
+        row.classList.add('is-removed');
+      });
+      node.append(table);
     }
     for (const payload of result.decoded) {
       node.append(el('p', 'decoded', t().payloadRemoved(payload)));
@@ -619,7 +756,7 @@ function setupText(): void {
     copy.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(stripped.text);
-        copy.textContent = t().copied;
+        copy.replaceChildren(check(), document.createTextNode(t().copied));
       } catch {
         input.select();
         copy.textContent = t().selected;
@@ -667,6 +804,8 @@ function setupLanguage(): void {
   button.addEventListener('click', () => {
     setLang(lang() === 'fr' ? 'en' : 'fr');
     apply();
+    // The other language's sentence was hidden, so its chips were never read.
+    requestAnimationFrame(playReveal);
     for (const id of ['#file-results', '#text-results']) {
       document.querySelector(id)?.replaceChildren();
     }
@@ -679,3 +818,5 @@ setupLanguage();
 setupTabs();
 setupFiles();
 setupText();
+// Two frames, so layout has settled and the chips' positions are final.
+requestAnimationFrame(() => requestAnimationFrame(playReveal));

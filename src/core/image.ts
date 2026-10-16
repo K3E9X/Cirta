@@ -110,6 +110,166 @@ function shouldStrip(segment: JpegSegment): boolean {
   return segment.marker === JPEG_APP11 && isJumbf(segment);
 }
 
+/*
+ * The embedded preview, and why it is worth a finding of its own.
+ *
+ * Exif keeps a second, small copy of the picture in its own directory (IFD1).
+ * Editors are inconsistent about regenerating it: crop a photograph, save, and
+ * a surprising number of tools leave the preview showing the picture as it was
+ * before the crop. People have published photographs cropped to hide something
+ * and shipped the uncropped version inside the same file.
+ *
+ * Cleaning already removes it — APP1 goes whole, and the preview goes with it —
+ * so this exists to tell someone who is only looking.
+ */
+
+/** Start-of-frame markers, which is where a JPEG states its size. */
+const SOF_MARKERS = new Set([
+  0xffc0, 0xffc1, 0xffc2, 0xffc3, 0xffc5, 0xffc6, 0xffc7,
+  0xffc9, 0xffca, 0xffcb, 0xffcd, 0xffce, 0xffcf,
+]);
+
+interface Size {
+  width: number;
+  height: number;
+}
+
+function jpegSize(data: Uint8Array): Size | undefined {
+  for (const segment of jpegSegments(data).segments) {
+    if (!SOF_MARKERS.has(segment.marker)) continue;
+    // Body is precision, then height and width, each 16-bit big-endian.
+    if (segment.body.length < 5) continue;
+    const height = (segment.body[1]! << 8) | segment.body[2]!;
+    const width = (segment.body[3]! << 8) | segment.body[4]!;
+    if (width > 0 && height > 0) return { width, height };
+  }
+  return undefined;
+}
+
+/*
+ * A fixed-size preview is not evidence of anything. Cameras have written
+ * 160x120 for decades regardless of the sensor's shape, so a 3:2 photograph
+ * from an untouched DSLR carries a 4:3 preview and always has. Flagging that
+ * would put a warning on a large share of ordinary holiday photographs, which
+ * is how a check like this gets switched off. A preview at any other size was
+ * generated for this picture, and then its shape means something.
+ */
+const STANDARD_PREVIEW: ReadonlyArray<Size> = [
+  { width: 160, height: 120 },
+  { width: 120, height: 160 },
+];
+
+const RATIO_TOLERANCE = 0.05;
+const MAX_IFD_ENTRIES = 512;
+
+/** The preview image an Exif APP1 segment carries, if it carries one. */
+function exifPreview(body: Uint8Array): { size?: Size; bytes: number } | undefined {
+  if (ASCII.decode(body.subarray(0, 4)) !== 'Exif') return undefined;
+  const tiff = body.subarray(6); // past "Exif\0\0"
+  if (tiff.length < 8) return undefined;
+
+  const little = tiff[0] === 0x49 && tiff[1] === 0x49;
+  if (!little && !(tiff[0] === 0x4d && tiff[1] === 0x4d)) return undefined;
+
+  const u16 = (at: number): number | undefined => {
+    if (at < 0 || at + 2 > tiff.length) return undefined;
+    return little ? tiff[at]! | (tiff[at + 1]! << 8) : (tiff[at]! << 8) | tiff[at + 1]!;
+  };
+  const u32 = (at: number): number | undefined => {
+    if (at < 0 || at + 4 > tiff.length) return undefined;
+    return little
+      ? (tiff[at]! | (tiff[at + 1]! << 8) | (tiff[at + 2]! << 16) | (tiff[at + 3]! << 24)) >>> 0
+      : ((tiff[at]! << 24) | (tiff[at + 1]! << 16) | (tiff[at + 2]! << 8) | tiff[at + 3]!) >>> 0;
+  };
+
+  if (u16(2) !== 42) return undefined;
+
+  const ifd0 = u32(4);
+  const entries0 = ifd0 === undefined ? undefined : u16(ifd0);
+  if (ifd0 === undefined || entries0 === undefined || entries0 > MAX_IFD_ENTRIES) return undefined;
+
+  // The pointer to the next directory sits immediately past IFD0's entries.
+  const ifd1 = u32(ifd0 + 2 + entries0 * 12);
+  const entries1 = ifd1 === undefined || ifd1 === 0 ? undefined : u16(ifd1);
+  if (ifd1 === undefined || entries1 === undefined || entries1 > MAX_IFD_ENTRIES) return undefined;
+
+  let offset: number | undefined;
+  let length: number | undefined;
+  let width: number | undefined;
+  let height: number | undefined;
+
+  for (let index = 0; index < entries1; index++) {
+    const at = ifd1 + 2 + index * 12;
+    const tag = u16(at);
+    const type = u16(at + 2);
+    if (tag === undefined || type === undefined) break;
+    // A SHORT is left-justified in the 4-byte value field in both byte orders,
+    // so it reads from the same place a LONG does.
+    const value = type === 3 ? u16(at + 8) : u32(at + 8);
+    if (value === undefined) break;
+    if (tag === 0x0100) width = value;
+    else if (tag === 0x0101) height = value;
+    else if (tag === 0x0201) offset = value;
+    else if (tag === 0x0202) length = value;
+  }
+
+  if (offset !== undefined && length !== undefined && length > 0) {
+    if (offset + length > tiff.length) return undefined;
+    const jpeg = tiff.subarray(offset, offset + length);
+    return { size: jpegSize(jpeg), bytes: length };
+  }
+  if (width !== undefined && height !== undefined && width > 0 && height > 0) {
+    return { size: { width, height }, bytes: 0 };
+  }
+  return undefined;
+}
+
+function isStandardPreview(size: Size): boolean {
+  return STANDARD_PREVIEW.some((s) => s.width === size.width && s.height === size.height);
+}
+
+function previewFindings(data: Uint8Array, body: Uint8Array, location: string): Finding[] {
+  const preview_ = exifPreview(body);
+  if (!preview_) return [];
+
+  const picture = jpegSize(data);
+  const size = preview_.size;
+  const described = size ? `${size.width}\u00d7${size.height}` : 'of unknown size';
+  const weight = preview_.bytes ? `, ${preview_.bytes} bytes` : '';
+
+  if (size && picture && !isStandardPreview(size)) {
+    const previewRatio = size.width / size.height;
+    const pictureRatio = picture.width / picture.height;
+    const drift = Math.abs(previewRatio - pictureRatio) / pictureRatio;
+    if (drift > RATIO_TOLERANCE) {
+      return [
+        {
+          kind: 'identity',
+          confidence: 'probable',
+          location,
+          label: 'Embedded preview is a different shape from the picture',
+          value:
+            `preview ${described}${weight}, picture ${picture.width}\u00d7${picture.height} — ` +
+            `cropping changes the picture and not always the preview, so this one may still show ` +
+            `what was cropped away`,
+        },
+      ];
+    }
+  }
+
+  return [
+    {
+      kind: 'identity',
+      confidence: 'informational',
+      location,
+      label: 'Embedded preview image',
+      value:
+        `${described}${weight} — a second copy of the picture, which not every editor regenerates ` +
+        `when the original is cropped or retouched`,
+    },
+  ];
+}
+
 /** Scan for a 16-bit value in both byte orders, since TIFF headers vary. */
 function containsUint16(data: Uint8Array, value: number): boolean {
   const hi = (value >> 8) & 0xff;
@@ -278,6 +438,9 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       }
       // A generator that declares itself does it here, in the XMP packet.
       findings.push(...findSourceTypes(ASCII.decode(segment.body), location));
+      if (segment.marker === 0xffe1) {
+        findings.push(...previewFindings(data, segment.body, location));
+      }
       findings.push({
         kind: 'identity',
         // GPS coordinates place the author somewhere specific; the rest is

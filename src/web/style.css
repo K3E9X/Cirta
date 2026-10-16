@@ -28,6 +28,12 @@
   --line: #e5e2dc;
   --line-2: #cfcabf;
   --accent: #c0451a;
+  /*
+   * Text set on the accent. White passes on the light theme's vermillion, but
+   * the dark theme's accent is a light orange, and white on it measured about
+   * 2.4:1 — a hover state nobody could read. Ink passes there instead.
+   */
+  --on-accent: #ffffff;
   --accent-wash: #fdf1ea;
   --ok: #1f6b3a;
   --warn: #8a6100;
@@ -53,6 +59,7 @@
     --line: #262521;
     --line-2: #3d3b34;
     --accent: #ff8347;
+    --on-accent: #0b0b0a;
     --accent-wash: #1f1511;
     --ok: #68c48b;
     --warn: #e0ab4a;
@@ -546,7 +553,7 @@ pre code {
 .button-primary:hover {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .button-small {
@@ -827,12 +834,19 @@ table {
   font-size: 0.875rem;
 }
 
+/*
+ * Baseline, not top. The mono cells set their size through the `font`
+ * shorthand, which resets line-height to `normal`, so with top alignment
+ * "CONFIRMED" sat four pixels above the sentence beside it in the same row.
+ * Aligning first baselines fixes that whatever each cell's font does, and it
+ * is also what lets one strike run straight through a whole row.
+ */
 th,
 td {
   text-align: left;
   padding: 0.55rem 1rem;
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  vertical-align: baseline;
 }
 
 th {
@@ -1180,4 +1194,486 @@ tr.flagged td.value::after {
   text-decoration: underline wavy var(--accent);
   text-underline-offset: 0.28em;
   text-decoration-thickness: 1px;
+}
+
+/* ---------------------------------------------------------------- motion -- */
+
+/*
+ * Motion, and the rules it is held to.
+ *
+ * Every animation here marks a real change of state — the tool reading, the
+ * tool finding, the tool removing. Nothing moves to decorate. A page that
+ * twitches for its own sake is a page whose movement stops meaning anything,
+ * and the one moment that needs attention — what survived a clean — has to be
+ * able to get it.
+ *
+ * Two gestures carry the product, and both come from what it does:
+ *
+ *   The reading line. One pixel of accent sweeping left to right, the way text
+ *   is read, with a short trail of light behind it. It appears where Cirta is
+ *   actually reading: across a card being analysed or cleaned, and once across
+ *   the hero sentence, where it is the thing that makes the hidden characters
+ *   appear. The stylesheet bans gradients at rest; a light in motion is allowed
+ *   a falloff, and it is the only one on the page.
+ *
+ *   The strike. A proofreader's line drawn through each row the clean removed,
+ *   cell by cell so it reads as one stroke, then the row recedes. It is drawn
+ *   only through what re-inspecting the output no longer finds — never through
+ *   what the cleaner merely meant to remove — so what stays bright after a
+ *   clean is exactly what survived it.
+ *
+ * Loading states wait 140ms before showing. Most files are read faster than
+ * that, and a scanner flashing for a frame is noise that teaches people to
+ * ignore it.
+ */
+
+:root {
+  --ease-out: cubic-bezier(0.16, 0.84, 0.24, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-enter: 260ms;
+  --show-after: 140ms;
+  --trail: 120px;
+}
+
+@keyframes cirta-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes cirta-row {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes cirta-appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cirta-sweep {
+  from {
+    left: calc(-1 * var(--trail));
+  }
+  to {
+    left: 100%;
+  }
+}
+
+/* ---- results arriving ---- */
+
+.results > .card,
+.results > .summary {
+  animation: cirta-enter var(--t-enter) var(--ease-out) both;
+}
+
+/*
+ * Rows rise in order. The index is capped in script, so a forty-row report
+ * finishes arriving in about a third of a second instead of over one.
+ */
+.results tbody tr {
+  animation: cirta-row 240ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 28ms + 60ms);
+}
+
+/*
+ * A confirmed finding is marked at the row's edge, at rest, in the report and
+ * in the sample alike. It is the one category that always deserves a second
+ * look, and an edge says so without colouring a whole row.
+ */
+tbody tr:has(.confidence-confirmed) td:first-child {
+  box-shadow: inset 2px 0 0 var(--danger);
+}
+
+/* ---- the reading line ---- */
+
+.card {
+  position: relative;
+}
+
+.card.is-busy::after,
+.card.is-cleaning::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--trail));
+  width: var(--trail);
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--accent) 10%, transparent)
+  );
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+  opacity: 0;
+  animation:
+    cirta-sweep 1.5s var(--ease-in-out) var(--show-after) infinite,
+    cirta-appear 160ms ease-out var(--show-after) forwards;
+}
+
+/* ---- the strike ---- */
+
+@keyframes cirta-strike {
+  to {
+    background-size: 100% 1px;
+  }
+}
+
+/*
+ * The text recedes; the stroke does not. Fading the whole row took the line
+ * down with it, to a grey nobody reads as "done". The colour is overridden on
+ * the cell, so the confidence red and amber recede too — a struck finding is
+ * no longer a warning.
+ */
+@keyframes cirta-recede {
+  to {
+    color: color-mix(in srgb, var(--ink-2) 72%, transparent);
+    /* The red edge of a confirmed finding goes out with it. */
+    box-shadow: inset 2px 0 0 transparent;
+  }
+}
+
+/*
+ * Drawn through the words, not across the cell. The background lives on the
+ * inline span, so it follows the text's own line breaks: `background-size`
+ * from 0 to 100% runs the stroke along the first line and carries on into the
+ * next, as a pen would. Each cell starts a little after the one before it, so
+ * the row is struck left to right.
+ *
+ * The height is measured per face, against the middle of what is actually
+ * drawn: 62% down the inline box for lowercase in the sans face, 54% for
+ * lowercase in the mono one, and 42% for the confidence level, which is set
+ * in capitals by `text-transform` and so stands taller than its own text.
+ */
+.results tr.is-removed td > .cell-text {
+  background-image: linear-gradient(var(--ok), var(--ok));
+  background-repeat: no-repeat;
+  background-position: 0 var(--strike-y, 62%);
+  background-size: 0% 1px;
+  box-decoration-break: slice;
+  -webkit-box-decoration-break: slice;
+  animation: cirta-strike 240ms var(--ease-in-out) forwards;
+  animation-delay: calc(var(--strike-base, 120ms) + var(--r, 0) * 70ms + var(--c, 0) * 60ms);
+}
+
+.results tr.is-removed td.kind,
+.results tr.is-removed td.location {
+  --strike-y: 54%;
+}
+
+.results tr.is-removed td.confidence {
+  --strike-y: 42%;
+}
+
+.results tr.is-removed td:nth-child(2) {
+  --c: 1;
+}
+
+.results tr.is-removed td:nth-child(3) {
+  --c: 2;
+}
+
+.results tr.is-removed td:nth-child(4) {
+  --c: 3;
+}
+
+.results tr.is-removed td:nth-child(5) {
+  --c: 4;
+}
+
+.results tr.is-removed td {
+  animation: cirta-recede 320ms ease-out forwards;
+  animation-delay: calc(var(--strike-base, 120ms) + var(--r, 0) * 70ms + 360ms);
+}
+
+/* What the clean could not remove keeps its full weight, and an amber edge. */
+.results tr.is-kept td:first-child {
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+
+/* ---- confirmation ---- */
+
+@keyframes cirta-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.check {
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  animation: cirta-draw 380ms var(--ease-out) forwards;
+  animation-delay: var(--draw-after, 0ms);
+}
+
+.foot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  font: 0.8125rem var(--mono);
+  color: var(--ink-2);
+  opacity: 0;
+  animation: cirta-appear 240ms ease-out forwards;
+  animation-delay: var(--draw-after, 0ms);
+}
+
+.foot-status .check {
+  color: var(--ok);
+}
+
+.foot-status strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ---- the text panel, after a clean ---- */
+
+@keyframes cirta-cleaned {
+  from {
+    border-color: var(--ok);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
+  }
+}
+
+textarea.is-cleaned {
+  animation: cirta-cleaned 900ms var(--ease-out);
+}
+
+/* ---- dropping a file ---- */
+
+.dropzone {
+  transition:
+    border-color 160ms var(--ease-out),
+    background 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+
+.dropzone.is-active {
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.dropzone.is-active::before {
+  border-style: solid;
+}
+
+/* ---- pressing ---- */
+
+.btn:active,
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/*
+ * A button whose job is done is not a disabled one. It stays inert — cleaning
+ * the same file twice would only download it twice — but it reads as a
+ * completed step, with its check, not as a primary action greyed out at 70%,
+ * which looked like something had gone wrong.
+ */
+.button.is-done,
+.button.is-done:hover {
+  cursor: default;
+  opacity: 1;
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--ink);
+}
+
+.button.is-done .check {
+  color: var(--ok);
+}
+
+/* ---- the hero ---- */
+
+/*
+ * Both frames are stated. The chips rest hidden under `.motion`, and an
+ * animation with only a `from` frame interpolates towards the element's own
+ * value — which is that hidden state — so a `from`-only reveal would animate
+ * from invisible to invisible.
+ */
+/*
+ * The chip opens from nothing rather than fading in place. Before the line
+ * reaches it, the two sentences have to be identical — that is the whole claim
+ * of the picture — and a transparent chip still holding its width left a gap
+ * in the second sentence that gave the trick away before it was played. Now
+ * the hidden character takes up no room until it is read, then makes room,
+ * pushing the rest of the sentence along: the space it was occupying all along.
+ */
+@keyframes cirta-chip {
+  from {
+    opacity: 0;
+    max-width: 0;
+    padding-inline: 0;
+    margin-inline: 0;
+    border-width: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    max-width: var(--w, 20em);
+    padding-inline: 0.4em;
+    margin-inline: 0.15em;
+    border-width: 1px;
+    filter: none;
+  }
+}
+
+@keyframes cirta-underline {
+  from {
+    text-decoration-color: transparent;
+  }
+  to {
+    text-decoration-color: var(--accent);
+  }
+}
+
+.motion .reveal-row.is-revealed .cp {
+  opacity: 0;
+  max-width: 0;
+  padding-inline: 0;
+  margin-inline: 0;
+  border-width: 0;
+  overflow: hidden;
+  /*
+   * `overflow: hidden` moves an inline-block's baseline to its bottom edge,
+   * which would lift the chip off the line it annotates.
+   */
+  vertical-align: middle;
+}
+
+
+
+.motion .reveal-row.is-revealed .glyph {
+  text-decoration-color: transparent;
+}
+
+/*
+ * If the script never runs — blocked, failed, slow — the chips must not stay
+ * hidden: the hero would then show two identical sentences and claim nothing.
+ * This reveals them on a timer, and the moment the reading line takes over,
+ * the selector stops matching and the timed version is discarded.
+ */
+.motion .reveal-row.is-revealed:not(.is-scanning) .cp {
+  animation: cirta-chip 300ms var(--ease-out) 2.5s both;
+}
+
+.motion .reveal-row.is-revealed:not(.is-scanning) .glyph {
+  animation: cirta-underline 300ms ease-out 2.5s both;
+}
+
+/*
+ * Natural size, for the instant the script reads where each chip will sit.
+ *
+ * Animations are switched off here, and it has to be explicit. The timed
+ * fallback above is running when the script first measures, and during its
+ * delay its fill holds the chip at its first frame — zero width — which an
+ * animation applies over any ordinary declaration. Measured that way, every
+ * chip came out a few pixels wide and opened to a sliver. Placed after the
+ * fallback, and marked important so a later selector cannot quietly undo it.
+ */
+.motion .reveal-row.is-revealed.is-measuring .cp {
+  animation: none !important;
+  max-width: none;
+  padding-inline: 0.4em;
+  margin-inline: 0.15em;
+  border-width: 1px;
+}
+
+.reveal-row.is-revealed {
+  position: relative;
+  overflow: hidden;
+}
+
+/*
+ * The sweep runs linearly here, unlike the cards: each chip's delay is worked
+ * out in script from where it sits on the line, and that only holds if the
+ * line moves at a constant speed. A mechanical pace also suits it — this is
+ * the one place the page shows the scanner itself.
+ */
+.reveal-row.is-revealed.is-scanning::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--trail));
+  width: var(--trail);
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--accent) 12%, transparent)
+  );
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+  animation: cirta-sweep var(--reveal-ms, 1600ms) linear 300ms forwards;
+}
+
+.reveal-row.is-revealed.is-scanning .cp {
+  animation: cirta-chip 340ms var(--ease-out) both;
+  animation-delay: var(--at, 0ms);
+}
+
+.reveal-row.is-revealed.is-scanning .glyph {
+  animation: cirta-underline 400ms ease-out both;
+  animation-delay: var(--at, 0ms);
+}
+
+/* The local-only dot breathes, slowly: it is a status, and statuses are live. */
+@keyframes cirta-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  70%,
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+.reveal-bar .dot {
+  position: relative;
+}
+
+.reveal-bar .dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: cirta-ping 2.8s var(--ease-out) infinite;
+}
+
+/*
+ * Reduced motion keeps every end state and drops every journey: rows are
+ * there, struck rows are struck, the chips are visible, the check is drawn.
+ * Nothing that carries information is lost, only the movement that delivered
+ * it — which is the whole of what the preference asks for.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

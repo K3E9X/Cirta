@@ -38,7 +38,11 @@ const FR = {
   nothingIdentifying: 'Aucune métadonnée identifiante trouvée.',
   itemCount: (n: number) => `${n} élément${n > 1 ? 's' : ''}`,
   download: 'Télécharger la version nettoyée',
+  cleaning: 'Nettoyage…',
   downloaded: 'Téléchargé',
+  reinspected: (removed: number, kept: number) =>
+    `ré-inspecté · ${removed} retiré${removed > 1 ? 's' : ''}` +
+    (kept ? ` · ${kept} laissé${kept > 1 ? 's' : ''} en place` : ''),
   cleanFailed: 'Échec du nettoyage',
   archiveNote:
     'Une archive est signalée, jamais réécrite : la repacker changerait la compression, ' +
@@ -203,7 +207,10 @@ const EN: Strings = {
   nothingIdentifying: 'No identifying metadata found.',
   itemCount: (n) => `${n} item${n > 1 ? 's' : ''}`,
   download: 'Download the cleaned copy',
+  cleaning: 'Cleaning…',
   downloaded: 'Downloaded',
+  reinspected: (removed, kept) =>
+    `re-inspected · ${removed} removed` + (kept ? ` · ${kept} left in place` : ''),
   cleanFailed: 'Cleaning failed',
   archiveNote:
     'An archive is reported, never rewritten: repacking would change the compression, ordering ' +

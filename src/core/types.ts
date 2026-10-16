@@ -155,8 +155,15 @@ export interface RedactResult {
   data?: Uint8Array;
   /** The rewritten string, for text input. */
   text?: string;
-  /** Findings that were removed. */
+  /** Findings that were removed — checked by inspecting the output, not assumed. */
   removed: Finding[];
+  /**
+   * Findings the output still carries and that matter: re-inspection's
+   * non-informational results. Informational survivors are absent on purpose —
+   * they are what a clean keeps deliberately, the cleaner's own software name
+   * among them. Undefined when the output was not re-inspected.
+   */
+  kept?: Finding[];
   notes: Note[];
 }
 
