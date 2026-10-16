@@ -1,5 +1,35 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
+
+/**
+ * The notices of what the site ships besides its own code, published next to
+ * it. The worker carries PDF.js, its Foxit fonts and its JBIG2 and OpenJPEG
+ * decoders; the BSD and Apache licences they come under ask for the notice to
+ * travel with the binary.
+ */
+function thirdPartyLicences(): Plugin {
+  const parts: Array<[string, string]> = [
+    ['PDF.js (pdfjs-dist) — Apache License 2.0', 'pdfjs-dist/LICENSE'],
+    ['PDF.js standard fonts (Foxit)', 'pdfjs-dist/standard_fonts/LICENSE_FOXIT'],
+    ['PDF.js JBIG2 decoder', 'pdfjs-dist/wasm/LICENSE_PDFJS_JBIG2'],
+    ['JBIG2 (PDFium)', 'pdfjs-dist/wasm/LICENSE_JBIG2'],
+    ['PDF.js OpenJPEG decoder', 'pdfjs-dist/wasm/LICENSE_PDFJS_OPENJPEG'],
+    ['OpenJPEG', 'pdfjs-dist/wasm/LICENSE_OPENJPEG'],
+    ['pdf-lib — MIT', 'pdf-lib/LICENSE.md'],
+    ['fflate — MIT', 'fflate/LICENSE'],
+  ];
+  return {
+    name: 'cirta-third-party-licences',
+    apply: 'build',
+    generateBundle() {
+      const text = parts
+        .map(([title, path]) => `${title}\n${'='.repeat(title.length)}\n\n${readFileSync(new URL(`./node_modules/${path}`, import.meta.url), 'utf8').trim()}\n`)
+        .join('\n\n');
+      this.emitFile({ type: 'asset', fileName: 'third-party-licenses.txt', source: text });
+    },
+  };
+}
 
 /**
  * The page's Content-Security-Policy, written into the built HTML.
@@ -53,7 +83,7 @@ export default defineConfig({
   // transcription all refer to one file.
   publicDir: '../../assets',
   base: process.env['CIRTA_BASE'] ?? '/Cirta/',
-  plugins: [contentSecurityPolicy()],
+  plugins: [contentSecurityPolicy(), thirdPartyLicences()],
   // ES modules, so the worker can load PDF.js as its own chunk instead of
   // making every file wait for it.
   worker: { format: 'es' },

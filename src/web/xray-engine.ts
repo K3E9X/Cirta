@@ -24,7 +24,13 @@ import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
 import type { XrayCanvas, XrayEngine, XrayPdfjs } from '../core/xray.js';
 
 // Inlined as data URLs at build time: bytes in the bundle, not files to fetch.
-const FONTS = import.meta.glob<string>('../../node_modules/pdfjs-dist/standard_fonts/*.{pfb,ttf}', {
+//
+// The Foxit Type 1 fonts only, under a BSD-style licence. PDF.js also ships
+// Liberation Sans, under the GPL with a font exception, as its stand-in for a
+// Helvetica or Arial the PDF does not embed; it is left out of this MIT bundle.
+// Without it PDF.js draws those glyphs with a system sans-serif, which puts
+// ink in the same places — all this check measures.
+const FONTS = import.meta.glob<string>('../../node_modules/pdfjs-dist/standard_fonts/*.pfb', {
   query: '?inline',
   import: 'default',
   eager: true,
