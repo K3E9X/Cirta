@@ -83,8 +83,20 @@ interface Hidden {
   /** The mechanism, in the format's own terms: `display: none`, `w:vanish`. */
   why: string;
   text: string;
-  /** Graded down where the background could not be fully known. */
+  /** Graded down where it could not be fully known that the text is hidden at all. */
   probable?: boolean;
+  /** Where the hidden text sits in the source, for removing exactly what was reported. */
+  ranges?: Array<[number, number]>;
+}
+
+/**
+ * What a cleaner may take out. Only what a reader cannot see at all, and only
+ * what the report listed: faint text is still there for someone looking
+ * closely, and a probable finding — a tab panel, a colour a stylesheet may
+ * override — may not be hidden in the first place.
+ */
+function removable(item: Hidden): boolean {
+  return !item.probable && item.how !== 'faint' && letters(item.text) >= MIN_LETTERS;
 }
 
 function toFindings(found: Hidden[], location: string): Finding[] {
@@ -253,6 +265,24 @@ interface Frame {
  * on an unterminated quote would freeze the tab on paste.
  */
 export function hiddenInHtml(input: string, location: string): Finding[] {
+  return toFindings(scanHtml(input), location);
+}
+
+/**
+ * The same markup with the text a browser would not show taken out. Only text
+ * goes: the elements stay, empty, so nothing the layout hangs on moves, and an
+ * `alt` or a `title` is untouched. Faint text and probable findings stay too —
+ * see `removable`.
+ */
+export function stripHiddenHtml(input: string): { html: string; removed: number } {
+  const items = scanHtml(input).filter(removable);
+  const ranges = items.flatMap((item) => item.ranges ?? []).sort((a, b) => b[0] - a[0]);
+  let html = input;
+  for (const [start, end] of ranges) html = html.slice(0, start) + html.slice(end);
+  return { html, removed: items.length };
+}
+
+function scanHtml(input: string): Hidden[] {
   const html = input.length > MAX_HTML ? input.slice(0, MAX_HTML) : input;
   if (!/<[a-z]/i.test(html)) return [];
   const lower = html.toLowerCase();
@@ -263,13 +293,16 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
   const stack: Frame[] = [root];
   const groups = new Map<string, Hidden>();
 
-  const add = (key: string, item: Omit<Hidden, 'text'>, text: string) => {
-    const group = groups.get(key);
+  const add = (key: string, item: Omit<Hidden, 'text'>, text: string, range?: [number, number]) => {
+    let group = groups.get(key);
     if (group) group.text += text;
-    else groups.set(key, { ...item, text });
+    else groups.set(key, (group = { ...item, text, ranges: [] }));
+    if (range) group.ranges!.push(range);
   };
 
-  const onText = (raw: string) => {
+  /** A piece of text, and where it sits in the source when it is really there. */
+  const onText = (raw: string, at?: number) => {
+    const range: [number, number] | undefined = at === undefined ? undefined : [at, at + raw.length];
     const top = stack[stack.length - 1]!;
     const text = decodeHtml(raw);
     if (!text.trim()) {
@@ -280,11 +313,11 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
       return;
     }
     if (top.hidden) {
-      add(`h${top.hidden.id}`, { how: top.hidden.how, why: top.hidden.why, probable: top.hidden.probable }, text);
+      add(`h${top.hidden.id}`, { how: top.hidden.how, why: top.hidden.why, probable: top.hidden.probable }, text, range);
       return;
     }
     if (top.size && top.fontPx * 0.75 < TINY_PT) {
-      add(`s${top.size.id}`, { how: 'tiny', why: `font-size: ${top.size.written}` }, text);
+      add(`s${top.size.id}`, { how: 'tiny', why: `font-size: ${top.size.written}` }, text, range);
       return;
     }
     if (top.paint === undefined) return;
@@ -298,6 +331,7 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
         probable: styled && !(top.colourSet && top.backgroundSet),
       },
       text,
+      range,
     );
   };
 
@@ -356,10 +390,10 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
   while (i < n) {
     const lt = html.indexOf('<', i);
     if (lt < 0) {
-      onText(html.slice(i));
+      onText(html.slice(i), i);
       break;
     }
-    if (lt > i) onText(html.slice(i, lt));
+    if (lt > i) onText(html.slice(i, lt), i);
     if (html.startsWith('<!--', lt)) {
       const end = html.indexOf('-->', lt + 4);
       i = end < 0 ? n : end + 3;
@@ -382,7 +416,7 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
     i = j + 1;
     const m = /^(\/?)([a-zA-Z][\w:-]*)/.exec(tag);
     if (!m) {
-      if (!tag.startsWith('!') && !tag.startsWith('?')) onText(`<${tag}>`);
+      if (!tag.startsWith('!') && !tag.startsWith('?')) onText(html.slice(lt, Math.min(n, j + 1)), lt);
       continue;
     }
     const name = m[2]!.toLowerCase();
@@ -403,7 +437,7 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
     open(name, attributes(tag.slice(m[0].length)));
   }
 
-  return toFindings([...groups.values()], location);
+  return [...groups.values()];
 }
 
 /**
@@ -504,10 +538,38 @@ function wordStyles(xml: string): { resolve(id: string | undefined): RunStyle; d
  * have.
  */
 export function hiddenInDocx(parts: Record<string, Uint8Array>): Finding[] {
+  const findings: Finding[] = [];
+  for (const [path, found] of scanDocx(parts)) {
+    findings.push(...toFindings(found, path));
+    if (findings.length >= MAX_FINDINGS) break;
+  }
+  return findings.slice(0, MAX_FINDINGS);
+}
+
+/**
+ * Take the hidden runs out of a Word package, in place: whole <w:r> elements,
+ * so the paragraph around them is untouched. Faint text stays — see `removable`.
+ * Returns how many hidden passages went.
+ */
+export function stripHiddenDocx(parts: Record<string, Uint8Array>): number {
+  let removed = 0;
+  for (const [path, found] of scanDocx(parts)) {
+    const items = found.filter(removable);
+    if (!items.length) continue;
+    const ranges = items.flatMap((item) => item.ranges ?? []).sort((x, y) => y[0] - x[0]);
+    let xml = new TextDecoder().decode(parts[path]);
+    for (const [start, end] of ranges) xml = xml.slice(0, start) + xml.slice(end);
+    parts[path] = new TextEncoder().encode(xml);
+    removed += items.length;
+  }
+  return removed;
+}
+
+function scanDocx(parts: Record<string, Uint8Array>): Map<string, Hidden[]> {
   const decoder = new TextDecoder();
   const read = (path: string) => (parts[path] ? decoder.decode(parts[path]) : undefined);
   const styles = wordStyles(read('word/styles.xml') ?? '');
-  const findings: Finding[] = [];
+  const out = new Map<string, Hidden[]>();
 
   const paths = Object.keys(parts)
     .filter((p) => /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes)\.xml$/.test(p))
@@ -544,15 +606,20 @@ export function hiddenInDocx(parts: Record<string, Uint8Array>): Finding[] {
         const start = paragraphs.pop();
         if (start === undefined) continue;
         // A text box nests whole paragraphs inside a run; they are read when
-        // their own end is reached, not again as part of this one.
-        const body = xml.slice(start, m.index).replace(/<w:txbxContent>[\s\S]*?<\/w:txbxContent>/g, '');
-        found.push(...paragraphRuns(body, styles, cells[cells.length - 1]?.fill, tables.some((t) => t.styled), page));
+        // their own end is reached, not again as part of this one. Blanked to
+        // the same length, so positions found here are positions in the part.
+        const body = xml
+          .slice(start, m.index)
+          .replace(/<w:txbxContent>[\s\S]*?<\/w:txbxContent>/g, (box) => ' '.repeat(box.length));
+        for (const item of paragraphRuns(body, styles, cells[cells.length - 1]?.fill, tables.some((t) => t.styled), page)) {
+          item.ranges = item.ranges?.map(([x, y]) => [x + start, y + start]);
+          found.push(item);
+        }
       }
     }
-    findings.push(...toFindings(found, path));
-    if (findings.length >= MAX_FINDINGS) break;
+    if (found.length) out.set(path, found);
   }
-  return findings.slice(0, MAX_FINDINGS);
+  return out;
 }
 
 function paragraphRuns(
@@ -590,10 +657,12 @@ function paragraphRuns(
       }
     }
 
+    const range: [number, number] = [run.index!, run.index! + run[0].length];
     if (hidden && current && current.how === hidden.how && current.why === hidden.why) {
       current.text += text;
+      current.ranges!.push(range);
     } else if (hidden) {
-      current = { ...hidden, text };
+      current = { ...hidden, text, ranges: [range] };
       out.push(current);
     } else {
       current = undefined;

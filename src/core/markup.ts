@@ -21,7 +21,7 @@ import { collectTextContent, mapTextContent } from './xml.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { byConfidence } from './types.js';
-import { hiddenInHtml } from './hidden-text.js';
+import { hiddenInHtml, stripHiddenHtml } from './hidden-text.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
 
@@ -385,8 +385,19 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   return findings.sort(byConfidence);
 }
 
-export function redactMarkup(text: string, format: MarkupFormat): string {
+export function redactMarkup(text: string, format: MarkupFormat, options: { removeHidden?: boolean } = {}): string {
+  return redactMarkupCounted(text, format, options).text;
+}
+
+/** The cleaned markup, and how many hidden passages were taken out on request. */
+export function redactMarkupCounted(
+  text: string,
+  format: MarkupFormat,
+  { removeHidden = false }: { removeHidden?: boolean } = {},
+): { text: string; hiddenRemoved: number } {
+  const hidden = removeHidden && format !== 'svg' ? stripHiddenHtml(text) : { html: text, removed: 0 };
+  const source = hidden.html;
   const stripped =
-    format === 'svg' ? redactSvg(text) : format === 'html' ? redactHtml(text) : redactMarkdown(text);
-  return cleanBodyText(stripped, format);
+    format === 'svg' ? redactSvg(source) : format === 'html' ? redactHtml(source) : redactMarkdown(source);
+  return { text: cleanBodyText(stripped, format), hiddenRemoved: hidden.removed };
 }

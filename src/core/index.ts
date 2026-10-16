@@ -25,7 +25,7 @@ export { inspectPdf, redactPdf } from './pdf.js';
 export type { RedactPdfOptions } from './pdf.js';
 export { xrayPdf } from './xray.js';
 export type { XrayEngine, XrayRegion, XrayResult } from './xray.js';
-export { hiddenInHtml, hiddenInDocx, type HiddenHow } from './hidden-text.js';
+export { hiddenInHtml, hiddenInDocx, stripHiddenHtml, stripHiddenDocx, type HiddenHow } from './hidden-text.js';
 export { inspectOoxml, redactOoxml } from './ooxml.js';
 export type { RedactOoxmlOptions } from './ooxml.js';
 export { inspectOdf, redactOdf, isOdf } from './odf.js';
@@ -58,7 +58,7 @@ import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
-import { inspectMarkup, redactMarkup, detectMarkupFormat } from './markup.js';
+import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -309,7 +309,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
         'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
       );
     }
-    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data), hint);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden }), hint, options);
   }
 
   const image = detectImageKind(data);
@@ -326,14 +326,16 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
   const format = detectFormat(data, hint);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     const text = decodeTextInput(data, decodeOptions(hint));
-    const cleaned = redactMarkup(text, format);
+    const { text: cleaned, hiddenRemoved } = redactMarkupCounted(text, format, { removeHidden: options.removeHidden });
+    const notes: Note[] = [{ code: 'scope:markup-metadata-only' }];
+    if (hiddenRemoved) notes.push({ code: 'removed:hidden-text', detail: String(hiddenRemoved) });
     return noteSurvivors(
       {
         format,
         data: new TextEncoder().encode(cleaned),
         text: cleaned,
         removed: inspectMarkup(text, format),
-        notes: [{ code: 'scope:markup-metadata-only' }],
+        notes,
       },
       hint,
     );

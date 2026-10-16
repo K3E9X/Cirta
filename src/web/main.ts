@@ -22,6 +22,9 @@ import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
+import { HIDDEN_LABEL } from '../core/hidden-text.js';
+
+const HIDDEN_LABELS = new Set(Object.values(HIDDEN_LABEL));
 import {
   preview,
   type Confidence,
@@ -72,24 +75,25 @@ function warmWorker(): void {
   else setTimeout(() => ensureWorker(), 200);
 }
 
-function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string): Promise<T> {
+function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string, removeHidden = false): Promise<T> {
   const id = nextRequestId++;
   // A copy is transferred so the caller keeps its own bytes for a later redact.
   const buffer = data.slice().buffer;
   return new Promise<T>((resolve, reject) => {
     pending.set(id, { resolve: resolve as (value: never) => void, reject });
-    ensureWorker().postMessage({ id, op, data: buffer, hint } satisfies WorkerRequest, [buffer]);
+    ensureWorker().postMessage({ id, op, data: buffer, hint, removeHidden } as WorkerRequest, [buffer]);
   });
 }
 
 const inspectFile = (data: Uint8Array, hint?: string): Promise<{ result: InspectResult; hidden: XrayRegion[] }> =>
   ask<{ result: InspectResult; hidden: XrayRegion[] }>('inspect', data, hint);
 
-const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult> => {
+const redactFile = async (data: Uint8Array, hint?: string, removeHidden = false): Promise<RedactResult> => {
   const reply = await ask<{ result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }>(
     'redact',
     data,
     hint,
+    removeHidden,
   );
   return { ...reply.result, ...(reply.data ? { data: new Uint8Array(reply.data) } : {}) };
 };
@@ -687,13 +691,27 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         );
       } else {
         const foot = el('div', 'card-foot');
+        // Taking hidden text out changes the document, which nothing else in a
+        // clean does, so it is offered where it applies and never assumed.
+        const hiddenCount = result.findings.filter(
+          (f) => HIDDEN_LABELS.has(f.label) && f.confidence === 'confirmed',
+        ).length;
+        const offerRemoval = hiddenCount > 0 && (result.format === 'docx' || result.format === 'html' || result.format === 'markdown');
+        const removeHidden = el('input');
+        removeHidden.type = 'checkbox';
+        if (offerRemoval) {
+          const label = el('label', 'foot-option');
+          label.append(removeHidden, document.createTextNode(t().removeHiddenOption(hiddenCount)));
+          foot.append(label);
+        }
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
           button.textContent = t().cleaning;
           node.classList.add('is-cleaning');
           try {
-            const redacted = await redactFile(data, formatHint(file.name));
+            const redacted = await redactFile(data, formatHint(file.name), removeHidden.checked);
+            removeHidden.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));
@@ -709,7 +727,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             // place. Dropping those on the floor would make the browser claim
             // more than the CLI does for the same file.
             const fresh = redacted.notes.filter(
-              (n) => n.code === 'removed:c2pa' || n.code.startsWith('kept:'),
+              (n) => n.code === 'removed:c2pa' || n.code === 'removed:hidden-text' || n.code.startsWith('kept:'),
             );
             if (fresh.length) appendNotes(node, fresh);
           } catch (error) {

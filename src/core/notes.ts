@@ -39,6 +39,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:hidden-text': (detail) =>
+    `Removed ${detail ?? 'the'} hidden passage${detail === '1' ? '' : 's'} a reader could not see — the text, not the formatting around it. Text that is only faint, and anything listed as probable, was left: it may be meant to be seen.`,
   'limit:hidden-text-doubtful': (detail) =>
     `Most of the text on page ${detail ?? '?'} drew no ink. Either the page is built to hide it, or it uses a font or an image this check cannot draw; the pixels cannot tell the two apart, so what is listed there is marked probable. Open the page and compare.`,
 };
@@ -69,6 +71,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:hidden-text': (detail) =>
+    `${detail === '1' ? 'Passage caché retiré' : `${detail ?? 'Les'} passages cachés retirés`} — le texte qu'un lecteur ne voyait pas, pas la mise en forme autour. Le texte seulement pâle, et ce qui est listé comme probable, a été laissé : il est peut-être fait pour être vu.`,
   'limit:hidden-text-doubtful': (detail) =>
     `La majeure partie du texte de la page ${detail ?? '?'} n'a laissé aucune encre. Soit la page est faite pour le cacher, soit elle utilise une police ou une image que ce contrôle ne sait pas dessiner ; les pixels ne permettent pas de trancher, donc ce qui y est listé est marqué probable. Ouvrez la page et comparez.`,
 };

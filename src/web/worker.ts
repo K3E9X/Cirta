@@ -47,7 +47,7 @@ const mayRender = (bytes: Uint8Array): boolean =>
 
 export type WorkerRequest =
   | { id: number; op: 'inspect'; data: ArrayBuffer; hint?: string }
-  | { id: number; op: 'redact'; data: ArrayBuffer; hint?: string };
+  | { id: number; op: 'redact'; data: ArrayBuffer; hint?: string; removeHidden?: boolean };
 
 export type WorkerResponse =
   | { id: number; ok: true; op: 'inspect'; result: InspectResult; hidden: XrayRegion[] }
@@ -56,6 +56,7 @@ export type WorkerResponse =
 
 self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const { id, op, data, hint } = event.data;
+  const removeHidden = event.data.op === 'redact' && event.data.removeHidden === true;
   try {
     const bytes = new Uint8Array(data);
     const engine = mayRender(bytes) ? await xray : undefined;
@@ -69,7 +70,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       return;
     }
 
-    const { data: redacted, ...rest } = await redactFile(bytes, hint, { xray: engine });
+    const { data: redacted, ...rest } = await redactFile(bytes, hint, { xray: engine, removeHidden });
     // The buffer is transferred rather than copied: a redacted file can be tens
     // of megabytes and structured cloning it twice is pure waste.
     const buffer = redacted ? redacted.slice().buffer : undefined;

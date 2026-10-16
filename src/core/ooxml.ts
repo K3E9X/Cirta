@@ -21,7 +21,7 @@ import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
-import { hiddenInDocx } from './hidden-text.js';
+import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import {
   getElementText,
   setElementText,
@@ -628,6 +628,8 @@ export interface RedactOoxmlOptions {
   stripMedia?: boolean;
   /** Remove invisible characters from the document's visible text. Default true. */
   cleanBodyText?: boolean;
+  /** Remove Word runs a reader cannot see: hidden, page-coloured, under 2 pt. Default false. */
+  removeHidden?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -702,6 +704,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     anonymizeAuthors = true,
     stripMedia = true,
     cleanBodyText = true,
+    removeHidden = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -766,6 +769,11 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
       }
       if (xml !== before) parts[path] = strToU8(xml);
     }
+  }
+
+  if (removeHidden && format === 'docx') {
+    const removed = stripHiddenDocx(parts);
+    if (removed) notes.push({ code: 'removed:hidden-text', detail: String(removed) });
   }
 
   if (cleanBodyText) {

@@ -139,7 +139,9 @@ export type NoteCode =
   /** Hidden-text rendering stopped at a page or time limit. */
   | 'limit:hidden-text-truncated'
   /** Most of a page's text drew no ink: hidden on purpose, or not drawable here. */
-  | 'limit:hidden-text-doubtful';
+  | 'limit:hidden-text-doubtful'
+  /** Text a reader could not see was taken out, on request. */
+  | 'removed:hidden-text';
 
 export interface Note {
   code: NoteCode;
@@ -156,6 +158,12 @@ export interface InspectOptions {
   xray?: XrayEngine;
   /** Pictures of what was found hidden, for an interface to show. Never in the report itself. */
   onHidden?: (regions: XrayRegion[]) => void;
+  /**
+   * Cleaning only: also take out text a reader cannot see, in the formats that
+   * mark it (Word, HTML, Markdown). Off by default — it changes what the
+   * document contains, which the rest of the cleaning never does.
+   */
+  removeHidden?: boolean;
 }
 
 export interface InspectResult {

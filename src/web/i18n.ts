@@ -205,6 +205,8 @@ const FR = {
   xrayReader: 'Vue lecteur',
   xrayModel: 'Vue IA',
   xrayPicture: (page: number) => `Rendu de la page ${page} à l’endroit du texte caché`,
+  removeHiddenOption: (n: number) =>
+    n > 1 ? `Retirer aussi les ${n} passages cachés` : 'Retirer aussi le passage caché',
 } as const;
 
 type Strings = {
@@ -389,6 +391,7 @@ const EN: Strings = {
   xrayReader: 'Reader view',
   xrayModel: 'Model view',
   xrayPicture: (page) => `Page ${page}, rendered where the hidden text sits`,
+  removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),
 };
 
 const STORAGE_KEY = 'cirta:lang';
