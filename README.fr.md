@@ -5,10 +5,13 @@
 Inspecte et retire les métadonnées de provenance des **PDF, documents Office et OpenDocument, SVG,
 HTML et Markdown**, l'**Exif des images intégrées**, et les **caractères Unicode invisibles** dans le
 texte. Reconstitue aussi les **traces de l'outil producteur** — assistant nommé, système, nom de
-compte, répertoire de travail. Disponible en interface web et en ligne de commande.
+compte, répertoire de travail — et retrouve le **texte qu'un lecteur ne voit pas mais qu'une IA lit** :
+sous un rectangle noir, blanc sur blanc, trop petit, hors de la page. Disponible en interface web et en
+ligne de commande.
 
-Tout s'exécute localement. L'interface web ne fait aucune requête réseau : aucun document ne quitte
-votre machine.
+Tout s'exécute localement. L'interface web ne fait aucune requête réseau — sa politique de sécurité
+(CSP), `connect-src 'none'`, les lui interdit, ce que vous pouvez vérifier en affichant le code source
+plutôt que de nous croire sur parole. Aucun document ne quitte votre machine.
 
 ## ▸ [Utilisez-le maintenant — k3e9x.github.io/Cirta](https://k3e9x.github.io/Cirta/)
 
@@ -44,6 +47,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | **Auteurs d'annotations PDF** | `/T` sur chaque note, surlignage et commentaire de relecture nomme qui l'a écrit. Le nettoyage le retire, avec `/M` et `/CreationDate` — quand il l'a écrit — de chaque annotation, réponses comprises. Le texte du commentaire reste : c'est ce que quelqu'un a choisi d'écrire, pas ce que le fichier dit de lui |
 | **Images générées** | Chunks `parameters`, `prompt` et `workflow` de Stable Diffusion web UI, ComfyUI et InvokeAI — **le prompt, le modèle et la seed voyagent avec le fichier** |
 | **Ce qu'une réponse de chat laisse dans un e-mail** | Les phrases qu'un assistant *vous* adressait — « Bien sûr ! Voici une proposition : » au-dessus de la salutation, « N'hésitez pas à me dire si vous souhaitez que j'ajuste le ton » sous la signature — signalées seulement quand la position et la formulation concordent, si bien que « Voici le rapport demandé » et « N'hésitez pas à me contacter » dans un vrai e-mail restent silencieux. Les champs de modèle non remplis comme `[Votre nom]`, la ligne d'objet recopiée dans le corps, et le Markdown qu'un client mail affiche en symboles (`**gras**`, `## titres`, `[libellé](url)`). Le nettoyage retire le Markdown — sauf si le texte se lit comme un document Markdown — et vous laisse les phrases et les champs, avec un bouton pour retirer les phrases : ce sont des mots, c'est à vous de trancher |
+| **Le texte qu'un lecteur ne voit pas, et qu'une IA lit** | Les pages PDF sont **rendues** et chaque lettre est vérifiée : y a-t-il de l'encre ? Texte sous une forme, de la couleur de la page ou en mode invisible, trop pâle, trop petit, ou au-delà du bord. Dans Word, HTML, Markdown, e-mail et HTML collé, le balisage est lu : passages masqués, `display: none`, couleur sur son propre fond, police d'un pixel. La page web montre chaque ligne cachée telle que la page la dessine, puis telle qu'une IA la lit. [Détails](#le-texte-quun-lecteur-ne-voit-pas-et-quune-ia-lit) |
 | **Ce que le presse-papiers emporte** | Coller dans l'onglet Texte lit aussi la version HTML que le presse-papiers proposait à côté du texte : les noms de classes et attributs `data-` de la page d'où il a été copié, les polices et styles en ligne, un `generator` qu'il nomme, et l'adresse de la page quand le presse-papiers l'enregistre. Un éditeur d'e-mail riche garde une partie de ce balisage quand on y colle directement ; l'onglet ne garde que le texte, et « Copier le texte nettoyé » ne remet que du texte dans le presse-papiers. Aucune application n'est nommée sauf si le HTML la nomme lui-même — un nom de classe est montré, pas interprété |
 | **Alphanumériques mathématiques** | 𝘂𝗿𝗴𝗲𝗻𝘁 se lit « urgent » pour une personne et ne correspond à rien pour un filtre ou une recherche. Signalés avec ce à quoi ils se replient, jamais réécrits — dans une formule, la notation est le sens |
 | **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
@@ -399,6 +403,64 @@ Un détail qui a coûté un aller-retour : beaucoup de producteurs écrivent leu
 suivie d'une tabulation verticale — le caractère recherché, détruit silencieusement. La présence d'un
 octet NUL, impossible dans une vraie chaîne mono-octet, sert donc à reconnaître cette forme.
 
+### Le texte qu'un lecteur ne voit pas, et qu'une IA lit
+
+Une IA à qui l'on donne un document lit son texte, pas ses pixels. Un index de recherche aussi, un
+lecteur d'écran aussi, et tout outil « résume-moi ça ». Une phrase sous un rectangle noir, en blanc sur
+une page blanche, dans le mode de texte invisible du PDF, à un demi-point ou au-delà du bord de la page
+est absente pour une personne et entièrement présente pour tous ceux-là. C'est ainsi que des consignes
+destinées à des relecteurs IA ont été cachées dans des prépublications scientifiques en 2025, qu'un CV
+glisse une ligne à un tri automatisé, et qu'un caviardage échoue.
+
+**PDF — la page est rendue, puis regardée.** Cirta rend chaque page avec
+[PDF.js](https://github.com/mozilla/pdf.js) et demande, lettre par lettre, s'il y a de l'encre là où la
+couche texte dit qu'il y a du texte. C'est la méthode de
+[x-ray](https://github.com/freelawproject/x-ray), l'outil de Free Law Project qui cherche les
+caviardages ratés, appliquée d'un coup à toutes les façons de cacher du texte ; aucun code n'en est
+repris (x-ray est en Python et dépend de PyMuPDF, sous AGPL). Le rendu pose la question à laquelle
+répondent les yeux d'un lecteur : un chemin de détourage, une image blanche ou un XObject n'ont pas
+besoin d'une règle à eux.
+
+| Signalé | Niveau |
+|---|---|
+| Texte recouvert par une forme | confirmé |
+| Texte qui n'apparaît pas sur la page — couleur de la page, mode de texte invisible, image blanche posée dessus | confirmé |
+| Texte trop pâle pour être lu — contraste sous 1,5:1 avec ce qui est derrière, comme `#ddd` sur blanc ou `#222` sur noir | probable |
+| Texte trop petit pour être lu — moins de 2 pt | probable |
+| Texte placé hors de la page — que PDF.js écarte lui-même de son extraction ; il est lu sur une copie aux pages agrandies | confirmé |
+
+Ce qui ressemble à du masquage sans en être reste muet, et c'est testé : la couche OCR d'une page
+scannée, qui est du texte invisible posé sur l'image des mêmes mots (les décodeurs JBIG2 et JPEG 2000
+sont embarqués pour que l'image soit dessinée) ; un titre blanc sur un bandeau sombre ; un surlignage ;
+un gris clair lisible ; un texte pivoté ; les points de conduite d'une table des matières. L'encre est
+mesurée comme un contraste avec ce qui est derrière chaque lettre, dans la bande qui va de la ligne de
+base aux deux tiers d'un cadratin, et les passages cachés sont recalés sur des mots entiers. Une page
+où la majeure partie d'un long texte n'a laissé aucune encre est notée probable, avec une note : soit
+elle est faite pour cacher, soit elle utilise une police ou une image que ce contrôle ne sait pas
+dessiner, et les pixels ne permettent pas de trancher.
+
+La page web montre chaque ligne cachée : une bande de la page rendue — une barre noire, un blanc dans
+un paragraphe — puis la ligne de lecture la traverse et y laisse ce que lit une IA. Le rendu s'arrête
+après 30 pages ou 8 secondes, et le dit. En ligne de commande, il faut `@napi-rs/canvas`, une
+dépendance optionnelle livrée précompilée ; si elle manque, le rapport dit que le contrôle n'a pas
+tourné, au lieu de laisser croire qu'il n'a rien trouvé. Le nettoyage ne retire pas le texte caché —
+c'est du contenu — et la ré-inspection le liste comme toujours présent dans la copie nettoyée.
+
+**Word, HTML, e-mail et presse-papiers — le balisage le dit.** Dans un DOCX : les passages mis en forme
+« masqué » (`w:vanish`), de la couleur de leur fond (surlignage, trame de paragraphe, remplissage de
+cellule, fond de page) ou sous 2 pt, dans le corps, les en-têtes, les pieds de page et les notes, en
+suivant les styles nommés. Un tableau mis en forme par un style de tableau peut colorer ses cellules
+depuis `styles.xml` — la ligne d'en-tête sombre de presque tous les rapports générés — donc là, sans
+remplissage propre, la couleur n'est pas jugée. En HTML — fichiers `.html`, HTML intégré au Markdown,
+HTML du presse-papiers, et partie `text/html` d'un `.eml`, quoted-printable compris : `display: none`,
+`visibility: hidden`, `opacity: 0`, `mso-hide: all`, hauteur nulle avec `overflow: hidden`, une couleur
+sur son propre fond, une police d'un pixel, un texte poussé hors de l'écran. Styles en ligne
+seulement : les règles d'un bloc `<style>` ne sont pas lues, donc un constat de couleur sur une page qui
+en contient est noté probable sauf si le balisage écrit les deux couleurs, et l'attribut `hidden` —
+qui sert aussi à garder un onglet fermé — est probable. Taille et couleur sont jugées morceau de texte
+par morceau de texte : la cellule de mise en page à taille nulle d'un modèle d'e-mail, dont le contenu
+fixe sa propre taille, n'est pas signalée. PowerPoint n'est pas encore couvert.
+
 ### Ce qu'un PDF peut révéler sur sa génération
 
 Sur un PDF produit par une chaîne LLM typique, le rapport ressemble à ceci :
@@ -750,6 +812,14 @@ Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décom
 commande se comparent sans traduction. L'analyse tourne dans un *worker* : un PDF volumineux ne fige
 pas l'onglet, et un worker reste un fil d'exécution de la même page, pas une autre machine.
 
+« Aucune requête réseau » est imposé, pas promis. La page publiée porte une politique de sécurité
+(CSP) avec `connect-src 'none'` : le navigateur refuse tout fetch, XHR, WebSocket ou beacon venant
+d'elle. Un worker n'hérite pas de la politique de la page, et ce worker exécute PDF.js, qui contient
+son propre code réseau que Cirta n'appelle jamais ; avant de charger quoi que ce soit, le worker retire
+donc `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` et `WebTransport` de sa propre portée. Le
+moteur de rendu PDF est un fichier séparé que le worker demande dès son démarrage, pendant que la page
+est au repos — coupez le réseau ensuite, et tout fonctionne encore.
+
 Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les flèches
 (et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux.
 
@@ -762,9 +832,12 @@ npm run dev:web
 
 ## Ligne de commande
 
-Fonctionne sur **Windows, Linux et macOS**, sur Node 20 et 22. La CI exécute la suite de tests et un
-scénario de bout en bout du binaire sur les trois systèmes à chaque commit — la portabilité est
-vérifiée, pas supposée.
+Fonctionne sur **Windows, Linux et macOS**, avec Node 22.13 ou plus récent (la CI teste 22 et 24 ;
+PDF.js 6 exige 22.13). La CI exécute la suite de tests et un scénario de bout en bout du binaire sur
+les trois systèmes à chaque commit — la portabilité est vérifiée, pas supposée. La recherche de texte
+caché dans les PDF rend les pages avec `@napi-rs/canvas`, une dépendance optionnelle installée
+précompilée ; sans elle, tout le reste fonctionne et le rapport indique que les pages n'ont pas été
+rendues.
 
 ```bash
 npm install
@@ -1084,4 +1157,6 @@ Travaux cités dans ce README :
 
 ## Licence
 
-MIT.
+MIT. Le site embarque aussi PDF.js (Apache-2.0) avec ses polices Foxit et ses décodeurs JBIG2 et
+OpenJPEG (licences de type BSD), pdf-lib et fflate (MIT) ; leurs mentions sont publiées à côté, dans
+[`third-party-licenses.txt`](https://k3e9x.github.io/Cirta/third-party-licenses.txt).

@@ -5,10 +5,12 @@
 Inspects and strips provenance metadata from **PDF, Office and OpenDocument files, SVG, HTML and
 Markdown**, the **Exif in embedded pictures**, and the **invisible Unicode** in text. It also
 reconstructs the **traces the producing tool left** — assistant named, operating system, account
-name, working directory. Available as a web interface and a command line.
+name, working directory — and finds the **text a reader cannot see but a model reads**: under a black
+box, white on white, too small, off the page. Available as a web interface and a command line.
 
-Everything runs locally. The web interface makes no network requests: no document leaves your
-machine.
+Everything runs locally. The web interface makes no network requests — its Content-Security-Policy,
+`connect-src 'none'`, forbids them, which you can check with "view source" rather than take on trust.
+No document leaves your machine.
 
 ## ▸ [Use it now — k3e9x.github.io/Cirta](https://k3e9x.github.io/Cirta/)
 
@@ -40,6 +42,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | Text and source files | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… and dotfiles (`.env`, `.npmrc`, `.netrc`) — same checks, same removal. A bidirectional control in source is the **Trojan Source** case (CVE-2021-42574) |
 | Credentials | Anthropic, OpenAI, Google, Hugging Face, GitHub, **AWS**, Slack, Stripe keys; **PEM private key blocks**; call identifiers and LLM endpoints. Only patterns that cannot occur in ordinary prose — never a product name |
 | **Earlier PDF revisions** | A PDF saved incrementally keeps every previous version inside the file. Text covered by a black box and saved is still readable underneath — the mechanism behind most published redaction failures. **The text an earlier revision still holds is recovered and quoted**, not merely counted: each earlier revision is parsed as the document it was and compared with the current one, so what reaches the report is what someone deleted and believed was gone. Linearised files are discounted so "fast web view" is not mistaken for an update |
+| **Text a reader cannot see, which a model reads** | PDF pages are **rendered** and every letter is checked for ink: text under a shape, in the page's colour or the invisible mode, too faint, too small, or past the page edge. In Word, HTML, Markdown, mail and pasted HTML, the markup is read for hidden runs, `display: none`, colour on its own background and one-pixel fonts. The web page shows each hidden line as the page draws it, then as a model reads it. [Details](#text-a-reader-cannot-see-which-a-model-reads) |
 | **Content a package still holds** | Cropped pictures (`a:srcRect` changes which rectangle is shown; the full image stays), pivot caches (a copy of the source rows survives deleting the sheet), and hidden or `veryHidden` worksheets |
 | **PDF annotation authors** | `/T` on every sticky note, highlight and review comment names who wrote it. Cleaning removes it, with `/M` and `/CreationDate` — when they wrote it — from every annotation, replies included. The comment text stays: it is what someone chose to write, not what the file says about them |
 | **Generated images** | `parameters`, `prompt` and `workflow` chunks from Stable Diffusion web UI, ComfyUI and InvokeAI — **the prompt, the model and the seed travel with the file** |
@@ -371,6 +374,58 @@ One detail that cost a round trip: many producers write their strings in UTF-16B
 order mark**. Read as Latin-1, a zero-width space becomes a space followed by a vertical tab — the
 character being looked for, silently destroyed. The presence of a NUL byte, impossible in a real
 single-byte string, is therefore used to recognise that shape.
+
+### Text a reader cannot see, which a model reads
+
+A model given a document reads its text, not its pixels. So does a search index, a screen reader and
+every "summarise this" tool. A sentence under a black rectangle, in white on a white page, in PDF's
+invisible text mode, at half a point or past the edge of the page is absent for a person and entirely
+there for all of those. That is how instructions to AI reviewers were hidden in research preprints in
+2025, how a CV slips a line to an automated screener, and how a redaction fails.
+
+**PDF — the page is rendered and looked at.** Cirta renders each page with
+[PDF.js](https://github.com/mozilla/pdf.js) and asks, letter by letter, whether there is any ink where
+the text layer says there is text. It is the method of Free Law Project's
+[x-ray](https://github.com/freelawproject/x-ray), which looks for bad redactions, applied to every way
+of hiding text at once; no code is taken from it (x-ray is Python and depends on PyMuPDF, which is
+AGPL). Rendering asks the question a reader's eyes answer, so a clipping path, a white image or a form
+XObject needs no rule of its own.
+
+| Reported | How it is graded |
+|---|---|
+| Text covered by a shape | confirmed |
+| Text that does not show on the page — the page's colour, the invisible text mode, a white image over it | confirmed |
+| Text too faint to read — contrast under 1.5:1 with what is behind it, such as `#ddd` on white or `#222` on black | probable |
+| Text too small to read — under 2 pt | probable |
+| Text placed outside the page — which PDF.js itself leaves out of its extraction, so it is read from a copy with enlarged page boxes | confirmed |
+
+What looks like hiding and is not stays silent, and is tested: the OCR layer of a scanned page, which
+is invisible text over a picture of the same words (the JBIG2 and JPEG 2000 decoders are bundled so
+the picture is drawn); a white heading on a dark banner; a highlight; legible light grey; rotated
+text; dot leaders in a table of contents. Ink is measured as contrast with what is behind each letter,
+in the band from the baseline to two thirds of an em, and hidden runs are snapped to whole words. A
+page where most of a long text drew no ink is graded probable, with a note: it is either built to
+hide, or uses a font or image this check cannot draw, and pixels cannot tell the two apart.
+
+The web page shows each hidden line: a strip of the rendered page — a black bar, a gap in a paragraph
+— then the reading line crosses it and leaves what a model reads. Rendering stops after 30 pages or
+8 seconds, and says so. On the command line it needs `@napi-rs/canvas`, an optional dependency with
+prebuilt binaries; where it is missing, the report says the check did not run rather than implying it
+found nothing. Cleaning does not remove hidden text — it is content — and re-inspection lists it as
+still in the cleaned copy.
+
+**Word, HTML, mail and the clipboard — the markup says so.** In a DOCX: runs formatted as hidden
+(`w:vanish`), coloured as their background (highlight, paragraph shading, cell fill, page background)
+or set under 2 pt, in the body, headers, footers and notes, following named styles. A table laid out
+by a table style can colour its cells from `styles.xml` — the dark header row of nearly every generated
+report — so there, without a fill of its own, colour is not judged. In HTML — `.html` files, the inline
+HTML of Markdown, clipboard HTML, and the `text/html` part of a `.eml` through quoted-printable:
+`display: none`, `visibility: hidden`, `opacity: 0`, `mso-hide: all`, zero height with
+`overflow: hidden`, a colour on its own background, a one-pixel font, text pushed off-screen. Inline
+styles only: rules in a `<style>` block are not read, so a colour finding on a page that has them is
+graded probable unless the markup wrote both colours, and the `hidden` attribute — also how a page
+keeps a tab panel — is probable. Size and colour are judged per piece of text: a mail template's
+zero-size layout cell, whose content sets its own size, is not reported. PowerPoint is not covered yet.
 
 ### What a PDF can reveal about its generation
 
@@ -707,6 +762,14 @@ CLI's `Summary` line — with a JSON export of the report. That export has exact
 compare without translation. Analysis runs in a *worker*: a large PDF does not freeze the tab, and a
 worker is another thread of the same page, not another machine.
 
+"No network requests" is enforced, not promised. The built page carries a Content-Security-Policy
+with `connect-src 'none'`, so the browser refuses any fetch, XHR, WebSocket or beacon from it. A
+worker does not inherit a page's policy, and the worker runs PDF.js, which has network code of its
+own that Cirta never calls; so before loading anything the worker removes `fetch`, `XMLHttpRequest`,
+`WebSocket`, `EventSource` and `WebTransport` from its own scope. The PDF renderer is a separate
+chunk the worker requests as soon as it starts, while the page is idle — disconnect after that and
+everything still works.
+
 The tabs follow ARIA practice: one stop in the tab order, arrow keys (and <kbd>Home</kbd>/<kbd>End</kbd>)
 move between them.
 
@@ -719,8 +782,11 @@ npm run dev:web
 
 ## Command line
 
-Works on **Windows, Linux and macOS**, on Node 20 and 22. CI runs the test suite and an end-to-end
-scenario of the binary on all three systems at every commit — portability is verified, not assumed.
+Works on **Windows, Linux and macOS**, on Node 22.13 or later (CI runs 22 and 24; PDF.js 6 requires
+22.13). CI runs the test suite and an end-to-end scenario of the binary on all three systems at every
+commit — portability is verified, not assumed. Finding hidden text in PDFs renders pages with
+`@napi-rs/canvas`, an optional dependency installed with a prebuilt binary; without it, everything
+else works and the report says the pages were not rendered.
 
 ```bash
 npm install
@@ -1030,4 +1096,6 @@ Work cited in this README:
 
 ## Licence
 
-MIT.
+MIT. The site also ships PDF.js (Apache-2.0) with its Foxit fonts and its JBIG2 and OpenJPEG decoders
+(BSD-style licences), pdf-lib and fflate (MIT); their notices are published beside it as
+[`third-party-licenses.txt`](https://k3e9x.github.io/Cirta/third-party-licenses.txt).
