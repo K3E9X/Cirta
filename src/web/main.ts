@@ -33,8 +33,13 @@ import {
 
 /**
  * Analysis runs in a worker so a large PDF or archive cannot freeze the tab.
- * The worker is created on first use rather than at load, so a visitor who only
- * uses the text panel never pays for it.
+ *
+ * It is warmed as soon as the page is idle, not on the first file. The page
+ * tells people they can disconnect before starting and everything will work
+ * the same; with the worker fetched on first use, that was false — load the
+ * page, go offline, drop a file, and the worker script could not be fetched.
+ * Warming it once the page is usable keeps the promise at the cost of a
+ * download the visitor never waits on.
  */
 let worker: Worker | undefined;
 let nextRequestId = 0;
@@ -50,11 +55,20 @@ function ensureWorker(): Worker {
     if (event.data.ok) entry.resolve(event.data as never);
     else entry.reject(new Error(event.data.error));
   });
-  worker.addEventListener('error', (event) => {
-    for (const [, entry] of pending) entry.reject(new Error(event.message || 'worker failed'));
+  worker.addEventListener('error', () => {
+    // A worker that failed to load stays failed; forgetting it lets the next
+    // file try again once the network is back, instead of failing forever.
+    worker = undefined;
+    for (const [, entry] of pending) entry.reject(new Error(t().workerUnavailable));
     pending.clear();
   });
   return worker;
+}
+
+function warmWorker(): void {
+  const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
+  if (idle) idle(() => ensureWorker());
+  else setTimeout(() => ensureWorker(), 200);
 }
 
 function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string): Promise<T> {
@@ -877,3 +891,5 @@ setupFiles();
 setupText();
 // Two frames, so layout has settled and the chips' positions are final.
 requestAnimationFrame(() => requestAnimationFrame(playReveal));
+if (document.readyState === 'complete') warmWorker();
+else addEventListener('load', warmWorker, { once: true });

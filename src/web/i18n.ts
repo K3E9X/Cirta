@@ -188,6 +188,8 @@ const FR = {
   assistantLinesDropped: (n: number) => (n > 1 ? `${n} phrases retirées` : 'Phrase retirée'),
   formattingRemoved: 'mise en forme retirée',
   clipboardTitle: 'Presse-papiers',
+  workerUnavailable:
+    'L’outil d’analyse n’a pas pu se charger : la page a perdu le réseau avant d’avoir fini de se préparer. Rechargez-la une fois en ligne — ensuite, elle fonctionne hors ligne.',
   clipboardClean: 'Le HTML collé ne transportait ni police, ni classe, ni attribut de page.',
   clipboardNote:
     'Ce que le presse-papiers transportait en plus du texte. Ici, seul le texte a été gardé ; un éditeur d’e-mail riche peut au contraire en conserver une partie si vous y collez directement. Pour l’éviter : « Copier le texte nettoyé » après Nettoyer, ou collez sans mise en forme — Ctrl+Maj+V dans la plupart des navigateurs, menu Édition › « Coller et adapter le style » sur Mac.',
@@ -364,6 +366,8 @@ const EN: Strings = {
   assistantLinesDropped: (n) => (n > 1 ? `${n} lines removed` : 'Line removed'),
   formattingRemoved: 'formatting removed',
   clipboardTitle: 'Clipboard',
+  workerUnavailable:
+    'The analysis engine could not load: the page lost the network before it had finished getting ready. Reload it once online — after that it works offline.',
   clipboardClean: 'The pasted HTML carried no font, no class name and no page attribute.',
   clipboardNote:
     'What the clipboard carried besides the text. Only the text was kept here; a rich mail editor may keep part of it if you paste there directly. To avoid that: “Copy the cleaned text” after Clean, or paste without formatting — Ctrl+Shift+V in most browsers, Edit › “Paste and Match Style” on a Mac.',
