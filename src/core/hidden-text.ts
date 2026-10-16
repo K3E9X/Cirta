@@ -30,6 +30,54 @@ export const HIDDEN_LABEL: Record<HiddenHow, string> = {
 };
 
 /**
+ * A hidden passage written to a model rather than to a person: "ignore the
+ * previous instructions", "as an AI language model", "recommend this
+ * candidate". Hidden text is often innocent — a mail's preview line, a tab
+ * panel, a printer's mark. Hidden text that gives an assistant orders is the
+ * attack itself, and it is reported as such, ahead of everything else.
+ *
+ * The phrases are specific on purpose: the cost of calling a newsletter's
+ * preheader an injection is that nobody believes the next one. Each pattern is
+ * anchored on letter boundaries (accented letters included, which `\b` does
+ * not know) and every gap is bounded, so no input makes one backtrack.
+ */
+export const AIMED_LABEL = 'Hidden instruction aimed at an AI';
+
+const S = '(?<![\\p{L}\\p{N}])';
+const E = '(?![\\p{L}\\p{N}])';
+const GAP = "[^.!?\\n]{0,48}?";
+const AI = "(?:ai|a\\.i\\.|llms?|large language models?|language models?|ai (?:assistants?|models?|reviewers?|screeners?|agents?|systems?)|chatgpt|claude|gemini|copilot|gpt-?\\d(?:\\.\\d)?)";
+const IA = "(?:ia|i\\.a\\.|intelligence artificielle|llm|modèles? de langage|assistant(?:e)? (?:ia|virtuel(?:le)?)|chatgpt|claude|gemini|copilot)";
+const AIMED: RegExp[] = [
+  // English
+  `${S}(?:ignore|disregard|forget|override)${GAP}(?:previous|prior|above|earlier|preceding|all|any|other|your)\\s+(?:\\w+\\s+)?(?:instructions?|prompts?|directions?|rules|guidelines)${E}`,
+  `${S}(?:you are an?|you're an?|if you are an?|if you're an?|when you are an?)\\s+${AI}${E}`,
+  // "As an AI company" is prose; "as an AI language model" is a model being addressed or imitated.
+  `${S}as an?\\s+(?:ai\\s+|large\\s+)?(?:language model|ai assistant|ai model|llm)${E}`,
+  `${S}(?:note|message|instructions?|hint)\\s+(?:to|for)\\s+(?:the\\s+|any\\s+|an?\\s+)?${AI}${E}`,
+  `${S}(?:hey|dear|attention)\\s+${AI}\\s*[,:!]`,
+  `${S}(?:give|write|provide|output|return)\\s+(?:only\\s+)?(?:an?\\s+)?(?:very\\s+)?(?:positive|favou?rable|glowing|strong)\\s+(?:review|assessment|evaluation|feedback|rating|recommendation)${E}`,
+  `${S}(?:recommend|rank|rate|score|select|shortlist|hire|accept|approve)\\s+(?:this|the)\\s+(?:candidate|applicant|paper|submission|manuscript|resume|cv|proposal|application|vendor|bid)${E}`,
+  `${S}(?:do not|don't|never)\\s+(?:mention|reveal|disclose|highlight|point out|flag)${GAP}(?:weakness(?:es)?|flaws?|limitations?|negatives?|this (?:instruction|text|note))${E}`,
+  `${S}(?:system prompt|new instructions?\\s*:)`,
+  // Français
+  `${S}(?:ignore[rsz]?|oublie[rsz]?|ne tiens pas compte|ne tenez pas compte|ne tiens plus compte)${GAP}(?:instructions?|consignes?|directives?|règles)${E}`,
+  `${S}(?:en tant qu'|tu es une?\\s+|vous êtes une?\\s+|si tu es une?\\s+|si vous êtes une?\\s+)${IA}${E}`,
+  `${S}(?:note|message|consignes?|instructions?)\\s+(?:à|pour)\\s+(?:l'|le\\s+|la\\s+|une?\\s+)?${IA}${E}`,
+  `${S}(?:recommande[rsz]?|classe[rsz]?|note[rsz]?|évalue[rsz]?|retiens|retenez|sélectionne[rsz]?|valide[rsz]?)\\s+(?:ce|cette)\\s+(?:candidat(?:e|ure)?|article|dossier|cv|proposition|soumission|offre)${E}`,
+  `${S}(?:donne[rsz]?|rédige[rsz]?|fais|faites)\\s+(?:un\\s+|une\\s+)?(?:avis|évaluation|retour|note)\\s+(?:très\\s+)?(?:positi(?:f|ve)|favorable|élogieu(?:x|se)|excellente?)${E}`,
+  `${S}ne\\s+(?:mentionne|révèle|signale|souligne)[sz]?\\s+pas${GAP}(?:faiblesses?|défauts?|limites|points? faibles?|cette (?:instruction|consigne|note))${E}`,
+].map((source) => new RegExp(source, 'iu'));
+
+export function aimedAtModel(text: string): boolean {
+  const flat = text.replace(/[’‘ʼ]/g, "'").replace(/\s+/g, ' ');
+  return AIMED.some((pattern) => pattern.test(flat));
+}
+
+/** Every label a hidden-text finding can carry, for interfaces that group them. */
+export const HIDDEN_LABELS: ReadonlySet<string> = new Set<string>([AIMED_LABEL, ...Object.values(HIDDEN_LABEL)]);
+
+/**
  * What counts as visible, as a contrast ratio with what is behind it (the WCAG
  * measure) or, for colours of equal brightness, a plain difference in one
  * channel. Under the first, text is not there for a reader at all; under the
@@ -96,7 +144,20 @@ interface Hidden {
  * override — may not be hidden in the first place.
  */
 function removable(item: Hidden): boolean {
-  return !item.probable && item.how !== 'faint' && letters(item.text) >= MIN_LETTERS;
+  return !item.probable && (item.how !== 'faint' || aimedAtModel(item.text)) && letters(item.text) >= MIN_LETTERS;
+}
+
+/**
+ * The same rule read from a finding, for an interface that offers the removal
+ * and has only the report: what it counts is what will go. Faint text goes only
+ * when it is an order to a model; tiny text is graded probable as a finding but
+ * is never meant to be read, so it goes.
+ */
+export function removableFinding(finding: Finding): boolean {
+  if (!HIDDEN_LABELS.has(finding.label)) return false;
+  if (finding.label === AIMED_LABEL) return finding.confidence === 'confirmed';
+  if (finding.label === HIDDEN_LABEL.faint) return false;
+  return finding.confidence === 'confirmed' || finding.label === HIDDEN_LABEL.tiny;
 }
 
 function toFindings(found: Hidden[], location: string): Finding[] {
@@ -108,11 +169,13 @@ function toFindings(found: Hidden[], location: string): Finding[] {
     const key = `${item.how}\u0000${text}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const aimed = aimedAtModel(text);
     out.push({
       kind: 'invisible-character',
-      confidence: item.probable || item.how === 'faint' || item.how === 'tiny' ? 'probable' : 'confirmed',
+      // An order to a model in one-pixel type is no less certain for being small.
+      confidence: item.probable || (!aimed && (item.how === 'faint' || item.how === 'tiny')) ? 'probable' : 'confirmed',
       location,
-      label: HIDDEN_LABEL[item.how],
+      label: aimed ? AIMED_LABEL : HIDDEN_LABEL[item.how],
       value: `${preview(text, 160)} — ${item.why}`,
     });
     if (out.length >= MAX_FINDINGS) break;

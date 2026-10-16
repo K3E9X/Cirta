@@ -25,7 +25,7 @@ export { inspectPdf, redactPdf } from './pdf.js';
 export type { RedactPdfOptions } from './pdf.js';
 export { xrayPdf } from './xray.js';
 export type { XrayEngine, XrayRegion, XrayResult } from './xray.js';
-export { hiddenInHtml, hiddenInDocx, stripHiddenHtml, stripHiddenDocx, type HiddenHow } from './hidden-text.js';
+export { hiddenInHtml, hiddenInDocx, stripHiddenHtml, stripHiddenDocx, aimedAtModel, AIMED_LABEL, type HiddenHow } from './hidden-text.js';
 export { inspectOoxml, redactOoxml } from './ooxml.js';
 export type { RedactOoxmlOptions } from './ooxml.js';
 export { inspectOdf, redactOdf, isOdf } from './odf.js';

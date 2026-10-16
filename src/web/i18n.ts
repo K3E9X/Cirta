@@ -205,6 +205,12 @@ const FR = {
   xrayReader: 'Vue lecteur',
   xrayModel: 'Vue IA',
   xrayPicture: (page: number) => `Rendu de la page ${page} à l’endroit du texte caché`,
+  aimedTitle: (n: number) =>
+    n > 1 ? `${n} consignes cachées destinées à une IA` : 'Une consigne cachée destinée à une IA',
+  aimedBody: (n: number) =>
+    n > 1
+      ? 'Un lecteur ne les voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — les lira comme des instructions. Elles sont citées plus bas.'
+      : 'Un lecteur ne la voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — la lira comme une instruction. Elle est citée plus bas.',
   removeHiddenOption: (n: number) =>
     n > 1 ? `Retirer aussi les ${n} passages cachés` : 'Retirer aussi le passage caché',
 } as const;
@@ -391,6 +397,11 @@ const EN: Strings = {
   xrayReader: 'Reader view',
   xrayModel: 'Model view',
   xrayPicture: (page) => `Page ${page}, rendered where the hidden text sits`,
+  aimedTitle: (n) => (n > 1 ? `${n} hidden instructions aimed at an AI` : 'A hidden instruction aimed at an AI'),
+  aimedBody: (n) =>
+    n > 1
+      ? 'A reader does not see them. An assistant given this file — to summarise it, screen it, reply to it — will read them as instructions. They are quoted below.'
+      : 'A reader does not see it. An assistant given this file — to summarise it, screen it, reply to it — will read it as an instruction. It is quoted below.',
   removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),
 };
 

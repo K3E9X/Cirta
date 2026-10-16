@@ -35,6 +35,10 @@ const FR = {
   optForceText: 'Traite l’entrée comme du texte même si elle semble binaire',
   optRemoveHidden: 'redact : retire aussi le texte qu’un lecteur ne voit pas (Word, HTML, Markdown)',
   removeHiddenHint: 'Le texte caché est resté. Relancez avec --remove-hidden pour le retirer de la copie.',
+  aimedAlert: (n: number) =>
+    n > 1
+      ? `${n} consignes cachées destinées à une IA — invisibles pour un lecteur, lues comme des ordres par un assistant`
+      : 'Consigne cachée destinée à une IA — invisible pour un lecteur, lue comme un ordre par un assistant',
   optLang: 'Langue de sortie (défaut : la locale, sinon en)',
   optJson: 'Sortie exploitable par un programme',
   optSarif: 'Sortie SARIF 2.1.0, lue par GitHub Code Scanning et les IDE',
@@ -209,6 +213,10 @@ const EN: Strings = {
   optForceText: 'Treat the input as text even if it looks binary',
   optRemoveHidden: 'redact: also remove text a reader cannot see (Word, HTML, Markdown)',
   removeHiddenHint: 'Hidden text was left in. Run again with --remove-hidden to take it out of the copy.',
+  aimedAlert: (n: number) =>
+    n > 1
+      ? `${n} hidden instructions aimed at an AI — invisible to a reader, read as orders by an assistant`
+      : 'Hidden instruction aimed at an AI — invisible to a reader, read as an order by an assistant',
   optLang: 'Output language (default: the locale, else en)',
   optJson: 'Machine-readable output',
   optSarif: 'SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs',

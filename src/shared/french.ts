@@ -125,6 +125,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Text placed outside the page': 'Texte placé hors de la page',
   'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
+  'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':

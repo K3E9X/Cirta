@@ -916,6 +916,30 @@ tr.flagged td.value::after {
   background: var(--paper);
 }
 
+/*
+ * The one alarm the report raises. Danger, not accent: the accent marks what
+ * the tool does, this marks what someone did to the document.
+ */
+.aimed {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--bg));
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.aimed strong {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.aimed span {
+  color: var(--ink-2);
+}
+
 /* An opt-in that changes what the document says sits on its own line, above the button. */
 .foot-option {
   flex-basis: 100%;

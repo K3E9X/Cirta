@@ -35,9 +35,7 @@ import {
   type Stylometry,
 } from '../core/index.js';
 import { nodeXrayEngine } from './xray-engine.js';
-import { HIDDEN_LABEL } from '../core/hidden-text.js';
-
-const HIDDEN_LABELS = new Set(Object.values(HIDDEN_LABEL));
+import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 
 /**
  * Terminal capabilities differ enough between platforms that both colour and
@@ -513,6 +511,10 @@ async function runInspect(args: Args): Promise<number> {
       results.push({ file, result });
       if (!args.json && !args.sarif) {
         console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
+        // Ahead of everything: an order to a model hidden from the reader is the
+        // one finding that is an attack rather than a trace.
+        const aimed = result.findings.filter((f) => f.label === AIMED_LABEL).length;
+        if (aimed) console.log(`  ${red(bold(t().aimedAlert(aimed)))}`);
         printProvenance(result.findings);
         printFindings(result.findings);
         printNotes(result.notes);
@@ -582,7 +584,7 @@ async function runRedact(args: Args): Promise<number> {
         printNotes(result.notes);
         // Hidden text a cleaner could have taken out, had it been asked to.
         const removable = ['docx', 'html', 'markdown'].includes(result.format);
-        const hidden = (result.kept ?? []).some((f) => HIDDEN_LABELS.has(f.label) && f.confidence === 'confirmed');
+        const hidden = (result.kept ?? []).some(removableFinding);
         if (!args.removeHidden && removable && hidden) console.log(`  ${dim(t().removeHiddenHint)}`);
       }
     } catch (error) {

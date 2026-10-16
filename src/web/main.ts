@@ -22,9 +22,7 @@ import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
-import { HIDDEN_LABEL } from '../core/hidden-text.js';
-
-const HIDDEN_LABELS = new Set(Object.values(HIDDEN_LABEL));
+import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 import {
   preview,
   type Confidence,
@@ -471,6 +469,18 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
 
 /* ------------------------------------------------------------------ x-ray -- */
 
+/**
+ * Ahead of everything else in the card. Hidden text is often innocent; hidden
+ * text that gives an assistant orders is the attack itself, and a reader who
+ * forwards the file to one should know before anything else.
+ */
+function aimedBanner(count: number): HTMLElement {
+  const node = el('div', 'aimed');
+  node.setAttribute('role', 'alert');
+  node.append(el('strong', undefined, t().aimedTitle(count)), el('span', undefined, t().aimedBody(count)));
+  return node;
+}
+
 /*
  * What the page shows a reader, then what a model reads in the same place.
  *
@@ -670,6 +680,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
     }
 
     // Les images et les archives n'ont pas de champ producteur à interroger.
+    const aimed = result.findings.filter((f) => f.label === AIMED_LABEL).length;
+    if (aimed) node.append(aimedBanner(aimed));
     if (result.format !== 'zip') node.append(provenanceBanner(result.findings));
     if (hidden.length) node.append(xrayPanel(hidden));
 
@@ -693,9 +705,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         const foot = el('div', 'card-foot');
         // Taking hidden text out changes the document, which nothing else in a
         // clean does, so it is offered where it applies and never assumed.
-        const hiddenCount = result.findings.filter(
-          (f) => HIDDEN_LABELS.has(f.label) && f.confidence === 'confirmed',
-        ).length;
+        const hiddenCount = result.findings.filter(removableFinding).length;
         const offerRemoval = hiddenCount > 0 && (result.format === 'docx' || result.format === 'html' || result.format === 'markdown');
         const removeHidden = el('input');
         removeHidden.type = 'checkbox';
