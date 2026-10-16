@@ -8,6 +8,8 @@
  * Both are purely local; nothing in this package performs network I/O.
  */
 
+import type { XrayEngine, XrayRegion } from './xray.js';
+
 export type Format =
   | 'pdf'
   | 'pptx'
@@ -131,12 +133,27 @@ export type NoteCode =
   /** Reported items that are document content, not metadata, and were left alone. */
   | 'kept:content'
   /** Findings that survive redaction because they sit in the content itself. */
-  | 'kept:in-content';
+  | 'kept:in-content'
+  /** PDF page text was not rendered to look for text a reader cannot see. */
+  | 'limit:hidden-text-unchecked'
+  /** Hidden-text rendering stopped at a page or time limit. */
+  | 'limit:hidden-text-truncated';
 
 export interface Note {
   code: NoteCode;
   /** Optional specifics, such as the part path a manifest was removed from. */
   detail?: string;
+}
+
+/**
+ * What an inspection can be handed beyond the bytes. The hidden-text check
+ * renders pages, and rendering needs a canvas the core cannot import for
+ * itself: the command line brings a native one, the page its worker's.
+ */
+export interface InspectOptions {
+  xray?: XrayEngine;
+  /** Pictures of what was found hidden, for an interface to show. Never in the report itself. */
+  onHidden?: (regions: XrayRegion[]) => void;
 }
 
 export interface InspectResult {

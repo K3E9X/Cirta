@@ -117,6 +117,12 @@ const FIELD_LABEL: Record<string, string> = {
   'Earlier versions of this document are still in the file':
     'Des versions antérieures de ce document sont encore dans le fichier',
   'Annotation authors': 'Auteurs des annotations',
+  // Texte qu'un lecteur ne voit pas et qu'une IA lit.
+  'Text covered by a shape': 'Texte recouvert par une forme',
+  'Text that does not show on the page': 'Texte qui n’apparaît pas sur la page',
+  'Text too faint to read': 'Texte trop pâle pour être lu',
+  'Text too small to read': 'Texte trop petit pour être lu',
+  'Text placed outside the page': 'Texte placé hors de la page',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':

@@ -11,7 +11,8 @@
 
 import { PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
-import type { Finding, InspectResult, RedactResult, Note } from './types.js';
+import type { Finding, InspectOptions, InspectResult, RedactResult, Note } from './types.js';
+import { xrayPdf } from './xray.js';
 import { byConfidence, preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
@@ -802,7 +803,7 @@ function scrubAnnotations(doc: PDFDocument): void {
   }
 }
 
-export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
+export async function inspectPdf(data: Uint8Array, options: InspectOptions = {}): Promise<InspectResult> {
   const started = Date.now();
   const doc = await load(data);
   const parseMs = Date.now() - started;
@@ -914,11 +915,31 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   }
 
   notes.push({ code: 'scope:pdf-metadata-only' });
+  notes.push(...(await hiddenText(data, options, findings)));
 
   // Derived last, so it can draw on every field the format modules surfaced.
   findings.push(...fingerprint(findings));
 
   return { format: 'pdf', findings: findings.sort(byConfidence), notes };
+}
+
+/**
+ * Render the pages and report text a reader cannot see. Without an engine, or
+ * when rendering fails, the report says the check did not run: silence here
+ * would read as "nothing hidden", which is the one thing it cannot say.
+ */
+async function hiddenText(data: Uint8Array, options: InspectOptions, findings: Finding[]): Promise<Note[]> {
+  if (!options.xray) return [{ code: 'limit:hidden-text-unchecked' }];
+  try {
+    const result = await xrayPdf(data, options.xray);
+    findings.push(...result.findings);
+    if (result.regions.length) options.onHidden?.(result.regions);
+    return result.pagesChecked < result.pagesTotal
+      ? [{ code: 'limit:hidden-text-truncated', detail: `${result.pagesChecked}/${result.pagesTotal}` }]
+      : [];
+  } catch (error) {
+    return [{ code: 'limit:hidden-text-unchecked', detail: error instanceof Error ? error.message : String(error) }];
+  }
 }
 
 export interface RedactPdfOptions {

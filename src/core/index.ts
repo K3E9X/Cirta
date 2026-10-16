@@ -23,6 +23,8 @@ export {
 export type { TextScan, CleanTextOptions, CleanTextResult } from './text.js';
 export { inspectPdf, redactPdf } from './pdf.js';
 export type { RedactPdfOptions } from './pdf.js';
+export { xrayPdf } from './xray.js';
+export type { XrayEngine, XrayRegion, XrayResult, HiddenHow } from './xray.js';
 export { inspectOoxml, redactOoxml } from './ooxml.js';
 export type { RedactOoxmlOptions } from './ooxml.js';
 export { inspectOdf, redactOdf, isOdf } from './odf.js';
@@ -51,7 +53,7 @@ export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
 import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
-import type { Format, InspectResult, RedactResult, Note, Finding } from './types.js';
+import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
@@ -97,14 +99,16 @@ function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
  * inside a ZIP gets the same treatment it would get on its own. Members no
  * parser claims are scanned for credentials and provider identifiers.
  */
-async function inspectArchive(data: Uint8Array): Promise<InspectResult> {
+async function inspectArchive(data: Uint8Array, options: InspectOptions): Promise<InspectResult> {
   const members = walkArchive(data);
   const findings: Finding[] = [];
   const notes: Note[] = [{ code: 'scope:archive' }];
 
   for (const member of members) {
     try {
-      const inner = await inspectFile(member.data, member.path);
+      // The engine goes in, the pictures do not: a page number alone would not
+      // say which member of the archive they came from.
+      const inner = await inspectFile(member.data, member.path, { xray: options.xray });
       for (const finding of inner.findings) {
         findings.push({ ...finding, location: `${member.path} → ${finding.location}` });
       }
@@ -183,9 +187,9 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
  * disguising it as a refusal would hide exactly the bug the fuzzer exists to
  * find.
  */
-export async function inspectFile(data: Uint8Array, hint?: string): Promise<InspectResult> {
+export async function inspectFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<InspectResult> {
   try {
-    return await dispatch(data, hint);
+    return await dispatch(data, hint, options);
   } catch (error) {
     if (
       error instanceof UnsupportedFormatError ||
@@ -202,11 +206,11 @@ export async function inspectFile(data: Uint8Array, hint?: string): Promise<Insp
   }
 }
 
-async function dispatch(data: Uint8Array, hint?: string): Promise<InspectResult> {
-  if (isPdf(data)) return inspectPdf(data);
+async function dispatch(data: Uint8Array, hint: string | undefined, options: InspectOptions): Promise<InspectResult> {
+  if (isPdf(data)) return inspectPdf(data, options);
   if (isZip(data)) {
     const parts = unzipGuarded(data);
-    if (!isDocumentPackage(parts)) return inspectArchive(data);
+    if (!isDocumentPackage(parts)) return inspectArchive(data, options);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
   }
 
@@ -254,11 +258,13 @@ async function dispatch(data: Uint8Array, hint?: string): Promise<InspectResult>
 /** What a finding is about, independent of the value it reported. */
 const findingKey = (finding: Finding): string => `${finding.label}\u0000${finding.location}`;
 
-async function noteSurvivors(result: RedactResult, hint?: string): Promise<RedactResult> {
+async function noteSurvivors(result: RedactResult, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
   if (!result.data || result.removed.length === 0) return result;
   let survivors: Finding[];
   try {
-    survivors = (await inspectFile(result.data, hint)).findings;
+    // Rendered again, not assumed: hidden text is page content, which cleaning
+    // leaves alone, and the cleaned copy is checked for it like everything else.
+    survivors = (await inspectFile(result.data, hint, { xray: options.xray })).findings;
   } catch {
     return result;
   }
@@ -293,8 +299,8 @@ async function noteSurvivors(result: RedactResult, hint?: string): Promise<Redac
   };
 }
 
-export async function redactFile(data: Uint8Array, hint?: string): Promise<RedactResult> {
-  if (isPdf(data)) return noteSurvivors(await redactPdf(data), hint);
+export async function redactFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
+  if (isPdf(data)) return noteSurvivors(await redactPdf(data), hint, options);
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) {

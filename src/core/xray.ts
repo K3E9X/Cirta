@@ -1,0 +1,563 @@
+/**
+ * Text a reader cannot see, which anything that extracts text will read.
+ *
+ * A language model given a PDF reads its text layer, not its pixels. So does a
+ * search index, a screen reader, and every "summarise this document" tool. A
+ * sentence drawn under a black rectangle, in white on a white page, in the
+ * invisible text mode, at half a point, or past the edge of the page is not on
+ * the page for a person and is entirely there for all of those. In July 2025
+ * eighteen preprints on arXiv were found carrying instructions to AI reviewers
+ * hidden exactly this way; the same tricks are how a redaction fails.
+ *
+ * The method is the one Free Law Project's x-ray uses for bad redactions —
+ * find the letters, look at what is actually painted where they sit — applied
+ * to every hiding technique at once rather than to rectangles alone. No code is
+ * taken from it: x-ray is Python and depends on PyMuPDF, which is AGPL. The
+ * rendering here is PDF.js (Apache-2.0).
+ *
+ * Why render rather than read the drawing operators. Interpreting the graphics
+ * state would answer "is this text white" and "is a rectangle drawn after it",
+ * but each hiding technique would need its own rule and every rule its own
+ * blind spots — a clipping path, a white image, a form XObject. Rendering asks
+ * the only question that matters, the one a reader's eyes answer: is there any
+ * ink where these letters are? It also gets the hard control right for free. A
+ * scanned page with an OCR layer has invisible text over an image of the same
+ * words; the image's ink is there, so it is not reported.
+ *
+ * Nothing here imports an environment. PDF.js, the canvas and the standard
+ * fonts are handed in, so the CLI runs this with Node and a native canvas and
+ * the page runs it in its worker with an OffscreenCanvas.
+ */
+
+import { PDFDocument } from 'pdf-lib';
+import type { Finding } from './types.js';
+import { preview } from './types.js';
+
+/* ---------------------------------------------------------- the engine -- */
+
+export interface XrayTextItem {
+  str?: string;
+  transform?: number[];
+  width?: number;
+}
+
+export interface XrayViewport {
+  width: number;
+  height: number;
+  transform: number[];
+}
+
+export interface XrayPage {
+  view: number[];
+  getViewport(options: { scale: number }): XrayViewport;
+  getTextContent(): Promise<{ items: unknown[] }>;
+  render(options: { canvas: unknown; canvasContext: unknown; viewport: XrayViewport }): { promise: Promise<void> };
+  cleanup(): void;
+}
+
+export interface XrayDocument {
+  numPages: number;
+  getPage(n: number): Promise<XrayPage>;
+}
+
+/** What getDocument returns: the document, and the handle that tears it down. */
+export interface XrayLoadingTask {
+  promise: Promise<XrayDocument>;
+  destroy(): Promise<void>;
+}
+
+export interface XrayPdfjs {
+  getDocument(params: Record<string, unknown>): XrayLoadingTask;
+  Util: { transform(a: number[], b: number[]): number[] };
+}
+
+export interface XrayCanvas {
+  width: number;
+  height: number;
+  getContext(type: '2d'): { getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray } } | null;
+}
+
+export interface XrayEngine {
+  pdfjs: XrayPdfjs;
+  createCanvas(width: number, height: number): XrayCanvas;
+  /** The bytes of one of PDF.js's standard fonts, by file name, from memory. */
+  standardFont(filename: string): Uint8Array | undefined;
+}
+
+/** A copy of the PDF with every page box pushed far past anything drawn. */
+async function enlargePages(data: Uint8Array): Promise<Uint8Array | undefined> {
+  const doc = await PDFDocument.load(data, { ignoreEncryption: true, throwOnInvalidObject: false, updateMetadata: false });
+  for (const page of doc.getPages()) {
+    page.setMediaBox(-100_000, -100_000, 200_000, 200_000);
+    page.setCropBox(-100_000, -100_000, 200_000, 200_000);
+  }
+  return doc.save({ useObjectStreams: false });
+}
+
+/* ------------------------------------------------------------- limits -- */
+
+const MAX_PAGES = 30;
+const DEADLINE_MS = 8_000;
+const MAX_PIXELS = 3_000_000;
+const MAX_ITEMS_PER_PAGE = 4_000;
+const MAX_REGIONS = 6;
+
+/** Below this share of inked pixels, a character's cell carries no ink. */
+const BLANK = 0.008;
+/**
+ * What counts as ink, as a contrast ratio with the cell's own colour (the WCAG
+ * measure) or, for colours of equal brightness, a plain difference in one
+ * channel. Under the first, text is not there for a reader at all; under the
+ * second it is so faint it might as well not be — #222 on black, #ddd on
+ * white. Legible light grey, #bbb on white, is 1.9.
+ */
+const HIDDEN = { ratio: 1.1, channel: 40 };
+const FAINT = { ratio: 1.5, channel: 100 };
+/** A single blank cell is a misaligned period; three letters are a word. */
+const MIN_RUN = 3;
+/** Under this size, in points, text cannot be read at a normal zoom. */
+const TINY_PT = 2;
+/** What has ink of its own: a letter or a digit, in any script. */
+const LETTER = /[\p{L}\p{N}]/u;
+
+/* -------------------------------------------------------------- output -- */
+
+export type HiddenHow = 'covered' | 'invisible' | 'faint' | 'tiny' | 'offpage';
+
+export interface XrayRegion {
+  page: number;
+  how: HiddenHow;
+  text: string;
+  /** The rendered surroundings, so a reader can see the hiding for themselves. */
+  crop: { width: number; height: number; rgba: Uint8ClampedArray };
+  /** Where the hidden text sits inside the crop, in pixels. */
+  box: { x: number; y: number; width: number; height: number };
+}
+
+export interface XrayResult {
+  findings: Finding[];
+  regions: XrayRegion[];
+  pagesChecked: number;
+  pagesTotal: number;
+}
+
+const LABEL: Record<HiddenHow, string> = {
+  covered: 'Text covered by a shape',
+  invisible: 'Text that does not show on the page',
+  faint: 'Text too faint to read',
+  tiny: 'Text too small to read',
+  offpage: 'Text placed outside the page',
+};
+
+/* ------------------------------------------------------------ geometry -- */
+
+type Box = [number, number, number, number];
+
+function corners(points: Array<[number, number]>): Box {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+/**
+ * The rendered box of characters [from, to) of a text item, in viewport pixels,
+ * between `below` and `above` em of the baseline. The full em, a fifth below
+ * and four fifths above, frames the letters for a reader.
+ */
+function cellBox(m: number[], width: number, n: number, from: number, to: number, below = 0.2, above = 0.8): Box {
+  const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = m;
+  const along = Math.hypot(a, b) || 1;
+  const ux = a / along;
+  const uy = b / along;
+  const vx = c;
+  const vy = d;
+  const x0 = e + ux * ((width * from) / n);
+  const y0 = f + uy * ((width * from) / n);
+  const x1 = e + ux * ((width * to) / n);
+  const y1 = f + uy * ((width * to) / n);
+  return corners([
+    [x0 - vx * below, y0 - vy * below],
+    [x1 - vx * below, y1 - vy * below],
+    [x0 + vx * above, y0 + vy * above],
+    [x1 + vx * above, y1 + vy * above],
+  ]);
+}
+
+/* --------------------------------------------------------------- pixels -- */
+
+interface Raster {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+/** Five bits a channel: antialiasing noise in a flat fill folds to one value. */
+function key(data: Uint8ClampedArray, i: number): number {
+  return ((data[i]! >> 3) << 10) | ((data[i + 1]! >> 3) << 5) | (data[i + 2]! >> 3);
+}
+
+/** sRGB to linear light, by table: relative luminance for a contrast ratio. */
+const LINEAR = Array.from({ length: 256 }, (_, v) => {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+});
+
+function luminance(data: Uint8ClampedArray, i: number): number {
+  return 0.2126 * LINEAR[data[i]!]! + 0.7152 * LINEAR[data[i + 1]!]! + 0.0722 * LINEAR[data[i + 2]!]!;
+}
+
+interface Ink {
+  /** Share of pixels that stand out from the cell's colour at all. */
+  hidden: number;
+  /** Share that stand out enough to be read. */
+  faint: number;
+  colour: number;
+  pixels: number;
+}
+
+/** The dominant colour of a box, and how much of the box differs from it. */
+function inkIn(r: Raster, box: Box): Ink {
+  const x0 = Math.max(0, Math.floor(box[0]));
+  const y0 = Math.max(0, Math.floor(box[1]));
+  const x1 = Math.min(r.width, Math.ceil(box[2]));
+  const y1 = Math.min(r.height, Math.ceil(box[3]));
+  if (x1 <= x0 || y1 <= y0) return { hidden: 1, faint: 1, colour: -1, pixels: 0 };
+  const counts = new Map<number, [count: number, at: number]>();
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * r.width + x) * 4;
+      const k = key(r.data, i);
+      const seen = counts.get(k);
+      if (seen) seen[0]++;
+      else counts.set(k, [1, i]);
+    }
+  }
+  let colour = -1;
+  let at = 0;
+  let most = 0;
+  for (const [k, [n, i]] of counts) if (n > most) [colour, at, most] = [k, i, n];
+
+  const d = r.data;
+  const base = luminance(d, at);
+  let hidden = 0;
+  let faint = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * r.width + x) * 4;
+      const l = luminance(d, i);
+      const ratio = (Math.max(l, base) + 0.05) / (Math.min(l, base) + 0.05);
+      const channel = Math.max(Math.abs(d[i]! - d[at]!), Math.abs(d[i + 1]! - d[at + 1]!), Math.abs(d[i + 2]! - d[at + 2]!));
+      if (ratio >= HIDDEN.ratio || channel >= HIDDEN.channel) hidden++;
+      if (ratio >= FAINT.ratio || channel >= FAINT.channel) faint++;
+    }
+  }
+  const pixels = (x1 - x0) * (y1 - y0);
+  return { hidden: hidden / pixels, faint: faint / pixels, colour, pixels };
+}
+
+/** The page's own background: the most common colour on a coarse grid. */
+function pageColour(r: Raster): number {
+  const counts = new Map<number, number>();
+  const step = Math.max(4, Math.floor(Math.min(r.width, r.height) / 60));
+  for (let y = 0; y < r.height; y += step) {
+    for (let x = 0; x < r.width; x += step) {
+      const k = key(r.data, (y * r.width + x) * 4);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return [...counts].sort((p, q) => q[1] - p[1])[0]?.[0] ?? -1;
+}
+
+function crop(r: Raster, box: Box, pad: number): { crop: XrayRegion['crop']; origin: [number, number] } {
+  const x0 = Math.max(0, Math.floor(box[0] - pad));
+  const y0 = Math.max(0, Math.floor(box[1] - pad));
+  const x1 = Math.min(r.width, Math.ceil(box[2] + pad), x0 + 1200);
+  const y1 = Math.min(r.height, Math.ceil(box[3] + pad), y0 + 400);
+  const width = Math.max(1, x1 - x0);
+  const height = Math.max(1, y1 - y0);
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const from = ((y0 + y) * r.width + x0) * 4;
+    rgba.set(r.data.subarray(from, from + width * 4), y * width * 4);
+  }
+  return { crop: { width, height, rgba }, origin: [x0, y0] };
+}
+
+/* ---------------------------------------------------------------- pages -- */
+
+function asItem(raw: unknown): XrayTextItem | undefined {
+  if (!raw || typeof raw !== 'object' || !('str' in raw)) return undefined;
+  return raw as XrayTextItem;
+}
+
+/** A letter's cell with no readable ink: its colour, and whether a trace shows. */
+interface Cell {
+  colour: number;
+  faint: boolean;
+}
+
+interface Run {
+  how: HiddenHow;
+  text: string;
+  box: Box;
+}
+
+/**
+ * Snap a blank run to whole words. PDF.js gives one width for a whole string,
+ * so each character's cell is an even share of it, and in a proportional font
+ * the shares drift: a box over "58000" mid-sentence read back as "5800". A word
+ * counts when at least half its letters fall in the run, so the figure comes
+ * back whole and the "EUR" beside it, grazed by one cell, does not.
+ */
+function wholeWords(chars: string[], start: number, end: number): [number, number] {
+  let from = -1;
+  let to = -1;
+  for (let i = 0; i < chars.length; ) {
+    if (!chars[i]!.trim()) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < chars.length && chars[j]!.trim()) j++;
+    const overlap = Math.min(j, end) - Math.max(i, start);
+    if (overlap * 2 >= j - i) {
+      if (from < 0) from = i;
+      to = j;
+    }
+    i = j;
+  }
+  return from < 0 ? [start, start] : [from, to];
+}
+
+/** The runs of letters on one rendered page that carry no ink of their own. */
+function hiddenRuns(items: XrayTextItem[], viewport: XrayViewport, pdfjs: XrayPdfjs, r: Raster, scale: number): Run[] {
+  const runs: Run[] = [];
+  const background = pageColour(r);
+
+  for (const item of items.slice(0, MAX_ITEMS_PER_PAGE)) {
+    const str = item.str ?? '';
+    const width = (item.width ?? 0) * scale;
+    if (!str.trim() || !item.transform || width <= 0) continue;
+    // Too small to read is its own finding; its cells are too small to measure.
+    if (pointSize(item.transform) < TINY_PT) continue;
+    const m = pdfjs.Util.transform(viewport.transform, item.transform);
+    const n = [...str].length;
+    const chars = [...str];
+
+    // Blank or not, character by character. A rectangle over "58000" in the
+    // middle of a sentence leaves the line as a whole plenty of ink; only the
+    // letters under it have none.
+    //
+    // Ink is looked for from the baseline to two thirds of an em: every letter
+    // and digit has some there, and a box drawn to hide letters covers at least
+    // that much. The full em reached past a CSS background a pixel short of the
+    // descent, and that row of white read as ink. Punctuation may have none in
+    // the band — a period sits under it, an apostrophe over it — so, like a
+    // space, it neither opens nor breaks a run.
+    const blank = chars.map((ch, i): Cell | null | undefined => {
+      if (!LETTER.test(ch)) return undefined;
+      const ink = inkIn(r, cellBox(m, width, n, i, i + 1, 0, 0.65));
+      if (ink.pixels === 0) return undefined;
+      if (ink.hidden < BLANK) return { colour: ink.colour, faint: false };
+      if (ink.faint < BLANK) return { colour: ink.colour, faint: true };
+      return null; // inked
+    });
+
+    let start = -1;
+    const close = (end: number) => {
+      const [from, to] = wholeWords(chars, start, end);
+      start = -1;
+      const letters = chars.slice(from, to);
+      const visible = letters.filter((ch) => LETTER.test(ch)).length;
+      const all = chars.filter((ch) => LETTER.test(ch)).length;
+      // Three letters make a word; a two-letter item hidden entire counts too.
+      if (visible < MIN_RUN && !(visible >= 2 && visible === all)) return;
+      const cells = blank.slice(from, to).filter((c): c is Cell => !!c);
+      const same = cells.filter((c) => c.colour === background).length;
+      runs.push({
+        how: cells.some((c) => c.faint) ? 'faint' : same >= cells.length / 2 ? 'invisible' : 'covered',
+        text: letters.join('').trim(),
+        box: cellBox(m, width, n, from, to),
+      });
+    };
+
+    for (let i = 0; i <= chars.length; i++) {
+      const state = i < chars.length ? blank[i] : null;
+      // Spaces neither open nor break a run: "58 000" is one hidden figure.
+      if (state === undefined && i < chars.length) continue;
+      if (state) {
+        if (start < 0) start = i;
+      } else if (start >= 0) {
+        close(i);
+      }
+    }
+  }
+  return runs;
+}
+
+function pointSize(transform: number[]): number {
+  return Math.hypot(transform[2] ?? 0, transform[3] ?? 0);
+}
+
+function tinyRuns(items: XrayTextItem[]): Run[] {
+  const runs: Run[] = [];
+  for (const item of items.slice(0, MAX_ITEMS_PER_PAGE)) {
+    const str = (item.str ?? '').trim();
+    if (str.replace(/\s/g, '').length < 2 || !item.transform) continue;
+    const size = pointSize(item.transform);
+    if (size > 0 && size < TINY_PT) runs.push({ how: 'tiny', text: str, box: [0, 0, 0, 0] });
+  }
+  return runs;
+}
+
+/**
+ * Text drawn outside the page's visible box. PDF.js leaves it out of its own
+ * text extraction on purpose, so asking it directly finds nothing — while a
+ * different extractor, the one a model's pipeline happens to use, reads it.
+ * The engine hands back a copy with every page box enlarged, so the text
+ * appears, and its position is then compared with the real box.
+ */
+async function offPageText(data: Uint8Array, engine: XrayEngine, views: Map<number, number[]>, deadline: number): Promise<Run[][]> {
+  const out: Run[][] = [];
+  const enlarged = await enlargePages(data.slice()).catch(() => undefined);
+  if (!enlarged) return out;
+  const task = openDocument(engine, enlarged);
+  const doc = await task.promise.catch(() => undefined);
+  if (!doc) {
+    await task.destroy().catch(() => undefined);
+    return out;
+  }
+  try {
+    for (const [pageNumber, view] of views) {
+      if (Date.now() > deadline) break;
+      const page = await doc.getPage(pageNumber);
+      const items = (await page.getTextContent()).items.map(asItem).filter((i): i is XrayTextItem => !!i);
+      const [vx0 = 0, vy0 = 0, vx1 = 0, vy1 = 0] = view;
+      const runs: Run[] = [];
+      for (const item of items) {
+        const str = (item.str ?? '').trim();
+        if (str.replace(/\s/g, '').length < 2 || !item.transform) continue;
+        const x = item.transform[4] ?? 0;
+        const y = item.transform[5] ?? 0;
+        const w = item.width ?? 0;
+        if (x + w < vx0 || x > vx1 || y < vy0 || y > vy1) runs.push({ how: 'offpage', text: str, box: [0, 0, 0, 0] });
+      }
+      out[pageNumber] = runs;
+      page.cleanup();
+    }
+  } finally {
+    await task.destroy();
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- driving -- */
+
+function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
+  class InMemoryFonts {
+    async fetch({ kind, filename }: { kind: string; filename: string }): Promise<Uint8Array> {
+      const bytes = kind === 'standardFontDataUrl' ? engine.standardFont(filename) : undefined;
+      if (bytes) return bytes;
+      // Never a request: CMaps and wasm are simply unavailable, and PDF.js
+      // carries on without them.
+      throw new Error(`${kind} ${filename} is not bundled`);
+    }
+  }
+  return engine.pdfjs.getDocument({
+    // PDF.js transfers the buffer it is given to its worker, which empties the
+    // caller's copy; pdf-lib reading the same bytes afterwards found nothing.
+    data: data.slice(),
+    isEvalSupported: false,
+    disableFontFace: true,
+    useSystemFonts: false,
+    useWasm: false,
+    useWorkerFetch: false,
+    isImageDecoderSupported: false,
+    enableXfa: false,
+    BinaryDataFactory: InMemoryFonts,
+    // Never fetched: the factory above answers from memory. PDF.js only checks
+    // that a base is set before asking it, and that the base ends with a slash.
+    standardFontDataUrl: 'cirta-fonts/',
+    verbosity: 0,
+  });
+}
+
+export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<XrayResult> {
+  const deadline = Date.now() + DEADLINE_MS;
+  const task = openDocument(engine, data);
+  const doc = await task.promise.catch(async (error: unknown) => {
+    await task.destroy().catch(() => undefined);
+    throw error;
+  });
+  const findings: Finding[] = [];
+  const regions: XrayRegion[] = [];
+  const seen = new Set<string>();
+  const views = new Map<number, number[]>();
+  const pagesTotal = doc.numPages;
+  let pagesChecked = 0;
+
+  const report = (page: number, run: Run) => {
+    const k = `${page}\u0000${run.how}\u0000${run.text}`;
+    if (seen.has(k) || !run.text) return false;
+    seen.add(k);
+    findings.push({
+      kind: 'invisible-character',
+      confidence: run.how === 'tiny' || run.how === 'faint' ? 'probable' : 'confirmed',
+      location: `page ${page}`,
+      label: LABEL[run.how],
+      value: preview(run.text, 160),
+    });
+    return true;
+  };
+
+  try {
+    for (let n = 1; n <= Math.min(pagesTotal, MAX_PAGES); n++) {
+      if (Date.now() > deadline) break;
+      const page = await doc.getPage(n);
+      views.set(n, page.view);
+      const items = (await page.getTextContent()).items.map(asItem).filter((i): i is XrayTextItem => !!i);
+      for (const run of tinyRuns(items)) report(n, run);
+
+      if (items.some((i) => (i.str ?? '').trim())) {
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(2, Math.sqrt(MAX_PIXELS / Math.max(1, base.width * base.height)));
+        const viewport = page.getViewport({ scale });
+        const canvas = engine.createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const context = canvas.getContext('2d');
+        if (context) {
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
+          const raster: Raster = {
+            width: canvas.width,
+            height: canvas.height,
+            data: context.getImageData(0, 0, canvas.width, canvas.height).data,
+          };
+          for (const run of hiddenRuns(items, viewport, engine.pdfjs, raster, scale)) {
+            if (!report(n, run) || regions.length >= MAX_REGIONS) continue;
+            const { crop: picture, origin } = crop(raster, run.box, 28);
+            regions.push({
+              page: n,
+              how: run.how,
+              text: run.text,
+              crop: picture,
+              box: {
+                x: run.box[0] - origin[0],
+                y: run.box[1] - origin[1],
+                width: run.box[2] - run.box[0],
+                height: run.box[3] - run.box[1],
+              },
+            });
+          }
+        }
+      }
+      page.cleanup();
+      pagesChecked = n;
+    }
+  } finally {
+    await task.destroy();
+  }
+
+  const offPage = await offPageText(data, engine, views, deadline);
+  for (const [n, runs] of offPage.entries()) for (const run of runs ?? []) report(n, run);
+
+  return { findings, regions, pagesChecked, pagesTotal };
+}
