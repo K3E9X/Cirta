@@ -484,30 +484,24 @@ function priorRevisions(data: Uint8Array): Finding[] {
 }
 
 /*
- * Reading an earlier revision costs a full parse each time, on a file a
- * stranger supplied. These bound that: at most this many earlier revisions are
- * opened, never on a file larger than this, and the whole comparison abandons
- * itself at the deadline rather than letting a pathological file hold the only
- * thread the CLI has.
+ * Reading an earlier revision costs a parse each time, on a file a stranger
+ * supplied. At most this many are opened, and none is started that is
+ * predicted to run past the deadline.
+ *
+ * The prediction is the point. pdf-lib spends about nine seconds a megabyte on
+ * bytes that sit outside any object, scanning for the next `obj` one byte at a
+ * time, so a hostile file is slow to parse whatever this code does. Checking
+ * the clock between parses is not enough: one parse started a millisecond
+ * before the deadline runs to completion. A first version guarded with a count
+ * of object headers per 256 KB instead, and measurement showed it doing
+ * nothing — a 262 KB file of filler holding six objects passed it, and cost a
+ * second full parse — while any stricter count would have skipped the
+ * revisions of a legitimate scanned PDF, which is a few objects wrapped around
+ * very large images. Time is what matters, and the caller has already measured
+ * it: a prefix costs roughly its share of what the whole file took.
  */
 const MAX_REVISIONS_READ = 6;
-const MAX_REVISION_BYTES = 4 * 1024 * 1024;
 const REVISION_DEADLINE_MS = 2_000;
-
-/*
- * pdf-lib's parser costs about nine seconds per megabyte on a file whose bytes
- * are mostly outside any object, because it scans for the next `obj` one byte
- * at a time. That is not this feature's doing — a single load of such a file
- * already takes over a minute — but opening six more of them would turn a slow
- * read into an unusable one. A prefix this sparse in object headers is filler,
- * and skipping it costs one pass over a string already in hand.
- */
-const MIN_OBJ_DENSITY_BYTES = 256 * 1024;
-
-function looksStructured(prefix: string): boolean {
-  const headers = (prefix.match(/\d+\s+\d+\s+obj\b/g) ?? []).length;
-  return headers >= Math.ceil(prefix.length / MIN_OBJ_DENSITY_BYTES);
-}
 
 /** Offsets just past each `%%EOF`, which is where one revision ends. */
 function eofOffsets(text: string): number[] {
@@ -647,7 +641,14 @@ function lostText(before: string, after: string): Lost[] {
  * document's business and every other check already covers it; what matters
  * here is the sentence someone deleted, saved, and believed was gone.
  */
-async function revisionLeaks(data: Uint8Array, doc: PDFDocument): Promise<Finding[]> {
+/**
+ * Exported for its tests, which pass `parseMs` directly: the decision not to
+ * start a parse is what needs testing, and timing pdf-lib on a CI runner
+ * cannot test it — the same file parses four times slower on one machine than
+ * on another, so any threshold in seconds is either flaky or meaningless.
+ * Callers outside this file use {@link inspectPdf}.
+ */
+export async function revisionLeaks(data: Uint8Array, doc: PDFDocument, parseMs: number): Promise<Finding[]> {
   const deadline = Date.now() + REVISION_DEADLINE_MS;
 
   const text = new TextDecoder('latin1').decode(data);
@@ -663,12 +664,10 @@ async function revisionLeaks(data: Uint8Array, doc: PDFDocument): Promise<Findin
 
   const findings: Finding[] = [];
   const seen = new Set<string>();
-  let budget = MAX_REVISION_BYTES;
 
   for (const [index, end] of earlier.entries()) {
-    if (Date.now() > deadline || end > budget) break;
-    if (!looksStructured(text.slice(0, end))) continue;
-    budget -= end;
+    const predicted = parseMs * (end / data.length);
+    if (Date.now() + predicted > deadline) break;
     let older: string;
     try {
       older = documentText(await load(data.subarray(0, end)));
@@ -752,12 +751,14 @@ function annotationAuthors(doc: PDFDocument): Finding[] {
 }
 
 export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
+  const started = Date.now();
   const doc = await load(data);
+  const parseMs = Date.now() - started;
   const findings: Finding[] = [];
   const notes: Note[] = [];
 
   findings.push(...priorRevisions(data));
-  findings.push(...(await revisionLeaks(data, doc)));
+  findings.push(...(await revisionLeaks(data, doc, parseMs)));
   findings.push(...annotationAuthors(doc));
 
   const info = doc.context.lookup(doc.context.trailerInfo.Info);

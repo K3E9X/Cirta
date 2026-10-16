@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { inspectPdf } from '../src/core/pdf.js';
+import { PDFDocument } from 'pdf-lib';
+import { inspectPdf, revisionLeaks } from '../src/core/pdf.js';
 import { translateLabel, translateLocation, translateValue } from '../src/shared/french.js';
 import { incrementalPdf } from './helpers/incremental-pdf.js';
 
@@ -131,17 +132,30 @@ describe('cost of reading revisions', () => {
   const enc = new TextEncoder();
   const dec = new TextDecoder('latin1');
 
-  it('ignores a file that is mostly filler rather than parsing it six times', async () => {
-    const base = dec.decode(incrementalPdf('Secret', 'Public'));
-    const hostile = enc.encode(`${base}${'x'.repeat(256 * 1024)}\n${'%%EOF\n'.repeat(6)}`);
-    /*
-     * 256 KB of filler costs pdf-lib around two seconds by itself, so opening
-     * the six prefixes as well would land near sixteen. The ceiling sits
-     * between the two: high enough that a slow machine does not fail it,
-     * low enough that it cannot pass if the prefixes are being read.
-     */
-    expect(await cost(hostile)).toBeLessThan(8_000);
-  }, 40_000);
+  /*
+   * The bound itself, tested as a decision rather than as a duration. A first
+   * version of this test timed a file of filler against a ceiling of eight
+   * seconds; it passed here at 4.7 and failed on the Windows runner at 9.6 with
+   * the code unchanged, because pdf-lib's speed differs fourfold between
+   * machines. It then turned out not to discriminate at all: with the guard it
+   * meant to protect switched off, it still passed. Telling the function how
+   * long a parse takes makes the outcome the same on every machine.
+   */
+  it('never opens a revision it predicts would run past the deadline', async () => {
+    const bytes = incrementalPdf('Salaire de Lotfi Zakaria : 58000 EUR par an', 'Rapport annuel');
+    const doc = await PDFDocument.load(bytes, {
+      updateMetadata: false,
+      ignoreEncryption: true,
+      throwOnInvalidObject: false,
+    });
+    // Told the file takes ten seconds to parse, it must not start on a prefix.
+    expect(await revisionLeaks(bytes, doc, 10_000)).toEqual([]);
+    // Told it is cheap, it reads the prefix and finds the deleted sentence —
+    // which is what proves the refusal above was the prediction at work.
+    const read = await revisionLeaks(bytes, doc, 1);
+    expect(read).toHaveLength(1);
+    expect(read[0]?.value).toContain('58000 EUR');
+  });
 
   it('is not fooled into work by a file that is only end markers', async () => {
     expect(await cost(enc.encode(`%PDF-1.7\n${'%%EOF\n'.repeat(20_000)}`))).toBeLessThan(2_000);
