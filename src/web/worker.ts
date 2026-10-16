@@ -12,13 +12,45 @@
  */
 
 import { inspectFile, redactFile, type InspectResult, type RedactResult } from '../core/index.js';
+import type { XrayEngine, XrayRegion } from '../core/xray.js';
+
+/*
+ * This worker runs PDF.js, a large third-party library with network code of
+ * its own: it can fetch a document by URL, and load fonts and decoders from a
+ * server. Cirta never asks it to — every byte it needs is handed over from
+ * memory — but "never asks" is a claim about how it is called. Removing the
+ * means makes it a fact about what it can do: from here on, nothing in this
+ * thread can open a connection. The page's own Content-Security-Policy says
+ * the same for the main thread, and is not inherited by a worker.
+ */
+for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'WebTransport'] as const) {
+  try {
+    Object.defineProperty(self, name, { value: undefined, configurable: false, writable: false });
+  } catch {
+    // Already absent in this browser.
+  }
+}
+
+/*
+ * Requested at start-up rather than on the first PDF: the page starts this
+ * worker while idle, so the renderer is already here when the visitor goes
+ * offline and drops a file.
+ */
+const xray: Promise<XrayEngine | undefined> = import('./xray-engine.js')
+  .then((module) => module.webXrayEngine())
+  .catch(() => undefined);
+
+/** A PDF, or an archive that may hold one: the inputs the renderer can matter to. */
+const mayRender = (bytes: Uint8Array): boolean =>
+  (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) ||
+  (bytes[0] === 0x50 && bytes[1] === 0x4b);
 
 export type WorkerRequest =
   | { id: number; op: 'inspect'; data: ArrayBuffer; hint?: string }
   | { id: number; op: 'redact'; data: ArrayBuffer; hint?: string };
 
 export type WorkerResponse =
-  | { id: number; ok: true; op: 'inspect'; result: InspectResult }
+  | { id: number; ok: true; op: 'inspect'; result: InspectResult; hidden: XrayRegion[] }
   | { id: number; ok: true; op: 'redact'; result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }
   | { id: number; ok: false; error: string };
 
@@ -26,13 +58,18 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const { id, op, data, hint } = event.data;
   try {
     const bytes = new Uint8Array(data);
+    const engine = mayRender(bytes) ? await xray : undefined;
     if (op === 'inspect') {
-      const result = await inspectFile(bytes, hint);
-      (self as unknown as Worker).postMessage({ id, ok: true, op, result } satisfies WorkerResponse);
+      const hidden: XrayRegion[] = [];
+      const result = await inspectFile(bytes, hint, { xray: engine, onHidden: (regions) => hidden.push(...regions) });
+      (self as unknown as Worker).postMessage(
+        { id, ok: true, op, result, hidden } satisfies WorkerResponse,
+        hidden.map((region) => region.crop.rgba.buffer as ArrayBuffer),
+      );
       return;
     }
 
-    const { data: redacted, ...rest } = await redactFile(bytes, hint);
+    const { data: redacted, ...rest } = await redactFile(bytes, hint, { xray: engine });
     // The buffer is transferred rather than copied: a redacted file can be tens
     // of megabytes and structured cloning it twice is pure waste.
     const buffer = redacted ? redacted.slice().buffer : undefined;

@@ -1677,3 +1677,199 @@ textarea.is-cleaned {
     transition-duration: 1ms !important;
   }
 }
+
+/* ------------------------------------------------------------------ x-ray -- */
+
+/*
+ * The page as a reader sees it, then as a model reads it. The picture is the
+ * render itself, so it stays paper-white in the dark theme: it is a document,
+ * not part of the interface. The reading line is the page's own scanner, here
+ * crossing one box instead of a sentence.
+ */
+.xray {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+}
+
+.xray-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.xray-head > p {
+  margin: 0;
+}
+
+.xray-title {
+  flex-basis: 100%;
+  font: 500 0.6875rem/1.4 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.xray-sub {
+  flex: 1 1 22rem;
+  max-width: 44rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.xray-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--bg);
+}
+
+.xray-mode {
+  font: 500 0.75rem/1 var(--mono);
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ease-out),
+    color 160ms var(--ease-out);
+}
+
+.xray-mode[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.xray-shot {
+  margin: 1rem 0 0;
+}
+
+@media (max-width: 30rem) {
+  .xray-toggle {
+    width: 100%;
+  }
+
+  .xray-mode {
+    flex: 1;
+    padding-inline: 0.4rem;
+    font-size: 0.6875rem;
+  }
+}
+
+.xray-frame {
+  position: relative;
+  max-width: 100%;
+  container-type: inline-size;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.xray-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.xray-box {
+  position: absolute;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 240ms var(--ease-out);
+}
+
+.xray-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  font: 600 calc(var(--line) * 70cqw) / 1 var(--sans);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-wash) 94%, transparent);
+  transform: scaleX(var(--fit, 1));
+  transform-origin: left center;
+  clip-path: inset(0 100% 0 0);
+}
+
+/* The light theme's wash and accent, always: the box sits on paper, not on the page. */
+.xray-frame .xray-text {
+  --accent: #c0451a;
+  --accent-wash: #fdf1ea;
+}
+
+.xray-box::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: 0;
+  width: 1px;
+  background: #c0451a;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.xray.is-revealed .xray-box {
+  outline-color: #c0451a;
+}
+
+.xray.is-revealed .xray-text {
+  animation: xray-read 900ms linear 120ms forwards;
+}
+
+.xray.is-revealed .xray-box::after {
+  animation: xray-line 900ms linear 120ms forwards;
+}
+
+.xray.is-revealed .xray-shot + .xray-shot .xray-text,
+.xray.is-revealed .xray-shot + .xray-shot .xray-box::after {
+  animation-delay: 360ms;
+}
+
+@keyframes xray-read {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes xray-line {
+  0% {
+    left: 0;
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.xray-shot figcaption {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.xray-where {
+  font: 0.75rem var(--mono);
+  color: var(--ink-2);
+}
+
+.xray-quote {
+  font-size: 0.9375rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}

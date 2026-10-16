@@ -199,6 +199,12 @@ const FR = {
   copyCleaned: 'Copier le texte nettoyé',
   copied: 'Copié',
   selected: 'Sélectionné — Ctrl+C',
+  xrayTitle: 'Ce que la page cache',
+  xraySub:
+    'Les pages ont été rendues ici, puis comparées au texte qu’en extrait une IA. Là où il y a du texte sans encre, voici ce qu’elle lit.',
+  xrayReader: 'Vue lecteur',
+  xrayModel: 'Vue IA',
+  xrayPicture: (page: number) => `Rendu de la page ${page} à l’endroit du texte caché`,
 } as const;
 
 type Strings = {
@@ -377,6 +383,12 @@ const EN: Strings = {
   copyCleaned: 'Copy the cleaned text',
   copied: 'Copied',
   selected: 'Selected — Ctrl+C',
+  xrayTitle: 'What the page hides',
+  xraySub:
+    'The pages were rendered here and compared with the text a model extracts from them. Where there is text without ink, this is what it reads.',
+  xrayReader: 'Reader view',
+  xrayModel: 'Model view',
+  xrayPicture: (page) => `Page ${page}, rendered where the hidden text sits`,
 };
 
 const STORAGE_KEY = 'cirta:lang';

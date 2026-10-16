@@ -10,6 +10,7 @@
  */
 
 import type { WorkerRequest, WorkerResponse } from './worker.js';
+import type { XrayRegion } from '../core/xray.js';
 // Imported from the individual modules rather than the barrel: pulling in
 // core/index.js would drag pdf-lib and fflate into the main bundle, when the
 // only code that needs them now runs in the worker.
@@ -81,8 +82,8 @@ function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string): Promi
   });
 }
 
-const inspectFile = async (data: Uint8Array, hint?: string): Promise<InspectResult> =>
-  (await ask<{ result: InspectResult }>('inspect', data, hint)).result;
+const inspectFile = (data: Uint8Array, hint?: string): Promise<{ result: InspectResult; hidden: XrayRegion[] }> =>
+  ask<{ result: InspectResult; hidden: XrayRegion[] }>('inspect', data, hint);
 
 const redactFile = async (data: Uint8Array, hint?: string): Promise<RedactResult> => {
   const reply = await ask<{ result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }>(
@@ -464,6 +465,90 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
   return node;
 }
 
+/* ------------------------------------------------------------------ x-ray -- */
+
+/*
+ * What the page shows a reader, then what a model reads in the same place.
+ *
+ * Each picture is the page as rendered — a black bar, a stretch of blank
+ * paper — with the hidden line boxed where it sits. The reading line then
+ * crosses the box and leaves the extracted text written over it. A finding in
+ * a table says the text is there; this shows that it is not visible, which is
+ * the part a reader would otherwise have to take on trust.
+ */
+function xrayPanel(regions: XrayRegion[]): HTMLElement {
+  const panel = el('section', 'xray');
+  const head = el('div', 'xray-head');
+  head.append(el('p', 'xray-title', t().xrayTitle), el('p', 'xray-sub', t().xraySub));
+
+  const toggle = el('div', 'xray-toggle');
+  toggle.setAttribute('role', 'group');
+  toggle.setAttribute('aria-label', t().xrayTitle);
+  const reader = el('button', 'xray-mode', t().xrayReader);
+  const model = el('button', 'xray-mode', t().xrayModel);
+  const show = (revealed: boolean) => {
+    panel.classList.toggle('is-revealed', revealed);
+    reader.setAttribute('aria-pressed', String(!revealed));
+    model.setAttribute('aria-pressed', String(revealed));
+  };
+  reader.addEventListener('click', () => show(false));
+  model.addEventListener('click', () => show(true));
+  toggle.append(reader, model);
+  head.append(toggle);
+  panel.append(head);
+
+  for (const region of regions) panel.append(xrayShot(region));
+
+  show(false);
+  // Shown first as a reader sees it, then read: the order is the argument.
+  setTimeout(() => show(true), 700);
+  return panel;
+}
+
+function xrayShot(region: XrayRegion): HTMLElement {
+  const figure = el('figure', 'xray-shot');
+  const frame = el('div', 'xray-frame');
+  const { width, height, rgba } = region.crop;
+  frame.style.aspectRatio = `${width} / ${height}`;
+  // Rendered at up to twice the page's size: shown a little smaller than
+  // drawn, it stays sharp on a dense screen and is never blown up.
+  frame.style.width = `min(100%, ${Math.round(width * 0.75)}px)`;
+
+  const canvas = el('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', t().xrayPicture(region.page));
+  canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+
+  const box = el('div', 'xray-box');
+  box.style.left = `${(region.box.x / width) * 100}%`;
+  box.style.top = `${(region.box.y / height) * 100}%`;
+  box.style.width = `${(region.box.width / width) * 100}%`;
+  box.style.height = `${(region.box.height / height) * 100}%`;
+  // Sized to the line it replaces: its height, as a share of the frame's width.
+  box.style.setProperty('--line', String(region.box.height / width));
+  const text = el('span', 'xray-text', region.text);
+  box.append(text);
+  frame.append(canvas, box);
+
+  const caption = el('figcaption');
+  caption.append(
+    el('span', 'xray-where', `p. ${region.page} · ${translateLabel(region.label, lang())}`),
+    el('q', 'xray-quote', region.text),
+  );
+  figure.append(frame, caption);
+
+  // A proportional face rarely matches the document's to the pixel. Once laid
+  // out, a line that runs long is narrowed to its box rather than cut.
+  requestAnimationFrame(() => {
+    const room = box.clientWidth;
+    const need = text.scrollWidth;
+    if (room > 0 && need > room) text.style.setProperty('--fit', String(room / need));
+  });
+  return figure;
+}
+
 function card(title: string, badge?: string, count?: string): HTMLElement {
   const node = el('article', 'card');
   const head = el('div', 'card-head');
@@ -568,7 +653,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
   }
 
   try {
-    const result = await inspectFile(data, formatHint(file.name));
+    const { result, hidden } = await inspectFile(data, formatHint(file.name));
     record({ result });
     node.classList.remove('is-busy');
     const count = node.querySelector('.count');
@@ -582,6 +667,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
 
     // Les images et les archives n'ont pas de champ producteur à interroger.
     if (result.format !== 'zip') node.append(provenanceBanner(result.findings));
+    if (hidden.length) node.append(xrayPanel(hidden));
 
     if (result.findings.length === 0) {
       node.append(el('p', 'empty', t().nothingIdentifying));

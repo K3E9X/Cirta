@@ -138,6 +138,8 @@ export type HiddenHow = 'covered' | 'invisible' | 'faint' | 'tiny' | 'offpage';
 export interface XrayRegion {
   page: number;
   how: HiddenHow;
+  /** The finding's label, so an interface shows the same words as the report. */
+  label: string;
   text: string;
   /** The rendered surroundings, so a reader can see the hiding for themselves. */
   crop: { width: number; height: number; rgba: Uint8ClampedArray };
@@ -286,13 +288,40 @@ function pageColour(r: Raster): number {
   return [...counts].sort((p, q) => q[1] - p[1])[0]?.[0] ?? -1;
 }
 
-function crop(r: Raster, box: Box, pad: number): { crop: XrayRegion['crop']; origin: [number, number] } {
-  const x0 = Math.max(0, Math.floor(box[0] - pad));
-  const y0 = Math.max(0, Math.floor(box[1] - pad));
-  const x1 = Math.min(r.width, Math.ceil(box[2] + pad), x0 + 1200);
-  const y1 = Math.min(r.height, Math.ceil(box[3] + pad), y0 + 400);
-  const width = Math.max(1, x1 - x0);
-  const height = Math.max(1, y1 - y0);
+/**
+ * A strip of the page around a hidden line: the line and some of what runs
+ * beside it, and a few lines above and below. A tight box around white-on-
+ * white text is a white rectangle and shows nothing; a strip shows the
+ * paragraph running on either side of a gap that is not empty. The width stays
+ * near half a page, so the page's own text is still legible on a phone.
+ */
+/** The nearest row, moving in `step` from `y` for up to `limit` rows, with nothing drawn across it. */
+function quietRow(r: Raster, x0: number, width: number, y: number, step: 1 | -1, limit: number): number {
+  for (let k = 0; k <= limit; k++) {
+    const row = y + k * step;
+    if (row <= 0 || row >= r.height - 1) return Math.max(0, Math.min(r.height - 1, row));
+    const first = key(r.data, (row * r.width + x0) * 4);
+    let flat = true;
+    for (let x = x0 + 1; x < x0 + width && flat; x++) flat = key(r.data, (row * r.width + x) * 4) === first;
+    if (flat) return row;
+  }
+  return y;
+}
+
+function crop(r: Raster, box: Box): { crop: XrayRegion['crop']; origin: [number, number] } {
+  const MAX_H = 420;
+  const line = Math.max(8, box[3] - box[1]);
+  const middle = (box[1] + box[3]) / 2;
+  const width = Math.min(r.width, 1400, Math.max(700, Math.ceil(box[2] - box[0] + line * 10)));
+  const centre = (box[0] + box[2]) / 2;
+  const x0 = Math.max(0, Math.min(r.width - width, Math.floor(centre - width / 2)));
+  // Edges moved to the nearest gap between lines, so the strip does not end
+  // on half a line of text.
+  const reach = Math.ceil(line * 3.5);
+  const top = quietRow(r, x0, width, Math.max(0, Math.floor(middle - reach)), -1, line);
+  const bottom = quietRow(r, x0, width, Math.min(r.height - 1, Math.ceil(middle + reach)), 1, line);
+  const y0 = Math.max(0, Math.min(top, Math.floor(box[1])));
+  const height = Math.max(1, Math.min(MAX_H, r.height - y0, bottom - y0 + 1));
   const rgba = new Uint8ClampedArray(width * height * 4);
   for (let y = 0; y < height; y++) {
     const from = ((y0 + y) * r.width + x0) * 4;
@@ -567,10 +596,11 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
           if (letters >= DOUBT.letters && blank / letters >= DOUBT.share) doubtful.push(n);
           for (const run of runs) {
             if (!report(n, run) || regions.length >= MAX_REGIONS) continue;
-            const { crop: picture, origin } = crop(raster, run.box, 28);
+            const { crop: picture, origin } = crop(raster, run.box);
             regions.push({
               page: n,
               how: run.how,
+              label: LABEL[run.how],
               text: run.text,
               crop: picture,
               box: {
