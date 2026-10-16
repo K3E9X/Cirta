@@ -187,7 +187,7 @@ function scanStreams(doc: PDFDocument): Finding[] {
     // string operands (page text), since the two hide different things.
     const text = `${raw}\n${extractPdfStrings(raw)}`;
     const location = `stream ${ref.toString()}`;
-    const candidates = [...scanContent(text, location), ...scanPdfPageText(raw, location)];
+    const candidates = [...scanContent(text, location), ...(isBinaryStream(object) ? [] : scanPdfPageText(raw, location))];
     for (const finding of candidates) {
       const key = `${finding.label}:${finding.value}`;
       if (seen.has(key)) continue;
@@ -196,6 +196,24 @@ function scanStreams(doc: PDFDocument): Finding[] {
     }
   }
   return findings;
+}
+
+/**
+ * A font program, an image, a colour profile: bytes, not text. Their string
+ * scan found "control characters" in every embedded TrueType font — 22 findings
+ * on a one-page Chrome export with nothing in it. They are still searched for
+ * credentials above; only the reading-as-page-text is skipped.
+ */
+function isBinaryStream(stream: PDFRawStream): boolean {
+  const dict = stream.dict;
+  const subtype = dict.get(PDFName.of('Subtype'))?.toString();
+  return (
+    ['Length1', 'Length2', 'Length3', 'N'].some((key) => dict.has(PDFName.of(key))) ||
+    subtype === '/Image' ||
+    subtype === '/Type1C' ||
+    subtype === '/CIDFontType0C' ||
+    subtype === '/OpenType'
+  );
 }
 
 /**
@@ -213,7 +231,16 @@ function scanPdfPageText(stream: string, location: string): Finding[] {
   const findings: Finding[] = scan.findings
     // Exotic spaces are far too common in PDF text layout to be meaningful,
     // and a content stream's own newlines are not the document's.
-    .filter((finding) => finding.confidence !== 'informational' && !isArrangementFinding(finding))
+    // Control characters are a third: in a raw operand they are glyph codes.
+    // An Identity-H font writes two bytes a glyph, so a space is 0x00 0x03 and
+    // every page of a Chrome or Word export is full of them. Decoded through
+    // ToUnicode, in scanPageFonts, a control character is the real thing.
+    .filter(
+      (finding) =>
+        finding.confidence !== 'informational' &&
+        !isArrangementFinding(finding) &&
+        finding.label !== 'Control characters in the text',
+    )
     .map((finding) => ({ ...finding, location: `${location} (${finding.location})` }));
   for (const payload of scan.decoded) {
     findings.push({
