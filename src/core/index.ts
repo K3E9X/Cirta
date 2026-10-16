@@ -249,6 +249,9 @@ async function dispatch(data: Uint8Array, hint?: string): Promise<InspectResult>
  * always measured, and things that genuinely cannot be removed (a secret in the
  * page text, which only the author can rewrite) are named instead of implied.
  */
+/** What a finding is about, independent of the value it reported. */
+const findingKey = (finding: Finding): string => `${finding.label}\u0000${finding.location}`;
+
 async function noteSurvivors(result: RedactResult, hint?: string): Promise<RedactResult> {
   if (!result.data || result.removed.length === 0) return result;
   let survivors: Finding[];
@@ -257,15 +260,33 @@ async function noteSurvivors(result: RedactResult, hint?: string): Promise<Redac
   } catch {
     return result;
   }
+
+  /*
+   * `removed` means gone from the output, checked — not merely found in the
+   * input. The redactors returned everything inspection had found, so a file
+   * whose comment authors were never touched came back reporting them removed:
+   * "7 fields removed" above a table that listed the commenter's name, above a
+   * note saying that name was still there. The re-inspection below already ran
+   * for the note; it now decides the list as well.
+   *
+   * Identity is label and location, not value. A field still present with any
+   * value has not been removed, and a cleaner that under-claims is the safe
+   * failure for a tool people trust with what they send.
+   */
+  const still = new Set(survivors.map(findingKey));
+  const removed = result.removed.filter((finding) => !still.has(findingKey(finding)));
+
   // Informational findings are the ones deliberately kept — typographic spaces,
   // software names in a field that is meant to name software. Listing them as
   // "not removed" would bury the survivors that actually matter.
   const notable = survivors.filter((f) => f.confidence !== 'informational');
-  if (notable.length === 0) return result;
+  if (notable.length === 0) return { ...result, removed, kept: [] };
 
   const labels = [...new Set(notable.map((f) => f.label))];
   return {
     ...result,
+    removed,
+    kept: notable,
     notes: [...result.notes, { code: 'kept:in-content', detail: labels.join(', ') }],
   };
 }
