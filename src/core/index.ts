@@ -44,7 +44,8 @@ export { emailHeaders, stripToolHeaders } from './email.js';
 export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
 export { toSarif, ruleId, meetsThreshold } from './sarif.js';
 export type { SarifInput } from './sarif.js';
-export { inspectPlainText } from './plaintext.js';
+export { inspectPlainText, cleanPlainText, type PlainTextClean } from './plaintext.js';
+export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 

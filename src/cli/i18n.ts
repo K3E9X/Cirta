@@ -83,6 +83,10 @@ const FR = {
   originalKept: (path: string) => `original conservé sous ${path}`,
   nothingRemoved: '\ncirta : rien à retirer',
   leftInPlace: (label: string, value: string) => `cirta : laissé en place — ${label} : ${value}`,
+  headersRemoved: (names: string) => `cirta : en-têtes d’outil retirés — ${names}`,
+  markdownRemoved: (symbols: string) => `cirta : Markdown retiré — ${symbols}`,
+  markdownKept: 'cirta : Markdown laissé en place — le texte se lit comme un document Markdown, pas comme un e-mail',
+  toReview: (label: string, where: string, value: string) => `cirta : à revoir, ${where} — ${label} : ${value}`,
 
   producedBy: 'Produit par',
   provDeclared: 'un modèle génératif — le fichier le déclare',
@@ -95,6 +99,8 @@ const FR = {
   provMachineCaveat:
     'Le conteneur a la forme que laisse une bibliothèque, pas celle d’un traitement de texte. ' +
     'Ce que cela ne dit pas : quel programme, ni si un modèle a écrit les mots.',
+  provVoice: 'aucune métadonnée ne nomme d’outil, mais le texte contient des phrases qu’un assistant vous adressait',
+  provVoiceCaveat: 'signalées ligne par ligne ci-dessous ; elles ne disent ni quel assistant, ni quelle part du reste il a écrite.',
   provNone: 'aucune métadonnée ne nomme d’outil. Ce n’est pas la même chose que « pas d’IA » :',
   provNoneCaveat:
     'les champs ont pu être vidés, jamais écrits, ou le texte collé à la main — et la ' +
@@ -248,6 +254,10 @@ const EN: Strings = {
   originalKept: (path) => `original kept as ${path}`,
   nothingRemoved: '\ncirta: nothing to remove',
   leftInPlace: (label, value) => `cirta: left in place — ${label}: ${value}`,
+  headersRemoved: (names) => `cirta: tool headers removed — ${names}`,
+  markdownRemoved: (symbols) => `cirta: Markdown removed — ${symbols}`,
+  markdownKept: 'cirta: Markdown left in place — the text reads as a Markdown document, not as an email',
+  toReview: (label, where, value) => `cirta: to review, ${where} — ${label}: ${value}`,
 
   producedBy: 'Produced by',
   provDeclared: 'a generative model — the file declares it',
@@ -260,6 +270,8 @@ const EN: Strings = {
   provMachineCaveat:
     'The container has the shape a library leaves, not the one a word processor does. What it ' +
     'does not say is which program, or whether a model wrote the words.',
+  provVoice: 'nothing in the metadata names a tool, but the text contains lines an assistant addressed to you',
+  provVoiceCaveat: 'listed line by line below; they do not say which assistant, or how much of the rest it wrote.',
   provNone: 'nothing in the metadata names a tool. That is not the same as "not AI":',
   provNoneCaveat:
     'the fields may have been cleared, never written, or the text pasted in by hand, and the ' +

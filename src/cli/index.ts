@@ -16,7 +16,7 @@ import {
   inspectFile,
   redactFile,
   inspectPlainText,
-  cleanText,
+  cleanPlainText,
   toSarif,
   meetsThreshold,
   type SarifInput,
@@ -379,7 +379,7 @@ function printExposure(report: Exposure): void {
  * reads as "no AI", and the truthful answer is narrower than that.
  */
 function printProvenance(findings: Finding[]): void {
-  const { tools, attributed, declared, machineAssembled } = provenance(findings);
+  const { tools, attributed, declared, machineAssembled, assistantVoice } = provenance(findings);
   const head = (value: string) => console.log(`  ${bold(t().producedBy)}  ${value}`);
   const under = (value: string) => console.log(`  ${dim(' '.repeat(14))}${dim(value)}`);
 
@@ -404,6 +404,11 @@ function printProvenance(findings: Finding[]): void {
     // No name, but the container's shape is evidence in itself.
     head(yellow(t().provMachine));
     under(t().provMachineCaveat);
+    return;
+  }
+  if (assistantVoice) {
+    head(yellow(t().provVoice));
+    under(t().provVoiceCaveat);
     return;
   }
   head(dim(t().provNone));
@@ -593,17 +598,37 @@ async function runText(args: Args): Promise<number> {
   }
 
   if (args.clean) {
-    const result = cleanText(input);
+    // The same clean the page runs. They used to differ: the page removed mail
+    // headers that named a tool and the CLI kept them.
+    const result = cleanPlainText(input);
     process.stdout.write(result.text);
     if (process.stderr.isTTY) {
       const count = result.removed.length;
-      console.error(dim(count ? t().removedTypes(count) : t().nothingRemoved));
+      const anything = count || result.headersRemoved.length || result.markdownRemoved;
+      if (count) console.error(dim(t().removedTypes(count)));
+      else if (!anything) console.error(dim(t().nothingRemoved));
+      if (result.headersRemoved.length) console.error(dim(t().headersRemoved(result.headersRemoved.join(', '))));
+      if (result.markdownRemoved) console.error(dim(t().markdownRemoved(result.markdownRemoved)));
+      if (result.markdownKept) console.error(dim(t().markdownKept));
       // Lookalike letters are part of a word, so cleaning leaves them; saying so
       // on stderr keeps the count above from reading as "the text is now clean".
       for (const finding of result.kept) {
         console.error(
           yellow(
             t().leftInPlace(translateLabel(finding.label, lang()), translateValue(finding, lang())),
+          ),
+        );
+      }
+      // Lines an assistant addressed to you, and placeholders still to fill:
+      // words, so they are pointed at rather than removed.
+      for (const finding of result.toReview) {
+        console.error(
+          yellow(
+            t().toReview(
+              translateLabel(finding.label, lang()),
+              translateLocation(finding.location, lang()),
+              finding.value,
+            ),
           ),
         );
       }

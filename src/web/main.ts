@@ -13,9 +13,8 @@ import type { WorkerRequest, WorkerResponse } from './worker.js';
 // Imported from the individual modules rather than the barrel: pulling in
 // core/index.js would drag pdf-lib and fflate into the main bundle, when the
 // only code that needs them now runs in the worker.
-import { cleanText } from '../core/text.js';
-import { inspectPlainText } from '../core/plaintext.js';
-import { stripToolHeaders } from '../core/email.js';
+import { inspectPlainText, cleanPlainText } from '../core/plaintext.js';
+import { removeScaffolding } from '../core/residue.js';
 import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
 import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
@@ -400,7 +399,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
  * honnête est plus étroite que ça.
  */
 function provenanceBanner(findings: Finding[]): HTMLElement {
-  const { tools, attributed, declared, machineAssembled } = provenance(findings);
+  const { tools, attributed, declared, machineAssembled, assistantVoice } = provenance(findings);
   const node = el('div', attributed ? 'provenance is-attributed' : 'provenance');
 
   if (declared) {
@@ -437,6 +436,12 @@ function provenanceBanner(findings: Finding[]): HTMLElement {
     node.classList.add('is-attributed');
     node.append(el('strong', undefined, t().provMachine));
     node.append(el('span', 'provenance-caveat', t().provMachineCaveat));
+    return node;
+  }
+  if (assistantVoice) {
+    node.classList.add('is-attributed');
+    node.append(el('strong', undefined, t().provVoice));
+    node.append(el('span', 'provenance-caveat', t().provVoiceCaveat));
     return node;
   }
   node.append(el('strong', undefined, t().provNone));
@@ -700,23 +705,26 @@ function setupText(): void {
   });
 
   cleanButton.addEventListener('click', async () => {
-    const result = cleanText(input.value);
-    // Les en-têtes de courrier qui nomment un outil partent aussi : sur un
-    // brouillon généré, X-Mailer est la marque la plus explicite du fichier.
-    // Les en-têtes du message lui-même — From, Subject, Message-ID — restent :
-    // c'est du contenu, et ils sont signalés comme laissés en place.
-    const stripped = stripToolHeaders(result.text);
-    input.value = stripped.text;
+    // The same clean the CLI runs: invisible characters, then mail headers that
+    // name a tool, then Markdown a mail client would show as symbols.
+    const result = cleanPlainText(input.value);
+    input.value = result.text;
     // Only when something actually changed: a field that flashes "cleaned"
     // over identical text would be the page claiming work it did not do.
-    if (result.removed.length || stripped.removed.length) replay(input, 'is-cleaned');
+    const changed = result.removed.length || result.headersRemoved.length || result.markdownRemoved;
+    if (changed) replay(input, 'is-cleaned');
 
+    // The count covers everything the clean took out, not only characters: a
+    // header reading "nothing to remove" above "Markdown removed" contradicted
+    // the card it sat on.
     const node = card(
       t().cleanTitle,
       undefined,
       result.removed.length
         ? t().removedCount(result.removed.length)
-        : t().nothingToRemove,
+        : result.markdownRemoved || result.headersRemoved.length
+          ? t().formattingRemoved
+          : t().nothingToRemove,
     );
     if (result.removed.length === 0) {
       node.append(el('p', 'empty', t().textNoInvisible));
@@ -734,28 +742,50 @@ function setupText(): void {
       node.append(el('p', 'decoded', t().payloadRemoved(payload)));
     }
 
+    if (result.headersRemoved.length) {
+      node.append(el('p', 'note', t().headersRemoved(result.headersRemoved.join(', '))));
+    }
+    if (result.markdownRemoved) node.append(el('p', 'note', t().markdownRemoved(result.markdownRemoved)));
+    if (result.markdownKept) node.append(el('p', 'note', t().markdownKept));
+
     // Les lettres sosies font partie d'un mot : le nettoyage ne les touche pas.
     // Sans cette mention, le décompte ci-dessus se lirait comme « c'est propre ».
-    if (stripped.removed.length) {
-      node.append(
-        el(
-          'p',
-          'note',
-          t().headersRemoved(stripped.removed.join(', ')),
-        ),
-      );
-    }
-
     if (result.kept.length) {
       node.append(el('p', 'note note-warn', t().keptWarning));
       node.append(findingsTable(result.kept));
     }
 
+    // Lines an assistant addressed to you, and placeholders still to fill.
+    // Words, so they are shown and left; the lines can go on request.
+    const voice = result.toReview.filter((f) => f.label === 'Written to you, not to the recipient');
+    if (result.toReview.length) {
+      node.append(el('p', 'note note-warn', t().toReviewNote));
+      node.append(findingsTable(result.toReview));
+    }
+
     const foot = el('div', 'card-foot');
+    if (voice.length) {
+      const drop = el('button', 'button button-primary', t().dropAssistantLines(voice.length));
+      drop.addEventListener('click', () => {
+        const removed = removeScaffolding(input.value);
+        if (removed.removed.length === 0) return;
+        input.value = removed.text;
+        replay(input, 'is-cleaned');
+        // The same stroke as every other removal, drawn through these rows only.
+        node.style.setProperty('--strike-base', '40ms');
+        markCleaned(node, voice);
+        drop.disabled = true;
+        drop.replaceChildren(check(), document.createTextNode(t().assistantLinesDropped(removed.removed.length)));
+        drop.classList.add('is-done');
+      });
+      foot.append(drop);
+    }
     const copy = el('button', 'button', t().copyCleaned);
     copy.addEventListener('click', async () => {
+      // What is in the field when the button is pressed, which may be shorter
+      // than what the clean produced if the lines above were taken out since.
       try {
-        await navigator.clipboard.writeText(stripped.text);
+        await navigator.clipboard.writeText(input.value);
         copy.replaceChildren(check(), document.createTextNode(t().copied));
       } catch {
         input.select();

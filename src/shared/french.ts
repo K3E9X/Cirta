@@ -99,6 +99,10 @@ const FIELD_LABEL: Record<string, string> = {
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
   // Contenu que le paquet conserve alors que le document ne le montre plus.
+  'Written to you, not to the recipient': 'Adressé à vous, pas au destinataire',
+  'Template placeholder left unfilled': 'Champ de modèle laissé vide',
+  'Subject line repeated in the body': 'Ligne d’objet répétée dans le corps',
+  'Markdown that will show as symbols': 'Markdown qui s’affichera en symboles',
   'Embedded preview image': 'Aperçu intégré de l’image',
   'Embedded preview is a different shape from the picture':
     'L’aperçu intégré n’a pas la même forme que l’image',
@@ -239,6 +243,7 @@ const LABEL_PREFIX: Array<[RegExp, string]> = [
 /** Locations built from a number rather than drawn from the table below. */
 const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
+  [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
 ];
 
@@ -257,6 +262,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'document body': 'corps du document',
   links: 'liens',
   'file revisions': 'révisions du fichier',
+  'text formatting': 'mise en forme du texte',
   'page annotations (/T)': 'annotations de page (/T)',
   'mathematical alphanumerics': 'alphanumériques mathématiques',
   'xl/workbook.xml:sheet': 'xl/workbook.xml:sheet',

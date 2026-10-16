@@ -83,6 +83,9 @@ const FR = {
   provMachineCaveat:
     'Le conteneur a la forme que laisse une bibliothèque, pas celle d’un traitement de texte. ' +
     'Ce que cela ne dit pas : quel programme, ni si un modèle a écrit les mots.',
+  provVoice: 'Aucune métadonnée ne nomme d’outil, mais le texte contient des phrases qu’un assistant vous adressait.',
+  provVoiceCaveat:
+    'Elles sont signalées ligne par ligne ci-dessous. Ce qu’elles ne disent pas : quel assistant, ni quelle part du reste il a écrite.',
   provNone: 'Aucune métadonnée ne nomme d’outil.',
   provNoneCaveat:
     'Ce n’est pas la même chose que « pas d’IA » : les champs ont pu être vidés, jamais écrits, ' +
@@ -174,6 +177,16 @@ const FR = {
   removedCount: (n: number) => `${n} type${n > 1 ? 's' : ''} retiré${n > 1 ? 's' : ''}`,
   nothingToRemove: 'rien à retirer',
   payloadRemoved: (payload: string) => `Charge retirée — ${payload}`,
+  markdownRemoved: (symbols: string) =>
+    `Markdown retiré : ${symbols}. Ces symboles ne deviennent une mise en forme que dans une fenêtre de chat ; dans un e-mail, ils s’affichent tels quels.`,
+  markdownKept:
+    'Markdown laissé en place : le texte se lit comme un document Markdown — un tableau, un en-tête ou plusieurs titres —, pas comme un e-mail.',
+  toReviewNote:
+    'À revoir avant d’envoyer. Ce sont des mots, pas des métadonnées : le nettoyage ne les retire pas de lui-même.',
+  dropAssistantLines: (n: number) =>
+    n > 1 ? `Retirer les ${n} phrases adressées à vous` : 'Retirer la phrase adressée à vous',
+  assistantLinesDropped: (n: number) => (n > 1 ? `${n} phrases retirées` : 'Phrase retirée'),
+  formattingRemoved: 'mise en forme retirée',
   headersRemoved: (names: string) =>
     `En-têtes de courrier retirés : ${names}. Ils nomment le logiciel, pas le message.`,
   keptWarning: 'Trouvé mais laissé en place — à vous de trancher :',
@@ -248,6 +261,9 @@ const EN: Strings = {
   provMachineCaveat:
     'The container has the shape a library leaves, not the one a word processor does. What it ' +
     'does not say is which program, or whether a model wrote the words.',
+  provVoice: 'Nothing in the metadata names a tool, but the text contains lines an assistant addressed to you.',
+  provVoiceCaveat:
+    'They are listed line by line below. What they do not say is which assistant, or how much of the rest it wrote.',
   provNone: 'Nothing in the metadata names a tool.',
   provNoneCaveat:
     'That is not the same as “not AI”: the fields may have been cleared, never written, or the ' +
@@ -334,6 +350,15 @@ const EN: Strings = {
   removedCount: (n) => `${n} kind${n > 1 ? 's' : ''} removed`,
   nothingToRemove: 'nothing to remove',
   payloadRemoved: (payload) => `Payload removed — ${payload}`,
+  markdownRemoved: (symbols) =>
+    `Markdown removed: ${symbols}. These symbols only become formatting in a chat window; in an email they show as they are.`,
+  markdownKept:
+    'Markdown left in place: the text reads as a Markdown document — a table, front matter or several headings — not as an email.',
+  toReviewNote:
+    'To review before sending. These are words, not metadata, so the clean does not remove them on its own.',
+  dropAssistantLines: (n) => (n > 1 ? `Remove the ${n} lines addressed to you` : 'Remove the line addressed to you'),
+  assistantLinesDropped: (n) => (n > 1 ? `${n} lines removed` : 'Line removed'),
+  formattingRemoved: 'formatting removed',
   headersRemoved: (names) =>
     `Mail headers removed: ${names}. They name the software, not the message.`,
   keptWarning: 'Found but left in place — your call:',

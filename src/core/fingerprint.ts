@@ -414,6 +414,15 @@ export interface Provenance {
    * silence — see structuralGenerator in ooxml.ts for what it reads.
    */
   machineAssembled: boolean;
+  /**
+   * True when the text contains lines an assistant addressed to whoever asked
+   * for it — "Here's a draft:", "Let me know if you'd like me to adjust the
+   * tone". Not metadata, and it names no tool, but it is the assistant's own
+   * voice in the document, and a summary saying the wording reveals nothing
+   * directly above a line that says "Voici une proposition d'e-mail" was
+   * contradicting the report it summarised.
+   */
+  assistantVoice: boolean;
 }
 
 /** Labels this module emits that name a producing tool rather than a machine. */
@@ -480,5 +489,6 @@ export function provenance(findings: Finding[]): Provenance {
     attributed: attributed || declaresGenerative(findings),
     declared: declaresGenerative(findings),
     machineAssembled,
+    assistantVoice: findings.some((finding) => finding.label === 'Written to you, not to the recipient'),
   };
 }

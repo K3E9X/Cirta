@@ -26,9 +26,10 @@
 
 import type { Finding } from './types.js';
 import { byConfidence } from './types.js';
-import { scanText } from './text.js';
 import { scanContent } from './archive.js';
-import { emailHeaders } from './email.js';
+import { emailHeaders, stripToolHeaders } from './email.js';
+import { findResidue, stripMarkdownResidue } from './residue.js';
+import { scanText, cleanText, type CleanTextResult } from './text.js';
 import { findSourceTypes } from './sourcetype.js';
 import { fingerprint, BODY_TEXT } from './fingerprint.js';
 
@@ -58,6 +59,7 @@ export function inspectPlainText(text: string): Finding[] {
     ...decodedFindings(scan.decoded),
     ...emailHeaders(text),
     ...findSourceTypes(text, 'file contents'),
+    ...findResidue(text),
   ];
   // The body is handed to fingerprint() as a source so that a path or a session
   // identifier written into the prose is found — in a mail draft that is
@@ -73,4 +75,44 @@ export function inspectPlainText(text: string): Finding[] {
   };
   findings.push(...fingerprint([...findings, body]));
   return findings.sort(byConfidence);
+}
+
+export interface PlainTextClean extends CleanTextResult {
+  /** Mail headers that named a tool, removed. */
+  headersRemoved: string[];
+  /** Markdown markers removed, as the symbols a reader would have seen. */
+  markdownRemoved: string;
+  /** Set when the text reads as a Markdown document, whose markup was kept. */
+  markdownKept: boolean;
+  /**
+   * What the clean found and left for you: lines an assistant addressed to you,
+   * placeholders a template expected you to fill. Words, so never removed here.
+   */
+  toReview: Finding[];
+}
+
+/*
+ * One clean for every surface. The page removed tool-naming mail headers and
+ * the CLI did not, so the same draft came out of the two different. Each step
+ * runs on the previous one's output: invisible characters first, because a
+ * zero-width space inside `**bold**` would otherwise stop the Markdown rule
+ * from seeing the markers at all.
+ */
+export function cleanPlainText(text: string): PlainTextClean {
+  const characters = cleanText(text);
+  const headers = stripToolHeaders(characters.text);
+  const markdown = stripMarkdownResidue(headers.text);
+  const toReview = findResidue(markdown.text).filter(
+    (finding) =>
+      finding.label === 'Written to you, not to the recipient' ||
+      finding.label === 'Template placeholder left unfilled',
+  );
+  return {
+    ...characters,
+    text: markdown.text,
+    headersRemoved: headers.removed,
+    markdownRemoved: markdown.removed,
+    markdownKept: markdown.keptAsDocument,
+    toReview,
+  };
 }
