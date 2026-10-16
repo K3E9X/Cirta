@@ -27,6 +27,19 @@
     <!-- Same file the README shows and the CLI transcribes. -->
     <link rel="icon" href="./logo.svg" />
     <link rel="stylesheet" href="./style.css" />
+    <!--
+      Set before first paint, so the hero's chips start hidden instead of
+      showing for a frame and then vanishing when the reading line begins. It
+      is the only inline script, it reads one media query and touches one
+      attribute, and it makes no request of any kind. Skipped when the reader
+      has asked for reduced motion, which leaves every chip visible from the
+      start.
+    -->
+    <script>
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('motion');
+      }
+    </script>
   </head>
   <body>
     <!--
