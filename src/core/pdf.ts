@@ -12,7 +12,7 @@
 import { PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectResult, RedactResult, Note } from './types.js';
-import { byConfidence } from './types.js';
+import { byConfidence, preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
 import { scanText, isArrangementFinding } from './text.js';
@@ -227,7 +227,9 @@ function scanPdfPageText(stream: string, location: string): Finding[] {
 }
 
 /**
- * Page text decoded through the fonts the page actually uses.
+ * Page text decoded through the fonts the page actually uses, one string per
+ * page. Split out from the scanning below so the same decoding can be run over
+ * an earlier revision of the file and compared with this one.
  *
  * The raw-stream pass above reads string operands as if their bytes were
  * characters, which is right for a simple encoding and useless for an embedded
@@ -236,9 +238,8 @@ function scanPdfPageText(stream: string, location: string): Finding[] {
  * `/ToUnicode` CMaps, the content stream is walked tracking the `Tf` operator
  * so the right map applies to each string, and the result is real text.
  */
-function scanPageFonts(doc: PDFDocument): Finding[] {
-  const findings: Finding[] = [];
-  const seen = new Set<string>();
+function pageTexts(doc: PDFDocument): string[] {
+  const texts: string[] = [];
 
   // Same reason readXmp guards its catalog read: a lenient load can produce a
   // document with no page tree at all, and walking it then fails as a
@@ -247,10 +248,11 @@ function scanPageFonts(doc: PDFDocument): Finding[] {
   try {
     pages = doc.getPages();
   } catch {
-    return findings;
+    return texts;
   }
 
-  pages.forEach((page, index) => {
+  pages.forEach((page) => {
+    texts.push('');
     const fonts = new Map<string, ToUnicode>();
     try {
       const resources = page.node.Resources();
@@ -307,7 +309,19 @@ function scanPageFonts(doc: PDFDocument): Finding[] {
       pieces.push(decodeWithToUnicode(bytes, current));
     }
 
-    const scan = scanText(pieces.join(' '));
+    texts[texts.length - 1] = pieces.join(' ');
+  });
+
+  return texts;
+}
+
+function scanPageFonts(doc: PDFDocument): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+
+  pageTexts(doc).forEach((text, index) => {
+    if (!text) return;
+    const scan = scanText(text);
     const location = `page ${index + 1}`;
     for (const finding of scan.findings) {
       // Layout spacing is the producer's, not the author's, and exotic spaces
@@ -469,6 +483,225 @@ function priorRevisions(data: Uint8Array): Finding[] {
   ];
 }
 
+/*
+ * Reading an earlier revision costs a full parse each time, on a file a
+ * stranger supplied. These bound that: at most this many earlier revisions are
+ * opened, never on a file larger than this, and the whole comparison abandons
+ * itself at the deadline rather than letting a pathological file hold the only
+ * thread the CLI has.
+ */
+const MAX_REVISIONS_READ = 6;
+const MAX_REVISION_BYTES = 4 * 1024 * 1024;
+const REVISION_DEADLINE_MS = 2_000;
+
+/*
+ * pdf-lib's parser costs about nine seconds per megabyte on a file whose bytes
+ * are mostly outside any object, because it scans for the next `obj` one byte
+ * at a time. That is not this feature's doing — a single load of such a file
+ * already takes over a minute — but opening six more of them would turn a slow
+ * read into an unusable one. A prefix this sparse in object headers is filler,
+ * and skipping it costs one pass over a string already in hand.
+ */
+const MIN_OBJ_DENSITY_BYTES = 256 * 1024;
+
+function looksStructured(prefix: string): boolean {
+  const headers = (prefix.match(/\d+\s+\d+\s+obj\b/g) ?? []).length;
+  return headers >= Math.ceil(prefix.length / MIN_OBJ_DENSITY_BYTES);
+}
+
+/** Offsets just past each `%%EOF`, which is where one revision ends. */
+function eofOffsets(text: string): number[] {
+  const offsets: number[] = [];
+  for (const match of text.matchAll(/%%EOF/g)) {
+    offsets.push((match.index ?? 0) + '%%EOF'.length);
+  }
+  return offsets;
+}
+
+/**
+ * Everything a document says in words, for comparing one revision with another.
+ *
+ * Both decoders are used because each fails where the other works. A subset
+ * font maps glyph codes arbitrarily and only its ToUnicode CMap can undo that,
+ * which is what `pageTexts` does; but a page using a standard encoding carries
+ * no CMap at all, and there the string operands are already the characters.
+ * Using one alone would make the comparison silently empty for half the files
+ * it is asked about.
+ */
+function documentText(doc: PDFDocument): string {
+  const pieces = pageTexts(doc).filter(Boolean);
+  let budget = MAX_STREAM_BYTES;
+
+  for (const [, object] of doc.context.enumerateIndirectObjects()) {
+    if (budget <= 0) break;
+    if (!(object instanceof PDFRawStream)) continue;
+    let bytes: Uint8Array;
+    try {
+      bytes = decodePDFRawStream(object).decode();
+    } catch {
+      continue; // Unsupported filter (DCT, JPX); not text anyway.
+    }
+    budget -= bytes.length;
+    pieces.push(
+      extractPdfStrings(
+        new TextDecoder('latin1').decode(
+          bytes.subarray(0, Math.min(bytes.length, MAX_STREAM_BYTES)),
+        ),
+      ),
+    );
+  }
+
+  return pieces.join(' ');
+}
+
+/** One spelling per piece of text, so the comparison is about words. */
+function normalise(text: string): string {
+  return text
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const SHINGLE = 4;
+
+/**
+ * Runs of words the earlier revision has and the current one does not.
+ *
+ * Word sets would be useless — every document shares "de", "the", "le" — and a
+ * whole-string comparison would call an entire page lost over one edited
+ * character. Overlapping four-word shingles sit between the two: a word counts
+ * as surviving when any window containing it still occurs in the current text,
+ * so an unchanged paragraph stays quiet and a deleted sentence comes back
+ * whole.
+ *
+ * Short runs are kept rather than filtered away. A first attempt dropped
+ * anything under three words to suppress re-flow noise, and in doing so threw
+ * away the case the whole feature exists for: one amount, one name, one
+ * account number, changed and saved. They are reported with the surviving
+ * words either side, so a reader can see whether they are looking at a
+ * redacted figure or at a page number that moved.
+ */
+interface Lost {
+  /** The words the current revision no longer has. */
+  run: string;
+  /** Those words with the surviving ones either side, when there are any. */
+  context: string;
+  words: number;
+}
+
+const CONTEXT_WORDS = 4;
+
+function lostText(before: string, after: string): Lost[] {
+  const old = normalise(before);
+  const now = normalise(after);
+  if (!old) return [];
+
+  const oldWords = old.split(' ');
+  if (oldWords.length < SHINGLE) {
+    // Too short to shingle; containment is the only honest answer.
+    return now.includes(old) ? [] : [{ run: old, context: old, words: oldWords.length }];
+  }
+
+  const present = new Set<string>();
+  const newWords = now ? now.split(' ') : [];
+  for (let i = 0; i + SHINGLE <= newWords.length; i++) {
+    present.add(newWords.slice(i, i + SHINGLE).join(' '));
+  }
+
+  const covered = new Array<boolean>(oldWords.length).fill(false);
+  for (let i = 0; i + SHINGLE <= oldWords.length; i++) {
+    if (!present.has(oldWords.slice(i, i + SHINGLE).join(' '))) continue;
+    for (let k = i; k < i + SHINGLE; k++) covered[k] = true;
+  }
+
+  const runs: Lost[] = [];
+  let start = -1;
+  for (let i = 0; i <= oldWords.length; i++) {
+    const lost = i < oldWords.length && !covered[i];
+    if (lost && start < 0) start = i;
+    if (!lost && start >= 0) {
+      runs.push({
+        run: oldWords.slice(start, i).join(' '),
+        context: oldWords
+          .slice(Math.max(0, start - CONTEXT_WORDS), Math.min(oldWords.length, i + CONTEXT_WORDS))
+          .join(' '),
+        words: i - start,
+      });
+      start = -1;
+    }
+  }
+  return runs;
+}
+
+/**
+ * Text that an earlier revision still holds and the current one no longer shows.
+ *
+ * `priorRevisions` above can say that earlier versions are in the file; it
+ * cannot say what is in them, and a warning a reader cannot act on is a warning
+ * they learn to skip. Each earlier revision is a complete PDF ending at its own
+ * `%%EOF`, so truncating the file there and parsing the prefix gives the
+ * document as it stood — no new parser, the same two decoders run again.
+ *
+ * Only what disappeared is reported. Text still on the page is the current
+ * document's business and every other check already covers it; what matters
+ * here is the sentence someone deleted, saved, and believed was gone.
+ */
+async function revisionLeaks(data: Uint8Array, doc: PDFDocument): Promise<Finding[]> {
+  const deadline = Date.now() + REVISION_DEADLINE_MS;
+
+  const text = new TextDecoder('latin1').decode(data);
+  const ends = eofOffsets(text);
+  // The last offset ends the current revision, which is the thing compared
+  // against rather than a candidate.
+  const earlier = ends.slice(0, -1).slice(-MAX_REVISIONS_READ);
+  if (earlier.length === 0) return [];
+
+  // The caller already parsed this file; parsing it a second time to read its
+  // own text would double the cost of every multi-revision document.
+  const current = documentText(doc);
+
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  let budget = MAX_REVISION_BYTES;
+
+  for (const [index, end] of earlier.entries()) {
+    if (Date.now() > deadline || end > budget) break;
+    if (!looksStructured(text.slice(0, end))) continue;
+    budget -= end;
+    let older: string;
+    try {
+      older = documentText(await load(data.subarray(0, end)));
+    } catch {
+      // Expected, and not a failure worth reporting: a prefix of a linearised
+      // or object-stream file is often not a document on its own. The count
+      // finding above still stands.
+      continue;
+    }
+
+    for (const lost of lostText(older, current)) {
+      const key = lost.run.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({
+        kind: 'identity',
+        // A deleted phrase is unambiguous. One or two changed words are just as
+        // often a page number or a date that moved, so they are graded for what
+        // they are rather than asserted.
+        confidence: lost.words >= 3 ? 'confirmed' : 'probable',
+        location: `revision ${index + 1}`,
+        label: 'Text an earlier revision still holds',
+        value:
+          `"${preview(lost.run, 160)}" — in an earlier revision, not in the current one` +
+          (lost.context === lost.run ? '' : `; in context: "${preview(lost.context, 160)}"`),
+      });
+      if (findings.length >= 20) return findings;
+    }
+  }
+
+  return findings;
+}
+
 /**
  * Annotation authors, which are comment metadata rather than page content.
  *
@@ -524,6 +757,7 @@ export async function inspectPdf(data: Uint8Array): Promise<InspectResult> {
   const notes: Note[] = [];
 
   findings.push(...priorRevisions(data));
+  findings.push(...(await revisionLeaks(data, doc)));
   findings.push(...annotationAuthors(doc));
 
   const info = doc.context.lookup(doc.context.trailerInfo.Info);

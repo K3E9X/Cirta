@@ -99,6 +99,8 @@ const FIELD_LABEL: Record<string, string> = {
   'AI provenance data attributes': 'Attributs de données de provenance IA',
   'How the file says it was made': 'Ce que le fichier dit de sa fabrication',
   // Contenu que le paquet conserve alors que le document ne le montre plus.
+  'Text an earlier revision still holds':
+    'Du texte qu’une révision antérieure contient encore',
   'Earlier versions of this document are still in the file':
     'Des versions antérieures de ce document sont encore dans le fichier',
   'Annotation authors': 'Auteurs des annotations',
@@ -231,6 +233,12 @@ const LABEL_PREFIX: Array<[RegExp, string]> = [
   [/^Relay hop /, 'Relais traversé '],
 ];
 
+/** Locations built from a number rather than drawn from the table below. */
+const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
+  [/^stream (.+)$/, (m) => `flux ${m[1]}`],
+];
+
 /** Locations the core states in prose rather than as a path or a field name. */
 const LOCATION_TEXT: Record<string, string> = {
   'mixed-script words': 'mots à alphabets mêlés',
@@ -314,6 +322,15 @@ const LINK_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
 
 /** Values the core builds by interpolating a count, matched by shape. */
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [
+    /^"([\s\S]*)" — in an earlier revision, not in the current one; in context: "([\s\S]*)"$/,
+    (m) =>
+      `« ${m[1]} » — présent dans une révision antérieure, absent de la révision actuelle ; dans son contexte : « ${m[2]} »`,
+  ],
+  [
+    /^"([\s\S]*)" — in an earlier revision, not in the current one$/,
+    (m) => `« ${m[1]} » — présent dans une révision antérieure, absent de la révision actuelle`,
+  ],
   [
     /^(\d+) values? \(correlate documents edited in the same session\)$/,
     (m) => `${m[1]} valeur(s) — corrèlent les documents édités dans la même session`,
@@ -479,6 +496,11 @@ export const translateLocation = (location: string, lang: Lang): string => {
 
   const mapped = LOCATION_TEXT[location];
   if (mapped) return mapped;
+
+  for (const [pattern, render] of LOCATION_PATTERNS) {
+    const match = pattern.exec(location);
+    if (match) return render(match);
+  }
 
   // Body findings arrive as "part (location)", so the inner half needs it too.
   const nested = /^(.+) \((.+)\)$/.exec(location);
