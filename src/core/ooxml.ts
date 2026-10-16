@@ -21,6 +21,7 @@ import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
+import { hiddenInDocx } from './hidden-text.js';
 import {
   getElementText,
   setElementText,
@@ -606,6 +607,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   findings.push(...structuralGenerator(parts, format));
   findings.push(...findWorkbookIdentities(parts));
   findings.push(...inspectBodyText(parts));
+  if (format === 'docx') findings.push(...hiddenInDocx(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
 

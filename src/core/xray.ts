@@ -32,6 +32,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { Finding } from './types.js';
 import { preview } from './types.js';
+import { CONTRAST, HIDDEN_LABEL, TINY_PT, type HiddenHow } from './hidden-text.js';
 
 /* ---------------------------------------------------------- the engine -- */
 
@@ -112,19 +113,10 @@ const MAX_REGIONS = 6;
 
 /** Below this share of inked pixels, a character's cell carries no ink. */
 const BLANK = 0.008;
-/**
- * What counts as ink, as a contrast ratio with the cell's own colour (the WCAG
- * measure) or, for colours of equal brightness, a plain difference in one
- * channel. Under the first, text is not there for a reader at all; under the
- * second it is so faint it might as well not be — #222 on black, #ddd on
- * white. Legible light grey, #bbb on white, is 1.9.
- */
-const HIDDEN = { ratio: 1.1, channel: 40 };
-const FAINT = { ratio: 1.5, channel: 100 };
+const HIDDEN = CONTRAST.hidden;
+const FAINT = CONTRAST.faint;
 /** A single blank cell is a misaligned period; three letters are a word. */
 const MIN_RUN = 3;
-/** Under this size, in points, text cannot be read at a normal zoom. */
-const TINY_PT = 2;
 /** What has ink of its own: a letter or a digit, in any script. */
 const LETTER = /[\p{L}\p{N}]/u;
 const LETTERS = /[\p{L}\p{N}]/gu;
@@ -133,7 +125,6 @@ const DOUBT = { letters: 200, share: 0.6 };
 
 /* -------------------------------------------------------------- output -- */
 
-export type HiddenHow = 'covered' | 'invisible' | 'faint' | 'tiny' | 'offpage';
 
 export interface XrayRegion {
   page: number;
@@ -161,13 +152,7 @@ export interface XrayResult {
   doubtful: number[];
 }
 
-const LABEL: Record<HiddenHow, string> = {
-  covered: 'Text covered by a shape',
-  invisible: 'Text that does not show on the page',
-  faint: 'Text too faint to read',
-  tiny: 'Text too small to read',
-  offpage: 'Text placed outside the page',
-};
+const LABEL = HIDDEN_LABEL;
 
 /* ------------------------------------------------------------ geometry -- */
 

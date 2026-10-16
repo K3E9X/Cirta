@@ -123,6 +123,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Text too faint to read': 'Texte trop pâle pour être lu',
   'Text too small to read': 'Texte trop petit pour être lu',
   'Text placed outside the page': 'Texte placé hors de la page',
+  'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
+  'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':

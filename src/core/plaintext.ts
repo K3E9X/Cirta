@@ -32,6 +32,7 @@ import { findResidue, stripMarkdownResidue } from './residue.js';
 import { scanText, cleanText, type CleanTextResult } from './text.js';
 import { findSourceTypes } from './sourcetype.js';
 import { fingerprint, BODY_TEXT } from './fingerprint.js';
+import { hiddenInHtml, htmlInMail } from './hidden-text.js';
 
 /** Recovered steganographic payloads, promoted from strings to findings. */
 function decodedFindings(decoded: string[]): Finding[] {
@@ -42,6 +43,16 @@ function decodedFindings(decoded: string[]): Finding[] {
     label: 'Hidden payload in text',
     value: payload,
   }));
+}
+
+/**
+ * The HTML part of a saved mail. Only where a MIME header says there is one:
+ * a source file full of markup strings is not a message.
+ */
+function hiddenInMail(text: string): Finding[] {
+  if (!/^content-type:\s*text\/html/im.test(text)) return [];
+  const html = htmlInMail(text);
+  return html ? hiddenInHtml(html, 'file contents') : [];
 }
 
 export function inspectPlainText(text: string): Finding[] {
@@ -60,6 +71,7 @@ export function inspectPlainText(text: string): Finding[] {
     ...emailHeaders(text),
     ...findSourceTypes(text, 'file contents'),
     ...findResidue(text),
+    ...hiddenInMail(text),
   ];
   // The body is handed to fingerprint() as a source so that a path or a session
   // identifier written into the prose is found — in a mail draft that is

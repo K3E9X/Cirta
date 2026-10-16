@@ -21,6 +21,7 @@ import { collectTextContent, mapTextContent } from './xml.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { byConfidence } from './types.js';
+import { hiddenInHtml } from './hidden-text.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
 
@@ -366,6 +367,8 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   findings.push(...findSourceTypes(text, 'metadata'));
   findings.push(...scanContent(text, 'document body'));
   findings.push(...inspectBodyText(text, format));
+  // Markdown carries inline HTML through to the page it renders as.
+  if (format !== 'svg') findings.push(...hiddenInHtml(text, 'document body'));
   // The body goes to fingerprint() as a source, so a local path or a session
   // identifier sitting in a trailing "generated from …" line is found. Without
   // it a Markdown draft was quieter than the same bytes saved as .txt, which is

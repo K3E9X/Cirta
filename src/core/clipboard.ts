@@ -21,6 +21,7 @@
 
 import type { Finding } from './types.js';
 import { preview } from './types.js';
+import { hiddenInHtml } from './hidden-text.js';
 
 /** Clipboard HTML past this is a copied page, not a passage; the head is enough. */
 const MAX_HTML = 2 * 1024 * 1024;
@@ -150,5 +151,7 @@ export function inspectClipboardHtml(input: string): Finding[] {
     });
   }
 
+  // Text the source page did not show, carried into whatever the paste lands in.
+  findings.push(...hiddenInHtml(html, LOCATION));
   return findings;
 }
