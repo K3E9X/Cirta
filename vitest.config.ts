@@ -7,5 +7,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // Many tests run the command line as a user does, in a child process,
+    // and a dozen do so at once. Five seconds was the time one took alone;
+    // under load one went over by 32 ms. A hang still fails, a minute later.
+    testTimeout: 60_000,
   },
 });
