@@ -869,6 +869,36 @@ cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attach
 cirta verify contrat.clean.pdf
 ```
 
+### Pour les pipelines et les agents
+
+**`cirta sanitize-for-llm <fichier>`** place Cirta devant un RAG, un résumé automatique ou un tri de
+CV. Il écrit le texte du document **tel qu'une personne qui le lit le voit** — passages cachés, texte
+sous une forme, commentaires, `<noscript>` et `<template>`, notes du présentateur, diapositives,
+feuilles et lignes masquées, suppressions suivies et caractères invisibles laissés de côté — et liste,
+sur stderr, les consignes adressées à une IA qu'il a trouvées cachées. `--json` donne `{file, format,
+text, hiddenInstructions, hiddenRemoved, invisibleRemoved}` ; `--fail-on-instructions` sort en 1
+quand il en a trouvé une, pour qu'un pipeline s'arrête sur le fichier au lieu d'en donner le reste à
+un modèle. Un PDF demande le moteur de rendu (c'est lui qui dit ce qui est recouvert) ; sans lui, ou
+si toutes les pages n'ont pas pu être rendues à temps, aucun texte n'est produit, plutôt qu'un texte
+qui pourrait contenir ce qui est caché.
+
+```
+cirta sanitize-for-llm cv.docx > cv.txt              # le texte, sur stdout
+cirta sanitize-for-llm --json --fail-on-instructions entree/*.pdf
+```
+
+**`cirta mcp`** lance un serveur Model Context Protocol sur stdio, pour qu'un agent vérifie un
+document avant de le lire. Ses outils sont `inspect_file`, `redact_file` (écrit `<nom>.clean.<ext>`
+à côté de l'original, sans jamais écraser sauf demande), `sanitize_for_llm` et `scan_text`. Il lit et
+écrit des fichiers locaux et n'ouvre aucune connexion.
+
+```
+claude mcp add cirta -- node /chemin/vers/Cirta/dist/cli/index.js mcp      # Claude Code
+```
+```json
+{ "mcpServers": { "cirta": { "command": "node", "args": ["/chemin/vers/Cirta/dist/cli/index.js", "mcp"] } } }
+```
+
 ## Interface web
 
 Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,
