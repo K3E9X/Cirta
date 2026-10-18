@@ -23,11 +23,11 @@ import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } f
 import { byConfidence } from './types.js';
 import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
+import { acceptChangesInParts, trackedChangeFindings } from './tracked-changes.js';
 import {
   getElementText,
   setElementText,
   removeElement,
-  removeAttribute,
   collectAttribute,
   collectNamedProperties,
   collectTextContent,
@@ -608,7 +608,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   findings.push(...structuralGenerator(parts, format));
   findings.push(...findWorkbookIdentities(parts));
   findings.push(...inspectBodyText(parts));
-  if (format === 'docx') findings.push(...hiddenInDocx(parts));
+  if (format === 'docx') findings.push(...hiddenInDocx(parts), ...trackedChangeFindings(parts));
   if (format === 'pptx') findings.push(...hiddenInPptx(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
@@ -632,6 +632,8 @@ export interface RedactOoxmlOptions {
   cleanBodyText?: boolean;
   /** Remove Word and PowerPoint runs a reader cannot see: hidden, background-coloured, under 2 pt, off the slide. Default false. */
   removeHidden?: boolean;
+  /** Accept every tracked change in a Word document: deletions go, insertions stay as plain text. Default false. */
+  acceptChanges?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -707,6 +709,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     stripMedia = true,
     cleanBodyText = true,
     removeHidden = false,
+    acceptChanges = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -748,12 +751,30 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
 
   if (removeRsids) {
     const settings = readText(parts, 'word/settings.xml');
-    if (settings) {
-      let cleaned = removeElement(settings, 'w:rsids');
-      cleaned = removeAttribute(cleaned, 'w:rsidR');
-      cleaned = removeAttribute(cleaned, 'w:rsidRDefault');
-      parts['word/settings.xml'] = strToU8(cleaned);
+    if (settings) parts['word/settings.xml'] = strToU8(removeElement(settings, 'w:rsids'));
+    // [C5] Every part, not settings.xml alone: each paragraph, run, style and
+    // list carries its own w:rsid… attributes, and together they record which
+    // editing session touched what.
+    for (const path of Object.keys(parts)) {
+      if (!/^word\/.*\.xml$/.test(path)) continue;
+      const xml = strFromU8(parts[path]!);
+      if (!xml.includes('w:rsid')) continue;
+      parts[path] = strToU8(xml.replace(/\sw:rsid\w*="[^"]*"/g, ''));
     }
+  }
+
+  // [C5] When each revision and comment was made, to the minute: timestamps,
+  // and removed with the names beside them. Both attributes are optional.
+  for (const path of Object.keys(parts)) {
+    if (!/^word\/.*\.xml$/.test(path)) continue;
+    const xml = strFromU8(parts[path]!);
+    if (!/\s(?:w:date|w16du:dateUtc)="/.test(xml)) continue;
+    parts[path] = strToU8(xml.replace(/\s(?:w:date|w16du:dateUtc)="[^"]*"/g, ''));
+  }
+
+  if (acceptChanges && format === 'docx') {
+    const accepted = acceptChangesInParts(parts);
+    if (accepted) notes.push({ code: 'removed:tracked-changes', detail: String(accepted) });
   }
 
   if (anonymizeAuthors) {

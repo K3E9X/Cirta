@@ -36,6 +36,7 @@ import {
 } from '../core/index.js';
 import { nodeXrayEngine } from './xray-engine.js';
 import { terminalJson, terminalSafe } from './terminal.js';
+import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 
 /**
@@ -88,6 +89,7 @@ ${bold(t().options)}
       --skip <names>    ${t().optSkip}
       --force-text      ${t().optForceText}
       --remove-hidden   ${t().optRemoveHidden}
+      --accept-changes  ${t().optAcceptChanges}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -128,6 +130,7 @@ interface Args {
   help: boolean;
   forceText: boolean;
   removeHidden: boolean;
+  acceptChanges: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -144,6 +147,7 @@ function parseArgs(argv: string[]): Args {
     help: false,
     forceText: false,
     removeHidden: false,
+    acceptChanges: false,
     skip: [],
     sarif: false,
   };
@@ -165,6 +169,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--remove-hidden':
         args.removeHidden = true;
+        break;
+      case '--accept-changes':
+        args.acceptChanges = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -586,7 +593,7 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden },
+        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
@@ -604,6 +611,9 @@ async function runRedact(args: Args): Promise<number> {
         const removable = ['docx', 'pptx', 'html', 'markdown'].includes(result.format);
         const hidden = (result.kept ?? []).some(removableFinding);
         if (!args.removeHidden && removable && hidden) console.log(`  ${dim(t().removeHiddenHint)}`);
+        // Tracked changes left in, with the option that takes them out.
+        const tracked = (result.kept ?? []).some((f) => TRACKED_LABELS.has(f.label));
+        if (!args.acceptChanges && tracked) console.log(`  ${dim(t().acceptChangesHint)}`);
       }
     } catch (error) {
       failures++;

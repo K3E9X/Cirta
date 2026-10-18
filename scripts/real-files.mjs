@@ -19,6 +19,7 @@
  * and that is the only thing here that fails the run.
  */
 
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { execFile } from 'node:child_process';
 import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -115,6 +116,38 @@ try {
       );
     } catch (error) {
       check(`${name}: reopens in LibreOffice after redaction`, false, String(error).slice(0, 200));
+    }
+  }
+
+  // [C5] Tracked changes accepted, then reopened. LibreOffice's own DOCX with
+  // a deletion and an insertion written into it the way Word records them.
+  const docxName = produced.find((name) => name.endsWith('.docx'));
+  if (docxName) {
+    const parts = unzipSync(new Uint8Array(await readFile(join(dir, docxName))));
+    const revision = 'w:id="901" w:author="Marie Martin" w:date="2026-10-01T10:00:00Z"';
+    parts['word/document.xml'] = strToU8(
+      strFromU8(parts['word/document.xml']).replace(
+        /<w:body>/,
+        `<w:body><w:p><w:del ${revision}><w:r><w:delText>Montant reel negocie 1 250 000 EUR</w:delText></w:r></w:del>` +
+          `<w:ins w:id="902" w:author="Marie Martin" w:date="2026-10-01T10:00:00Z"><w:r><w:t>Montant voir annexe</w:t></w:r></w:ins></w:p>`,
+      ),
+    );
+    const tracked = zipSync(parts);
+    const before = await inspectFile(tracked, 'tracked.docx');
+    check(
+      'tracked.docx: the deleted text is quoted',
+      before.findings.some((f) => f.value.includes('Montant reel negocie')),
+    );
+    const accepted = await redactFile(tracked, 'tracked.docx', { acceptChanges: true });
+    await writeFile(join(dir, 'tracked.clean.docx'), accepted.data);
+    const out = join(dir, 'out-tracked');
+    try {
+      await soffice(['--convert-to', 'txt:Text', '--outdir', out, join(dir, 'tracked.clean.docx')], 'out-tracked');
+      const text = await readFile(join(out, 'tracked.clean.txt'), 'utf8');
+      check('tracked.docx: reopens in LibreOffice with changes accepted', text.includes('Montant voir annexe'), text.slice(0, 120));
+      check('tracked.docx: the deleted text is gone after accepting', !text.includes('Montant reel negocie'));
+    } catch (error) {
+      check('tracked.docx: reopens in LibreOffice with changes accepted', false, String(error).slice(0, 200));
     }
   }
 } finally {

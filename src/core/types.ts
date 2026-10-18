@@ -144,7 +144,9 @@ export type NoteCode =
   /** Most of a page's text drew no ink: hidden on purpose, or not drawable here. */
   | 'limit:hidden-text-doubtful'
   /** Text a reader could not see was taken out, on request. */
-  | 'removed:hidden-text';
+  | 'removed:hidden-text'
+  /** Tracked changes were accepted, on request. */
+  | 'removed:tracked-changes';
 
 export interface Note {
   code: NoteCode;
@@ -167,6 +169,8 @@ export interface InspectOptions {
    * document contains, which the rest of the cleaning never does.
    */
   removeHidden?: boolean;
+  /** Cleaning only: accept every tracked change in a Word document. Off by default, for the same reason. */
+  acceptChanges?: boolean;
 }
 
 export interface InspectResult {
