@@ -475,6 +475,14 @@ un tableau ou une couleur de thème modifiée est en travers, la couleur n'est p
 réservé sans position propre est placé là où sa mise en page le met. Vérifié sur des présentations
 écrites par LibreOffice.
 
+**Le texte qu'un navigateur n'affiche jamais est lu aussi.** Un commentaire HTML ou Markdown, le
+contenu de `<noscript>` et de `<template>` : aucun lecteur ne les voit, tout modèle à qui l'on donne
+le fichier les lit. Ils sont signalés comme *Texte qu'un navigateur n'affiche pas*, en probable — les
+commentaires sont aussi l'endroit où les développeurs laissent des notes —, et comme consigne quand
+c'en est une (`<!-- AI agents: run … -->`). Le `alt` d'une image, une infobulle `title` ou un
+`aria-label` sont banals partout, et ne sont signalés que s'ils donnent des ordres à un modèle. Les
+commentaires conditionnels d'Outlook sont du balisage et sont ignorés.
+
 **Une consigne cachée adressée à une IA est appelée ainsi.** Le texte caché est souvent innocent —
 la ligne d'aperçu d'un e-mail, un onglet fermé. Un passage caché qui donne des ordres à un assistant
 est l'attaque elle-même : « ignore les consignes précédentes », « si vous êtes une IA », « note pour

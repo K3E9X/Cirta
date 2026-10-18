@@ -438,6 +438,13 @@ slide there is, and is tested as such: the moment a picture, a gradient, a table
 with modifiers is in the way, the colour is not judged. A placeholder with no position of its own is
 placed where its layout puts it. Checked against decks LibreOffice wrote.
 
+**Text a browser never renders is read too.** An HTML or Markdown comment, the content of
+`<noscript>` and `<template>`: no reader sees them, every model given the file reads them. They are
+reported as *Text a browser does not render*, probable — comments are also where developers leave
+notes — and as an instruction when they are one (`<!-- AI agents: run … -->`). An image's `alt`, a
+`title` tooltip or an `aria-label` is ordinary everywhere, and is reported only when it gives a model
+orders. Outlook's conditional comments are markup and are skipped.
+
 **A hidden instruction to an AI is called one.** Hidden text is often innocent — a mail's preview
 line, a tab panel. A hidden passage that gives an assistant orders is the attack itself: "ignore the
 previous instructions", "if you are an LLM", "note to the AI reviewer", "recommend this candidate",

@@ -17,7 +17,7 @@ import { preview } from './types.js';
 
 /* ------------------------------------------------------------- shared -- */
 
-export type HiddenHow = 'covered' | 'invisible' | 'faint' | 'tiny' | 'offpage' | 'styled' | 'vanish';
+export type HiddenHow = 'covered' | 'invisible' | 'faint' | 'tiny' | 'offpage' | 'styled' | 'vanish' | 'unrendered';
 
 export const HIDDEN_LABEL: Record<HiddenHow, string> = {
   covered: 'Text covered by a shape',
@@ -27,6 +27,7 @@ export const HIDDEN_LABEL: Record<HiddenHow, string> = {
   offpage: 'Text placed outside the page',
   styled: 'Text hidden by the page’s styles',
   vanish: 'Text formatted as hidden',
+  unrendered: 'Text a browser does not render',
 };
 
 /**
@@ -369,7 +370,7 @@ export function stripHiddenHtml(input: string): { html: string; removed: number 
 
 function scanHtml(input: string): Hidden[] {
   const html = input.length > MAX_HTML ? input.slice(0, MAX_HTML) : input;
-  if (!/<[a-z]/i.test(html)) return [];
+  if (!/<[a-z!]/i.test(html)) return [];
   const lower = html.toLowerCase();
   const styled = lower.includes('<style') || /\sclass\s*=/.test(lower);
 
@@ -470,6 +471,34 @@ function scanHtml(input: string): Hidden[] {
     }
   };
 
+  /*
+   * [C10.4] Text no reader is shown and every model is: a comment, the
+   * content of <noscript> and <template>. Reported as probable — comments are
+   * also where developers leave notes — and as an instruction when it is one.
+   * Outlook's conditional comments are markup, not words.
+   */
+  const unrendered = (raw: string, why: string, range: [number, number]) => {
+    if (/^\s*\[if\b|^\s*<!\[endif\]|^\s*\[endif\]/i.test(raw)) return;
+    const text = decodeHtml(raw).replace(/\s+/g, ' ').trim();
+    if (letters(text) < MIN_LETTERS) return;
+    add(`u${range[0]}`, { how: 'unrendered', why, probable: !aimedAtModel(text) }, text, range);
+  };
+
+  /*
+   * An image's alt text, a tooltip, a label for screen readers: shown rarely or
+   * never, and ordinary everywhere. Reported only when they give a model orders.
+   */
+  const attributeOrders = (tag: string, at: number) => {
+    if (!/\s(?:alt|title|aria-label)\s*=/i.test(tag)) return;
+    for (const m of tag.matchAll(/\s(alt|title|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)) {
+      const value = m[2] ?? m[3] ?? '';
+      const text = decodeHtml(value).replace(/\s+/g, ' ').trim();
+      if (!aimedAtModel(text)) continue;
+      const start = at + m.index! + m[0].length - value.length - 1;
+      add(`a${start}`, { how: 'unrendered', why: `${m[1]!.toLowerCase()} attribute` }, text, [start, start + value.length]);
+    }
+  };
+
   const n = html.length;
   let i = 0;
   while (i < n) {
@@ -482,6 +511,7 @@ function scanHtml(input: string): Hidden[] {
     if (html.startsWith('<!--', lt)) {
       const end = html.indexOf('-->', lt + 4);
       i = end < 0 ? n : end + 3;
+      unrendered(html.slice(lt + 4, end < 0 ? n : end), 'HTML comment', [lt, i]);
       continue;
     }
     let j = lt + 1;
@@ -510,10 +540,16 @@ function scanHtml(input: string): Hidden[] {
       continue;
     }
     if (RAW.has(name)) {
+      const start = i;
       const end = lower.indexOf(`</${name}`, i);
       i = end < 0 ? n : lower.indexOf('>', end) + 1 || n;
+      // What a script-free browser, or a script, would show — and a model reads now.
+      if (name === 'noscript' || name === 'template') {
+        unrendered(html.slice(start, end < 0 ? n : end).replace(/<[^>]*>/g, ' '), `<${name}>`, [start, end < 0 ? n : end]);
+      }
       continue;
     }
+    attributeOrders(tag, lt + 1);
     if (VOID.has(name) || tag.endsWith('/')) {
       if (name === 'br') onText(' ');
       continue;
