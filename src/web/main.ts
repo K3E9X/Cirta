@@ -205,6 +205,8 @@ function el<K extends keyof HTMLElementTagNameMap>(
   text?: string,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
+  // [C11.5] A button's default type is submit; none of these submits anything.
+  if (node instanceof HTMLButtonElement) node.type = 'button';
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
