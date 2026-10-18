@@ -822,6 +822,13 @@ cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attach
 cirta verify contrat.clean.pdf
 ```
 
+On the page, the same options sit under **"Advanced options"**, off by default and remembered in that
+browser only. Each file's card offers the ones that apply to it, with what they would act on ("Remove the
+3 comments"), and lists **what the download will do before it happens**. After the download the card
+shows **before / after**: what was removed and what is still there, and for a text — plain text,
+Markdown, HTML, SVG, mail, notebook — the lines that changed, **invisible characters written as their
+code point** (`Bonjour⟨U+200B⟩`), since what a clean removes is mostly what nobody can see.
+
 ### For pipelines and agents
 
 **`cirta sanitize-for-llm <file>`** puts Cirta in front of a RAG, an automatic summary or a CV screener.
