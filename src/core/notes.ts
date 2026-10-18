@@ -23,6 +23,10 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Outlook message: sender and recipients, the Internet headers it kept, the times it records, the body, and each attachment inspected like an archive member — an attached message in turn. The message is never rewritten; save it as .eml to clean it.',
   'scope:notebook': () =>
     'Notebook: its metadata and each cell\'s, the outputs (local paths, account names, credentials, tracebacks) and the pictures in them. The code itself is read for credentials only. A statistical model watermark in the wording would not show up here.',
+  'scope:ics': () =>
+    'Calendar file: the program that wrote it, vendor properties, the event identifier when it names a host, creation and edit dates, the organiser and the attendees, the links in the description — a meeting passcode among them. PRODID, UID and DTSTAMP stay, as RFC 5545 requires and an update to the invitation needs; the organiser and attendees are what the invitation is for and are kept.',
+  'scope:vcf': () =>
+    'Contact card: the program that wrote it, its revision date and identifier, vendor properties, the note, and the metadata of its photo. The name, numbers and addresses are the card’s content and are not listed one by one.',
   'scope:latex': () =>
     'LaTeX source: comments and comment environments, the author, acknowledgement notes and contact details, the PDF author set by \\hypersetup, absolute paths in \\input, \\include and \\includegraphics, and invisible characters. The author, the notes and the paths are the document’s own and are kept; the wording is not analysed.',
   'removed:latex-comments': (detail) => `Removed the text of ${detail ?? 'every'} comment${detail === '1' ? '' : 's'}; each % stays, so the typeset text does not change.`,
@@ -109,6 +113,10 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Message Outlook : expéditeur et destinataires, les en-têtes Internet qu'il a gardés, les heures qu'il note, le corps, et chaque pièce jointe inspectée comme un membre d'archive — un message joint à son tour. Le message n'est jamais réécrit ; enregistrez-le en .eml pour le nettoyer.",
   'scope:notebook': () =>
     "Notebook : ses métadonnées et celles de chaque cellule, les sorties (chemins locaux, noms de compte, secrets, traces d'erreur) et les images qu'elles contiennent. Le code lui-même n'est lu que pour les secrets. Un filigrane statistique dans la formulation n'apparaîtrait pas ici.",
+  'scope:ics': () =>
+    "Fichier d'agenda : le programme qui l'a écrit, les propriétés propres aux logiciels, l'identifiant d'évènement quand il nomme une machine, les dates de création et de modification, l'organisateur et les participants, les liens de la description — dont un code de réunion. PRODID, UID et DTSTAMP restent, comme l'exige la RFC 5545 et comme une mise à jour de l'invitation en a besoin ; l'organisateur et les participants sont l'objet de l'invitation et sont gardés.",
+  'scope:vcf': () =>
+    "Fiche contact : le programme qui l'a écrite, sa date de révision et son identifiant, les propriétés propres aux logiciels, la note, et les métadonnées de sa photo. Le nom, les numéros et les adresses sont le contenu de la fiche et ne sont pas listés un à un.",
   'scope:latex': () =>
     "Source LaTeX : commentaires et environnements comment, l'auteur, les notes de remerciement et les coordonnées, l'auteur PDF fixé par \\hypersetup, les chemins absolus dans \\input, \\include et \\includegraphics, et les caractères invisibles. L'auteur, les notes et les chemins appartiennent au document et sont gardés ; la formulation n'est pas analysée.",
   'removed:latex-comments': (detail) => `Texte de ${detail ?? 'tous les'} commentaire${detail === '1' ? '' : 's'} retiré ; chaque % reste, le texte composé ne change donc pas.`,

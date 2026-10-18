@@ -46,6 +46,9 @@ export type Format =
   | 'epub'
   /** [F-P2 2.2] A LaTeX source. */
   | 'latex'
+  /** [F-P2 2.2] An iCalendar file and a vCard. */
+  | 'ics'
+  | 'vcf'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -162,6 +165,8 @@ export type NoteCode =
   | 'scope:rtf'
   | 'scope:epub'
   | 'scope:latex'
+  | 'scope:ics'
+  | 'scope:vcf'
   | 'removed:latex-comments'
   /** [F-P2 2.4] The picture was rebuilt from its pixels, on request. */
   | 'reencoded:image'

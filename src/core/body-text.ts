@@ -59,6 +59,8 @@ export async function bodyText(data: Uint8Array, format: Format): Promise<string
     case 'markdown':
     case 'svg':
     case 'latex':
+    case 'ics':
+    case 'vcf':
     case 'text':
       return decodeTextInput(data, { allowBinary: true });
     default:

@@ -376,7 +376,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
   '.ipynb',
   // [F-P2 2.2]
-  '.rtf', '.tex', '.ltx', '.sty', '.cls', '.bib',
+  '.rtf', '.tex', '.ltx', '.sty', '.cls', '.bib', '.ics', '.ifb', '.vcf', '.vcard',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
   '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',

@@ -238,6 +238,8 @@ const MIME: Record<Format, string> = {
   vsdx: 'application/vnd.ms-visio.drawing.main+xml',
   epub: 'application/epub+zip',
   latex: 'application/x-tex',
+  ics: 'text/calendar',
+  vcf: 'text/vcard',
   text: 'text/plain',
 };
 

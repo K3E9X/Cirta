@@ -169,6 +169,11 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
           '\\begin{document}\n\\input{/home/jd/intro}\n\\begin{comment}\nancien\n\\end{comment}\nBon\u200bjour\n' + '% c\n'.repeat(60) + '\\end{document}\n',
       ),
     ],
+    [
+      'invitation.ics',
+      enc('BEGIN:VCALENDAR\r\nPRODID:-//X//EN\r\nX-WR-CALNAME:Agenda\r\nBEGIN:VEVENT\r\nUID:1@poste.local\r\nCREATED:20240301T080000Z\r\nLAST-MODIFIED:20240301T080000Z\r\nORGANIZER;CN=Jeanne:mailto:j@a.fr\r\nATTENDEE;CN=Marc:mailto:m@a.fr\r\nDESCRIPTION:https://a.zoom.us/j/1?pwd=x\r\nGEO:48.8;2.3\r\nCOMMENT:note\r\nSUMMARY:Bon​jour\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n'),
+    ],
+    ['contact.vcf', enc(`BEGIN:VCARD\r\nVERSION:3.0\r\nPRODID:-//X//EN\r\nFN:Jeanne\r\nNOTE:client\r\nREV:2024-03-05\r\nUID:1\r\nX-ABUID:1\r\nPHOTO;ENCODING=b;TYPE=JPEG:${Buffer.from(makeJpeg()).toString('base64')}\r\nEND:VCARD\r\n`)],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',
