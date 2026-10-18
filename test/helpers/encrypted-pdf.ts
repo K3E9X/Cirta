@@ -24,7 +24,11 @@ function hash2B(password: Uint8Array, salt: Uint8Array, userKey: Uint8Array): Bu
     let sum = 0;
     for (let i = 0; i < 16; i++) sum += e[i]!;
     k = createHash(['sha256', 'sha384', 'sha512'][sum % 3]!).update(e).digest();
-    if (round >= 63 && e[e.length - 1]! <= round - 32) break;
+    // Rounds are counted as completed, as PDF.js and qpdf count them: stop after
+    // 64 at least, once E's last byte is at most (rounds done − 32). Counting
+    // from zero instead disagreed with PDF.js on about one file in thirty.
+    const done = round + 1;
+    if (done >= 64 && e[e.length - 1]! <= done - 32) break;
   }
   return k.subarray(0, 32);
 }
