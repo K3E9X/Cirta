@@ -110,6 +110,7 @@ ${bold(t().options)}
       --flatten-annotations ${t().optFlattenAnnotations}
       --strip-tracking-params ${t().optStripTracking}
       --burn-redactions ${t().optBurnRedactions}
+      --clear-outputs   ${t().optClearOutputs}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -156,6 +157,7 @@ interface Args {
   stripActive: boolean;
   stripRemote: boolean;
   removeNotes: boolean;
+  clearOutputs: boolean;
   removeHiddenSlides: boolean;
   removeHiddenSheets: boolean;
   removeAttachments: boolean;
@@ -188,6 +190,7 @@ function parseArgs(argv: string[]): Args {
     stripActive: false,
     stripRemote: false,
     removeNotes: false,
+    clearOutputs: false,
     removeHiddenSlides: false,
     removeHiddenSheets: false,
     removeAttachments: false,
@@ -232,6 +235,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--strip-remote-resources':
         args.stripRemote = true;
+        break;
+      case '--clear-outputs':
+        args.clearOutputs = true;
         break;
       case '--remove-notes':
         args.removeNotes = true;
@@ -343,6 +349,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   // reads, and a saved draft is exactly where it survives.
   '.eml', '.mbox', '.msg',
   '.json', '.yaml', '.yml', '.toml', '.ini',
+  // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
+  '.ipynb',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
   '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',
@@ -756,7 +764,7 @@ async function runRedact(args: Args): Promise<number> {
         { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
           removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
           removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-          burnRedactions: args.burnRedactions, pii: args.pii, rules: args.rules },
+          burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, pii: args.pii, rules: args.rules },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the

@@ -237,6 +237,8 @@ export interface InspectOptions {
   burnRedactions?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
+  /** [F-2.2] Cleaning only: empty a notebook's outputs and execution counts. Off by default. */
+  clearOutputs?: boolean;
   /** [F-2.3] Also look for personal data in the document's text: emails, phones, IBANs, cards… Off by default. */
   pii?: boolean;
   /** [F-2.3] An organisation's own rules, parsed by parseRules(). */

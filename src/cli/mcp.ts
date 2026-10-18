@@ -41,6 +41,7 @@ const CLEAN_OPTIONS = [
   'flattenAnnotations',
   'stripTracking',
   'burnRedactions',
+  'clearOutputs',
 ] as const;
 
 const TOOLS = [

@@ -146,6 +146,28 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
         attachments: [{ name: 'note.bin', data: new Uint8Array([0, 1, 2, 0xff]) }, { name: 'Ancien', message: { strings: { 0x0c1a: 'Paul' } } }],
       }),
     ],
+    [
+      'analyse.ipynb',
+      enc(
+        JSON.stringify({
+          cells: [
+            {
+              cell_type: 'code',
+              metadata: { execution: { 'iopub.execute_input': '2026-10-01T09:14:58.120Z' }, outil: 'x' },
+              source: 'print(1)',
+              outputs: [
+                { output_type: 'stream', name: 'stdout', text: 'Lecture de /home/jdupont/donnees.csv\n' },
+                { output_type: 'error', ename: 'Erreur', evalue: 'x', traceback: ['C:\\Users\\jdupont\\lib\\a.py'] },
+                { output_type: 'display_data', data: { 'image/jpeg': Buffer.from(photo).toString('base64') } },
+              ],
+            },
+          ],
+          metadata: { kernelspec: { display_name: 'Python 3', name: 'python3' }, authors: [{ name: 'Jean Dupont' }], papermill: { input_path: '/home/jdupont/a.ipynb' } },
+          nbformat: 4,
+          nbformat_minor: 5,
+        }),
+      ),
+    ],
   ];
 }
 

@@ -13,6 +13,7 @@
 
 import { strFromU8, unzipSync } from 'fflate';
 import type { Finding, Format, InspectOptions } from './types.js';
+import { notebookText, parseNotebook } from './notebook.js';
 import { UnsupportedFormatError } from './errors.js';
 import { inspectFile } from './index.js';
 import { AIMED_LABEL, stripHiddenDocx, stripHiddenHtml } from './hidden-text.js';
@@ -190,6 +191,12 @@ export async function sanitizeForLlm(data: Uint8Array, hint?: string, options: P
     case 'eml':
       body = mailText(data);
       break;
+    case 'ipynb': {
+      // [F-2.2] The sources and what the outputs printed; pictures and escape codes left out.
+      const notebook = parseNotebook(decodeTextInput(data, { allowBinary: true }));
+      body = { text: notebook ? notebookText(notebook) : '', removed: 0 };
+      break;
+    }
     case 'text':
       body = { text: decodeTextInput(data, { allowBinary: hint === 'text' }), removed: 0 };
       break;

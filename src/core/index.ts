@@ -78,6 +78,7 @@ import { byConfidence } from './types.js';
 import { isCfb, readCfb } from './cfb.js';
 import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
+import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -85,7 +86,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'SVG, HTML, Markdown, JPEG and PNG.';
+  'Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -190,6 +191,8 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isMail(data, hint)) return 'eml';
   try {
     const text = decodeTextInput(data, decodeOptions(hint));
+    // [F-2.2] A notebook is JSON with a shape; a .ipynb that does not parse is text.
+    if (parseNotebook(text)) return 'ipynb';
     // Anything that decodes as text but is no known markup is still a file
     // whose invisible characters travel: a .txt, a source file, a CSV. It gets
     // the character-level pass rather than a refusal.
@@ -325,6 +328,7 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
   if (isMail(data, hint)) return inspectEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray }));
 
   const format = detectFormat(data, hint);
+  if (format === 'ipynb') return inspectNotebook(parseNotebook(decodeTextInput(data, decodeOptions(hint)))!);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     return {
       format,
@@ -463,6 +467,10 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   }
 
   const format = detectFormat(data, hint);
+  if (format === 'ipynb') {
+    const notebook = parseNotebook(decodeTextInput(data, decodeOptions(hint)))!;
+    return noteSurvivors(redactNotebook(notebook, { clearOutputs: options.clearOutputs }), hint, options);
+  }
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     const text = decodeTextInput(data, decodeOptions(hint));
     const counted = redactMarkupCounted(text, format, { removeHidden: options.removeHidden });

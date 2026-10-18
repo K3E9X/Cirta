@@ -77,6 +77,7 @@ export interface CleanChoices {
   flattenAnnotations?: boolean;
   stripTracking?: boolean;
   burnRedactions?: boolean;
+  clearOutputs?: boolean;
 }
 
 export type WorkerResponse =
@@ -115,6 +116,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       flattenAnnotations: clean.flattenAnnotations === true,
       stripTracking: clean.stripTracking === true,
       burnRedactions: clean.burnRedactions === true,
+      clearOutputs: clean.clearOutputs === true,
       pii: scan.pii === true,
       rules: rulesFrom(scan.rules),
     });

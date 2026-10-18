@@ -245,6 +245,12 @@ const FIELD_LABEL: Record<string, string> = {
   'Comment text': 'Texte d’un commentaire',
   'Comment author account': 'Compte de l’auteur d’un commentaire',
   'Attachment not inspected': 'Pièce jointe non inspectée',
+  Kernel: 'Noyau',
+  Language: 'Langage',
+  'Notebook metadata': 'Métadonnées du notebook',
+  'Cell metadata': 'Métadonnées de cellule',
+  'Execution time': 'Heure d’exécution',
+  'Local path in an output': 'Chemin local dans une sortie',
   'Attached message beyond the nesting limit': 'Message joint au-delà de la limite d’imbrication',
   'Sent on behalf of': 'Envoyé au nom de',
   'Exchange account (X.500 address)': 'Compte Exchange (adresse X.500)',
@@ -958,8 +964,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, SVG, HTML, Markdown, JPEG and PNG.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, SVG, HTML, Markdown, JPEG et PNG.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, SVG, HTML, Markdown, JPEG et PNG.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
