@@ -25,6 +25,7 @@ import { exposure, type Exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
 import { AIMED_LABEL } from '../core/hidden-text.js';
 import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
+import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
 import {
   preview,
   type Confidence,
@@ -257,6 +258,61 @@ const OPTION_LABEL: Record<CleanKey, (n: number) => string> = {
   burnRedactions: (n) => t().burnRedactionsOption(n),
   clearOutputs: (n) => t().clearOutputsOption(n),
 };
+
+/** Formats whose cleaned copy is text a person can read line by line. */
+const TEXT_FORMATS = new Set(['text', 'markdown', 'html', 'svg', 'eml', 'ipynb']);
+const MAX_DIFF = 1024 * 1024;
+
+/**
+ * [F-2.7] After a clean: what went, what is still there, and for a text the
+ * lines that changed — invisible characters written out, since what a clean
+ * removes is mostly what a reader cannot see.
+ */
+function beforeAfter(format: Format, before: Uint8Array, redacted: RedactResult): HTMLElement {
+  const box = el('details', 'before-after');
+  box.open = true;
+  box.append(el('summary', undefined, t().beforeAfterTitle));
+  const columns = el('div', 'before-after-columns');
+  const list = (title: string, findings: Finding[], className: string) => {
+    const column = el('div', `before-after-column ${className}`);
+    column.append(el('p', 'before-after-head', title));
+    const items = el('ul');
+    for (const finding of findings) {
+      const item = el('li');
+      item.append(el('span', 'before-after-label', translateLabel(finding.label, lang())), document.createTextNode(` — ${preview(translateValue(finding, lang()), 80)}`));
+      items.append(item);
+    }
+    column.append(items);
+    return column;
+  };
+  columns.append(list(t().goneTitle(redacted.removed.length), redacted.removed, 'is-gone'), list(t().leftTitle(redacted.kept?.length ?? 0), redacted.kept ?? [], 'is-left'));
+  box.append(columns);
+
+  if (TEXT_FORMATS.has(format) && redacted.data && before.length <= MAX_DIFF && redacted.data.length <= MAX_DIFF) {
+    const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+    let original = decode(before);
+    // A notebook comes back in Jupyter's layout; the original is laid out the same way first, so only content differs.
+    if (format === 'ipynb') {
+      try {
+        original = `${JSON.stringify(JSON.parse(original), null, 1)}\n`;
+      } catch {
+        // Shown as it was.
+      }
+    }
+    const shown = hunks(lineDiff(original, decode(redacted.data)), 2);
+    box.append(el('p', 'before-after-head', t().diffTitle));
+    if (!shown.some((line) => line.kind === 'removed' || line.kind === 'added')) box.append(el('p', 'note', t().diffSame));
+    else {
+      const pre = el('pre', 'diff');
+      for (const line of shown) {
+        if (line.kind === 'skip') pre.append(el('span', 'diff-line is-skip', t().diffSkip(line.count)));
+        else pre.append(el('span', `diff-line is-${line.kind}`, `${line.kind === 'removed' ? '−' : line.kind === 'added' ? '+' : ' '} ${showInvisible(line.text)}`));
+      }
+      box.append(pre);
+    }
+  }
+  return box;
+}
 
 /** [F-2.2] Formats read and never rewritten. */
 const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
@@ -827,6 +883,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
               (n) => n.code.startsWith('removed:') || n.code.startsWith('kept:'),
             );
             if (fresh.length) appendNotes(node, fresh);
+            node.append(beforeAfter(result.format, data, redacted));
           } catch (error) {
             node.classList.remove('is-cleaning');
             button.textContent = t().cleanFailed;

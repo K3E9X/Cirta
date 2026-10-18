@@ -231,6 +231,12 @@ const FR = {
   planTitle: 'Au téléchargement :',
   planMetadata: 'Retirer ce que le fichier dit de sa fabrication (métadonnées, caractères invisibles), puis relire la copie',
   planContentKept: 'Le contenu n’est pas modifié : les options ci-dessus sont décochées.',
+  beforeAfterTitle: 'Avant / après',
+  goneTitle: (n: number) => `Retiré (${n})`,
+  leftTitle: (n: number) => `Toujours là (${n})`,
+  diffTitle: 'Le texte, ligne à ligne — les caractères invisibles écrits en clair',
+  diffSkip: (n: number) => (n > 1 ? `… ${n} lignes identiques` : '… 1 ligne identique'),
+  diffSame: 'Le texte lui-même n’a pas changé.',
   stripActiveOption: (n: number) =>
     n > 1 ? `Retirer les ${n} éléments actifs (scripts, actions, fichiers intégrés)` : 'Retirer l’élément actif (script, action, fichier intégré)',
   stripRemoteOption: (n: number) =>
@@ -447,6 +453,12 @@ const EN: Strings = {
   planTitle: 'On download:',
   planMetadata: 'Remove what the file says about how it was made (metadata, invisible characters), then read the copy again',
   planContentKept: 'The content is not changed: the options above are unticked.',
+  beforeAfterTitle: 'Before / after',
+  goneTitle: (n) => `Removed (${n})`,
+  leftTitle: (n) => `Still there (${n})`,
+  diffTitle: 'The text, line by line — invisible characters written out',
+  diffSkip: (n) => (n > 1 ? `… ${n} unchanged lines` : '… 1 unchanged line'),
+  diffSame: 'The text itself did not change.',
   stripActiveOption: (n) =>
     n > 1 ? `Remove the ${n} active elements (scripts, actions, embedded files)` : 'Remove the active element (script, action, embedded file)',
   stripRemoteOption: (n) =>
