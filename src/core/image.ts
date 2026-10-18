@@ -11,6 +11,9 @@ import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
+import { exifFindings, parseExif } from './exif.js';
+import { imageXmpFindings } from './xmp.js';
+import { Unzlib } from 'fflate';
 
 const JPEG_SOI = 0xffd8;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -369,27 +372,105 @@ const GENERATOR_KEYWORDS = new Map<string, string>([
   ['aiart', 'AI image generator'],
 ]);
 
+/** Text as a tool wrote it: the spec says Latin-1 for tEXt, tools often write UTF-8. */
+function decodeText(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return ASCII.decode(bytes);
+  }
+}
+
+/** Decompressed text is capped: a few kilobytes of zeros inflate to gigabytes. */
+const MAX_INFLATED = 1024 * 1024;
+
+function inflate(bytes: Uint8Array): Uint8Array | undefined {
+  const pieces: Uint8Array[] = [];
+  let total = 0;
+  let over = false;
+  const stream = new Unzlib((chunk) => {
+    total += chunk.length;
+    if (total > MAX_INFLATED) over = true;
+    else pieces.push(chunk);
+  });
+  try {
+    // Fed in small slices so no single push can expand past the cap by much.
+    for (let at = 0; at < bytes.length && !over; at += 1024) {
+      stream.push(bytes.subarray(at, at + 1024), at + 1024 >= bytes.length);
+    }
+  } catch {
+    return undefined;
+  }
+  if (over) return undefined;
+  const out = new Uint8Array(total);
+  let cursor = 0;
+  for (const piece of pieces) {
+    out.set(piece, cursor);
+    cursor += piece.length;
+  }
+  return out;
+}
+
 /**
  * The keyword of a PNG text chunk, and the text after it.
  *
  * tEXt is `keyword\0text`. iTXt adds a compression flag, a method byte and two
- * language fields between them; zTXt compresses the text, so only its keyword
- * is readable here, which is enough to name the tool.
+ * language fields between them; zTXt compresses the text. Compressed text is
+ * inflated under a cap; past it, only the keyword is known.
  */
 function pngTextKeyword(type: string, body: Uint8Array): { keyword: string; text: string } {
   const nul = body.indexOf(0);
   if (nul < 0) return { keyword: '', text: '' };
   const keyword = ASCII.decode(body.subarray(0, nul));
-  if (type === 'tEXt') return { keyword, text: ASCII.decode(body.subarray(nul + 1)) };
+  if (type === 'tEXt') return { keyword, text: decodeText(body.subarray(nul + 1)) };
+  if (type === 'zTXt') {
+    // keyword \0 method compressed-text
+    const inflated = inflate(body.subarray(nul + 2));
+    return { keyword, text: inflated ? decodeText(inflated) : '' };
+  }
   if (type === 'iTXt') {
     // keyword \0 flag method langTag \0 translatedKeyword \0 text
+    const compressed = body[nul + 1] === 1;
     let cursor = nul + 3;
     for (let seen = 0; seen < 2 && cursor < body.length; cursor++) {
       if (body[cursor] === 0) seen++;
     }
-    return { keyword, text: ASCII.decode(body.subarray(cursor)) };
+    const raw = body.subarray(cursor);
+    const bytes = compressed ? inflate(raw) : raw;
+    return { keyword, text: bytes ? new TextDecoder().decode(bytes) : '' };
   }
   return { keyword, text: '' };
+}
+
+/**
+ * [C7] The keywords the PNG specification defines, each reported with its
+ * value. Anything else a tool writes is shown too, under its own keyword.
+ */
+const PNG_TEXT_FIELDS = new Map<string, { label: string; kind: Finding['kind']; confidence: Finding['confidence'] }>([
+  ['author', { label: 'Author', kind: 'identity', confidence: 'confirmed' }],
+  ['copyright', { label: 'Copyright', kind: 'identity', confidence: 'probable' }],
+  ['title', { label: 'Title', kind: 'identity', confidence: 'probable' }],
+  ['description', { label: 'Description', kind: 'identity', confidence: 'probable' }],
+  ['comment', { label: 'Comment', kind: 'identity', confidence: 'probable' }],
+  ['source', { label: 'Source device', kind: 'identity', confidence: 'probable' }],
+  ['software', { label: 'Software', kind: 'provenance', confidence: 'informational' }],
+  ['creation time', { label: 'Creation time', kind: 'timestamp', confidence: 'probable' }],
+  ['disclaimer', { label: 'Disclaimer', kind: 'identity', confidence: 'informational' }],
+  ['warning', { label: 'Warning', kind: 'identity', confidence: 'informational' }],
+]);
+
+const XMP_KEYWORD = 'XML:com.adobe.xmp';
+
+/** A text chunk's findings: its XMP packet's fields, or the field it is. */
+function pngTextFindings(type: string, body: Uint8Array, location: string): Finding[] {
+  const { keyword, text } = pngTextKeyword(type, body);
+  const where = `${location} (${type}:${keyword})`;
+  if (keyword === XMP_KEYWORD) return text ? imageXmpFindings(text, where) : [];
+  const value = text.trim();
+  if (!keyword || !value) return [];
+  const field = PNG_TEXT_FIELDS.get(keyword.toLowerCase());
+  if (field) return [{ ...field, location: where, value: preview(value, 200) }];
+  return [{ kind: 'identity', confidence: 'probable', location: where, label: 'PNG text field', value: preview(`${keyword}: ${value}`, 200) }];
 }
 
 /** A generation chunk, reported with the tool named and the prompt called out. */
@@ -417,6 +498,19 @@ function describeGenerator(
   };
 }
 
+/** The fields an APP1 segment carries: Exif, or an XMP packet. */
+function app1Fields(body: Uint8Array, location: string): Finding[] {
+  if (ASCII.decode(body.subarray(0, 6)) === 'Exif\0\0') {
+    const exif = parseExif(body.subarray(6));
+    return exif ? exifFindings(exif, location) : [];
+  }
+  const nul = body.indexOf(0);
+  if (nul > 0 && ASCII.decode(body.subarray(0, nul)).startsWith('http://ns.adobe.com/xap/')) {
+    return imageXmpFindings(new TextDecoder().decode(body.subarray(nul + 1)), `${location} (XMP)`);
+  }
+  return [];
+}
+
 /* ---------------------------------------------------------------- public -- */
 
 /**
@@ -438,14 +532,17 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
       }
       // A generator that declares itself does it here, in the XMP packet.
       findings.push(...findSourceTypes(ASCII.decode(segment.body), location));
+      const fields = segment.marker === 0xffe1 ? app1Fields(segment.body, location) : [];
       if (segment.marker === 0xffe1) {
-        findings.push(...previewFindings(data, segment.body, location));
+        findings.push(...fields, ...previewFindings(data, segment.body, location));
       }
       findings.push({
         kind: 'identity',
         // GPS coordinates place the author somewhere specific; the rest is
-        // device and capture data that is identifying but less pointed.
-        confidence: described.hasGps ? 'confirmed' : 'probable',
+        // device and capture data that is identifying but less pointed. Once
+        // the fields are read and reported on their own, the segment is only
+        // the size of what cleaning removes.
+        confidence: fields.length ? 'informational' : described.hasGps ? 'confirmed' : 'probable',
         location,
         label: described.label,
         value: `${segment.end - segment.start} bytes`,
@@ -467,6 +564,25 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
     if (generator) {
       findings.push(generator);
       continue;
+    }
+    if (chunk.type === 'eXIf') {
+      const exif = parseExif(body);
+      const fields = exif ? exifFindings(exif, location) : [];
+      findings.push(...fields, {
+        kind: 'identity',
+        confidence: fields.length ? 'informational' : 'confirmed',
+        location,
+        label: 'Exif camera data',
+        value: `${chunk.end - chunk.start} bytes`,
+      });
+      continue;
+    }
+    if (chunk.type !== 'tIME') {
+      const fields = pngTextFindings(chunk.type, body, location);
+      if (fields.length) {
+        findings.push(...fields);
+        continue;
+      }
     }
     findings.push({
       kind: chunk.type === 'tIME' ? 'timestamp' : 'identity',
