@@ -581,12 +581,11 @@ async function runInspect(args: Args): Promise<number> {
     const flagged = results.filter((r) =>
       r.result?.findings.some((f) => f.confidence === 'confirmed'),
     ).length;
+    // [C11.1] The verdict line, in the reader's language like the rest.
     console.log(
-      `\n${bold('Summary')}  ${args.files.length} file${args.files.length > 1 ? 's' : ''}, ` +
-        (flagged
-          ? red(`${flagged} carrying confirmed identifying data`)
-          : green('none carrying confirmed identifying data')) +
-        (failures ? `, ${red(`${failures} unreadable`)}` : ''),
+      `\n${bold(t().summaryTitle)}  ${t().summaryFiles(args.files.length)}, ` +
+        (flagged ? red(t().summaryFlagged(flagged)) : green(t().summaryClean)) +
+        (failures ? `, ${red(t().summaryUnreadable(failures))}` : ''),
     );
   }
 

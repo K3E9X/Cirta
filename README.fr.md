@@ -850,7 +850,10 @@ téléchargez la version nettoyée. Le traitement a lieu dans l'onglet ; rien n'
 et son emplacement — plutôt qu'en tableau à faire défiler de côté.
 
 L'interface est **bilingue**. Elle suit la langue du navigateur, un bouton dans l'en-tête la
-change, et le choix est mémorisé.
+change, et le choix est mémorisé. Le mode français est en français de bout en bout — noms des champs
+et des caractères, valeurs, manière dont un passage est caché, refus des analyseurs, fichier
+introuvable, ligne de bilan du CLI —, et un test inspecte et nettoie un corpus qui exerce chaque
+contrôle pour l'y maintenir.
 
 Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décompte que la ligne
 `Summary` du CLI — avec un export JSON du rapport. Cet export a exactement la forme qu'émet

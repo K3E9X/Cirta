@@ -200,8 +200,12 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
  * find.
  */
 export async function inspectFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<InspectResult> {
+  return asRefusal(() => dispatch(data, hint, options));
+}
+
+async function asRefusal<T>(work: () => Promise<T>): Promise<T> {
   try {
-    return await dispatch(data, hint, options);
+    return await work();
   } catch (error) {
     if (
       error instanceof UnsupportedFormatError ||
@@ -329,7 +333,16 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
   };
 }
 
+/**
+ * Clean a file. [C11.1] A parser's complaint becomes a coded refusal here
+ * too, as it does for inspection: a truncated PDF reached the reader as
+ * "Failed to parse PDF document", in English, with no code to translate.
+ */
 export async function redactFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
+  return asRefusal(() => redact(data, hint, options));
+}
+
+async function redact(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
   refuseEmpty(data);
   if (isPdf(data)) {
     const result = await redactPdf(data);

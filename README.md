@@ -797,7 +797,10 @@ each finding is shown as a card — level and kind, then the field, its value an
 rather than a table to scroll sideways.
 
 The interface is **bilingual**. It follows the browser's language, a toggle in the header switches it,
-and the choice is remembered. Drop several files and a summary bar appears — the same tally as the
+and the choice is remembered. French mode is French throughout — field names, character names,
+values, the way a passage is hidden, parser refusals, a missing file, the CLI's verdict line — and a
+test inspects and cleans a corpus that exercises every check to hold it there.
+ Drop several files and a summary bar appears — the same tally as the
 CLI's `Summary` line — with a JSON export of the report. That export has exactly the shape
 `cirta inspect --json` emits, so a report produced from the page and one produced on the command line
 compare without translation. Analysis runs in a *worker*: a large PDF does not freeze the tab, and a
