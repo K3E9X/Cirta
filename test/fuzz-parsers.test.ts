@@ -159,6 +159,7 @@ describe('[F-2.8] fuzzing the new parsers', () => {
     });
     await fuzz('epub', [epub], both('a.epub'));
     await fuzz('vsdx', [vsdx({ creator: 'J', comments: [{ name: 'M', initials: 'M' }], connection: 'Password=x', hyperlink: 'file:///C:/a' })], both('a.vsdx'));
+    await fuzz('latex', [strToU8('\\documentclass{article}\n% c\n\\author{J\\thanks{x}}\\input{/home/j/a}\n\\verb|%|\\url{a%b}\n\\begin{comment}\nx\n\\end{comment}\n\\begin{document}\\end{document}\n')], both('a.tex'));
     await fuzz('pictures', [await webpWithMetadata(), await gifWithMetadata(), tiffWithMetadata(), heifWithMetadata('heic'), heifWithMetadata('avif')], both('a'));
   }, TIMEOUT * 6);
 });

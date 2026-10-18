@@ -23,6 +23,9 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Outlook message: sender and recipients, the Internet headers it kept, the times it records, the body, and each attachment inspected like an archive member — an attached message in turn. The message is never rewritten; save it as .eml to clean it.',
   'scope:notebook': () =>
     'Notebook: its metadata and each cell\'s, the outputs (local paths, account names, credentials, tracebacks) and the pictures in them. The code itself is read for credentials only. A statistical model watermark in the wording would not show up here.',
+  'scope:latex': () =>
+    'LaTeX source: comments and comment environments, the author, acknowledgement notes and contact details, the PDF author set by \\hypersetup, absolute paths in \\input, \\include and \\includegraphics, and invisible characters. The author, the notes and the paths are the document’s own and are kept; the wording is not analysed.',
+  'removed:latex-comments': (detail) => `Removed the text of ${detail ?? 'every'} comment${detail === '1' ? '' : 's'}; each % stays, so the typeset text does not change.`,
   'scope:epub': () =>
     'EPUB book: the package metadata (creator, contributors, publisher, dates, identifier, what calibre and Sigil add), the author in the NCX, each page through the HTML pass, each picture through the picture pass, calibre’s saved reading position and Apple’s purchase record. Cleaning keeps the title, the language and an ISBN, and gives the book an identifier derived from its cleaned content. The wording is not analysed.',
   'scope:rtf': () =>
@@ -106,6 +109,9 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Message Outlook : expéditeur et destinataires, les en-têtes Internet qu'il a gardés, les heures qu'il note, le corps, et chaque pièce jointe inspectée comme un membre d'archive — un message joint à son tour. Le message n'est jamais réécrit ; enregistrez-le en .eml pour le nettoyer.",
   'scope:notebook': () =>
     "Notebook : ses métadonnées et celles de chaque cellule, les sorties (chemins locaux, noms de compte, secrets, traces d'erreur) et les images qu'elles contiennent. Le code lui-même n'est lu que pour les secrets. Un filigrane statistique dans la formulation n'apparaîtrait pas ici.",
+  'scope:latex': () =>
+    "Source LaTeX : commentaires et environnements comment, l'auteur, les notes de remerciement et les coordonnées, l'auteur PDF fixé par \\hypersetup, les chemins absolus dans \\input, \\include et \\includegraphics, et les caractères invisibles. L'auteur, les notes et les chemins appartiennent au document et sont gardés ; la formulation n'est pas analysée.",
+  'removed:latex-comments': (detail) => `Texte de ${detail ?? 'tous les'} commentaire${detail === '1' ? '' : 's'} retiré ; chaque % reste, le texte composé ne change donc pas.`,
   'scope:epub': () =>
     "Livre EPUB : les métadonnées du paquet (créateur, contributeurs, éditeur, dates, identifiant, ce qu'ajoutent calibre et Sigil), l'auteur dans le NCX, chaque page par la passe HTML, chaque image par la passe image, la position de lecture enregistrée par calibre et la trace d'achat d'Apple. Le nettoyage garde le titre, la langue et un ISBN, et donne au livre un identifiant dérivé de son contenu nettoyé. La formulation n'est pas analysée.",
   'scope:rtf': () =>

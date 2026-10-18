@@ -58,6 +58,7 @@ export async function bodyText(data: Uint8Array, format: Format): Promise<string
     case 'html':
     case 'markdown':
     case 'svg':
+    case 'latex':
     case 'text':
       return decodeTextInput(data, { allowBinary: true });
     default:

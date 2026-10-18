@@ -44,6 +44,8 @@ export type Format =
   | 'rtf'
   /** [F-P2 2.2] An EPUB book. */
   | 'epub'
+  /** [F-P2 2.2] A LaTeX source. */
+  | 'latex'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -159,6 +161,8 @@ export type NoteCode =
   | 'scope:notebook'
   | 'scope:rtf'
   | 'scope:epub'
+  | 'scope:latex'
+  | 'removed:latex-comments'
   /** [F-P2 2.4] The picture was rebuilt from its pixels, on request. */
   | 'reencoded:image'
   /** [F-2.2] A notebook's outputs were removed, on request. */

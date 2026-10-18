@@ -45,6 +45,13 @@ const FIELD_LABEL: Record<string, string> = {
   'Hyperlink base': 'Base des liens hypertexte',
   'Last backup': 'Dernière sauvegarde',
   'Private chunk': 'Bloc privé',
+  'LaTeX comment': 'Commentaire LaTeX',
+  'LaTeX comments': 'Commentaires LaTeX',
+  'Text in a comment environment': 'Texte dans un environnement comment',
+  'Acknowledgement note (\\thanks)': 'Note de remerciement (\\thanks)',
+  'Author contact': 'Coordonnées de l’auteur',
+  'PDF author set by the source': 'Auteur PDF fixé par la source',
+  'Local path in the source': 'Chemin local dans la source',
   Contributor: 'Contributeur',
   Publisher: 'Éditeur',
   'Book identifier': 'Identifiant du livre',
@@ -424,6 +431,7 @@ const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
   [/^document body \((.+)\)$/, (m) => `corps du document (${m[1]})`],
+  [/^comment (\d+)$/, (m) => `commentaire ${m[1]}`],
 ];
 
 /** [F-P2 2.2] Where the other picture formats keep their metadata. */
@@ -459,6 +467,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'package structure': 'structure du paquet',
   comments: 'commentaires',
   'archive member paths': 'chemins des membres de l’archive',
+  'file references': 'références de fichiers',
 };
 
 /** Alphabet names, which the core reports in English inside a sentence. */
@@ -815,6 +824,7 @@ const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
   // [F-P2 2.1] Liens et noms de fichiers piégés.
   [/^(\d+) bytes after the image ends$/, (m) => `${m[1]} octets après la fin de l’image`],
+  [/^(\d+) comments, the first (\d+) quoted$/, (m) => `${m[1]} commentaires, les ${m[2]} premiers cités`],
   [/^data:(\S+) \(a page, opened as one\)$/, (m) => `data:${m[1]} (une page, ouverte comme telle)`],
   [/^shown as “([\s\S]*)”, really ends in (\S+) \((U\+[0-9A-F]+)\)$/, (m) => `affiché « ${m[1]} », se termine en réalité par ${m[2]} (${m[3]})`],
   [/^([\s\S]+) — opens as (\S+), not (\S+)$/, (m) => `${m[1]} — s’ouvre comme ${m[2]}, pas comme ${m[3]}`],

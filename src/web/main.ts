@@ -238,6 +238,7 @@ const MIME: Record<Format, string> = {
   rtf: 'application/rtf',
   vsdx: 'application/vnd.ms-visio.drawing.main+xml',
   epub: 'application/epub+zip',
+  latex: 'application/x-tex',
   text: 'text/plain',
 };
 

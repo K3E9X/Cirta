@@ -162,6 +162,13 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['scan.tif', tiffWithMetadata()],
     ['photo.heic', heifWithMetadata('heic')],
     ['photo.avif', heifWithMetadata('avif')],
+    [
+      'article.tex',
+      enc(
+        '\\documentclass{article}\n\\hypersetup{pdfauthor={Jeanne}}\n% note pour Marc\n\\author{Jeanne\\thanks{ANR}}\\email{j@l.fr}\\affiliation{Labo}\n' +
+          '\\begin{document}\n\\input{/home/jd/intro}\n\\begin{comment}\nancien\n\\end{comment}\nBon\u200bjour\n' + '% c\n'.repeat(60) + '\\end{document}\n',
+      ),
+    ],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',

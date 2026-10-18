@@ -15,6 +15,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import type { Finding, Format, InspectOptions } from './types.js';
 import { notebookText, parseNotebook } from './notebook.js';
 import { rtfText } from './rtf.js';
+import { redactLatex } from './latex.js';
 import { UnsupportedFormatError } from './errors.js';
 import { inspectFile } from './index.js';
 import { AIMED_LABEL, stripHiddenDocx, stripHiddenHtml } from './hidden-text.js';
@@ -205,8 +206,19 @@ export async function sanitizeForLlm(data: Uint8Array, hint?: string, options: P
     case 'text':
       body = { text: decodeTextInput(data, { allowBinary: hint === 'text' }), removed: 0 };
       break;
+    case 'latex': {
+      // [F-P2 2.2] The source without its comments: what the author meant to typeset.
+      const cleaned = redactLatex(decodeTextInput(data, { allowBinary: true }));
+      body = { text: cleaned.text ?? '', removed: Number(cleaned.notes.find((n) => n.code === 'removed:latex-comments')?.detail ?? 0) };
+      break;
+    }
     case 'jpeg':
     case 'png':
+    case 'webp':
+    case 'gif':
+    case 'tiff':
+    case 'heic':
+    case 'avif':
       body = { text: '', removed: 0 };
       break;
     default:

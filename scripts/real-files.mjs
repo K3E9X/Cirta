@@ -533,6 +533,28 @@ try {
     if (/ENOENT/.test(String(error))) console.log('  skip  ImageMagick is not installed: GIF and TIFF not checked');
     else check('im.gif / im.tif: written by ImageMagick, inspected and cleaned', false, String(error).slice(0, 200));
   }
+  // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
+  // text the same to the character (pdflatex and pdftotext, where they are installed).
+  try {
+    await run('pdflatex', ['--version']);
+    const tex = [
+      '\\documentclass{article}', '\\usepackage[T1]{fontenc}', '\\usepackage{hyperref,verbatim}', '\\hypersetup{pdfauthor={Marie Martin}}',
+      '% relire avec Paul', '\\author{Marie Martin}', '\\begin{document}', 'Le taux est de 12\\,\\% cette annee.% provisoire', 'suite%', 'collee.',
+      '\\url{https://exemple.fr/a%20b} \\verb|50% verbatim|', '\\begin{comment}', 'ancienne version', '\\end{comment}', 'Fin.', '\\end{document}', '',
+    ].join('\n');
+    const cleaned = await redactFile(new TextEncoder().encode(tex), 'a.tex');
+    check('a.tex: the comments are gone', !/relire|provisoire|ancienne/.test(new TextDecoder().decode(cleaned.data)));
+    const texts = [];
+    for (const [name, bytes] of [['before.tex', new TextEncoder().encode(tex)], ['after.tex', cleaned.data]]) {
+      await writeFile(join(dir, name), bytes);
+      await run('pdflatex', ['-interaction=nonstopmode', '-output-directory', dir, join(dir, name)], { cwd: dir });
+      texts.push((await run('pdftotext', [join(dir, name.replace('.tex', '.pdf')), '-'])).stdout.replace(/\d{4}-\d\d-\d\d|[A-Z][a-z]+ \d{1,2}, \d{4}/g, ''));
+    }
+    check('a.tex: the typeset text is the same before and after the clean', texts[0] === texts[1] && texts[0].includes('collee'), texts.join(' | ').slice(0, 200));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  pdflatex is not installed: the LaTeX clean is not compiled');
+    else check('a.tex: compiled before and after the clean', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

@@ -88,6 +88,7 @@ import { reencodeImage } from './reencode.js';
 import { PICTURE_LOCATION, REWRITABLE_PICTURES } from './picture-formats.js';
 import { isRtf, inspectRtf, redactRtf } from './rtf.js';
 import { isEpub, inspectEpub, redactEpub } from './epub.js';
+import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -95,7 +96,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -208,6 +209,8 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
     const text = decodeTextInput(data, decodeOptions(hint));
     // [F-2.2] A notebook is JSON with a shape; a .ipynb that does not parse is text.
     if (parseNotebook(text)) return 'ipynb';
+    // [F-P2 2.2] Before the markup sniff: a % comment is not Markdown.
+    if (looksLikeLatex(text, hint)) return 'latex';
     // Anything that decodes as text but is no known markup is still a file
     // whose invisible characters travel: a .txt, a source file, a CSV. It gets
     // the character-level pass rather than a refusal.
@@ -349,6 +352,7 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
 
   const format = detectFormat(data, hint);
   if (format === 'ipynb') return inspectNotebook(parseNotebook(decodeTextInput(data, decodeOptions(hint)))!);
+  if (format === 'latex') return inspectLatex(decodeTextInput(data, decodeOptions(hint)));
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     return {
       format,
@@ -562,6 +566,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   }
 
   const format = detectFormat(data, hint);
+  if (format === 'latex') return noteSurvivors(redactLatex(decodeTextInput(data, decodeOptions(hint))), hint, options);
   if (format === 'ipynb') {
     const notebook = parseNotebook(decodeTextInput(data, decodeOptions(hint)))!;
     return noteSurvivors(redactNotebook(notebook, { clearOutputs: options.clearOutputs }), hint, options);
