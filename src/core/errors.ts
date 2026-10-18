@@ -24,6 +24,8 @@ export type ErrorCode =
   | 'reencode-unavailable'
   /** [F-P2 2.2] An EPUB under DRM: its pages cannot be read, so they cannot be cleaned. Detail: the encrypted members. */
   | 'epub-encrypted'
+  /** [F-P2 2.2] A ZIP past a limit: too many members, too much content, a compression bomb. Detail: `members:N`, `bytes:N` or `ratio:<member>`. */
+  | 'archive-too-large'
   /** An empty file. */
   | 'empty-file'
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */

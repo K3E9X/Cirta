@@ -1036,6 +1036,15 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
     fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
   }),
+  'archive-too-large': (detail) => {
+    const [limit, value = ''] = (detail ?? '').split(/:(.*)/s);
+    if (limit === 'members') return { en: `This archive declares more than ${value} members; it is refused rather than read in part.`, fr: `Cette archive déclare plus de ${value} membres ; elle est refusée plutôt que lue en partie.` };
+    if (limit === 'bytes') return { en: `This archive declares more than ${value} MB of uncompressed content; it is refused rather than read in part.`, fr: `Cette archive déclare plus de ${value} Mo de contenu décompressé ; elle est refusée plutôt que lue en partie.` };
+    return {
+      en: `The member “${value}” inflates more than 1,000 times its stored size: a compression bomb, not a document. The file is refused.`,
+      fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
+    };
+  },
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,
     fr: `Le fichier de règles n’a pas pu être lu : ${translateRulesDetail(detail ?? 'raison inconnue')}.`,
