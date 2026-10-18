@@ -926,7 +926,7 @@ Vérification manuelle : `npm run dev` (ou `dist-web`). Ouvrir « Options avanc�
 
 ## F-2.8 [F-P1] — Sécurité et robustesse
 
-**Statut : fait pour les quatre puces.** Les nouveaux tests ont trouvé deux défauts, corrigés dans le même commit que leurs tests.
+**Statut : fait pour les quatre puces.** Les nouveaux tests ont trouvé trois défauts, tous corrigés. Les deux premiers sont corrigés dans le même commit que leurs tests. Le troisième est apparu sur la CI Windows, puis a été corrigé (`380899f`).
 
 | Élément | Commit | Fichiers |
 |---|---|---|
@@ -943,6 +943,7 @@ Ce qui change :
   - Deux défauts trouvés :
     - **Imbrication de paragraphes Word, quadratique.** 100 000 niveaux prenaient 46 s à inspecter (20 000 niveaux : 1,8 s ; 40 000 : 6,6 s ; nettoyage 21 s). Chaque paragraphe relisait tout son corps. Au-delà de 32 niveaux, un paragraphe est maintenant lu avec celui qui l'englobe. Word n'imbrique que par les zones de texte, sur un ou deux niveaux. Résultat à 40 000 niveaux : 0,1 s.
     - **Notebook JSON imbriqué 200 000 fois.** `JSON.parse` passait, puis `JSON.stringify` débordait la pile : un `RangeError`, donc un plantage et non un refus. Au-delà de 512 niveaux, le fichier n'est plus pris pour un notebook (le `json` de Python s'arrête vers 1 000) et il est lu comme du texte.
+    - **Liens Markdown, quadratique.** Un défaut existant, révélé par le test précédent sur la CI Windows. Le notebook profond, lu comme du texte, y prenait 541 s. La charge a fait dépasser leur limite de temps à deux autres tests (presse-papiers, courrier hostile). Cause : l'étiquette de `[…](https://…)` acceptait `[`, donc chaque crochet balayait la ligne jusqu'au bout. L'étiquette s'arrête maintenant à un crochet. 100 000 niveaux : 4,7 s → 36 ms. Test : `test/residue.test.ts` « reads a line of a hundred thousand brackets in well under a second, and still finds a link » (4 720 ms avant le correctif).
 - **Fuzzers.** `test/fuzz-parsers.test.ts`, dans `npm test`, part de graines construites par les helpers de test. `scripts/fuzz.mjs` travaille sur `dist` et ne peut pas les utiliser.
   - Cibles : lecteur CFB, puis `.doc`/`.ppt`/`.msg` de bout en bout ; jeux de propriétés OLE ; enregistrements PowerPoint ; MIME (`parseMail`, `.eml`) ; IFD Exif, dont une boucle explicite (IFD0 dont les pointeurs Exif et suivant visent lui-même) ; fichier de règles ; données personnelles ; notebooks (inspection et nettoyage).
   - Mutateur ajouté : il renvoie un décalage vers une position antérieure.
@@ -1038,7 +1039,7 @@ Branche `feat/ui-options` (PR n°9) :
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
 
 Branche `feat/hardening` (PR n°10) :
-- `npm run verify` : exit 0. 64 fichiers de test, **847 tests** (832 avant). Fuzz : 3 588 entrées, `no crash and no hang`. Build web OK.
+- `npm run verify` : exit 0. 64 fichiers de test, **847 tests** (832 avant). Fuzz : 3 588 entrées, `no crash and no hang`. Build web OK. Après le correctif des liens Markdown : **848 tests**.
 - `CIRTA_PYTHON=… node scripts/real-files.mjs` : `all real-file checks passed`, 41 vérifications `ok`, aucun `skip` (LibreOffice, poppler et nbformat présents).
 
 Nouvelles options CLI (`cirta --help`) :
@@ -1076,7 +1077,7 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
-**CI.** Au moment d'écrire, la CI (Ubuntu, Windows, macOS × Node 22 et 24) est verte sur les PR n°21 à n°29. La n°30 vient d'être ouverte.
+**CI.** Au moment d'écrire, la CI (Ubuntu, Windows, macOS × Node 22 et 24) est verte sur les PR n°21 à n°29. Sur la n°30, Windows a révélé le défaut des liens Markdown ; le correctif est poussé.
 
 ### Nombre de tests
 
@@ -1084,7 +1085,7 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 |---|---|---|
 | Base `main` @ `b23fca9` | — | **560** |
 | Après C1–C11 (PR n°23) | 39 | 703 |
-| Après tout F-P1 (PR n°30) | 64 | **847** |
+| Après tout F-P1 (PR n°30) | 64 | **848** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
