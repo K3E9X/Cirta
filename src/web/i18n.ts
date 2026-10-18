@@ -226,6 +226,7 @@ const FR = {
   flattenAnnotationsOption: () => 'Dessiner les annotations dans la page, puis les retirer avec leurs auteurs',
   burnRedactionsOption: (n: number) =>
     n > 1 ? `Supprimer pour de bon les ${n} textes recouverts (leurs pages deviennent des images)` : 'Supprimer pour de bon le texte recouvert (sa page devient une image)',
+  reencodeImagesOption: 'Reconstruire l’image à partir de ses pixels (orientation appliquée, profil de couleur gardé)',
   planTitle: 'Au téléchargement :',
   planMetadata: 'Retirer ce que le fichier dit de sa fabrication (métadonnées, caractères invisibles), puis relire la copie',
   planContentKept: 'Le contenu n’est pas modifié : les options ci-dessus sont décochées.',
@@ -447,6 +448,7 @@ const EN: Strings = {
   flattenAnnotationsOption: () => 'Draw the annotations into the page, then remove them with their authors',
   burnRedactionsOption: (n) =>
     n > 1 ? `Remove the ${n} covered texts for good (their pages become pictures)` : 'Remove the covered text for good (its page becomes a picture)',
+  reencodeImagesOption: 'Rebuild the picture from its pixels (orientation applied, colour profile kept)',
   planTitle: 'On download:',
   planMetadata: 'Remove what the file says about how it was made (metadata, invisible characters), then read the copy again',
   planContentKept: 'The content is not changed: the options above are unticked.',

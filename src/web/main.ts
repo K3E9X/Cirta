@@ -257,6 +257,7 @@ const OPTION_LABEL: Record<CleanKey, (n: number) => string> = {
   flattenAnnotations: () => t().flattenAnnotationsOption(),
   burnRedactions: (n) => t().burnRedactionsOption(n),
   clearOutputs: (n) => t().clearOutputsOption(n),
+  reencodeImages: () => t().reencodeImagesOption,
 };
 
 /** Formats whose cleaned copy is text a person can read line by line. */
@@ -871,9 +872,10 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             // manifest, and — more importantly — what was found and left in
             // place. Dropping those on the floor would make the browser claim
             // more than the CLI does for the same file.
-            const fresh = redacted.notes.filter(
-              (n) => n.code.startsWith('removed:') || n.code.startsWith('kept:'),
-            );
+            // Every note the clean adds — removed, kept, but also pages rasterised,
+            // annotations flattened, text recomposed, a picture rebuilt — not
+            // only the first two; scope notes are already on the card.
+            const fresh = redacted.notes.filter((n) => !n.code.startsWith('scope:') && !n.code.startsWith('limit:'));
             if (fresh.length) appendNotes(node, fresh);
             node.append(beforeAfter(result.format, data, redacted));
           } catch (error) {

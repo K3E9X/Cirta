@@ -43,6 +43,7 @@ import { parseRules, type Rule } from '../core/rules.js';
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
 import { version } from './version.js';
+import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
 import { writeFile } from 'node:fs/promises';
 
@@ -115,6 +116,7 @@ ${bold(t().options)}
       --burn-redactions ${t().optBurnRedactions}
       --clear-outputs   ${t().optClearOutputs}
       --manifest <file> ${t().optManifest}
+      --reencode-images ${t().optReencodeImages}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -163,6 +165,7 @@ interface Args {
   removeNotes: boolean;
   clearOutputs: boolean;
   manifest?: string;
+  reencodeImages: boolean;
   removeHiddenSlides: boolean;
   removeHiddenSheets: boolean;
   removeAttachments: boolean;
@@ -196,6 +199,7 @@ function parseArgs(argv: string[]): Args {
     stripRemote: false,
     removeNotes: false,
     clearOutputs: false,
+    reencodeImages: false,
     removeHiddenSlides: false,
     removeHiddenSheets: false,
     removeAttachments: false,
@@ -240,6 +244,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--strip-remote-resources':
         args.stripRemote = true;
+        break;
+      case '--reencode-images':
+        args.reencodeImages = true;
         break;
       case '--manifest':
         args.manifest = argv[++i];
@@ -768,7 +775,7 @@ async function runRedact(args: Args): Promise<number> {
     removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
     removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
     removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, pii: args.pii, rules: args.rules,
+    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, reencodeImages: args.reencodeImages, pii: args.pii, rules: args.rules,
   };
   // [F-P2 2.4] One entry per file cleaned, written once all are done.
   const entries: Awaited<ReturnType<typeof manifestEntry>>[] = [];
@@ -777,7 +784,7 @@ async function runRedact(args: Args): Promise<number> {
       const input = new Uint8Array(await readFile(file));
       const hint = formatHint(file, args.forceText);
       const xray = await nodeXrayEngine();
-      const result = await redactFile(input, hint, { xray, ...options });
+      const result = await redactFile(input, hint, { xray, imageCodec: args.reencodeImages ? await nodeImageCodec() : undefined, ...options });
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
       // original, so a copy is taken first and named in the report.

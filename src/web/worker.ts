@@ -14,6 +14,7 @@
 import { inspectFile, redactFile, type InspectResult, type RedactResult } from '../core/index.js';
 import { parseRules, type Rule } from '../core/rules.js';
 import type { CleanChoices } from '../shared/clean-plan.js';
+import type { ImageCodec } from '../core/reencode.js';
 import type { XrayEngine, XrayRegion } from '../core/xray.js';
 
 /*
@@ -67,6 +68,23 @@ const rulesFrom = (text?: string): Rule[] | undefined => {
 /** What the reader chose to have changed in the document itself; every choice is off unless ticked. */
 export type { CleanChoices } from '../shared/clean-plan.js';
 
+/**
+ * [F-P2 2.4] Pictures rebuilt from their pixels with the browser's own
+ * decoder: createImageBitmap applies the EXIF orientation, an OffscreenCanvas
+ * encodes with no metadata.
+ */
+const webImageCodec: ImageCodec = {
+  async reencode(data, kind) {
+    const type = kind === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const bitmap = await createImageBitmap(new Blob([data.slice().buffer as ArrayBuffer], { type }), { imageOrientation: 'from-image' });
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const blob = await canvas.convertToBlob({ type, quality: 0.92 });
+    return new Uint8Array(await blob.arrayBuffer());
+  },
+};
+
 export type WorkerResponse =
   | { id: number; ok: true; op: 'inspect'; result: InspectResult; hidden: XrayRegion[] }
   | { id: number; ok: true; op: 'redact'; result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }
@@ -104,6 +122,8 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       stripTracking: clean.stripTracking === true,
       burnRedactions: clean.burnRedactions === true,
       clearOutputs: clean.clearOutputs === true,
+      reencodeImages: clean.reencodeImages === true,
+      imageCodec: clean.reencodeImages === true ? webImageCodec : undefined,
       pii: scan.pii === true,
       rules: rulesFrom(scan.rules),
     });

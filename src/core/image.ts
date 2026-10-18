@@ -286,7 +286,10 @@ function containsUint16(data: Uint8Array, value: number): boolean {
 function stripJpeg(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   const { segments, scanStart } = jpegSegments(data);
   const keep = segments.filter((s) => !shouldStrip(s));
-  if (keep.length === segments.length) return undefined;
+  // [F-P2 2.4] Whatever follows the end of the image goes too: it is not the picture.
+  const end = trailing(data, jpegEnd(data)) ? jpegEnd(data)! : data.length;
+  if (keep.length === segments.length && end === data.length) return undefined;
+  data = data.subarray(0, end);
 
   let size = 2 + (data.length - scanStart);
   for (const segment of keep) size += segment.end - segment.start;
@@ -331,10 +334,60 @@ function pngChunks(data: Uint8Array): PngChunk[] {
   return chunks;
 }
 
+/**
+ * [F-P2 2.4] Where a JPEG really ends: past the entropy-coded data of every
+ * scan, at the EOI marker. Undefined when it has none (a cut file).
+ */
+export function jpegEnd(data: Uint8Array): number | undefined {
+  let at = jpegSegments(data).scanStart;
+  while (at + 2 <= data.length) {
+    if (data[at] !== 0xff) return undefined;
+    const marker = data[at + 1]!;
+    if (marker === 0xd9) return at + 2;
+    if (marker === 0xff) {
+      at++;
+      continue;
+    }
+    if ((marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+      at += 2;
+      continue;
+    }
+    if (at + 4 > data.length) return undefined;
+    at += 2 + ((data[at + 2]! << 8) | data[at + 3]!);
+    if (marker !== 0xda) continue;
+    // Entropy-coded data runs to the next marker that is not stuffing or a restart.
+    while (at + 1 < data.length) {
+      if (data[at] === 0xff) {
+        const next = data[at + 1]!;
+        if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) {
+          at += 2;
+          continue;
+        }
+        if (next !== 0xff) break;
+      }
+      at++;
+    }
+  }
+  return undefined;
+}
+
+/** [F-P2 2.4] Where a PNG really ends: after its IEND chunk. */
+export function pngEnd(data: Uint8Array): number | undefined {
+  const last = pngChunks(data).at(-1);
+  return last?.type === 'IEND' ? last.end : undefined;
+}
+
+/** Bytes after the end of the image that are not zero padding. */
+function trailing(data: Uint8Array, end: number | undefined): number {
+  if (end === undefined || end >= data.length) return 0;
+  return data.subarray(end).some((b) => b !== 0) ? data.length - end : 0;
+}
+
 function stripPng(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   const chunks = pngChunks(data);
   const keep = chunks.filter((c) => !PNG_STRIP_CHUNKS.has(c.type));
-  if (keep.length === chunks.length) return undefined;
+  // [F-P2 2.4] Bytes after IEND are not written back: only chunks are.
+  if (keep.length === chunks.length && !trailing(data, pngEnd(data))) return undefined;
   let size = 8;
   for (const chunk of keep) size += chunk.end - chunk.start;
 
@@ -521,6 +574,9 @@ export function inspectImage(data: Uint8Array, location: string): Finding[] {
   const kind = detectImageKind(data);
   if (!kind) return [];
   const findings: Finding[] = [];
+  // [F-P2 2.4] Bytes past the end of the picture: an archive glued on, a vendor trailer.
+  const after = trailing(data, kind === 'jpeg' ? jpegEnd(data) : pngEnd(data));
+  if (after) findings.push({ kind: 'environment', confidence: 'probable', location, label: 'Data after the end of the image', value: `${after} bytes after the image ends` });
 
   if (kind === 'jpeg') {
     for (const segment of jpegSegments(data).segments) {

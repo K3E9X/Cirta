@@ -83,6 +83,7 @@ import { isCfb, readCfb } from './cfb.js';
 import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
+import { reencodeImage } from './reencode.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -517,8 +518,15 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
     const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
     if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
+    let cleaned: Uint8Array = stripImageMetadata(data) ?? data;
+    // [F-P2 2.4] Rebuilt from the pixels, on request; refused rather than skipped without a codec.
+    if (options.reencodeImages) {
+      if (!options.imageCodec) throw new UnsupportedFormatError('Re-encoding pictures needs an image codec, which is not available here.', 'reencode-unavailable');
+      cleaned = await reencodeImage(data, image, options.imageCodec);
+      notes.push({ code: 'reencoded:image' });
+    }
     return noteSurvivors(
-      { format: image, data: stripImageMetadata(data) ?? data, removed: before, notes },
+      { format: image, data: cleaned, removed: before, notes },
       hint,
       options,
     );

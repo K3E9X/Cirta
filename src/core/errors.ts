@@ -20,6 +20,8 @@ export type ErrorCode =
   | 'archive-not-rewritable'
   /** [F-2.2] A legacy Office file or an Outlook message: inspected, never rewritten. Detail: the format. */
   | 'legacy-not-rewritable'
+  /** [F-P2 2.4] Re-encoding pictures was asked for and no codec is available. */
+  | 'reencode-unavailable'
   /** An empty file. */
   | 'empty-file'
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */
