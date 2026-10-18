@@ -221,6 +221,18 @@ const FIELD_LABEL: Record<string, string> = {
   'Cells in white type': 'Cellules en blanc sur blanc',
   'Tracking pixel': 'Pixel de suivi',
   'Tracking parameters in a link': 'Paramètres de suivi dans un lien',
+  // [F-2.3] Données personnelles.
+  'Email address': 'Adresse e-mail',
+  'Phone number': 'Numéro de téléphone',
+  'Payment card number': 'Numéro de carte bancaire',
+  'French social security number (NIR)': 'Numéro de sécurité sociale (NIR)',
+  'SIREN/SIRET number': 'Numéro SIREN/SIRET',
+  'IP address': 'Adresse IP',
+  'Private IP address': 'Adresse IP privée',
+  'MAC address': 'Adresse MAC',
+  'Internal host name': 'Nom d’hôte interne',
+  'French licence plate': 'Plaque d’immatriculation',
+  'Passport or ID card number': 'Numéro de passeport ou de carte d’identité',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
@@ -912,6 +924,32 @@ export const noteText = (note: Note, lang: Lang): string =>
  * where each front-end turns it into a sentence. An error without a code —
  * a file the system could not open, say — keeps its own message.
  */
+/** [F-2.3] Why a rules file was refused, in French. */
+const RULES_DETAIL: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^line (\d+): unterminated string$/, (m) => `ligne ${m[1]} : chaîne non terminée`],
+  [/^line (\d+): expected "key: value"$/, (m) => `ligne ${m[1]} : « clé: valeur » attendu`],
+  [/^line (\d+): unexpected indentation$/, (m) => `ligne ${m[1]} : indentation inattendue`],
+  [/^line (\d+): tabs are not allowed in indentation$/, (m) => `ligne ${m[1]} : tabulations interdites dans l’indentation`],
+  [/^not valid JSON: ([\s\S]*)$/, (m) => `JSON invalide (« ${m[1]} »)`],
+  [/^expected a list of rules, under "rules:"$/, () => 'une liste de règles est attendue, sous « rules: »'],
+  [/^at most (\d+) rules$/, (m) => `${m[1]} règles au plus`],
+  [/^rule (.+?): expected a mapping$/, (m) => `règle ${m[1]} : un dictionnaire est attendu`],
+  [/^rule (.+?): a label is required$/, (m) => `règle ${m[1]} : un libellé (label) est requis`],
+  [/^rule (.+?): level must be confirmed, probable or informational$/, (m) => `règle ${m[1]} : level doit valoir confirmed, probable ou informational`],
+  [/^rule (.+?): unknown kind (.+)$/, (m) => `règle ${m[1]} : type (kind) inconnu ${m[2]}`],
+  [/^rule (.+?): give words or a pattern$/, (m) => `règle ${m[1]} : indiquez des mots (words) ou un motif (pattern)`],
+  [/^rule (.+?): flags may only be i, m, s, u$/, (m) => `règle ${m[1]} : flags ne peut contenir que i, m, s, u`],
+  [/^rule (.+?): ([\s\S]*)$/, (m) => `règle ${m[1]} : motif invalide (« ${m[2]} »)`],
+];
+
+const translateRulesDetail = (detail: string): string => {
+  for (const [pattern, render] of RULES_DETAIL) {
+    const m = pattern.exec(detail);
+    if (m) return render(m);
+  }
+  return detail;
+};
+
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
     en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG and PNG.',
@@ -934,6 +972,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
   }),
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+  'rules-invalid': (detail) => ({
+    en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,
+    fr: `Le fichier de règles n’a pas pu être lu : ${translateRulesDetail(detail ?? 'raison inconnue')}.`,
+  }),
   'renderer-unavailable': (detail) => ({
     en: `Telling what a reader of this PDF sees needs the PDF renderer${detail ? `, and only ${detail.replace('/', ' of ')} pages could be rendered in time` : ', which is not available here'}: no text was produced, rather than text that may hold what is hidden.`,
     fr: `Dire ce que voit un lecteur de ce PDF demande le moteur de rendu${detail ? `, et seules ${detail.replace('/', ' pages sur ')} ont pu être rendues à temps` : ', absent ici'} : aucun texte n’a été produit, plutôt qu’un texte qui pourrait contenir ce qui est caché.`,

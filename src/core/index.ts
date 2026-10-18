@@ -49,6 +49,7 @@ export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
 export { toSarif, ruleId, meetsThreshold } from './sarif.js';
 export type { SarifInput } from './sarif.js';
 export { inspectPlainText, cleanPlainText, type PlainTextClean } from './plaintext.js';
+export { parseRules, RulesError, type Rule } from './rules.js';
 export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.js';
 export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
@@ -64,6 +65,9 @@ import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
 import { stripRemoteResources } from './beacons.js';
 import { stripTracking } from './tracking.js';
+import { bodyText } from './body-text.js';
+import { piiFindings } from './pii.js';
+import { ruleFindings } from './rules.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -202,7 +206,31 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
  * find.
  */
 export async function inspectFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<InspectResult> {
-  return asRefusal(() => dispatch(data, hint, options));
+  const result = await asRefusal(() => dispatch(data, hint, options));
+  if (!options.pii && !options.rules?.length) return result;
+  return { ...result, findings: [...result.findings, ...(await dlp(data, result, options))].sort(byConfidence) };
+}
+
+/**
+ * [F-2.3] Personal data and an organisation's words, in the document's text
+ * and — for the rules — in the fields already reported, each at its own
+ * location. Reported once per value.
+ */
+async function dlp(data: Uint8Array, result: InspectResult, options: InspectOptions): Promise<Finding[]> {
+  const text = await bodyText(data, result.format);
+  const found: Finding[] = [];
+  if (options.pii) found.push(...piiFindings(text, 'document body'));
+  if (options.rules?.length) {
+    for (const finding of result.findings) found.push(...ruleFindings(finding.value, options.rules, finding.location));
+    found.push(...ruleFindings(text, options.rules, 'document body'));
+  }
+  const seen = new Set<string>();
+  return found.filter((f) => {
+    const key = `${f.label}\u0000${f.value}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function asRefusal<T>(work: () => Promise<T>): Promise<T> {
@@ -312,7 +340,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
   try {
     // Rendered again, not assumed: hidden text is page content, which cleaning
     // leaves alone, and the cleaned copy is checked for it like everything else.
-    survivors = (await inspectFile(result.data, hint, { xray: options.xray })).findings;
+    survivors = (await inspectFile(result.data, hint, { xray: options.xray, pii: options.pii, rules: options.rules })).findings;
   } catch (error) {
     // [C1] A copy this library cannot read back is not handed over. Returning
     // it unchecked is how an unreadable PDF went out with "9 fields removed".
@@ -395,6 +423,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     return noteSurvivors(
       { format: image, data: stripImageMetadata(data) ?? data, removed: before, notes },
       hint,
+      options,
     );
   }
 
@@ -424,6 +453,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
         notes,
       },
       hint,
+      options,
     );
   }
   if (format === 'text') {
@@ -454,6 +484,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
         notes,
       },
       hint,
+      options,
     );
   }
   throw new UnsupportedFormatError(UNSUPPORTED);
