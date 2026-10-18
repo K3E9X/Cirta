@@ -1008,6 +1008,10 @@ PDF; with a real password nothing inside is read. Cleaning is refused, with a no
 output file. And whatever the format, a cleaned copy is parsed again before it is delivered: one that
 does not come back as a document is refused rather than written.
 
+**An empty file is called empty.** Zero bytes, whatever the extension, are reported as *Empty file*
+(non-zero exit), not as a text file with no metadata — nothing was looked at, so nothing can be said
+to have been found.
+
 **A file cannot drive the terminal.** A terminal obeys escape sequences, and a document's /Author can
 hold one: retitle the window, erase the line above — a confirmed finding printed and wiped — open a
 link, write the clipboard. Every value read from a file, and every file name, is printed with its

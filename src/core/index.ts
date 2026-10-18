@@ -218,7 +218,16 @@ export async function inspectFile(data: Uint8Array, hint?: string, options: Insp
   }
 }
 
+/**
+ * [C10.6] Nothing to look at is not the same as nothing found: an empty
+ * ".pdf" reported as text with "no metadata" said something untrue about it.
+ */
+function refuseEmpty(data: Uint8Array): void {
+  if (data.length === 0) throw new UnsupportedFormatError('Empty file.', 'empty-file');
+}
+
 async function dispatch(data: Uint8Array, hint: string | undefined, options: InspectOptions): Promise<InspectResult> {
+  refuseEmpty(data);
   if (isPdf(data)) return inspectPdf(data, options);
   if (isZip(data)) {
     const parts = unzipGuarded(data);
@@ -321,6 +330,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 export async function redactFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
+  refuseEmpty(data);
   if (isPdf(data)) {
     const result = await redactPdf(data);
     await assertReadablePdf(result.data!);

@@ -1073,6 +1073,10 @@ nettoyage est refusé, avec un code de sortie non nul et aucun fichier écrit. E
 format, une copie nettoyée est relue avant d'être livrée : si elle ne se relit pas comme un document,
 elle est refusée au lieu d'être écrite.
 
+**Un fichier vide est dit vide.** Zéro octet, quelle que soit l'extension, donne *Fichier vide* (code
+de sortie non nul), et non un fichier texte sans métadonnées — rien n'a été examiné, donc rien ne peut
+être dit trouvé.
+
 **Un fichier ne peut pas piloter le terminal.** Un terminal obéit aux séquences d'échappement, et le
 champ /Author d'un document peut en contenir une : renommer la fenêtre, effacer la ligne précédente —
 un constat confirmé affiché puis effacé —, ouvrir un lien, écrire dans le presse-papiers. Toute valeur
