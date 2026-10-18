@@ -24,8 +24,9 @@ import {
   contrastLevel,
   decodeXml,
   hex,
-  removable,
   toFindings,
+  inScope,
+  type StripScope,
 } from './hidden-text.js';
 
 type Parts = Record<string, Uint8Array>;
@@ -445,10 +446,10 @@ export function hiddenInPptx(parts: Parts): Finding[] {
  * Take the hidden runs out of a deck, in place: the <a:r> elements only, so
  * every shape, its position and its paragraphs stay where they were.
  */
-export function stripHiddenPptx(parts: Parts): number {
+export function stripHiddenPptx(parts: Parts, scope: StripScope = {}): number {
   let removed = 0;
   for (const [path, found] of scan(parts)) {
-    const items = found.filter(removable);
+    const items = found.filter(inScope(scope));
     if (!items.length) continue;
     const ranges = items.flatMap((item) => item.ranges ?? []).sort((x, y) => y[0] - x[0]);
     let xml = read(parts, path)!;

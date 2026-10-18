@@ -166,6 +166,18 @@ export interface Hidden {
  * closely, and a probable finding — a tab panel, a colour a stylesheet may
  * override — may not be hidden in the first place.
  */
+/**
+ * [F-2.5] Which hidden passages a strip takes: what a cleaner may remove, or —
+ * for text handed to a model — everything a reader does not see, faint and
+ * probable included. A model given the text is better off without a tab
+ * panel's contents than with an instruction hidden as one.
+ */
+export interface StripScope {
+  everything?: boolean;
+}
+
+export const inScope = (scope: StripScope) => (item: Hidden) => (scope.everything ? (item.ranges?.length ?? 0) > 0 : removable(item));
+
 export function removable(item: Hidden): boolean {
   return !item.probable && (item.how !== 'faint' || aimedAtModel(item.text)) && letters(item.text) >= MIN_LETTERS;
 }
@@ -360,8 +372,8 @@ export function hiddenInHtml(input: string, location: string): Finding[] {
  * `alt` or a `title` is untouched. Faint text and probable findings stay too —
  * see `removable`.
  */
-export function stripHiddenHtml(input: string): { html: string; removed: number } {
-  const items = scanHtml(input).filter(removable);
+export function stripHiddenHtml(input: string, scope: StripScope = {}): { html: string; removed: number } {
+  const items = scanHtml(input).filter(inScope(scope));
   const ranges = items.flatMap((item) => item.ranges ?? []).sort((a, b) => b[0] - a[0]);
   let html = input;
   for (const [start, end] of ranges) html = html.slice(0, start) + html.slice(end);
@@ -672,10 +684,10 @@ export function hiddenInDocx(parts: Record<string, Uint8Array>): Finding[] {
  * so the paragraph around them is untouched. Faint text stays — see `removable`.
  * Returns how many hidden passages went.
  */
-export function stripHiddenDocx(parts: Record<string, Uint8Array>): number {
+export function stripHiddenDocx(parts: Record<string, Uint8Array>, scope: StripScope = {}): number {
   let removed = 0;
   for (const [path, found] of scanDocx(parts)) {
-    const items = found.filter(removable);
+    const items = found.filter(inScope(scope));
     if (!items.length) continue;
     const ranges = items.flatMap((item) => item.ranges ?? []).sort((x, y) => y[0] - x[0]);
     let xml = new TextDecoder().decode(parts[path]);

@@ -291,7 +291,7 @@ const unescapeXml = (text: string) =>
  * [C10.5] The words on a slide or in its notes, a paragraph at a time, with
  * the placeholders that only hold a number or a date left out.
  */
-function slideText(xml: string): string {
+export function slideText(xml: string): string {
   const shapes = elements(xml, 'p:sp');
   const sources = shapes.length ? shapes.filter((shape) => !FURNITURE.test(shape.inner)).map((shape) => shape.inner) : [xml];
   const paragraphs: string[] = [];

@@ -934,6 +934,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
   }),
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+  'renderer-unavailable': (detail) => ({
+    en: `Telling what a reader of this PDF sees needs the PDF renderer${detail ? `, and only ${detail.replace('/', ' of ')} pages could be rendered in time` : ', which is not available here'}: no text was produced, rather than text that may hold what is hidden.`,
+    fr: `Dire ce que voit un lecteur de ce PDF demande le moteur de rendu${detail ? `, et seules ${detail.replace('/', ' pages sur ')} ont pu être rendues à temps` : ', absent ici'} : aucun texte n’a été produit, plutôt qu’un texte qui pourrait contenir ce qui est caché.`,
+  }),
   'burn-unavailable': () => ({
     en: 'Burning redactions needs the PDF renderer, which is not available here: nothing was cleaned, rather than a copy that still holds the covered text.',
     fr: 'Brûler les caviardages demande le moteur de rendu PDF, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui garderait le texte recouvert.',
