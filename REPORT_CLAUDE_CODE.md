@@ -19,6 +19,7 @@ Chaque PR ne montre que son lot.
 | n°9 | `feat/ui-options` | `feat/legacy-formats` | F-2.7 options avancées, plan avant téléchargement, avant/après (F-P1) |
 | n°10 | `feat/hardening` | `feat/ui-options` | F-2.8 robustesse XML, fuzzers, corpus réel élargi, `SECURITY.md` (F-P1) |
 | n°11 | `feat/p2-links` | `feat/hardening` | F-P2 2.1 liens et noms de fichiers piégés |
+| n°12 | `feat/p2-cleaning` | `feat/p2-links` | F-P2 2.4 sortie déterministe, manifeste, archives, ré-encodage des images |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1115,6 +1116,78 @@ cirta inspect --lang fr pieges.zip   # « Nom de fichier avec un contrôle de se
 Écarts :
 - La liste des redirecteurs connus est finie ; le cas générique (paramètre d'adresse vers un autre hôte) rattrape les autres, en probable.
 - Pas de nettoyage : les liens et les noms sont du contenu, ils sont signalés.
+
+---
+
+## F-P2 2.4 — Nettoyage plus fort
+
+**Statut : fait pour les quatre puces.** Deux défauts existants trouvés en chemin, corrigés : le `mimetype` des ODF sortait compressé, et le nettoyage JPEG recopiait les données collées après la fin de l'image.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Sortie déterministe | `0f45abd` | `zip.ts` (`ZIP_EPOCH`), `ooxml.ts`, `odf.ts`, `pdf.ts` (`contentId`) ; test `test/deterministic.test.ts` |
+| Manifeste | `51cd71c` | `src/core/manifest.ts` (nouveau), `src/cli/version.ts` (nouveau), `src/cli/index.ts`, `i18n.ts`, `index.ts` (exports) ; test `test/manifest.test.ts` |
+| Archives ZIP | `a28fce7` | `index.ts` (`redactArchive`), `french.ts`, `src/web/main.ts`, `i18n.ts` ; tests `test/zip-clean.test.ts`, `test/archive.test.ts` |
+| Délai des tests | `5809327` | `vitest.config.ts` |
+| Images | `68bd8cf` | `src/core/reencode.ts`, `src/cli/image-codec.ts` (nouveaux) ; `image.ts` (`jpegEnd`, `pngEnd`), `index.ts`, `types.ts`, `errors.ts`, `notes.ts`, CLI, MCP, worker, page ; test `test/reencode.test.ts` |
+| READMEs, real-files | commit `docs, real-files` | `README.md`, `README.fr.md`, `scripts/real-files.mjs` |
+
+Ce qui change :
+- **Même entrée, mêmes octets.** Deux nettoyages avec les mêmes options, à un an d'écart sous horloge simulée, donnent des octets identiques. Formats testés : PDF, DOCX, PPTX, XLSX, ODT, PNG, JPEG, HTML, texte.
+  - **Paquets ZIP** (OOXML, ODF) : fflate datait chaque membre de l'heure du nettoyage ; ils portent désormais le 1er janvier 1980.
+  - **`/ID` du PDF** : celui du producteur était conservé, et il relie chaque copie à l'original. Il est remplacé par les 16 premiers octets du SHA-256 des flux de contenu des pages nettoyées. L'inspection recalcule cette empreinte et ne signale pas un `/ID` qui y correspond ; celui d'un producteur reste signalé. Vérifié sur un PDF LibreOffice : signalé avant, plus après.
+  - Une première approche, qui hachait le fichier enregistré sans `/ID`, a été écartée : la relecture d'un PDF LibreOffice par pdf-lib ne redonne pas les mêmes octets.
+  - **Défaut corrigé, `mimetype` des ODF** : l'option « stocké » était passée au mauvais niveau, et le membre sortait compressé, contrairement à la norme. Il est maintenant stocké, en premier.
+- **`--manifest <fichier>`** : pour chaque fichier, SHA-256 et taille avant et après, constats avant et après, et notes. Pour l'ensemble : options, version de Cirta, heure, et le schéma `cirta.manifest/1`.
+  - **Les constats sont donnés par libellé, emplacement, genre et niveau, jamais par valeur.** Un manifeste accompagne les documents ; y recopier le nom de l'auteur retiré annulerait le nettoyage.
+  - Les règles sont notées par leur identifiant, pas leur contenu.
+- **Archives ZIP** : chaque membre pris en charge est nettoyé avec les mêmes options, une archive imbriquée l'est à son tour (trois niveaux), et l'ensemble est recompressé dans l'ordre d'origine.
+  - Un seul membre impossible à nettoyer (programme, Office ancien, PDF chiffré, illisible) et l'archive entière est refusée, en nommant chacun (`externe.zip → interne`), en français comme en anglais.
+  - La page propose désormais le téléchargement d'une archive ; chaque membre y est nettoyé avec les options avancées, et le plan affiché le dit.
+- **Images** :
+  - **Données après la fin de l'image** (après l'EOI d'un JPEG, après l'`IEND` d'un PNG) : désormais signalées (probable) et retirées par le nettoyage ordinaire. Le remplissage par des zéros n'est pas signalé.
+  - **`--reencode-images`** (et l'option correspondante du cœur, du serveur MCP et de la page) reconstruit l'image à partir de ses pixels décodés. Tout ce qui n'est pas pixel disparaît.
+  - L'orientation EXIF est appliquée aux pixels : une image de 40×20 orientée 6 ressort en 20×40, rouge en haut, en CLI comme dans Chromium.
+  - Le profil ICC (segments APP2, bloc `iCCP`) est recopié tel quel.
+  - Codec : `@napi-rs/canvas` en CLI, `createImageBitmap` et `OffscreenCanvas` dans le worker. Sans codec, le nettoyage est refusé (`reencode-unavailable`).
+  - La note dit la limite : un PNG sans perte garde chaque valeur de pixel, donc un message dans les bits de poids faible survit.
+- **Page** : après un nettoyage, toutes les notes ajoutées s'affichent (pages rastérisées, annotations aplaties, texte recomposé, image reconstruite). Seules les `removed:` et `kept:` s'affichaient.
+- **Tests** : délai par défaut porté à 60 s. Un test CLI existant (`--strip-active`, 3,5 s seul, identique avant ce lot) dépassait les 5 s sous la charge de la suite complète. `runCli` est synchrone : le minuteur de vitest ne se déclenche qu'entre deux `await`.
+
+Tests :
+- `test/deterministic.test.ts` (4) :
+  - `gives the same bytes for the same input, a year apart, in every rewritten format`
+  - `dates every member of a rewritten package 1980-01-01, the ZIP epoch, not the hour of the clean`
+  - `gives a PDF a new /ID computed from its cleaned content, not the original’s`
+  - `stores an OpenDocument mimetype first and uncompressed, as the specification requires`
+- `test/manifest.test.ts` (2) :
+  - `records hashes, sizes, findings before and after, by label — never by value`
+  - `is written by redact --manifest, one entry per file, with the version of Cirta`
+- `test/zip-clean.test.ts` (4) :
+  - `cleans every member it supports, an archive inside it too, and repacks them in their order`
+  - `passes the cleaning options to each member`
+  - `refuses an archive holding a member it cannot clean, and names each one`
+  - `dates every repacked member 1980-01-01 and gives the same bytes twice`
+- `test/reencode.test.ts` (4) :
+  - `is reported, and taken out by an ordinary clean`
+  - `rebuilds a JPEG from its pixels: orientation applied, ICC kept, everything else gone`
+  - `rebuilds a PNG and keeps its colour profile chunk, nothing else`
+  - `refuses rather than skip the re-encoding when no codec is available`
+- `test/archive.test.ts` : le test « refuses to rewrite an archive » est remplacé par `repacks an archive whose members it can all clean, in their order, and says what was removed`, puisque le brief change la règle.
+- `scripts/real-files.mjs` : une archive des `.docx` et `.odt` produits par LibreOffice est nettoyée deux fois (mêmes octets) ; rien de confirmé ne survit ; chaque membre se rouvre dans LibreOffice.
+- Vérifié dans Chromium : nettoyage d'une archive, refus nommant `programme.bin`, photo orientée ré-encodée.
+
+Vérification manuelle :
+```
+cirta redact --manifest manifeste.json offre.pdf lettre.docx   # manifeste.json : sha256 avant/après, constats par libellé
+cirta redact dossier.zip                                         # dossier.clean.zip, ou refus nommant les membres non pris en charge
+cirta redact --reencode-images photo.jpg
+sha256sum photo.clean.jpg; cirta redact photo.jpg -o b.jpg; sha256sum b.jpg   # nettoyages sans ré-encodage : mêmes empreintes
+```
+
+Écarts :
+- Le ré-encodage n'est déterministe qu'à codec égal : un autre navigateur, ou une autre version du canvas natif, encode autrement.
+- Un membre d'archive qui pointe hors de son dossier (`../`) garde son nom ; il est signalé (2.1).
 
 ---
 
