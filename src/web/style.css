@@ -1972,3 +1972,26 @@ textarea.is-cleaned {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+
+/* [F-2.3] Extended scan: personal data and the organisation's rules. */
+.scan-options {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.scan-options summary {
+  cursor: pointer;
+}
+
+.rules-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.rules-status.is-error {
+  color: var(--danger);
+}
