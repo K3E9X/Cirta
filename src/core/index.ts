@@ -55,6 +55,7 @@ export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 export { manifest, manifestEntry, manifestOptions, sha256, MANIFEST_SCHEMA } from './manifest.js';
+export { REPORT_SCHEMA } from './report-schema.js';
 export type { Manifest, ManifestEntry, ManifestFinding, ManifestSide } from './manifest.js';
 
 import { unzipGuarded, ArchiveTooLargeError, ZIP_EPOCH } from './zip.js';

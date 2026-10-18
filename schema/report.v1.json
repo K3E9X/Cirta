@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/K3E9X/Cirta/schema/report.v1.json",
+  "title": "Cirta report, version 1",
+  "description": "What `cirta inspect --json` prints: one entry per file. Version 1 is additive: new formats, finding kinds and note codes may appear within it, so a reader must accept values it does not know. A change that removes or renames a field is a new version, with a new schema tag.",
+  "type": "array",
+  "items": { "$ref": "#/$defs/entry" },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["schema", "file"],
+      "properties": {
+        "schema": { "const": "cirta.report/1" },
+        "file": { "type": "string", "description": "The path as given on the command line." },
+        "result": { "$ref": "#/$defs/result" },
+        "error": { "type": "string", "description": "Why the file was not inspected, in the report's language." },
+        "code": { "type": "string", "description": "The refusal's code, when it has one: unsupported, unparseable, encrypted-pdf, empty-file…" }
+      },
+      "oneOf": [{ "required": ["result"] }, { "required": ["error"] }],
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "description": "Also what inspectFile() returns in the library.",
+      "required": ["format", "findings", "notes"],
+      "properties": {
+        "format": { "type": "string", "description": "pdf, docx, pptx, xlsx, odt, ods, odp, doc, xls, ppt, msg, eml, ipynb, svg, html, markdown, jpeg, png, zip, text — more may come." },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+        "notes": { "type": "array", "items": { "$ref": "#/$defs/note" } }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["kind", "confidence", "location", "label", "value"],
+      "properties": {
+        "kind": { "type": "string", "description": "identity, provenance, timestamp, environment, invisible-character, deceptive-link, active-content, deceptive-name — more may come." },
+        "confidence": { "enum": ["confirmed", "probable", "informational"] },
+        "location": { "type": "string", "description": "Where the value lives: a part path, a field, 'member → field' inside an archive." },
+        "label": { "type": "string", "description": "The field's name, in English; front-ends translate it." },
+        "value": { "type": "string", "description": "What was found. Personal data found by --pii is masked." },
+        "affectsVerifiability": { "type": "boolean", "description": "True when removing it changes how third parties verify the file (C2PA)." }
+      },
+      "additionalProperties": false
+    },
+    "note": {
+      "type": "object",
+      "required": ["code"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z]+:[a-z0-9-]+$", "description": "A caveat, as a code: scope:…, limit:…, removed:…, kept:… — front-ends word it." },
+        "detail": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

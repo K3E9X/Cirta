@@ -1031,6 +1031,34 @@ as failing, and a check that exits non-zero for every document with a title is
 a check somebody disables within a week. Ready-made copies are in
 [`examples/`](examples/) — a GitHub Actions workflow and a pre-commit hook.
 
+## As a library
+
+```bash
+npm install /path/to/Cirta   # a built clone; the npm registry once it is published there
+```
+
+```js
+import { inspectFile, redactFile } from 'cirta';
+import { nodeXrayEngine } from 'cirta/node'; // optional: renders PDF pages for the hidden-text check
+
+const report = await inspectFile(bytes, 'contract.pdf', { xray: await nodeXrayEngine() });
+const cleaned = await redactFile(bytes, 'contract.pdf', { removeComments: true });
+// cleaned.data: the cleaned bytes; cleaned.removed: what went; cleaned.kept: what is still there
+```
+
+Types are published with the package (`dist/core/index.d.ts`); [`examples/library.mjs`](examples/library.mjs)
+is a complete Node example, and the smoke test runs it against the built package. Every option the command
+line has is an option of `redactFile`. Refusals are `UnsupportedFormatError`s with a `code`
+(`unsupported`, `encrypted-pdf`, `legacy-not-rewritable`, `archive-not-rewritable`…), never a bare
+`Error`.
+
+**Versioning.** The package follows semver from 1.0; before it, a minor version may change the API. The JSON report is versioned on its own: every entry of `cirta inspect --json`
+carries `"schema": "cirta.report/1"`, described by [`schema/report.v1.json`](schema/report.v1.json)
+(JSON Schema 2020-12, also exported as `cirta/schema/report.v1.json`), which the test suite validates
+both the command line's output and the library's results against. Version 1 is additive: new formats,
+finding kinds and note codes can appear in it, so a reader must accept values it does not know; a field
+removed or renamed would make it version 2.
+
 ## Processing detail
 
 **PDF** — `/Info` dictionary keys are deleted rather than emptied, so no trace remains of which

@@ -1,14 +1,29 @@
 {
   "name": "cirta",
   "version": "0.1.0",
-  "description": "Inspect and strip provenance metadata from PDF, PPTX and DOCX files, and invisible Unicode from text.",
+  "description": "Inspect and clean what documents say about their making — metadata, hidden text, active content, invisible characters — locally, in PDF, Office, OpenDocument, images, mail, notebooks and text.",
   "type": "module",
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./node": {
+      "types": "./dist/cli/node.d.ts",
+      "default": "./dist/cli/node.js"
+    },
+    "./schema/report.v1.json": "./schema/report.v1.json",
+    "./package.json": "./package.json"
+  },
   "license": "MIT",
   "bin": {
     "cirta": "./dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "schema"
   ],
   "engines": {
     "node": ">=22.13"
@@ -33,6 +48,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "ajv": "^8.20.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
     "vitest": "^2.1.0"
