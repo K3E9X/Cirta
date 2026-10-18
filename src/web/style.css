@@ -1995,3 +1995,51 @@ textarea.is-cleaned {
 .rules-status.is-error {
   color: var(--danger);
 }
+
+/* [F-2.7] Advanced cleaning options and the plan before a download. */
+.clean-options {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.clean-options summary {
+  cursor: pointer;
+}
+
+.clean-options-intro {
+  margin: 0.5rem 0;
+}
+
+.clean-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.clean-group legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.clean-plan {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.clean-plan-title {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.clean-plan ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}

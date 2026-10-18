@@ -13,6 +13,7 @@
 
 import { inspectFile, redactFile, type InspectResult, type RedactResult } from '../core/index.js';
 import { parseRules, type Rule } from '../core/rules.js';
+import type { CleanChoices } from '../shared/clean-plan.js';
 import type { XrayEngine, XrayRegion } from '../core/xray.js';
 
 /*
@@ -64,21 +65,7 @@ const rulesFrom = (text?: string): Rule[] | undefined => {
 };
 
 /** What the reader chose to have changed in the document itself; every choice is off unless ticked. */
-export interface CleanChoices {
-  removeHidden?: boolean;
-  acceptChanges?: boolean;
-  removeComments?: boolean;
-  stripActive?: boolean;
-  stripRemote?: boolean;
-  removeNotes?: boolean;
-  removeHiddenSlides?: boolean;
-  removeHiddenSheets?: boolean;
-  removeAttachments?: boolean;
-  flattenAnnotations?: boolean;
-  stripTracking?: boolean;
-  burnRedactions?: boolean;
-  clearOutputs?: boolean;
-}
+export type { CleanChoices } from '../shared/clean-plan.js';
 
 export type WorkerResponse =
   | { id: number; ok: true; op: 'inspect'; result: InspectResult; hidden: XrayRegion[] }

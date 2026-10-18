@@ -23,8 +23,8 @@ import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
-import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
-import { TRACKED_LABELS } from '../core/tracked-changes.js';
+import { AIMED_LABEL } from '../core/hidden-text.js';
+import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
 import {
   preview,
   type Confidence,
@@ -92,6 +92,18 @@ const store = (key: string, value: string | null): void => {
 };
 const scanState = { pii: stored(STORE.pii) === '1', rules: stored(STORE.rules) ?? undefined, rulesName: stored(STORE.rulesName) ?? undefined };
 const scanChoices = (): ScanChoices => ({ pii: scanState.pii, rules: scanState.rules });
+
+/** [F-2.7] The advanced cleaning options: what each file's own choices start from. */
+const CLEAN_STORE = 'cirta.clean';
+const cleanState: CleanChoices = (() => {
+  try {
+    const parsed: unknown = JSON.parse(stored(CLEAN_STORE) ?? '{}');
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    return Object.fromEntries(CLEAN_KEYS.filter((key) => (parsed as Record<string, unknown>)[key] === true).map((key) => [key, true]));
+  } catch {
+    return {};
+  }
+})();
 
 function warmWorker(): void {
   const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
@@ -229,11 +241,26 @@ function formatHint(name: string): string | undefined {
   return undefined;
 }
 
+/** [F-2.7] Each option's label, with the count of what it acts on. */
+const OPTION_LABEL: Record<CleanKey, (n: number) => string> = {
+  removeHidden: (n) => t().removeHiddenOption(n),
+  acceptChanges: (n) => t().acceptChangesOption(n),
+  removeComments: (n) => t().removeCommentsOption(n),
+  removeNotes: (n) => t().removeNotesOption(n),
+  removeHiddenSlides: (n) => t().removeHiddenSlidesOption(n),
+  removeHiddenSheets: (n) => t().removeHiddenSheetsOption(n),
+  stripActive: (n) => t().stripActiveOption(n),
+  stripRemote: (n) => t().stripRemoteOption(n),
+  stripTracking: (n) => t().stripTrackingOption(n),
+  removeAttachments: (n) => t().removeAttachmentsOption(n),
+  flattenAnnotations: () => t().flattenAnnotationsOption(),
+  burnRedactions: (n) => t().burnRedactionsOption(n),
+  clearOutputs: (n) => t().clearOutputsOption(n),
+};
+
 /** [F-2.2] Formats read and never rewritten. */
 const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
 
-/** [F-2.1] Formats whose active content a clean can take out. */
-const STRIPPABLE_ACTIVE = new Set(['pdf', 'docx', 'xlsx', 'pptx']);
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -747,48 +774,41 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
       } else {
         const foot = el('div', 'card-foot');
-        // Taking hidden text out changes the document, which nothing else in a
-        // clean does, so it is offered where it applies and never assumed.
-        const hiddenCount = result.findings.filter(removableFinding).length;
-        const offerRemoval = hiddenCount > 0 && ['docx', 'pptx', 'html', 'markdown'].includes(result.format);
-        const option = (text: string): HTMLInputElement => {
+        // [F-2.7] The options this file is offered — its format takes them and
+        // it holds what they change — ticked as the advanced options say, and
+        // what the download will do, stated before it happens.
+        const boxes = new Map<CleanKey, HTMLInputElement>();
+        for (const offer of offered(result.format, result.findings)) {
           const box = el('input');
           box.type = 'checkbox';
+          box.checked = cleanState[offer.key] === true;
           const label = el('label', 'foot-option');
-          label.append(box, document.createTextNode(text));
+          label.append(box, document.createTextNode(OPTION_LABEL[offer.key](offer.count)));
           foot.append(label);
-          return box;
+          boxes.set(offer.key, box);
+        }
+        const choices = (): CleanChoices => Object.fromEntries([...boxes].map(([key, box]) => [key, box.checked]));
+        const summary = el('div', 'clean-plan');
+        summary.setAttribute('aria-live', 'polite');
+        const showPlan = () => {
+          const list = el('ul');
+          list.append(el('li', undefined, t().planMetadata));
+          for (const step of plan(result.format, result.findings, choices())) list.append(el('li', undefined, OPTION_LABEL[step.key](step.count)));
+          summary.replaceChildren(el('p', 'clean-plan-title', t().planTitle), list);
+          if (boxes.size && ![...boxes.values()].some((box) => box.checked)) summary.append(el('p', 'note', t().planContentKept));
         };
-        const removeHidden = offerRemoval ? option(t().removeHiddenOption(hiddenCount)) : undefined;
-        // Accepting tracked changes takes deleted text out of the file — a
-        // change to the document, so offered, never assumed.
-        const trackedCount = result.findings.filter((f) => TRACKED_LABELS.has(f.label)).length;
-        const acceptChanges = trackedCount > 0 && result.format === 'docx' ? option(t().acceptChangesOption(trackedCount)) : undefined;
-        const commentCount = result.findings.filter((f) => f.label === 'Comment text').length;
-        const removeComments = commentCount > 0 && ['docx', 'xlsx', 'pptx'].includes(result.format) ? option(t().removeCommentsOption(commentCount)) : undefined;
-        // [F-2.1] Scripts, actions, macros, embedded files: taken out only when asked.
-        const activeCount = result.findings.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length;
-        const stripActive = activeCount > 0 && STRIPPABLE_ACTIVE.has(result.format) ? option(t().stripActiveOption(activeCount)) : undefined;
-        const remoteCount = result.findings.filter((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening').length;
-        const stripRemote = remoteCount > 0 && ['html', 'markdown'].includes(result.format) ? option(t().stripRemoteOption(remoteCount)) : undefined;
-        // [F-2.2] A notebook's outputs are what its author computed: emptied only when asked.
-        const outputCount = result.findings.filter((f) => /^cells\[\d+\]\.outputs/.test(f.location)).length;
-        const clearOutputs = outputCount > 0 && result.format === 'ipynb' ? option(t().clearOutputsOption) : undefined;
+        for (const box of boxes.values()) box.addEventListener('change', showPlan);
+        showPlan();
+        foot.append(summary);
+
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
           button.textContent = t().cleaning;
           node.classList.add('is-cleaning');
           try {
-            const redacted = await redactFile(data, formatHint(file.name), {
-              removeHidden: removeHidden?.checked === true,
-              acceptChanges: acceptChanges?.checked === true,
-              removeComments: removeComments?.checked === true,
-              stripActive: stripActive?.checked === true,
-              stripRemote: stripRemote?.checked === true,
-              clearOutputs: clearOutputs?.checked === true,
-            });
-            for (const box of [removeHidden, acceptChanges, removeComments, stripActive, stripRemote, clearOutputs]) if (box) box.disabled = true;
+            const redacted = await redactFile(data, formatHint(file.name), choices());
+            for (const box of boxes.values()) box.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));
@@ -862,6 +882,19 @@ function setupFiles(): void {
     event.preventDefault();
     accept(event.dataTransfer?.files ?? null);
   });
+}
+
+/** [F-2.7] The advanced cleaning options, remembered in this browser; each new card starts from them. */
+function setupCleanOptions(): void {
+  for (const box of document.querySelectorAll<HTMLInputElement>('#clean-options input[data-clean]')) {
+    const key = box.dataset.clean as CleanKey;
+    box.checked = cleanState[key] === true;
+    box.addEventListener('change', () => {
+      if (box.checked) cleanState[key] = true;
+      else delete cleanState[key];
+      store(CLEAN_STORE, Object.keys(cleanState).length ? JSON.stringify(cleanState) : null);
+    });
+  }
 }
 
 /** [F-2.3] Personal data and the organisation's rules, remembered in this browser. */
@@ -1140,6 +1173,7 @@ setupLanguage();
 setupTabs();
 setupFiles();
 setupScanOptions();
+setupCleanOptions();
 setupText();
 // Two frames, so layout has settled and the chips' positions are final.
 requestAnimationFrame(() => requestAnimationFrame(playReveal));

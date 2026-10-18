@@ -220,6 +220,32 @@
                     </button>
                   </div>
                 </details>
+                <details class="clean-options" id="clean-options">
+                  <summary><span data-lang="fr">Options avancées</span><span data-lang="en">Advanced options</span></summary>
+                  <p class="clean-options-intro"><span data-lang="fr">Les métadonnées sont toujours retirées. Ces choix changent le contenu : ils sont décochés par défaut, s’appliquent aux fichiers où ils ont un sens, et chaque fiche dit ce que fera le téléchargement avant qu’il ait lieu. Ils restent dans ce navigateur.</span><span data-lang="en">Metadata is always removed. These choices change the content: they are off by default, apply to the files where they make sense, and each card says what the download will do before it happens. They stay in this browser.</span></p>
+                  <fieldset class="clean-group">
+                    <legend><span data-lang="fr">Contenu des documents</span><span data-lang="en">Document content</span></legend>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeHidden" /><span data-lang="fr">Retirer le texte caché (Word, PowerPoint, HTML, Markdown)</span><span data-lang="en">Remove hidden text (Word, PowerPoint, HTML, Markdown)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="acceptChanges" /><span data-lang="fr">Accepter les modifications suivies (Word)</span><span data-lang="en">Accept tracked changes (Word)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeComments" /><span data-lang="fr">Retirer les commentaires (Word, Excel, PowerPoint)</span><span data-lang="en">Remove comments (Word, Excel, PowerPoint)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeNotes" /><span data-lang="fr">Retirer les notes du présentateur (PowerPoint)</span><span data-lang="en">Remove speaker notes (PowerPoint)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeHiddenSlides" /><span data-lang="fr">Retirer les diapositives masquées (PowerPoint)</span><span data-lang="en">Remove hidden slides (PowerPoint)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeHiddenSheets" /><span data-lang="fr">Retirer les feuilles masquées que rien ne lit (Excel)</span><span data-lang="en">Remove hidden sheets nothing reads (Excel)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="clearOutputs" /><span data-lang="fr">Vider les sorties des cellules (notebook Jupyter)</span><span data-lang="en">Empty the cells’ outputs (Jupyter notebook)</span></label>
+                  </fieldset>
+                  <fieldset class="clean-group">
+                    <legend><span data-lang="fr">Ce que le fichier fait ou charge</span><span data-lang="en">What the file does or loads</span></legend>
+                    <label class="foot-option"><input type="checkbox" data-clean="stripActive" /><span data-lang="fr">Retirer scripts, actions, macros et fichiers intégrés (PDF, Office)</span><span data-lang="en">Remove scripts, actions, macros and embedded files (PDF, Office)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="stripRemote" /><span data-lang="fr">Retirer les ressources chargées depuis le réseau, pixels de suivi compris (HTML, Markdown)</span><span data-lang="en">Remove resources loaded from the network, tracking pixels included (HTML, Markdown)</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="stripTracking" /><span data-lang="fr">Retirer les paramètres de suivi des liens (utm_*, fbclid…)</span><span data-lang="en">Remove tracking parameters from links (utm_*, fbclid…)</span></label>
+                  </fieldset>
+                  <fieldset class="clean-group">
+                    <legend><span data-lang="fr">PDF</span><span data-lang="en">PDF</span></legend>
+                    <label class="foot-option"><input type="checkbox" data-clean="removeAttachments" /><span data-lang="fr">Retirer les fichiers intégrés</span><span data-lang="en">Remove embedded files</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="flattenAnnotations" /><span data-lang="fr">Dessiner les annotations dans la page, puis les retirer avec leurs auteurs</span><span data-lang="en">Draw annotations into the page, then remove them with their authors</span></label>
+                    <label class="foot-option"><input type="checkbox" data-clean="burnRedactions" /><span data-lang="fr">Supprimer pour de bon le texte recouvert par une forme (la page devient une image)</span><span data-lang="en">Remove text covered by a shape for good (the page becomes a picture)</span></label>
+                  </fieldset>
+                </details>
                 <div id="file-results" class="results"></div>
               </section>
 
