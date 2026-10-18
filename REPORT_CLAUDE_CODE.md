@@ -1064,9 +1064,216 @@ Nouvelles options CLI (`cirta --help`) :
   cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
 ```
 
+## Bilan final
+
+**Fait :**
+- toutes les corrections, C1 à C11 ;
+- toutes les sous-sections F-P1, dans l'ordre du brief : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8.
+
+Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
+
+**Pas fait :** F-P2 et F-P3, faute de temps. Les puces F-P2 relevées en cours de route sont aussi restées hors périmètre, par exemple les profils `--profile` de 2.3.
+
+**Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
+
+**CI.** Au moment d'écrire, la CI (Ubuntu, Windows, macOS × Node 22 et 24) est verte sur les PR n°21 à n°29. La n°30 vient d'être ouverte.
+
+### Nombre de tests
+
+| | Fichiers de test | Tests |
+|---|---|---|
+| Base `main` @ `b23fca9` | — | **560** |
+| Après C1–C11 (PR n°23) | 39 | 703 |
+| Après tout F-P1 (PR n°30) | 64 | **847** |
+
+### `npm run verify` (branche `feat/hardening`, dernier état)
+
+Commande : `npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && node scripts/fuzz.mjs --iterations 400 && npm run build:web`. Code de sortie : **0**.
+
+```
+ Test Files  64 passed (64)
+      Tests  847 passed (847)
+
+cirta smoke test — linux node 22.22.0
+  ok    --help exits 0
+  ok    --help documents the scope limit
+  ok    inspect exits 0
+  ok    inspect walks subdirectories
+  ok    inspect reports the author
+  ok    inspect derives the OS account
+  ok    inspect names the generating tool
+  ok    inspect summarises a multi-file run
+  ok    --json exits 0
+  ok    --json emits parseable output
+  ok    --json carries confidence levels
+  ok    redact exits 0
+  ok    redacted PDF has no metadata left
+  ok    redacted PPTX drops the template path
+  ok    redacted PPTX is still a valid container
+
+cirta: removed 2 invisible character type(s)
+  ok    text --clean strips invisible characters
+  ok    text refuses binary input
+  ok    text says why it refused
+  ok    text writes nothing when refusing
+
+/tmp/cirta-smoke-MbNVyO/nope.pdf
+  File not found: /tmp/cirta-smoke-MbNVyO/nope.pdf
+  ok    missing file exits non-zero
+Unknown command: wat
+  ok    unknown command exits 2
+
+all checks passed
+
+fuzz: seed 1332200836, 400 iterations per target, targets: inspect, pdf, zip, image, cbor, jumbf, text, url, markup
+fuzz: 3588 inputs executed
+
+fuzz: 10 rejection kind(s) escaped as a raw Error (675 inputs).
+      Not crashes — the parsers refused corrupt input — but the type is not one
+      a caller can match on. Shown for the record:
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): No PDF header found (x326)
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): Failed to parse invalid PDF object (x12)
+        pdf      Error        Failed to parse number (line:N col:N offset=N): "" (x6)
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): Expected next byte to be N but it wa (x2)
+        zip      Error        invalid zip data (x315)
+        zip      Error        invalid distance (x1)
+        zip      Error        unknown compression type N (x9)
+        zip      Error        unexpected EOF (x2)
+        zip      Error        invalid block type (x1)
+        zip      Error        invalid length/literal (x1)
+
+fuzz: no crash and no hang.
+
+✓ built in 6.91s   (build:web)
+```
+
+Les dix types de rejet listés par le fuzz ne sont pas des plantages. Ce sont des refus de pdf-lib et fflate, appelés directement par les cibles `pdf` et `zip` du script. Ils existaient avant ; voir les dettes.
+
+### `node scripts/real-files.mjs` (avec LibreOffice, poppler et `CIRTA_PYTHON` pointant vers un Python avec nbformat)
+
+```
+real-file round trip — linux
+  control: LibreOffice produced source.docx, source.odt
+  ok    source.docx: inspected as docx
+  ok    source.docx: found the metadata LibreOffice wrote
+  ok    source.docx: nothing confirmed survives redaction
+  ok    source.docx: reopens in LibreOffice after redaction
+  ok    source.odt: inspected as odt
+  ok    source.odt: found the metadata LibreOffice wrote
+  ok    source.odt: nothing confirmed survives redaction
+  ok    source.odt: reopens in LibreOffice after redaction
+  ok    tracked.docx: the deleted text is quoted
+  ok    tracked.docx: reopens in LibreOffice with changes accepted
+  ok    tracked.docx: the deleted text is gone after accepting
+  ok    commented.docx: the comment text is reported
+  ok    commented.docx: reopens in LibreOffice with comments removed
+  ok    commented.docx: the comment is gone
+  ok    active.docx: the DDE field is reported
+  ok    active.docx: the remote template is reported
+  ok    active.docx: reopens in LibreOffice with active content stripped
+  ok    active.docx: no DDE or remote INCLUDE instruction is left
+  ok    deck.pptx: reopens in LibreOffice with notes and the hidden slide removed
+  ok    deck.pptx: the hidden slide and every notes part are gone from the package
+  ok    legacy.doc: read as doc, author and last saver from its property sets
+  ok    legacy.doc: cleaning refused rather than attempted
+  ok    legacy.ppt: read as ppt, author and last saver from its property sets
+  ok    legacy.ppt: cleaning refused rather than attempted
+  ok    notebook.clean.ipynb: valid for nbformat, metadata reduced to the kernel, outputs kept
+  ok    notebook.cleared.ipynb: valid for nbformat, metadata reduced to the kernel, outputs emptied
+  ok    corpus-sheet.xlsx: read as xlsx, the author found
+  ok    corpus-sheet.xlsx: nothing confirmed survives the clean
+  ok    corpus-sheet.clean.xlsx: reopens in LibreOffice
+  ok    corpus-sheet.ods: read as ods, the author found
+  ok    corpus-sheet.ods: nothing confirmed survives the clean
+  ok    corpus-sheet.clean.ods: reopens in LibreOffice
+  ok    corpus-deck.pptx: read as pptx, the author found
+  ok    corpus-deck.pptx: nothing confirmed survives the clean
+  ok    corpus-deck.clean.pptx: reopens in LibreOffice
+  ok    corpus-deck.odp: read as odp, the author found
+  ok    corpus-deck.odp: nothing confirmed survives the clean
+  ok    corpus-deck.clean.odp: reopens in LibreOffice
+  ok    corpus-text.pdf: read as pdf, the author found
+  ok    corpus-text.pdf: nothing confirmed survives the clean
+  ok    corpus-text.clean.pdf: poppler opens it, no author, the page text intact
+
+all real-file checks passed
+```
+
+### `cirta --help`
+
+```
+  ╭───────╮   cirta
+  │  ╭──  │   inspect and strip provenance metadata from documents
+  │  ╰──  │
+  ╰───────╯   everything runs locally; no network calls are made
+
+Usage
+  cirta inspect <path...>            Report metadata carried by each file
+  cirta redact  <path...> [options]  Write a copy with that metadata removed
+  cirta text [--clean]               Read text on stdin; report or clean it
+  cirta verify  <path...> [--fail-on <level>]  Inspect again; exit non-zero if a finding at this level is left (confirmed by default)
+  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  The text as a reader sees it, for a model; hidden instructions on stderr
+  cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
+
+Paths may be files or directories. Directories are walked recursively for
+documents, images and text files; build and dependency directories such as
+node_modules, .git and dist are skipped.
+
+Options
+  -o, --output <path>   Destination for a single redacted file
+      --in-place        Overwrite the input files (keeps a .bak)
+      --skip <names>    Extra directory names to skip, comma-separated
+      --force-text      Treat the input as text even if it looks binary
+      --remove-hidden   redact: also remove text a reader cannot see (Word, PowerPoint, HTML, Markdown)
+      --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
+      --remove-comments redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads
+      --normalize-spaces text --clean: also replace no-break and narrow spaces with ordinary ones
+      --pii             also look for personal data in the text (emails, phones, IBANs, cards, NIR…), values masked
+      --rules <file>    the organisation’s rules (YAML or JSON): words and patterns, each with its label and level
+      --strip-active    redact: remove scripts, actions, macros, remote templates and embedded files
+      --strip-remote-resources redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)
+      --remove-notes    redact: remove speaker notes (PowerPoint)
+      --remove-hidden-slides redact: remove hidden slides and their notes (PowerPoint)
+      --remove-hidden-sheets redact: remove hidden sheets nothing reads (Excel; refused otherwise)
+      --remove-attachments redact: remove embedded files (PDF)
+      --flatten-annotations redact: draw annotations into the page, then remove them, authors included (PDF)
+      --strip-tracking-params redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)
+      --burn-redactions redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)
+      --clear-outputs   redact: empty the outputs and execution counts (Jupyter notebook)
+      --lang <fr|en>    Output language (default: the locale, else en)
+      --json            Machine-readable output
+      --sarif           SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs
+      --fail-on <level> Exit non-zero if any finding reaches this level (confirmed|probable|informational)
+  -h, --help            Show this message
+
+Confidence
+  confirmed      Verbatim identifying data — a name, a company, a local path
+  probable       Real information about you or your workflow, not always sensitive
+  informational  Names the software rather than the author
+
+Scope
+  Handles document metadata (PDF /Info and XMP, Office docProps) and invisible
+  Unicode in text. It does not detect or remove statistical model watermarks:
+  those live in word choice, not in a field, and reading one requires the
+  vendor's secret key. No local tool can do it, including this one.
+```
+
+Options ajoutées par ce travail : `--accept-changes`, `--remove-comments`, `--normalize-spaces`, `--pii`, `--rules`, `--strip-active`, `--strip-remote-resources`, `--remove-notes`, `--remove-hidden-slides`, `--remove-hidden-sheets`, `--remove-attachments`, `--flatten-annotations`, `--strip-tracking-params`, `--burn-redactions`, `--clear-outputs`. Commandes ajoutées : `verify`, `sanitize-for-llm`, `mcp`.
+
+---
+
 ## Dettes et risques notés en cours de route
 
 - Le récapitulatif multi-fichiers du CLI (`Summary … files`) était en dur en anglais : traité dans C11.1.
 - La ligne `fuzz: N rejection kind(s) escaped as a raw Error` concerne les cibles qui appellent pdf-lib et fflate directement. Elle existait avant ; l'entrée publique `inspectFile` et désormais `redactFile` convertissent ces erreurs en refus codés.
 - La vue en cartes (C11.6) n'est vérifiée qu'à la main dans Chromium : la suite n'a pas de test de rendu.
 - Test instable trouvé sur la CI de la PR n°2, puis corrigé : le helper AES-256 R6 de C1 comptait les tours de l'algorithme 2.B à partir de zéro, alors que PDF.js et qpdf comptent les tours effectués. Un fichier généré sur trente environ ne s'ouvrait pas. La correction (commit sur `fix/test-campaign-2026-10`, fusionnée dans les branches suivantes) donne 0 échec sur 200 fichiers avec PDF.js et 0 sur 50 avec pypdf.
+- **Le paragraphe « Scope » de `--help` est en retrait** sur ce que l'outil fait maintenant. Il parle de PDF, de docProps et de l'Unicode invisible. Il ne dit rien de faux : il ne prétend toujours pas détecter de filigrane statistique. Mais il est à mettre à jour.
+- **La ligne « rejection kinds » du fuzz.** Elle vient des cibles `pdf` et `zip`, qui appellent pdf-lib et fflate sans passer par `inspectFile`. L'entrée publique convertit déjà ces erreurs en refus codés. Il reste à décider si le script doit compter ces cibles autrement.
+- **Le texte des formats Office anciens** (`.doc`, `.xls`, `.ppt`) n'est pas lu : ni corps, ni commentaires, ni révisions. Le nettoyage de ces formats et du `.msg` est refusé. C'est conforme au brief et documenté.
+- **Aucun vrai `.msg` Outlook dans le corpus.** La lecture est contre-vérifiée par extract-msg sur des fichiers construits par les tests, pas sur un message sorti d'Outlook.
+- **Une règle DLP dont le motif fait exploser le retour arrière reste sans garde**, car JavaScript n'offre pas de délai d'expiration sur une regex. C'est dit dans le README et dans `SECURITY.md`.
+- **L'interface n'a pas de test de rendu automatisé.** La logique (options proposées, plan, diff) est testée ; l'affichage a été vérifié à la main dans Chromium, à 1280 et 375 px.
+- **`scripts/fuzz.mjs` n'a pas les cibles des nouveaux analyseurs.** Elles tournent dans `test/fuzz-parsers.test.ts`.
+- **Signalement de vulnérabilités** : il n'a pas été vérifié que le dépôt a activé le signalement privé GitHub. `SECURITY.md` donne l'autre voie.
+
