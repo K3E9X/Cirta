@@ -16,6 +16,7 @@ Chaque PR ne montre que son lot.
 | n°6 | `feat/llm-pipeline` | `feat/cleaning-options` | F-2.5 `sanitize-for-llm` et serveur MCP (F-P1) |
 | n°7 | `feat/dlp-rules` | `feat/llm-pipeline` | F-2.3 DLP et règles (F-P1) |
 | n°8 | `feat/legacy-formats` | `feat/dlp-rules` | F-2.2 Office ancien, Outlook `.msg`, notebooks Jupyter (F-P1) |
+| n°9 | `feat/ui-options` | `feat/legacy-formats` | F-2.7 options avancées, plan avant téléchargement, avant/après (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -868,6 +869,60 @@ cirta redact --clear-outputs analyse.ipynb -o propre.ipynb
 
 ---
 
+## F-2.7 [F-P1] — Interface : options avancées, plan, avant/après
+
+**Statut : fait pour les deux puces.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| F-2.7.1 Options avancées et plan avant téléchargement | `1622574` | `src/shared/clean-plan.ts` (nouveau) ; `src/web/main.ts`, `index.html`, `i18n.ts`, `style.css`, `worker.ts` ; test `test/clean-plan.test.ts` |
+| F-2.7.2 Avant / après | `187a1ef` | `src/shared/diff.ts` (nouveau) ; `src/web/main.ts`, `i18n.ts`, `style.css` ; test `test/diff.test.ts` |
+| READMEs | commit `docs` | `README.md`, `README.fr.md` |
+
+Ce qui change :
+- **« Options avancées »** sous la zone de dépôt.
+  - Les treize options du nettoyage sont réparties en trois groupes : contenu des documents, ce que le fichier fait ou charge, PDF.
+  - Elles sont décochées par défaut et mémorisées dans ce navigateur (`localStorage`, sous try/catch).
+  - Avant, la page n'en proposait que cinq, carte par carte, écrites une à une.
+- **Chaque carte** propose les options qui s'appliquent à son fichier, avec le compte de ce sur quoi elles agiraient. Elles sont pré-cochées selon les options avancées.
+  - Une option s'applique si le format la prend et si le fichier contient ce qu'elle changerait.
+  - Cette règle vit dans `src/shared/clean-plan.ts`, sous forme de clés, partagée avec le type du worker.
+- **Plan avant téléchargement** : « Au téléchargement : » liste ce qui est toujours retiré, puis chaque option cochée. La liste suit les cases.
+- **Avant / après**, après le téléchargement :
+  - deux colonnes, « Retiré (n) » et « Toujours là (n) », traduites ;
+  - pour un texte (texte brut, Markdown, HTML, SVG, courrier, notebook), le diff ligne à ligne avec deux lignes de contexte et les longues zones inchangées repliées ;
+  - **les caractères invisibles sont écrits en code** (`Bonjour⟨U+200B⟩`) ;
+  - un notebook d'origine est d'abord remis en forme comme Jupyter l'écrit, pour que seul le contenu diffère.
+- **Algorithme du diff** : plus longue sous-séquence commune, après mise à l'écart de la tête et de la queue communes.
+  - Au-delà de quatre millions de cellules, la partie modifiée est montrée d'un bloc.
+  - 20 000 lignes de chaque côté passent en moins de deux secondes.
+
+Tests :
+- `test/clean-plan.test.ts` (3) :
+  - `offers an option only for a format that takes it and a file it would change`
+  - `knows every option the cleaner takes, PDF and notebook ones included`
+  - `plans what a download will do: the chosen options among those offered`
+- `test/diff.test.ts` (4) :
+  - `diffs by line, keeping order`
+  - `folds long unchanged runs, keeping context around each change`
+  - `stays fast on large inputs, falling back to one block when the table would be too big`
+  - `shows what cannot be seen: an invisible character becomes its code point`
+- Vérifié dans Chromium (fr-FR, 1280 et 375 px) :
+  - l'option des options avancées est pré-cochée sur un `.pptx` ;
+  - le plan se met à jour quand on coche ;
+  - l'avant/après d'un `.pptx` montre les quatre éléments retirés ;
+  - un `.txt` affiche `− Bonjour⟨U+200B⟩ Marie,` / `+ Bonjour Marie,` ;
+  - le choix est retrouvé après rechargement ;
+  - aucun défilement horizontal à 375 px.
+
+Vérification manuelle : `npm run dev` (ou `dist-web`). Ouvrir « Options avancées », cocher « Retirer les notes du présentateur », déposer un `.pptx` avec des notes : la carte dit « Au téléchargement : … Retirer les notes du présentateur ». Télécharger, puis lire « Avant / après ».
+
+Écarts :
+- Le diff visuel ne concerne que les formats texte. Pour un PDF ou un document Office, l'avant/après se limite aux deux listes ; un rendu comparé page à page n'est pas fait.
+- Le rendu de la page n'a pas de test automatisé : la suite n'a pas de test de rendu. La logique (options proposées, plan, diff) est testée, l'affichage vérifié à la main dans Chromium.
+
+---
+
 ## État de vérification
 
 Branche `fix/test-campaign-2026-10` (PR n°1) :
@@ -901,6 +956,10 @@ Branche `feat/dlp-rules` (PR n°7) :
 Branche `feat/legacy-formats` (PR n°8) :
 - `npm run verify` : exit 0. 59 fichiers de test, **823 tests** (795 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`, dont `legacy.doc`, `legacy.ppt`, et avec `nbformat` les deux notebooks nettoyés.
+
+Branche `feat/ui-options` (PR n°9) :
+- `npm run verify` : exit 0. 61 fichiers de test, **832 tests** (823 avant). Fuzz sans crash. Build web OK.
+- `node scripts/real-files.mjs` : `all real-file checks passed`.
 
 Nouvelles options CLI (`cirta --help`) :
 ```
