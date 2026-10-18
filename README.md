@@ -1012,6 +1012,9 @@ does not come back as a document is refused rather than written.
 (non-zero exit), not as a text file with no metadata — nothing was looked at, so nothing can be said
 to have been found.
 
+**The libraries keep quiet.** pdf-lib reports a damaged object on the console ("Trying to parse
+invalid object"); those messages are captured, so stderr carries only Cirta's report.
+
 **A file cannot drive the terminal.** A terminal obeys escape sequences, and a document's /Author can
 hold one: retitle the window, erase the line above — a confirmed finding printed and wiped — open a
 link, write the clipboard. Every value read from a file, and every file name, is printed with its

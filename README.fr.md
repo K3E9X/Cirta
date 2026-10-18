@@ -1077,6 +1077,9 @@ elle est refusée au lieu d'être écrite.
 de sortie non nul), et non un fichier texte sans métadonnées — rien n'a été examiné, donc rien ne peut
 être dit trouvé.
 
+**Les bibliothèques se taisent.** pdf-lib signale un objet abîmé sur la console (« Trying to parse
+invalid object ») ; ces messages sont capturés, et stderr ne porte que le rapport de Cirta.
+
 **Un fichier ne peut pas piloter le terminal.** Un terminal obéit aux séquences d'échappement, et le
 champ /Author d'un document peut en contenir une : renommer la fenêtre, effacer la ligne précédente —
 un constat confirmé affiché puis effacé —, ouvrir un lien, écrire dans le presse-papiers. Toute valeur
