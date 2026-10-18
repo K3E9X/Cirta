@@ -814,18 +814,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
     } else {
       node.append(findingsTable(result.findings));
 
-      // A plain archive is reported, never rewritten — redaction throws on it.
-      // Offering the button and failing on the click is a promise the page
-      // cannot keep, so it says so up front instead.
-      if (result.format === 'zip') {
-        node.append(
-          el(
-            'p',
-            'note',
-            t().archiveNote,
-          ),
-        );
-      } else if (LEGACY.has(result.format)) {
+      if (LEGACY.has(result.format)) {
         // [F-2.2] Inspected, never rewritten: the reason and what to do, before any click.
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
       } else {
@@ -843,12 +832,15 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
           foot.append(label);
           boxes.set(offer.key, box);
         }
-        const choices = (): CleanChoices => Object.fromEntries([...boxes].map(([key, box]) => [key, box.checked]));
+        // [F-P2 2.4] An archive's members are cleaned one by one, each with the advanced options.
+        const choices = (): CleanChoices =>
+          result.format === 'zip' ? { ...cleanState } : Object.fromEntries([...boxes].map(([key, box]) => [key, box.checked]));
         const summary = el('div', 'clean-plan');
         summary.setAttribute('aria-live', 'polite');
         const showPlan = () => {
           const list = el('ul');
           list.append(el('li', undefined, t().planMetadata));
+          if (result.format === 'zip') list.append(el('li', undefined, t().planArchive));
           for (const step of plan(result.format, result.findings, choices())) list.append(el('li', undefined, OPTION_LABEL[step.key](step.count)));
           summary.replaceChildren(el('p', 'clean-plan-title', t().planTitle), list);
           if (boxes.size && ![...boxes.values()].some((box) => box.checked)) summary.append(el('p', 'note', t().planContentKept));

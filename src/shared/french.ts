@@ -993,10 +993,16 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     en: `The cleaned copy did not parse again, so it was not delivered${detail ? ` (${detail})` : ''}. The original is untouched.`,
     fr: `La copie nettoyée n’a pas pu être relue, elle n’a donc pas été livrée${detail ? ` (${detail})` : ''}. L’original est intact.`,
   }),
-  'archive-not-rewritable': () => ({
-    en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
-    fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
-  }),
+  'archive-not-rewritable': (detail) =>
+    detail
+      ? {
+          en: `This archive holds files Cirta cannot clean: ${detail}. It is not rewritten, rather than handed back with those files as they were. Extract it, deal with them separately, clean the rest, and repack.`,
+          fr: `Cette archive contient des fichiers que Cirta ne sait pas nettoyer : ${detail}. Elle n’est pas réécrite, plutôt que rendue avec ces fichiers tels quels. Extrayez-la, traitez-les à part, nettoyez le reste, puis recompressez.`,
+        }
+      : {
+          en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
+          fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
+        },
   'legacy-not-rewritable': (detail) =>
     detail === 'msg'
       ? {

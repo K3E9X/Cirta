@@ -9,7 +9,6 @@ import {
   fingerprint,
   exposure,
   estimateTokens,
-  UnsupportedFormatError,
   type Finding,
 } from '../src/core/index.js';
 
@@ -140,10 +139,13 @@ describe('plain archives', () => {
     expect((await inspectFile(makeArchive())).notes.map((n) => n.code)).toContain('scope:archive');
   });
 
-  it('refuses to rewrite an archive rather than repacking it silently', async () => {
-    // Repacking would change compression, ordering and timestamps of every
-    // member; redacting the files individually is the honest workflow.
-    await expect(redactFile(makeArchive())).rejects.toBeInstanceOf(UnsupportedFormatError);
+  it('repacks an archive whose members it can all clean, in their order, and says what was removed', async () => {
+    // [F-P2 2.4] Formerly refused outright. Members are now cleaned one by one
+    // and repacked; an archive holding one it cannot clean is still refused
+    // (test/zip-clean.test.ts).
+    const result = await redactFile(makeArchive());
+    expect(result.format).toBe('zip');
+    expect(result.removed.some((f) => f.location.startsWith('export/deck.pptx → '))).toBe(true);
   });
 
   it('still handles a real document package as a document', async () => {

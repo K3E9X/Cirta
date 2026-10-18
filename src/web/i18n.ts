@@ -44,9 +44,6 @@ const FR = {
     `ré-inspecté · ${removed} retiré${removed > 1 ? 's' : ''}` +
     (kept ? ` · ${kept} laissé${kept > 1 ? 's' : ''} en place` : ''),
   cleanFailed: 'Échec du nettoyage',
-  archiveNote:
-    'Une archive est signalée, jamais réécrite : la repacker changerait la compression, ' +
-    'l’ordre et les dates de chaque membre. Nettoyez les fichiers un par un.',
 
   /* -------------------------------------------------------------- summary */
   fileCount: (n: number) => `${n} fichier${n > 1 ? 's' : ''}`,
@@ -232,6 +229,7 @@ const FR = {
   planTitle: 'Au téléchargement :',
   planMetadata: 'Retirer ce que le fichier dit de sa fabrication (métadonnées, caractères invisibles), puis relire la copie',
   planContentKept: 'Le contenu n’est pas modifié : les options ci-dessus sont décochées.',
+  planArchive: 'Nettoyer chaque fichier de l’archive avec les options avancées, puis la recompresser ; si l’un d’eux ne peut pas l’être, rien n’est téléchargé et il est nommé',
   beforeAfterTitle: 'Avant / après',
   goneTitle: (n: number) => `Retiré (${n})`,
   leftTitle: (n: number) => `Toujours là (${n})`,
@@ -278,9 +276,6 @@ const EN: Strings = {
   reinspected: (removed, kept) =>
     `re-inspected · ${removed} removed` + (kept ? ` · ${kept} left in place` : ''),
   cleanFailed: 'Cleaning failed',
-  archiveNote:
-    'An archive is reported, never rewritten: repacking would change the compression, ordering ' +
-    'and timestamps of every member. Clean the files individually.',
 
   fileCount: (n) => `${n} file${n > 1 ? 's' : ''}`,
   flaggedCount: (n) => `${n} carrying confirmed identifying data`,
@@ -455,6 +450,7 @@ const EN: Strings = {
   planTitle: 'On download:',
   planMetadata: 'Remove what the file says about how it was made (metadata, invisible characters), then read the copy again',
   planContentKept: 'The content is not changed: the options above are unticked.',
+  planArchive: 'Clean each file in the archive with the advanced options, then repack it; if one cannot be cleaned, nothing is downloaded and it is named',
   beforeAfterTitle: 'Before / after',
   goneTitle: (n) => `Removed (${n})`,
   leftTitle: (n) => `Still there (${n})`,
