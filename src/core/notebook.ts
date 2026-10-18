@@ -30,9 +30,33 @@ const isObj = (v: Json): v is Obj => typeof v === 'object' && v !== null && !Arr
 const MAX_NOTEBOOK = 64 * 1024 * 1024;
 const MAX_PATHS = 20;
 
+/**
+ * [F-2.8] How deep the brackets go, strings skipped. JSON.parse copes with any
+ * depth, but every recursive walk after it — JSON.stringify among them — runs
+ * out of stack long before; Python's json, which Jupyter uses, stops near a
+ * thousand. Past MAX_DEPTH the file is not read as a notebook.
+ */
+function tooDeep(text: string): boolean {
+  let depth = 0;
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (inString) {
+      if (c === 0x5c) i++;
+      else if (c === 0x22) inString = false;
+    } else if (c === 0x22) inString = true;
+    else if (c === 0x7b || c === 0x5b) {
+      if (++depth > MAX_DEPTH) return true;
+    } else if (c === 0x7d || c === 0x5d) depth--;
+  }
+  return false;
+}
+
+const MAX_DEPTH = 512;
+
 /** A notebook: an object with a cells array and an nbformat number. */
 export function parseNotebook(text: string): Obj | undefined {
-  if (text.length > MAX_NOTEBOOK || !/^\s*\{/.test(text)) return undefined;
+  if (text.length > MAX_NOTEBOOK || !/^\s*\{/.test(text) || tooDeep(text)) return undefined;
   try {
     const value: Json = JSON.parse(text);
     return isObj(value) && Array.isArray(value.cells) && typeof value.nbformat === 'number' ? value : undefined;

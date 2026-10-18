@@ -698,6 +698,8 @@ export function stripHiddenDocx(parts: Record<string, Uint8Array>, scope: StripS
   return removed;
 }
 
+const MAX_PARAGRAPH_DEPTH = 32;
+
 function scanDocx(parts: Record<string, Uint8Array>): Map<string, Hidden[]> {
   const decoder = new TextDecoder();
   const read = (path: string) => (parts[path] ? decoder.decode(parts[path]) : undefined);
@@ -734,10 +736,14 @@ function scanDocx(parts: Record<string, Uint8Array>): Map<string, Hidden[]> {
       } else if (closing === 'tc') {
         cells.pop();
       } else if (opening === 'p') {
-        paragraphs.push(at);
+        // [F-2.8] Each paragraph reads its whole body, so nesting multiplies the
+        // work: a hundred thousand nested paragraphs took most of a minute.
+        // Word nests them through text boxes, a level or two. Past a depth,
+        // a paragraph is read as part of the one that encloses it.
+        paragraphs.push(paragraphs.length < MAX_PARAGRAPH_DEPTH ? at : -1);
       } else if (closing === 'p') {
         const start = paragraphs.pop();
-        if (start === undefined) continue;
+        if (start === undefined || start < 0) continue;
         // A text box nests whole paragraphs inside a run; they are read when
         // their own end is reached, not again as part of this one. Blanked to
         // the same length, so positions found here are positions in the part.
