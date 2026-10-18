@@ -22,6 +22,7 @@ Chaque PR ne montre que son lot.
 | n°12 | `feat/p2-cleaning` | `feat/p2-links` | F-P2 2.4 sortie déterministe, manifeste, archives, ré-encodage des images |
 | n°13 | `feat/p2-library` | `feat/p2-cleaning` | F-P2 2.5 API de bibliothèque, rapport JSON versionné et son schéma |
 | n°14 | `feat/p2-profiles` | `feat/p2-library` | F-P2 2.3 profils `--profile` |
+| n°15 | `feat/p2-formats` | `feat/p2-profiles` | F-P2 2.2 RTF, EPUB, Visio, WebP/GIF/TIFF/HEIC/AVIF, LaTeX, iCalendar, vCard |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1267,6 +1268,92 @@ cirta verify --profile strict lettre.clean.docx # échoue s'il reste un constat 
 
 ---
 
+## F-P2 2.2 — Nouveaux formats
+
+**Statut : fait.** Inspection pour les six puces du brief ; nettoyage pour toutes sauf TIFF, HEIC et AVIF, refusés et documentés comme le brief le prévoit.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| RTF | `564e93c` | `src/core/rtf.ts` (nouveau) ; `legacy-office.ts` (`objectFindings` exporté), `index.ts`, `body-text.ts`, `sanitize.ts`, `types.ts`, `notes.ts`, `shared/french.ts`, `shared/clean-plan.ts`, CLI, page ; tests `test/rtf.test.ts`, `test/i18n-fr.test.ts` ; `scripts/real-files.mjs` |
+| EPUB | `ca95d1e` | `src/core/epub.ts` (nouveau) ; `index.ts`, `errors.ts` (`epub-encrypted`), `types.ts`, `notes.ts`, `french.ts`, `clean-plan.ts`, page ; tests `test/epub.test.ts`, `test/i18n-fr.test.ts` ; `real-files.mjs` |
+| Visio `.vsdx` | `970160e` | `src/core/visio.ts` (nouveau) ; `ooxml.ts`, `xlsx-active.ts`, `index.ts`, `types.ts`, CLI, page ; `test/helpers/visio.ts`, tests `test/visio.test.ts`, `test/i18n-fr.test.ts` ; `real-files.mjs` |
+| Bombe de compression (correctif) | `fd6ab2e` | `src/core/zip.ts`, `errors.ts` (`archive-too-large`), `french.ts` ; test `test/documents.test.ts` |
+| WebP, GIF, TIFF, HEIC, AVIF | `86f74d1` | `src/core/picture-formats.ts` (nouveau) ; `image.ts`, `index.ts`, `errors.ts` (`image-not-rewritable`), `french.ts`, CLI, page ; `test/helpers/pictures.ts`, tests `test/picture-formats.test.ts`, `test/fuzz-parsers.test.ts`, `test/i18n-fr.test.ts` ; `real-files.mjs` |
+| LaTeX | `f172f2a` | `src/core/latex.ts` (nouveau) ; `index.ts`, `sanitize.ts`, `body-text.ts`, `types.ts`, `notes.ts`, `french.ts`, CLI, page ; tests `test/latex.test.ts`, `test/i18n-fr.test.ts` ; `real-files.mjs` |
+| Vérification de types de la page (correctif) | `fd6dc96` | `tsconfig.web.json`, `src/web/main.ts` |
+| iCalendar, vCard | `a0b7ad2` | `src/core/calendar.ts` (nouveau) ; `index.ts`, `body-text.ts`, `types.ts`, `notes.ts`, `french.ts`, CLI, page ; tests `test/calendar.test.ts`, `test/i18n-fr.test.ts` |
+| Page : TIFF/HEIC/AVIF annoncés avant le clic | `3619c83` | `src/web/main.ts` |
+| Documentation | `b2c84d3` | `README.md`, `README.fr.md`, `src/web/index.html` |
+
+Ce qui change, par format :
+- **RTF.** Lu comme un arbre de groupes : le groupe `\info` (titre, auteur, `\operator`, société, responsable, dates, minutes d'édition, révision), `\*\generator`, `\*\userprops`, `\*\template`, `\*\rsidtbl`, les noms de `\*\revtbl` et de `\*\atnauthor`, les objets (`\objdata` : en-tête OLE1, puis le fichier d'un Packager avec ses chemins, ou un fichier composite inspecté), les images `\jpegblip`/`\pngblip` et les champs `HYPERLINK`, `INCLUDEPICTURE`, `INCLUDETEXT`, `LINK`. Le nettoyage réécrit l'arbre, jamais une expression régulière sur le fichier : `\info`, générateur, propriétés, modèle et identifiants de révision partent (avec chaque mot `\…rsid`), les noms deviennent `Author`, les images perdent leurs métadonnées ; avec `--strip-active`, l'objet est remplacé par l'image de son `\result`.
+- **EPUB.** Dublin Core du paquet (créateur, contributeurs dont le producteur `bkp`, éditeur, date, identifiant), métas calibre et générateur, auteur du NCX, chaque page XHTML par la passe HTML, chaque image par la passe image, signets calibre, trace d'achat Apple. Le nettoyage garde titre, langue et ISBN, remplace l'identifiant unique par un UUID dérivé du contenu nettoyé (repris dans le NCX, et non signalé à la relecture, comme le `/ID` du PDF), date `dcterms:modified` du 1er janvier 1980 et recompresse avec le `mimetype` en tête, non compressé. Un livre sous DRM est signalé et refusé (`epub-encrypted`) ; l'obfuscation de polices seule ne l'est pas.
+- **Visio.** Passe OOXML (propriétés, médias, texte des formes), plus `visio/comments.xml` (auteurs et `ResolutionID`, anonymisés), `visio/data/connections.xml` (mot de passe masqué) et les liens des formes.
+- **Images.** WebP (blocs `EXIF`, `XMP `, privés ; nettoyés, drapeaux `VP8X` remis à zéro, taille RIFF réécrite), GIF (commentaires et blocs d'application ; nettoyés, boucle et profil gardés), TIFF (IFD0, Exif, GPS, XMP balise 700, IPTC), HEIC et AVIF (éléments `Exif` et XMP via `iinf`/`iloc`). Les mêmes lecteurs servent aux images intégrées dans un document.
+- **LaTeX.** Commentaires `%` hors matériau verbatim, environnements `comment`, `\author`, `\thanks`, `\email`, `\affiliation`, auteur PDF de `\hypersetup`/`\pdfinfo`, chemins absolus des commandes d'inclusion. Le nettoyage retire le texte de chaque commentaire et **garde le `%`**, vide les environnements `comment` ; `sanitize-for-llm` lit la source sans ses commentaires.
+- **iCalendar et vCard.** Lignes de contenu dépliées et situées dans leur composant : `PRODID`, propriétés `X-`, `UID` qui nomme sa machine, dates, organisateur et participants, `GEO`, liens de la description et lien de réunion portant son code ; pour une fiche, `REV`, `UID`, note et Exif de la photo. Le nettoyage retire des lignes entières et laisse les autres telles quelles, CRLF et repli compris.
+
+Deux défauts trouvés en chemin, corrigés dans leurs propres commits :
+- **Bombe de compression.** Le fuzzer a muté une longueur EPUB : 300 octets annonçant 335 Mo de zéros, sous le budget de 512 Mo, et un nettoyage de vingt secondes. Un membre de plus de 16 Mo qui se décompresse en plus de mille fois sa taille est désormais refusé avant décompression, pour tout format ZIP. `ArchiveTooLargeError` porte maintenant un code (`archive-too-large`) : ce refus arrivait en anglais aux lecteurs francophones.
+- **La page n'était pas vérifiée par le typage.** `tsconfig.web.json` héritait du `exclude: src/web/**` de la configuration de build : `npm run typecheck` ne vérifiait ni la page ni son worker. Il manquait d'ailleurs `latex` à la table MIME de la page sans que rien ne le signale. Corrigé, avec `DOM.Iterable` et deux imports inutilisés retirés.
+
+Tests (nouveaux fichiers et cas) :
+- `test/rtf.test.ts` (5) :
+  - `is told by its first bytes`
+  - `reports the info group, the generator and the objects it carries`
+  - `cleans the info group and the generator, keeps the text, and takes objects out on request, their picture left`
+  - `decodes the characters of a value: code page escapes and Unicode`
+  - `reads what Word adds: template, custom properties, revision identifiers, authors of changes and comments, pictures, fields`
+- `test/epub.test.ts` (5) :
+  - `is told from a plain archive by its mimetype`
+  - `reports the package metadata, the NCX author, each page through the HTML pass, the pictures and calibre’s bookmarks`
+  - `cleans every part, keeps the title and the language, and gives the same bytes twice`
+  - `refuses to rewrite a book under DRM, and says why`
+  - `still cleans a book whose only encryption is font obfuscation`
+- `test/visio.test.ts` (3) :
+  - `is told by its visio/document.xml`
+  - `reports the package properties, comment authors, data connections, shape links, page text and pictures`
+  - `cleans the properties, the comment authors, the page text and the pictures; what is the drawing’s own stays and is named`
+- `test/picture-formats.test.ts` (5) :
+  - `tells WebP, GIF, TIFF, HEIC and AVIF by their first bytes`
+  - `reads EXIF and XMP from a WebP, and cleans them out of a copy that still decodes`
+  - `reads a GIF’s comment and XMP, and cleans them out of a copy that still decodes`
+  - `reads a TIFF’s directory and XMP, and refuses to rewrite it`
+  - `reads the Exif and XMP items of a HEIC or an AVIF, and refuses to rewrite it`
+- `test/latex.test.ts` (3) :
+  - `is told by its preamble or its extension`
+  - `reports comments, the author and thanks, PDF metadata set from the source, and local paths`
+  - `cleans comments without changing what LaTeX typesets, and names what is the document’s own`
+- `test/calendar.test.ts` (6) :
+  - iCalendar : `is told by its first line` ; `reports the producer, the organiser and attendees, the event’s host, vendor properties, dates, a meeting passcode and links` ; `removes vendor properties and optional dates, keeps what the invitation needs, CRLF and folding intact`
+  - vCard : `is told by its first line` ; `reports the producer, revision date, identifiers, vendor properties, the note and the photo’s own metadata` ; `removes the producer, revision, identifiers and vendor properties, and strips the photo`
+- `test/documents.test.ts` : `[F-P2 2.2] refuses a member that inflates more than a thousand times its size, in the reader’s language`.
+- `test/fuzz-parsers.test.ts` : `[F-P2 2.2] RTF, EPUB, Visio and the other picture formats, inspected and cleaned` (RTF, EPUB, Visio, LaTeX, iCalendar, vCard, WebP, GIF, TIFF, HEIC, AVIF ; inspection et nettoyage).
+- `test/i18n-fr.test.ts` : le corpus gagne un RTF, deux EPUB (dont un sous DRM), un `.vsdx`, un WebP, un GIF, un TIFF, un HEIC, un AVIF, un `.tex`, un `.ics` et un `.vcf`. Il a révélé des emplacements non traduits (`document body (U+200B)`, `comment N`, `file references`) et des valeurs (`object`, `linked object`, `N comments, the first M quoted`), traduits.
+
+Vérification manuelle :
+- `node scripts/real-files.mjs` : le RTF de LibreOffice, nettoyé, se rouvre avec son texte ; son EPUB, nettoyé, a chaque partie XML bien formée (`xmllint`) ; un `.vsdx` se rouvre dans LibreOffice avec le texte de sa forme ; le GIF d'ImageMagick, nettoyé, se décode encore à sa taille ; son TIFF est refusé ; une source LaTeX compilée par `pdflatex` avant et après donne le même texte composé.
+- `epubcheck` 5.1.0 : mêmes messages avant et après nettoyage, sur l'EPUB de LibreOffice comme sur un EPUB 3 plus riche (refines, contributeur `bkp`, ISBN).
+- `.ics` et `.vcf` nettoyés : relus par les bibliothèques Python `icalendar` et `vobject`.
+- Les exemples HEIC et AVIF de libheif sont lus sans erreur (ils ne portent pas de métadonnées).
+- Fuzz long : `FUZZ_ITERATIONS=4000`, puis 3000 après ajout de LaTeX, iCalendar et vCard, sans défaut restant.
+- Chromium : un RTF et un WebP inspectés, nettoyés et téléchargés en français ; un TIFF montre le refus à la place du bouton.
+
+```
+cirta inspect contrat.rtf livre.epub plan.vsdx photo.heic article.tex invitation.ics
+cirta redact contrat.rtf --strip-active    # objets remplacés par leur image
+cirta redact scan.tif                      # refusé : image-not-rewritable
+```
+
+Écarts :
+- **TIFF, HEIC et AVIF : inspection seule.** Chaque valeur est placée par un décalage absolu ; retirer l'Exif demande de réécrire la structure, et la règle du brief s'applique : livrer l'inspection, refuser le nettoyage, le documenter. Le ré-encodage reste limité au JPEG et au PNG.
+- **RTF : le texte masqué (`\v`) n'est pas distingué** du texte visible, ni à l'inspection ni dans `sanitize-for-llm`.
+- **Contenu gardé et nommé.** L'auteur et les chemins d'un `.tex`, les liens d'un RTF ou d'un `.vsdx`, l'organisateur et les participants d'une invitation appartiennent au document : ils restent et la note `kept:in-content` les nomme.
+- **pdflatex n'est pas en CI.** La vérification « même texte composé » s'exécute là où un moteur TeX est installé ; ailleurs elle est annoncée `skip`. De même `xmllint` et ImageMagick.
+- Je n'ai pas trouvé de HEIC réel portant de l'Exif à télécharger, ni d'encodeur HEIF ici : la lecture des éléments `Exif` et XMP est testée sur un fichier construit, et sur les exemples de libheif pour la structure.
+
+---
+
 ## Bilan final
 
 **Fait :**
@@ -1275,7 +1362,9 @@ cirta verify --profile strict lettre.clean.docx # échoue s'il reste un constat 
 
 Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
 
-**Pas fait :** F-P2 et F-P3, faute de temps. Les puces F-P2 relevées en cours de route sont aussi restées hors périmètre, par exemple les profils `--profile` de 2.3.
+- F-P2, en cours : 2.1, 2.4, 2.5, 2.3 et 2.2 (PR n°31 à n°35).
+
+**Pas encore fait :** F-P2 2.7, 2.8 et 2.6, puis F-P3.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1288,6 +1377,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Base `main` @ `b23fca9` | — | **560** |
 | Après C1–C11 (PR n°23) | 39 | 703 |
 | Après tout F-P1 (PR n°30) | 64 | **848** |
+| Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
+| Après F-P2 2.2 (PR n°35) | 78 | **919** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
