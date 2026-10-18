@@ -20,7 +20,7 @@ import { findSourceTypes } from './sourcetype.js';
 import { scanContent } from './archive.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
-import { byConfidence } from './types.js';
+import { byConfidence, preview } from './types.js';
 import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
 import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked-changes.js';
@@ -129,6 +129,9 @@ function findLocalHyperlinks(parts: Parts): Array<{ part: string; target: string
 }
 
 /** Slides marked `show="0"` stay in the file and travel with it. */
+/** Slides and notes quoted one by one, at most; the counts cover the rest. */
+const MAX_QUOTED = 30;
+
 function findHiddenSlides(parts: Parts): string[] {
   return Object.keys(parts)
     .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
@@ -269,6 +272,47 @@ function structuralGenerator(parts: Parts, format: Format): Finding[] {
 }
 
 /** Presenter notes are rarely written for the audience that receives the deck. */
+/** Placeholders that are furniture, not words: slide number, date, footer, the slide's picture. */
+const FURNITURE = /<p:ph\b[^>]*\stype="(?:sldNum|dt|ftr|hdr|sldImg)"/;
+
+const unescapeXml = (text: string) =>
+  text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d: string) => (Number(d) <= 0x10ffff ? String.fromCodePoint(Number(d)) : ''))
+    .replace(/&amp;/g, '&');
+
+/**
+ * [C10.5] The words on a slide or in its notes, a paragraph at a time, with
+ * the placeholders that only hold a number or a date left out.
+ */
+function slideText(xml: string): string {
+  const shapes = elements(xml, 'p:sp');
+  const sources = shapes.length ? shapes.filter((shape) => !FURNITURE.test(shape.inner)).map((shape) => shape.inner) : [xml];
+  const paragraphs: string[] = [];
+  for (const source of sources) {
+    const blocks = elements(source, 'a:p');
+    for (const block of blocks.length ? blocks.map((b) => b.inner) : [source]) {
+      const text = unescapeXml([...block.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]).join(''))
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (text) paragraphs.push(text);
+    }
+  }
+  return paragraphs.join(' / ');
+}
+
+/** Each slide's notes, quoted. */
+function speakerNotesText(parts: Parts): Array<{ path: string; text: string }> {
+  return Object.keys(parts)
+    .filter((p) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(p))
+    .sort((a, b) => Number(/(\d+)\.xml$/.exec(a)![1]) - Number(/(\d+)\.xml$/.exec(b)![1]))
+    .map((path) => ({ path, text: slideText(strFromU8(parts[path]!)) }))
+    .filter(({ text }) => text);
+}
+
 function findSpeakerNotes(parts: Parts): number {
   return Object.keys(parts).filter(
     (p) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(p) && /<a:t>[^<]+<\/a:t>/.test(strFromU8(parts[p]!)),
@@ -558,6 +602,11 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       value: `${hidden.length} hidden slide${hidden.length > 1 ? 's' : ''} still present in the file`,
     });
   }
+  // [C10.5] What they say, not only how many there are.
+  for (const path of hidden.slice(0, MAX_QUOTED)) {
+    const text = slideText(strFromU8(parts[path]!));
+    if (text) findings.push({ kind: 'identity', confidence: 'probable', location: path, label: 'Text of a hidden slide', value: preview(text, 200) });
+  }
 
   const notesCount = findSpeakerNotes(parts);
   if (notesCount) {
@@ -568,6 +617,9 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
       label: 'Speaker notes',
       value: `${notesCount} slide${notesCount > 1 ? 's' : ''} with presenter notes`,
     });
+  }
+  for (const { path, text } of speakerNotesText(parts).slice(0, MAX_QUOTED)) {
+    findings.push({ kind: 'identity', confidence: 'probable', location: path, label: 'Speaker notes text', value: preview(text, 200) });
   }
 
   for (const path of findC2paParts(parts)) {

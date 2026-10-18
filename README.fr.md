@@ -28,7 +28,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | Support | Traité |
 |---|---|
 | PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées, notes du présentateur, **et les caractères invisibles du corps du document** |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées et notes du présentateur — **chacune citée**, diapositive par diapositive, pas seulement comptée —, **et les caractères invisibles du corps du document** |
 | `customXml/` | Le second magasin de propriétés, que `docProps` ne couvre pas : liaisons de contrôles de contenu, colonnes de bibliothèque SharePoint, étiquettes de classification |
 | XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |

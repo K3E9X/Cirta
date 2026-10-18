@@ -62,6 +62,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Link to a local or network path': 'Lien vers un chemin local ou réseau',
   'Hidden slides': 'Diapositives masquées',
   'Speaker notes': 'Notes du présentateur',
+  'Speaker notes text': 'Texte des notes du présentateur',
+  'Text of a hidden slide': 'Texte d’une diapositive masquée',
   'Comment authors': 'Auteurs des commentaires',
   'Defined name pointing outside the workbook': 'Nom défini pointant hors du classeur',
   'Links to other workbooks': 'Liens vers d’autres classeurs',

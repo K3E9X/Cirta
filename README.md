@@ -27,7 +27,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | Support | Handled |
 |---|---|
 | PDF | The `/Info` dictionary **including non-standard keys**, XMP packet, trailer `/ID`, C2PA manifests, attachments, and a **scan of decompressed streams** — page text, JavaScript, attachments |
-| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, custom properties, thumbnail, `rsid` identifiers, comment authors, links to local or network paths, hidden slides, speaker notes, **and the invisible characters in the document body** |
+| PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, custom properties, thumbnail, `rsid` identifiers, comment authors, links to local or network paths, hidden slides and speaker notes — **each quoted**, slide by slide, not only counted — **and the invisible characters in the document body** |
 | `customXml/` | The second property store, which `docProps` does not cover: content-control bindings, SharePoint library columns, classification labels |
 | XLSX in particular | Comment authors (`<author>`, the `xl/persons` registry), defined names pointing outside the workbook, `xl/externalLinks/` parts — carriers neither Word nor PowerPoint uses |
 | ODT / ODS / ODP | `meta.xml`: generator, initial creator, last modified by, dates, edit cycles and duration, user-defined properties, thumbnail, **and the invisible characters in the body** |
