@@ -242,6 +242,11 @@ const FIELD_LABEL: Record<string, string> = {
   'Link that runs a script': 'Lien qui exécute un script',
   'Link to data carried in the address': 'Lien vers des données portées par l’adresse',
   'Link through an open redirector': 'Lien qui passe par un redirecteur ouvert',
+  'File name with a direction control': 'Nom de fichier avec un contrôle de sens d’écriture',
+  'Double extension hiding a program': 'Double extension qui cache un programme',
+  'Invisible character in a file name': 'Caractère invisible dans un nom de fichier',
+  'File name mixing two alphabets': 'Nom de fichier mêlant deux alphabets',
+  'Archive member written outside its folder': 'Membre d’archive écrit hors de son dossier',
   'Deleted text still in the file (tracked changes)': 'Texte supprimé encore présent (suivi de modifications)',
   'Moved text still at its old place (tracked changes)': 'Texte déplacé encore à son ancienne place (suivi de modifications)',
   'Inserted text not yet accepted (tracked changes)': 'Texte inséré pas encore accepté (suivi de modifications)',
@@ -784,8 +789,12 @@ function translateReasons(value: string): string {
  */
 const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
-  // [F-P2 2.1] Liens piégés.
+  // [F-P2 2.1] Liens et noms de fichiers piégés.
   [/^data:(\S+) \(a page, opened as one\)$/, (m) => `data:${m[1]} (une page, ouverte comme telle)`],
+  [/^shown as “([\s\S]*)”, really ends in (\S+) \((U\+[0-9A-F]+)\)$/, (m) => `affiché « ${m[1]} », se termine en réalité par ${m[2]} (${m[3]})`],
+  [/^([\s\S]+) — opens as (\S+), not (\S+)$/, (m) => `${m[1]} — s’ouvre comme ${m[2]}, pas comme ${m[3]}`],
+  [/^(U\+[0-9A-F]+) in “([\s\S]*)”$/, (m) => `${m[1]} dans « ${m[2]} »`],
+  [/^“([\s\S]*)” mixes (\w+) and (\w+)$/, (m) => `« ${m[1]} » mêle ${SCRIPT_TEXT[m[2]!] ?? m[2]} et ${SCRIPT_TEXT[m[3]!] ?? m[3]}`],
   [
     /^(\d+) revisions are present(.*?)\. A reader shows only the newest; the previous ones were appended to, never removed, and the first ends ([\d,]+) bytes in — about (\d+)% of the file\. Text covered or deleted in a later revision is still readable in an earlier one$/,
     (m) =>

@@ -24,6 +24,7 @@ import { readVbaStorage, summariseVba } from './vba.js';
 import { fingerprint } from './fingerprint.js';
 import { byConfidence, type Confidence, type Finding, type InspectOptions, type InspectResult } from './types.js';
 import { ARCHIVE_SEPARATOR } from './archive.js';
+import { fileNameFindings } from './filenames.js';
 
 export type LegacyKind = 'doc' | 'xls' | 'ppt';
 
@@ -183,6 +184,7 @@ async function objectFindings(
     active(isPackage ? 'confirmed' : 'probable', location, 'Embedded object (OLE)', `${what}${progId ? `, ProgID ${progId}` : ''}`),
   ];
   if (!native) return out;
+  if (native.label) out.push(...fileNameFindings(native.label, location));
   for (const [field, path] of [['source', native.source], ['temp', native.temp]] as const) {
     if (!path) continue;
     out.push({ kind: 'environment', confidence: 'confirmed', location: `${location}:${field}`, label: 'Path of the embedded file on the author’s machine', value: path });

@@ -60,7 +60,13 @@ export type FindingKind =
    * [F-2.1] Something the file does rather than says: a script, an action
    * run on opening, a macro, a remote template, a file carried inside.
    */
-  | 'active-content';
+  | 'active-content'
+  /**
+   * [F-P2 2.1] A file name built to be misread: a direction control that
+   * reverses its end, a double extension hiding a program, a path that climbs
+   * out of the folder it is extracted to.
+   */
+  | 'deceptive-name';
 
 /**
  * How much a finding actually tells someone who receives the file.

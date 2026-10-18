@@ -15,6 +15,7 @@ import type { Finding, InspectResult } from './types.js';
 import { preview } from './types.js';
 import { cleanUrl, trackingFinding } from './tracking.js';
 import { linkFindings } from './links.js';
+import { fileNameFindings } from './filenames.js';
 
 type Lookup = (value: unknown) => unknown;
 
@@ -249,6 +250,7 @@ export function scanActive(doc: PDFDocument): ActiveScan {
       label: 'Embedded file',
       value: `${file.name} — ${file.data.length} bytes${file.mime ? `, ${file.mime}` : ''}`,
     });
+    findings.push(...fileNameFindings(file.name, '/EmbeddedFiles'));
   }
   findings.push(...linkFindings(uris, 'links'));
   for (const uri of uris) {

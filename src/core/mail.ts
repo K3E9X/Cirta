@@ -17,6 +17,7 @@ import { inspectPlainText } from './plaintext.js';
 import { inspectMarkup } from './markup.js';
 import { findHtmlLinks } from './url.js';
 import { htmlLinkTargets, linkFindings } from './links.js';
+import { fileNameFindings } from './filenames.js';
 import { remoteFindings } from './beacons.js';
 import { trackingFindings } from './tracking.js';
 import { findResidue } from './residue.js';
@@ -100,6 +101,8 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
   for (const [index, part] of mail.parts.entries()) {
     if (part.attachment) {
       const name = part.filename ?? `part ${index + 1}`;
+      // [F-P2 2.1] The name itself, before what it holds.
+      if (part.filename) findings.push(...fileNameFindings(part.filename, `attachment ${name}`));
       try {
         findings.push(...prefix((await inspectMember(part.body, name)).findings, `attachment ${name}`));
       } catch {

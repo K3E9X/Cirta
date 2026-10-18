@@ -16,6 +16,7 @@ import { readCfb, type Cfb } from './cfb.js';
 import { emailHeaders } from './email.js';
 import { partFindings } from './mail.js';
 import { fingerprint } from './fingerprint.js';
+import { fileNameFindings } from './filenames.js';
 import { ARCHIVE_SEPARATOR } from './archive.js';
 import { byConfidence, type Confidence, type Finding, type InspectOptions, type InspectResult } from './types.js';
 
@@ -150,6 +151,7 @@ async function messageFindings(s: Storage, options: InspectOptions, depth: numbe
     const a: Storage = { cfb: s.cfb, prefix: path, header: 8 };
     const name = string(a, 0x3707) ?? string(a, 0x3704) ?? string(a, 0x3001) ?? `attachment ${index + 1}`;
     const where = `attachment ${name}`;
+    findings.push(...fileNameFindings(name, where));
     const embedded = `${path}__substg1.0_3701000D`;
     if (s.cfb.entries.some((e) => e.type === 'storage' && e.path.toLowerCase() === embedded.toLowerCase())) {
       if (depth + 1 >= MAX_DEPTH) {

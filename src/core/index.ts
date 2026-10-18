@@ -74,6 +74,7 @@ import { inspectPlainText } from './plaintext.js';
 import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS, ARCHIVE_SEPARATOR } from './archive.js';
+import { fileNameFindings } from './filenames.js';
 import { byConfidence } from './types.js';
 import { isCfb, readCfb } from './cfb.js';
 import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
@@ -129,6 +130,8 @@ async function inspectArchive(data: Uint8Array, options: InspectOptions): Promis
 
   const seen = new Set<string>();
   for (const member of members) {
+    // [F-P2 2.1] The member's name: a direction control, a double extension, a path out of the folder.
+    findings.push(...fileNameFindings(member.path.split(ARCHIVE_SEPARATOR).pop() ?? member.path, member.path));
     // A nested archive's members are already in the list, under its path.
     if (member.expanded) continue;
     try {

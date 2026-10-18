@@ -65,7 +65,7 @@ describe('[F-P2 2.1] links that run, carry or bounce', () => {
     expect(labels((await inspectFile(docx, 'a.docx')).findings)).toContain('Link through an open redirector');
   });
 
-  it('reads them in the links of a PDF', async () => {
+  it('reads them in the links of a PDF, and the names of the files it carries', async () => {
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([200, 200]);
     const ctx = pdf.context;
@@ -73,6 +73,6 @@ describe('[F-P2 2.1] links that run, carry or bounce', () => {
     page.node.set(PDFName.of('Annots'), ctx.obj([link('javascript:app.alert(1)'), link('https://l.facebook.com/l.php?u=https%3A%2F%2Fevil.example%2F')]));
     await pdf.attach(new TextEncoder().encode('MZ'), 'releve\u202Efdp.exe', { mimeType: 'application/octet-stream' });
     const found = (await inspectFile(await pdf.save(), 'a.pdf')).findings;
-    expect(labels(found)).toEqual(expect.arrayContaining(['Link that runs a script', 'Link through an open redirector']));
+    expect(labels(found)).toEqual(expect.arrayContaining(['Link that runs a script', 'Link through an open redirector', 'File name with a direction control']));
   });
 });
