@@ -11,6 +11,7 @@ import { incrementalPdf } from './helpers/incremental-pdf.js';
 import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.js';
 import { runCli } from './helpers/cli.js';
 import { activePdf } from './helpers/active-pdf.js';
+import { docm } from './helpers/active-office.js';
 
 /*
  * [C11.1] French mode printed English: character names ("zero-width
@@ -83,6 +84,7 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
   return [
     ['offre.pdf', await makePdf()],
     ['actif.pdf', await activePdf()],
+    ['macros.docm', docm()],
     ['revisions.pdf', incrementalPdf('Salaire propose 85 000 EUR', 'Salaire a discuter', { newContentsObject: true })],
     ['chiffre.pdf', encryptedPdf()],
     ['coupe.pdf', truncated],

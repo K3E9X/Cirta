@@ -200,7 +200,7 @@ function formatHint(name: string): string | undefined {
 }
 
 /** [F-2.1] Formats whose active content a clean can take out. */
-const STRIPPABLE_ACTIVE = new Set(['pdf']);
+const STRIPPABLE_ACTIVE = new Set(['pdf', 'docx', 'xlsx', 'pptx']);
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,

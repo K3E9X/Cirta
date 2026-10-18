@@ -255,7 +255,7 @@ function printFindings(findings: Finding[]): void {
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
-  '.pptx', '.docx', '.xlsx',
+  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm',
   '.odt', '.ods', '.odp',
   '.svg', '.html', '.htm',
   '.md', '.markdown', '.mdx',

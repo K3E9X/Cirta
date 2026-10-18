@@ -375,7 +375,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
         'archive-not-rewritable',
       );
     }
-    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments }), hint, options);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive }), hint, options);
   }
 
   const image = detectImageKind(data);
