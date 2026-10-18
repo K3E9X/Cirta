@@ -171,6 +171,7 @@ function exposureCard(text: string): HTMLElement {
 }
 
 const MIME: Record<Format, string> = {
+  eml: 'message/rfc822',
   pdf: 'application/pdf',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -193,6 +194,7 @@ function formatHint(name: string): string | undefined {
   if (ext === '.md' || ext === '.markdown' || ext === '.mdx') return 'markdown';
   if (ext === '.svg') return 'svg';
   if (ext === '.html' || ext === '.htm') return 'html';
+  if (ext === '.eml') return 'eml';
   return undefined;
 }
 

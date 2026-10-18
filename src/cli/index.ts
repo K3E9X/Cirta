@@ -275,6 +275,7 @@ function formatHint(path: string, forceText = false): string | undefined {
   if (ext === '.md' || ext === '.markdown' || ext === '.mdx') return 'markdown';
   if (ext === '.svg') return 'svg';
   if (ext === '.html' || ext === '.htm') return 'html';
+  if (ext === '.eml') return 'eml';
   return undefined;
 }
 

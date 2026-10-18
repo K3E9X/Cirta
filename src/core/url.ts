@@ -378,3 +378,68 @@ export function findDeceptiveUrls(text: string, location = 'links'): Finding[] {
 
   return findings;
 }
+
+/**
+ * Links in HTML whose address deceives: the href itself (a lookalike domain
+ * hides in an attribute no reader sees), and anchor text that shows one
+ * address while the link goes to another — `https://paypal.com/login` written
+ * on a link to somewhere else entirely.
+ *
+ * Each pattern stays inside one tag or a bounded stretch of text, so a page of
+ * any size is read in one pass.
+ */
+export function findHtmlLinks(html: string, location = 'links'): Finding[] {
+  const hrefs: string[] = [];
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const lower = html.toLowerCase();
+  let anchors = 0;
+  for (let at = lower.indexOf('<a'); at >= 0 && anchors < 5000; at = lower.indexOf('<a', at + 2)) {
+    // Every step is an indexOf: a regex that scans to the tag's end would scan
+    // again from each "<a" in a run of them with no ">" anywhere.
+    const next = lower.charCodeAt(at + 2);
+    if (!(next === 0x3e || next === 0x20 || next === 0x09 || next === 0x0a || next === 0x0d)) continue;
+    const end = lower.indexOf('>', at);
+    if (end < 0) break;
+    if (end - at > 4000) continue;
+    anchors++;
+    const m = { index: at, 0: html.slice(at, end + 1), 1: html.slice(at + 2, end) };
+    const attr = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(m[1] ?? '');
+    const href = (attr?.[1] ?? attr?.[2] ?? attr?.[3] ?? '').replace(/&amp;/gi, '&').trim();
+    if (!href) continue;
+    hrefs.push(href);
+    // The anchor's text runs to its closing tag, looked for with indexOf and a
+    // bound: a regex here would rescan the same stretch for every unclosed <a>.
+    const from = m.index + m[0].length;
+    const close = lower.indexOf('</a', from);
+    const inner = close < 0 || close - from > 4000 ? '' : html.slice(from, close);
+    const shown = inner.replace(/<[^>]*>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
+    // An address someone reads as the destination sits in short link text; a
+    // paragraph-long anchor is prose, and is not searched for one.
+    const visible = shown.length > 300 ? null : /(?:https?:\/\/)?((?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,})(?:[/:?#]\S*)?/u.exec(shown);
+    if (!visible || !/^https?:/i.test(href)) continue;
+    let target: string;
+    let claimed: string;
+    try {
+      target = new URL(href).hostname.toLowerCase();
+      claimed = new URL(`https://${visible[1]}`).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    const same = target === claimed || target.endsWith(`.${claimed}`) || claimed.endsWith(`.${target}`);
+    if (same || seen.has(`${claimed}\u0000${target}`)) continue;
+    seen.add(`${claimed}\u0000${target}`);
+    const decoded = target
+      .split('.')
+      .map((label) => (label.startsWith('xn--') ? (decodePunycode(label) ?? label) : label))
+      .join('.');
+    findings.push({
+      kind: 'deceptive-link',
+      confidence: 'confirmed',
+      location,
+      label: 'Link text shows a different address',
+      value: `shows ${preview(shown, 60)} — goes to ${decoded === target ? target : `${decoded} (${target})`}`,
+    });
+  }
+  return [...findDeceptiveUrls(hrefs.join('\n'), location), ...findings];
+}

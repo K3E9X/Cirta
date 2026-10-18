@@ -317,6 +317,11 @@ function redactMarkdown(text: string): string {
  * here: a no-break space before a colon is French typography, and a formatted
  * document is exactly where that distinction matters.
  */
+/** The words a reader sees in a piece of markup. */
+export function markupText(text: string, format: MarkupFormat): string {
+  return bodyText(text, format);
+}
+
 function bodyText(text: string, format: MarkupFormat): string {
   return format === 'markdown' ? text : collectTextContent(text);
 }

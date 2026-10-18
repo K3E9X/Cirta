@@ -24,6 +24,7 @@ export type Format =
   | 'jpeg'
   | 'png'
   | 'zip'
+  | 'eml'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -118,6 +119,8 @@ export type NoteCode =
   | 'scope:pdf-metadata-only'
   /** Only Office document properties were examined; document body was not. */
   | 'scope:ooxml-metadata-only'
+  /** A mail: its header block, each MIME part by its type, attachments like archive members. */
+  | 'scope:email'
   /** Only invisible characters were examined. */
   | 'scope:invisible-characters-only'
   /** Only markup metadata was examined; the body text was not. */

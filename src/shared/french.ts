@@ -128,6 +128,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Encrypted document': 'Document chiffré',
+  'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
+  'Attachment not inspected': 'Pièce jointe non inspectée',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':
@@ -590,6 +592,7 @@ function translateReasons(value: string): string {
  * matched whole — a half-translated line reads as a bug because it is one.
  */
 const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
   [
     /^(\d+) revisions are present(.*?)\. A reader shows only the newest; the previous ones were appended to, never removed, and the first ends ([\d,]+) bytes in — about (\d+)% of the file\. Text covered or deleted in a later revision is still readable in an earlier one$/,
     (m) =>

@@ -15,6 +15,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Metadata, plus a scan of decompressed streams for credentials and provider identifiers, and of page text decoded through each font\'s ToUnicode map. That map is what turns a subset font\'s glyph codes back into characters; a page whose font carries none is still read as raw codes, where a hit is real but a miss proves nothing. A statistical model watermark would not show up either way.',
   'scope:ooxml-metadata-only': () =>
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
+  'scope:email': () =>
+    'Mail: the header block, then each MIME part read by its type — plain text and HTML bodies with their links and hidden text, attachments inspected like the members of an archive. Cleaning removes the header lines that name a tool and invisible characters; the encoded parts are left as written, and what survives is named.',
   'scope:invisible-characters-only': () =>
     'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
@@ -51,6 +53,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur) et du texte des pages, décodé via la table ToUnicode de chaque police. C'est cette table qui retransforme les codes de glyphes d'une police sous-ensemble en caractères ; une page dont la police n'en porte pas est lue en codes bruts, où une détection reste fiable mais une absence ne prouve rien. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
+  'scope:email': () =>
+    "Courrier : le bloc d'en-têtes, puis chaque partie MIME lue selon son type — corps texte et HTML avec leurs liens et leur texte caché, pièces jointes inspectées comme les membres d'une archive. Le nettoyage retire les lignes d'en-tête qui nomment un logiciel et les caractères invisibles ; les parties encodées restent telles qu'écrites, et ce qui survit est nommé.",
   'scope:invisible-characters-only': () =>
     "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
