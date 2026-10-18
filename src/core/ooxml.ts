@@ -25,7 +25,7 @@ import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
 import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked-changes.js';
 import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
-import { activeOfficeFindings, stripActiveOffice } from './ooxml-active.js';
+import { activeOfficeFindings, stripActiveOffice, stripTrackingOffice } from './ooxml-active.js';
 import { workbookActiveFindings } from './xlsx-active.js';
 import { removeHiddenSheets, removeHiddenSlides, removeNotes } from './content-options.js';
 import {
@@ -680,6 +680,8 @@ export interface RedactOoxmlOptions {
   removeNotes?: boolean;
   removeHiddenSlides?: boolean;
   removeHiddenSheets?: boolean;
+  /** [F-2.4] Remove tracking parameters from hyperlinks. Default false. */
+  stripTracking?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -811,6 +813,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     removeNotes: dropNotes = false,
     removeHiddenSlides: dropHiddenSlides = false,
     removeHiddenSheets: dropHiddenSheets = false,
+    stripTracking = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -910,6 +913,11 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     const { removed, refused } = removeHiddenSheets(parts, removePart);
     if (removed) notes.push({ code: 'removed:hidden-sheets', detail: String(removed) });
     if (refused.length) notes.push({ code: 'kept:hidden-sheets', detail: refused.join(', ') });
+  }
+
+  if (stripTracking) {
+    const changed = stripTrackingOffice(parts);
+    if (changed) notes.push({ code: 'removed:tracking-params', detail: String(changed) });
   }
 
   if (stripActive) {

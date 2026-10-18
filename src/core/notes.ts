@@ -41,6 +41,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:tracking-params': (detail) =>
+    `Removed the tracking parameters (utm_*, fbclid, gclid…) from ${detail ?? 'the'} link${detail === '1' ? '' : 's'}; the rest of each address is unchanged.`,
   'removed:attachments': (detail) =>
     `Removed ${detail ?? 'the'} embedded file${detail === '1' ? '' : 's'}, and the bytes ${detail === '1' ? 'it' : 'they'} held.`,
   'flattened:annotations': (detail) => {
@@ -103,6 +105,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:tracking-params': (detail) =>
+    `Paramètres de suivi (utm_*, fbclid, gclid…) retirés de ${detail ?? 'les'} lien${detail === '1' ? '' : 's'} ; le reste de chaque adresse est inchangé.`,
   'removed:attachments': (detail) =>
     `${detail === '1' ? 'Fichier intégré retiré' : `${detail ?? 'Les'} fichiers intégrés retirés`}, avec les octets qu'${detail === '1' ? 'il contenait' : 'ils contenaient'}.`,
   'flattened:annotations': (detail) => {

@@ -220,6 +220,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden rows and columns': 'Lignes et colonnes masquées',
   'Cells in white type': 'Cellules en blanc sur blanc',
   'Tracking pixel': 'Pixel de suivi',
+  'Tracking parameters in a link': 'Paramètres de suivi dans un lien',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',

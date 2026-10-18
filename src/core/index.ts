@@ -63,6 +63,7 @@ import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
 import { stripRemoteResources } from './beacons.js';
+import { stripTracking } from './tracking.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -368,6 +369,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
       stripActive: options.stripActive,
       removeAttachments: options.removeAttachments,
       flattenAnnotations: options.flattenAnnotations,
+      stripTracking: options.stripTracking,
     });
     await assertReadablePdf(result.data!);
     return noteSurvivors(result, hint, options);
@@ -380,7 +382,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
         'archive-not-rewritable',
       );
     }
-    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets }), hint, options);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets, stripTracking: options.stripTracking }), hint, options);
   }
 
   const image = detectImageKind(data);
@@ -407,7 +409,10 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     // [F-2.1] Remote pictures, styles, scripts and frames, on request.
     const remote = options.stripRemote && format !== 'svg' ? stripRemoteResources(counted.text, format === 'markdown') : { text: counted.text, removed: 0 };
     if (remote.removed) notes.push({ code: 'removed:remote-resources', detail: String(remote.removed) });
-    const cleaned = remote.text;
+    // [F-2.4] Tracking parameters out of every link, on request.
+    const tracking = options.stripTracking ? stripTracking(remote.text) : { text: remote.text, removed: 0 };
+    if (tracking.removed) notes.push({ code: 'removed:tracking-params', detail: String(tracking.removed) });
+    const cleaned = tracking.text;
     return noteSurvivors(
       {
         format,

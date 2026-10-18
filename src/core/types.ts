@@ -170,6 +170,8 @@ export type NoteCode =
   | 'removed:attachments'
   /** [F-2.4] Annotations were drawn into the page and removed; detail "drawn/removed". */
   | 'flattened:annotations'
+  /** [F-2.4] Tracking parameters were removed from links, on request. */
+  | 'removed:tracking-params'
   /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
   | 'changed:nfc'
   /** [C8] Typographic spaces were left as written. */
@@ -212,6 +214,8 @@ export interface InspectOptions {
   removeAttachments?: boolean;
   /** [F-2.4] Cleaning only: draw PDF annotations into their pages and remove them. */
   flattenAnnotations?: boolean;
+  /** [F-2.4] Cleaning only: remove tracking parameters (utm_*, fbclid, gclid…) from links. */
+  stripTracking?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
   /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */

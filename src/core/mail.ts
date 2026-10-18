@@ -17,6 +17,7 @@ import { inspectPlainText } from './plaintext.js';
 import { inspectMarkup } from './markup.js';
 import { findHtmlLinks } from './url.js';
 import { remoteFindings } from './beacons.js';
+import { trackingFindings } from './tracking.js';
 import { findResidue } from './residue.js';
 import { fingerprint } from './fingerprint.js';
 import { cleanText, decodeTextInput } from './text.js';
@@ -77,6 +78,7 @@ function partFindings(part: MailPart): Finding[] {
       ...inspectMarkup(text, 'html'),
       ...findHtmlLinks(text),
       ...remoteFindings(text, 'document body'),
+      ...trackingFindings(text, 'links'),
       // The words of an HTML body are what a recipient reads; the residue an
       // assistant leaves is looked for there, not in the markup.
       ...findResidue(htmlLines(text)),

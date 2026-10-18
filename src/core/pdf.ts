@@ -22,7 +22,7 @@ import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { XMP_FIELDS, xmpValue } from './xmp.js';
 import { quietly } from './quiet.js';
-import { embeddedFindings, scanActive, stripActive } from './pdf-active.js';
+import { embeddedFindings, scanActive, stripActive, stripTrackingPdf } from './pdf-active.js';
 import { flattenAnnotations, removeAttachments } from './pdf-options.js';
 
 const INFO_FIELDS = [
@@ -1046,10 +1046,12 @@ export interface RedactPdfOptions {
   removeAttachments?: boolean;
   /** [F-2.4] Draw annotations into their pages and remove them. Default false. */
   flattenAnnotations?: boolean;
+  /** [F-2.4] Remove tracking parameters from link addresses. Default false. */
+  stripTracking?: boolean;
 }
 
 export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}): Promise<RedactResult> {
-  const { removeXmp = true, stripActive: strip = false, removeAttachments: dropFiles = false, flattenAnnotations: flatten = false } = options;
+  const { removeXmp = true, stripActive: strip = false, removeAttachments: dropFiles = false, flattenAnnotations: flatten = false, stripTracking: untrack = false } = options;
 
   const doc = await load(data);
   // [C1] Rewriting a document without its key keeps the ciphertext and drops
@@ -1101,6 +1103,10 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   if (flatten) {
     const { drawn, removed } = flattenAnnotations(doc);
     if (removed) notes.push({ code: 'flattened:annotations', detail: `${drawn}/${removed}` });
+  }
+  if (untrack) {
+    const changed = stripTrackingPdf(doc);
+    if (changed) notes.push({ code: 'removed:tracking-params', detail: String(changed) });
   }
   if (dropFiles) {
     const removed = removeAttachments(doc);

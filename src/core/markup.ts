@@ -23,6 +23,7 @@ import { findSourceTypes } from './sourcetype.js';
 import { byConfidence } from './types.js';
 import { hiddenInHtml, stripHiddenHtml } from './hidden-text.js';
 import { remoteFindings } from './beacons.js';
+import { trackingFindings } from './tracking.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
 
@@ -377,6 +378,7 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   if (format !== 'svg') findings.push(...hiddenInHtml(text, 'document body'));
   // [F-2.1] What opening the page fetches from elsewhere.
   if (format !== 'svg') findings.push(...remoteFindings(text, 'document body', format === 'markdown'));
+  findings.push(...trackingFindings(text, 'links'));
   // The body goes to fingerprint() as a source, so a local path or a session
   // identifier sitting in a trailing "generated from …" line is found. Without
   // it a Markdown draft was quieter than the same bytes saved as .txt, which is
