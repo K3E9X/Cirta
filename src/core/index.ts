@@ -67,7 +67,7 @@ import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
 import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
-import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
+import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS, ARCHIVE_SEPARATOR } from './archive.js';
 import { byConfidence } from './types.js';
 
 import { UnsupportedFormatError } from './errors.js';
@@ -108,13 +108,20 @@ async function inspectArchive(data: Uint8Array, options: InspectOptions): Promis
   const findings: Finding[] = [];
   const notes: Note[] = [{ code: 'scope:archive' }];
 
+  const seen = new Set<string>();
   for (const member of members) {
+    // A nested archive's members are already in the list, under its path.
+    if (member.expanded) continue;
     try {
       // The engine goes in, the pictures do not: a page number alone would not
       // say which member of the archive they came from.
       const inner = await inspectFile(member.data, member.path, { xray: options.xray });
       for (const finding of inner.findings) {
-        findings.push({ ...finding, location: `${member.path} → ${finding.location}` });
+        const located = { ...finding, location: `${member.path}${ARCHIVE_SEPARATOR}${finding.location}` };
+        const key = `${located.label}\u0000${located.location}\u0000${located.value}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        findings.push(located);
       }
     } catch {
       // No parser claims it; fall back to the content scan.

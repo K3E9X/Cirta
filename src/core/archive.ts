@@ -133,7 +133,12 @@ function looksTextual(name: string): boolean {
 export interface ArchiveMember {
   path: string;
   data: Uint8Array;
+  /** An archive whose members the walk already listed, under its path. */
+  expanded?: boolean;
 }
+
+/** [C10.2] The one separator between an archive and what it holds, at every level. */
+export const ARCHIVE_SEPARATOR = ' → ';
 
 /**
  * Flatten an archive into its members, following nested archives.
@@ -161,12 +166,17 @@ export function walkArchive(data: Uint8Array, prefix = '', depth = 0): ArchiveMe
     total += raw.length;
     if (total > LIMITS.maxTotalBytes) break;
 
-    const path = prefix ? `${prefix} > ${name}` : name;
-    members.push({ path, data: raw });
+    const path = prefix ? `${prefix}${ARCHIVE_SEPARATOR}${name}` : name;
+    const member: ArchiveMember = { path, data: raw };
+    members.push(member);
 
     // Nested archives are common in exports: a zip of zips of documents.
+    // Walked here, within this walk's limits, so the caller reads the members
+    // and not the archive again — which reported every one of them twice.
     if (/\.(zip|jar|epub)$/i.test(name) && depth < LIMITS.maxDepth) {
-      members.push(...walkArchive(raw, path, depth + 1));
+      const inner = walkArchive(raw, path, depth + 1);
+      if (inner.length) member.expanded = true;
+      members.push(...inner);
     }
   }
 
