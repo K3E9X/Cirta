@@ -25,6 +25,13 @@ export type Format =
   | 'png'
   | 'zip'
   | 'eml'
+  /** [F-2.2] Legacy Office (OLE2 compound files) and Outlook messages: inspected, not rewritten. */
+  | 'doc'
+  | 'xls'
+  | 'ppt'
+  | 'msg'
+  /** [F-2.2] A Jupyter notebook. */
+  | 'ipynb'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -126,6 +133,14 @@ export type NoteCode =
   | 'scope:ooxml-metadata-only'
   /** A mail: its header block, each MIME part by its type, attachments like archive members. */
   | 'scope:email'
+  /** [F-2.2] A legacy .doc/.xls/.ppt: properties, macros and objects; not the text, and never rewritten. */
+  | 'scope:legacy-office'
+  /** [F-2.2] An Outlook .msg: properties, headers, body and attachments; never rewritten. */
+  | 'scope:outlook'
+  /** [F-2.2] A Jupyter notebook: metadata, outputs and the pictures in them. */
+  | 'scope:notebook'
+  /** [F-2.2] A notebook's outputs were removed, on request. */
+  | 'removed:outputs'
   /** Only invisible characters were examined. */
   | 'scope:invisible-characters-only'
   /** Only markup metadata was examined; the body text was not. */

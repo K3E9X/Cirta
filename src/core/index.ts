@@ -75,13 +75,24 @@ import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS, ARCHIVE_SEPARATOR } from './archive.js';
 import { byConfidence } from './types.js';
+import { isCfb, readCfb } from './cfb.js';
+import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
-  'OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG and PNG.';
+  'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt, inspection only), ' +
+  'SVG, HTML, Markdown, JPEG and PNG.';
+
+/** [F-2.2] A compound file this library can name, or undefined. */
+function compound(data: Uint8Array) {
+  if (!isCfb(data)) return undefined;
+  const cfb = readCfb(data);
+  const kind = cfb && compoundKind(cfb);
+  return cfb && kind ? { cfb, kind } : undefined;
+}
 
 function startsWith(data: Uint8Array, signature: number[]): boolean {
   return signature.every((byte, i) => data[i] === byte);
@@ -170,6 +181,9 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
       return undefined;
     }
   }
+  const legacy = compound(data);
+  if (legacy) return legacy.kind;
+  if (isCfb(data)) return undefined;
   const image = detectImageKind(data);
   if (image) return image;
   if (isMail(data, hint)) return 'eml';
@@ -285,6 +299,11 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return inspectArchive(data, options);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
+  }
+  if (isCfb(data)) {
+    const legacy = compound(data);
+    if (!legacy) throw new UnsupportedFormatError(UNSUPPORTED);
+    if (legacy.kind !== 'msg') return inspectLegacyOffice(legacy.cfb, legacy.kind, { ...options, inspectMember: member(options) });
   }
 
   const image = detectImageKind(data);
@@ -413,6 +432,16 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
       );
     }
     return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets, stripTracking: options.stripTracking }), hint, options);
+  }
+
+  // [F-2.2] Inspected, never rewritten: see legacy-office.ts for why.
+  const legacy = compound(data);
+  if (legacy) {
+    throw new UnsupportedFormatError(
+      'Legacy Office files and Outlook messages are inspected but not rewritten. Save it in a current format and clean that copy.',
+      'legacy-not-rewritable',
+      legacy.kind,
+    );
   }
 
   const image = detectImageKind(data);

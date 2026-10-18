@@ -32,6 +32,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | `customXml/` | Le second magasin de propriétés, que `docProps` ne couvre pas : liaisons de contrôles de contenu, colonnes de bibliothèque SharePoint, étiquettes de classification |
 | XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
 | ODT / ODS / ODP | `meta.xml` : générateur, auteur initial, dernière modification, dates, cycles et durée d'édition, propriétés utilisateur, miniature, **et les caractères invisibles du corps** |
+| **Office ancien : DOC / XLS / PPT** (inspection seule) | Les deux flux de propriétés (`SummaryInformation`, `DocumentSummaryInformation`) : auteur, dernier enregistrement, société, responsable, titre, modèle **avec son chemin**, temps d'édition, dates, application, propriétés personnalisées. **Macros** — dans le stockage VBA d'un `.doc` (`Macros/`) ou d'un `.xls` (`_VBA_PROJECT_CUR/`), et le projet que PowerPoint garde compressé dans son flux de document — lues comme celles d'un `.docm`. **Objets intégrés** avec leur type et leur ProgID ; un objet Packager est confirmé, le fichier qu'il transporte inspecté à son tour, avec **les chemins qu'il avait sur la machine de l'auteur**. Le texte, les commentaires et les révisions de ces formats binaires ne sont pas lus |
 | SVG | Bloc `<metadata>` (RDF/Dublin Core, C2PA), espaces de noms d'éditeur (Inkscape, Figma, Sketch…), commentaires de génération |
 | HTML | Balises `generator`, `author`, `creator`, `copyright`, `date` ; attributs `data-ai-*` ; commentaires de génération ; JSON-LD signalé |
 | Markdown | Clés de front matter, commentaires HTML de génération, lignes d'attribution en fin de document |
@@ -788,6 +789,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
+| DOC / XLS / PPT | **Rien** — refusé, avec la raison et la marche à suivre : enregistrer en `.docx`/`.xlsx`/`.pptx` et nettoyer cette copie | Reconstruire un fichier composite (sa table de secteurs, son répertoire, et pour Word les décalages qui pointent d'un flux à l'autre) n'est pas une chose que cet outil sait vérifier avoir faite sans dommage |
 | Texte | Caractères invisibles ; NFC si les formes sont mêlées ; espaces exotiques seulement avec `--normalize-spaces` | Liants d'emoji et anti-liants persans/indiens |
 | Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
 | Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |

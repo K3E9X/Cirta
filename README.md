@@ -31,6 +31,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | `customXml/` | The second property store, which `docProps` does not cover: content-control bindings, SharePoint library columns, classification labels |
 | XLSX in particular | Comment authors (`<author>`, the `xl/persons` registry), defined names pointing outside the workbook, `xl/externalLinks/` parts — carriers neither Word nor PowerPoint uses |
 | ODT / ODS / ODP | `meta.xml`: generator, initial creator, last modified by, dates, edit cycles and duration, user-defined properties, thumbnail, **and the invisible characters in the body** |
+| **Legacy Office: DOC / XLS / PPT** (inspection only) | The two property-set streams (`SummaryInformation`, `DocumentSummaryInformation`): author, last saved by, company, manager, title, template **with its path**, editing time, dates, application, custom properties. **Macros** — from the VBA storage of a `.doc` (`Macros/`) or `.xls` (`_VBA_PROJECT_CUR/`), and the project PowerPoint keeps compressed inside its document stream — read like those of a `.docm`. **Embedded objects** with their type and ProgID; a Packager object is confirmed, with the file it carries inspected in turn and **the paths it had on the author's machine**. The text, comments and tracked changes of these binary formats are not read |
 | SVG | The `<metadata>` block (RDF/Dublin Core, C2PA), editor namespaces (Inkscape, Figma, Sketch…), generator comments |
 | HTML | `generator`, `author`, `creator`, `copyright`, `date` meta tags; `data-ai-*` attributes; generator comments; JSON-LD reported |
 | Markdown | Front-matter keys, HTML generator comments, trailing attribution lines |
@@ -737,6 +738,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX` | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
 | ZIP | **Nothing** — refused | Repacking would change compression, ordering and timestamps of every member |
+| DOC / XLS / PPT | **Nothing** — refused, with the reason and what to do: save it as `.docx`/`.xlsx`/`.pptx` and clean that copy | Rebuilding a compound file (its sector table, its directory, and for Word the offsets that point between streams) is not something this tool can verify it did without damage |
 | Text | Invisible characters; NFC when forms are mixed; exotic spaces only with `--normalize-spaces` | Emoji joiners and Persian/Indic non-joiners |
 | Document bodies | Invisible characters and their numeric-reference equivalents, in visible text only | XML structure, tag names, attributes, **typographic spaces** |
 | PDF bodies | Nothing — reported but not removable without rewriting the content stream | Page text |

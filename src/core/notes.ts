@@ -17,6 +17,13 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
   'scope:email': () =>
     'Mail: the header block, then each MIME part read by its type — plain text and HTML bodies with their links and hidden text, attachments inspected like the members of an archive. Cleaning removes the header lines that name a tool and invisible characters; the encoded parts are left as written, and what survives is named.',
+  'scope:legacy-office': () =>
+    'Legacy Office file: its properties (author, last saved by, company, template, editing time), its macros and its embedded objects. The text, comments and tracked changes of this binary format are not read, and the file is never rewritten — save it as .docx, .xlsx or .pptx and inspect and clean that copy.',
+  'scope:outlook': () =>
+    'Outlook message: sender and recipients, the Internet headers it kept, the times it records, the body, and each attachment inspected like an archive member — an attached message in turn. The message is never rewritten; save it as .eml to clean it.',
+  'scope:notebook': () =>
+    'Notebook: its metadata and each cell\'s, the outputs (local paths, account names, credentials, tracebacks) and the pictures in them. The code itself is read for credentials only. A statistical model watermark in the wording would not show up here.',
+  'removed:outputs': (detail) => `Removed the outputs of ${detail ?? 'every'} cell${detail === '1' ? '' : 's'}, with their execution counts.`,
   'scope:invisible-characters-only': () =>
     'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
@@ -87,6 +94,13 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
   'scope:email': () =>
     "Courrier : le bloc d'en-têtes, puis chaque partie MIME lue selon son type — corps texte et HTML avec leurs liens et leur texte caché, pièces jointes inspectées comme les membres d'une archive. Le nettoyage retire les lignes d'en-tête qui nomment un logiciel et les caractères invisibles ; les parties encodées restent telles qu'écrites, et ce qui survit est nommé.",
+  'scope:legacy-office': () =>
+    "Fichier Office ancien : ses propriétés (auteur, dernier enregistrement, société, modèle, temps d'édition), ses macros et ses objets intégrés. Le texte, les commentaires et les révisions de ce format binaire ne sont pas lus, et le fichier n'est jamais réécrit — enregistrez-le en .docx, .xlsx ou .pptx, puis inspectez et nettoyez cette copie.",
+  'scope:outlook': () =>
+    "Message Outlook : expéditeur et destinataires, les en-têtes Internet qu'il a gardés, les heures qu'il note, le corps, et chaque pièce jointe inspectée comme un membre d'archive — un message joint à son tour. Le message n'est jamais réécrit ; enregistrez-le en .eml pour le nettoyer.",
+  'scope:notebook': () =>
+    "Notebook : ses métadonnées et celles de chaque cellule, les sorties (chemins locaux, noms de compte, secrets, traces d'erreur) et les images qu'elles contiennent. Le code lui-même n'est lu que pour les secrets. Un filigrane statistique dans la formulation n'apparaîtrait pas ici.",
+  'removed:outputs': (detail) => `Sorties retirées de ${detail ?? 'toutes les'} cellule${detail === '1' ? '' : 's'}, avec leurs compteurs d'exécution.`,
   'scope:invisible-characters-only': () =>
     "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>

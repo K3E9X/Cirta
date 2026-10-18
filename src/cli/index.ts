@@ -329,6 +329,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
   '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm',
   '.odt', '.ods', '.odp',
+  // [F-2.2] Legacy Office, inspected only.
+  '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot',
   '.svg', '.html', '.htm',
   '.md', '.markdown', '.mdx',
   '.jpg', '.jpeg', '.png',

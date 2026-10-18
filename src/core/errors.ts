@@ -18,6 +18,8 @@ export type ErrorCode =
   | 'output-unreadable'
   /** A plain archive: reported, never rewritten. */
   | 'archive-not-rewritable'
+  /** [F-2.2] A legacy Office file or an Outlook message: inspected, never rewritten. Detail: the format. */
+  | 'legacy-not-rewritable'
   /** An empty file. */
   | 'empty-file'
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */

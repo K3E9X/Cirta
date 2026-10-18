@@ -211,6 +211,11 @@ const MIME: Record<Format, string> = {
   jpeg: 'image/jpeg',
   png: 'image/png',
   zip: 'application/zip',
+  doc: 'application/msword',
+  xls: 'application/vnd.ms-excel',
+  ppt: 'application/vnd.ms-powerpoint',
+  msg: 'application/vnd.ms-outlook',
+  ipynb: 'application/x-ipynb+json',
   text: 'text/plain',
 };
 

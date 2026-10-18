@@ -13,6 +13,7 @@ import { runCli } from './helpers/cli.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
+import { compObj, legacyOffice, ole10Native } from './helpers/ole.js';
 
 /*
  * [C11.1] French mode printed English: character names ("zero-width
@@ -116,6 +117,19 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['dossier.zip', zipSync({ 'interne.zip': zipSync({ 'photo.jpg': photo }), 'notes.txt': strToU8('jeton ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA') })],
     ['casse.zip', new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8, 9])],
     ['vide.pdf', new Uint8Array(0)],
+    [
+      'ancien.doc',
+      legacyOffice('doc', {
+        summary: { 4: 'Jean Dupont', 7: 'C:\\Users\\jdupont\\Modeles\\Cabinet.dot', 10: { seconds: 3600 } },
+        docSummary: { 15: 'Cabinet Dupont' },
+        custom: { Dossier: '2026-117' },
+        streams: {
+          'ObjectPool/_1/\x01CompObj': compObj('Package', 'Package'),
+          'ObjectPool/_1/\x01Ole10Native': ole10Native('a.txt', 'C:\\Users\\jdupont\\a.txt', '', strToU8('bonjour')),
+          'ObjectPool/_2/\x01CompObj': compObj('Feuille de calcul', 'Excel.Sheet.8'),
+        },
+      }),
+    ],
   ];
 }
 
