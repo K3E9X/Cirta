@@ -191,6 +191,18 @@ const FIELD_LABEL: Record<string, string> = {
   'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Text a browser does not render': 'Texte qu’un navigateur n’affiche pas',
+  // [F-2.1] Contenu actif.
+  'Action run when the document opens': 'Action lancée à l’ouverture du document',
+  'JavaScript in the document': 'JavaScript dans le document',
+  'Action triggered by an event': 'Action déclenchée par un événement',
+  'Launches a program or a file': 'Lance un programme ou un fichier',
+  'Sends form data to an address': 'Envoie les données du formulaire à une adresse',
+  'Imports data from a file': 'Importe des données depuis un fichier',
+  'Opens another document': 'Ouvre un autre document',
+  'Web addresses linked': 'Adresses web liées',
+  'Rich media (Flash, 3D, video)': 'Média enrichi (Flash, 3D, vidéo)',
+  'XFA form': 'Formulaire XFA',
+  'Embedded file': 'Fichier intégré',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
@@ -471,6 +483,7 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
     (m) => `${m[1]} diapositive(s) masquée(s), toujours présentes dans le fichier`,
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
+  [/^(.+) — (\d+) bytes(, .+)?$/, (m) => `${m[1]} — ${m[2]} octets${m[3] ?? ''}`],
   // [C11.2] One line per smuggling family.
   [
     /^(\d+) characters? \((\d+) distinct\)(?: — read ([\s\S]*))?$/,

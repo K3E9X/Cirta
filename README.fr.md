@@ -27,7 +27,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 
 | Support | Traité |
 |---|---|
-| PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, pièces jointes, et **scan des flux décompressés** — texte de page, JavaScript, attachements |
+| PDF | Dictionnaire `/Info` **y compris les clés personnalisées**, paquet XMP, identifiant `/ID` du trailer, manifestes C2PA, et **scan des flux décompressés** — texte de page, JavaScript, attachements. **Ce que fait le document** : l'action lancée à l'ouverture (`/OpenAction`), les déclencheurs (`/AA` du document, des pages, des annotations et des champs), le JavaScript de niveau document (avec son code), `/Launch`, `/SubmitForm`, `/ImportData`, `/GoToR`/`/GoToE` (avec leur cible), les médias enrichis, les formulaires XFA, la liste des adresses web liées, et **chaque fichier intégré** (nom, taille, type) — inspecté à son tour, ses constats situés sous lui |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, propriétés personnalisées, miniature, identifiants `rsid`, auteurs de commentaires, liens vers des chemins locaux ou réseau, diapositives masquées et notes du présentateur — **chacune citée**, diapositive par diapositive, pas seulement comptée —, **et les caractères invisibles du corps du document** |
 | `customXml/` | Le second magasin de propriétés, que `docProps` ne couvre pas : liaisons de contrôles de contenu, colonnes de bibliothèque SharePoint, étiquettes de classification |
 | XLSX en particulier | Auteurs de commentaires (`<author>`, registre `xl/persons`), noms définis pointant vers un fichier hors du classeur, parties `xl/externalLinks/` — des porteurs que ni Word ni PowerPoint n'utilisent |
@@ -778,7 +778,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 
 | Support | Retiré | Conservé délibérément |
 |---|---|---|
-| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA, l'auteur et les horodatages de chaque annotation | Le contenu des pages, et ce que disent les annotations |
+| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA, l'auteur et les horodatages de chaque annotation ; avec `--strip-active`, scripts, actions, lancements, envois de formulaire, médias enrichis, XFA et fichiers intégrés — ainsi que les objets qu'ils laissent orphelins, pour qu'aucun script ne reste dans les octets | Le contenu des pages, ce que disent les annotations, et les simples liens web |
 | PPTX / DOCX / XLSX | `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires (attribut `w:author`, élément `<author>`, `displayName`), Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur, noms définis et liens entre classeurs — les retirer transformerait des cellules vivantes en `#REF!` |
 | ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
 | SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |

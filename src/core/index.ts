@@ -223,6 +223,24 @@ async function asRefusal<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * [F-2.1] How a container inspects a file it carries — a PDF's attachment,
+ * an Office document's embedded object — bounded in depth, so a file nested
+ * in itself a hundred times is read three levels down and no further.
+ */
+const MAX_NESTING = 3;
+const depths = new WeakMap<InspectOptions, number>();
+
+function member(options: InspectOptions): InspectOptions['inspectMember'] {
+  const depth = depths.get(options) ?? 0;
+  if (depth >= MAX_NESTING) return undefined;
+  return (bytes, name) => {
+    const inner: InspectOptions = { xray: options.xray };
+    depths.set(inner, depth + 1);
+    return inspectFile(bytes, name, inner);
+  };
+}
+
+/**
  * [C10.6] Nothing to look at is not the same as nothing found: an empty
  * ".pdf" reported as text with "no metadata" said something untrue about it.
  */
@@ -232,7 +250,7 @@ function refuseEmpty(data: Uint8Array): void {
 
 async function dispatch(data: Uint8Array, hint: string | undefined, options: InspectOptions): Promise<InspectResult> {
   refuseEmpty(data);
-  if (isPdf(data)) return inspectPdf(data, options);
+  if (isPdf(data)) return inspectPdf(data, { ...options, inspectMember: member(options) });
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return inspectArchive(data, options);
@@ -345,7 +363,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
 async function redact(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
   refuseEmpty(data);
   if (isPdf(data)) {
-    const result = await redactPdf(data);
+    const result = await redactPdf(data, { stripActive: options.stripActive });
     await assertReadablePdf(result.data!);
     return noteSurvivors(result, hint, options);
   }

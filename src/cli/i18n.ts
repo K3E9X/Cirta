@@ -39,6 +39,8 @@ const FR = {
   acceptChangesHint: 'Les modifications suivies sont restées, texte supprimé compris. Relancez avec --accept-changes pour les accepter.',
   optRemoveComments: 'redact : retire tous les commentaires (Word, Excel, PowerPoint) — texte, auteurs, fils',
   optNormalizeSpaces: 'text --clean : remplace aussi les espaces insécables et fines par des espaces ordinaires',
+  optStripActive: 'redact : retire scripts, actions, macros, modèles distants et fichiers intégrés',
+  stripActiveHint: 'Des scripts, actions, macros ou fichiers intégrés sont restés. Relancez avec --strip-active pour les retirer.',
   removeCommentsHint: 'Le texte des commentaires est resté (leurs auteurs sont anonymisés). Relancez avec --remove-comments pour les retirer.',
   aimedAlert: (n: number) =>
     n > 1
@@ -72,6 +74,7 @@ const FR = {
     environment: 'environnement',
     'invisible-character': 'invisible',
     'deceptive-link': 'lien trompeur',
+    'active-content': 'contenu actif',
   },
   noMetadata: 'Aucune métadonnée trouvée.',
   noSupported: (path: string) => `${path} : aucun fichier pris en charge`,
@@ -231,6 +234,8 @@ const EN: Strings = {
   acceptChangesHint: 'Tracked changes were left in, deleted text included. Run again with --accept-changes to accept them.',
   optRemoveComments: 'redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads',
   optNormalizeSpaces: 'text --clean: also replace no-break and narrow spaces with ordinary ones',
+  optStripActive: 'redact: remove scripts, actions, macros, remote templates and embedded files',
+  stripActiveHint: 'Scripts, actions, macros or embedded files were left in. Run again with --strip-active to remove them.',
   removeCommentsHint: 'Comment text was left in (its authors are anonymised). Run again with --remove-comments to remove them.',
   aimedAlert: (n: number) =>
     n > 1
@@ -264,6 +269,7 @@ const EN: Strings = {
     environment: 'environment',
     'invisible-character': 'invisible',
     'deceptive-link': 'deceptive link',
+    'active-content': 'active content',
   },
   noMetadata: 'No metadata found.',
   noSupported: (path) => `${path}: no supported files found`,

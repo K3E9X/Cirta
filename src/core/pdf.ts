@@ -22,6 +22,7 @@ import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { XMP_FIELDS, xmpValue } from './xmp.js';
 import { quietly } from './quiet.js';
+import { embeddedFindings, scanActive, stripActive } from './pdf-active.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -993,18 +994,12 @@ export async function inspectPdf(data: Uint8Array, options: InspectOptions = {})
   }
   findings.push(...structuralPdf(doc, findings));
 
-  const names = catalogDict(doc)?.get(PDFName.of('Names'));
-  if (names) {
-    const resolved = doc.context.lookup(names);
-    if (resolved && 'get' in resolved && (resolved as { get(k: PDFName): unknown }).get(PDFName.of('EmbeddedFiles'))) {
-      findings.push({
-        kind: 'provenance',
-        confidence: 'probable',
-        location: '/Names /EmbeddedFiles',
-        label: 'Embedded file attachments',
-        value: 'present — may carry provenance manifests or source data',
-      });
-    }
+  // [F-2.1] What the document does: scripts, actions, launches, forms,
+  // embedded files — each with its target, the files inspected in turn.
+  if (!encrypted) {
+    const active = scanActive(doc);
+    findings.push(...active.findings);
+    findings.push(...(await embeddedFindings(active.files, options.inspectMember)));
   }
 
   notes.push({ code: 'scope:pdf-metadata-only' });
@@ -1044,10 +1039,12 @@ async function hiddenText(data: Uint8Array, options: InspectOptions, findings: F
 export interface RedactPdfOptions {
   /** Remove the XMP packet entirely rather than blanking known fields. Default true. */
   removeXmp?: boolean;
+  /** [F-2.1] Remove scripts, actions, rich media, XFA and embedded files. Default false. */
+  stripActive?: boolean;
 }
 
 export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}): Promise<RedactResult> {
-  const { removeXmp = true } = options;
+  const { removeXmp = true, stripActive: strip = false } = options;
 
   const doc = await load(data);
   // [C1] Rewriting a document without its key keeps the ciphertext and drops
@@ -1093,6 +1090,11 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   }
 
   scrubAnnotations(doc);
+
+  if (strip) {
+    const removed = stripActive(doc);
+    if (removed) notes.push({ code: 'removed:active-content', detail: String(removed) });
+  }
 
   notes.push(...before.notes);
 

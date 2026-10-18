@@ -199,6 +199,9 @@ function formatHint(name: string): string | undefined {
   return undefined;
 }
 
+/** [F-2.1] Formats whose active content a clean can take out. */
+const STRIPPABLE_ACTIVE = new Set(['pdf']);
+
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -727,6 +730,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         const acceptChanges = trackedCount > 0 && result.format === 'docx' ? option(t().acceptChangesOption(trackedCount)) : undefined;
         const commentCount = result.findings.filter((f) => f.label === 'Comment text').length;
         const removeComments = commentCount > 0 && ['docx', 'xlsx', 'pptx'].includes(result.format) ? option(t().removeCommentsOption(commentCount)) : undefined;
+        // [F-2.1] Scripts, actions, macros, embedded files: taken out only when asked.
+        const activeCount = result.findings.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length;
+        const stripActive = activeCount > 0 && STRIPPABLE_ACTIVE.has(result.format) ? option(t().stripActiveOption(activeCount)) : undefined;
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -737,8 +743,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
               removeHidden: removeHidden?.checked === true,
               acceptChanges: acceptChanges?.checked === true,
               removeComments: removeComments?.checked === true,
+              stripActive: stripActive?.checked === true,
             });
-            for (const box of [removeHidden, acceptChanges, removeComments]) if (box) box.disabled = true;
+            for (const box of [removeHidden, acceptChanges, removeComments, stripActive]) if (box) box.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));

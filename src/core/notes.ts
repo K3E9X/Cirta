@@ -41,6 +41,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:active-content': (detail) =>
+    `Removed ${detail ?? 'the'} active element${detail === '1' ? '' : 's'}: scripts, actions run on opening or on an event, launches, form submissions, macros, remote templates and embedded files. Plain web links stay — where a link points is part of what the document says.`,
   'removed:comments': (detail) =>
     detail === '1'
       ? 'Removed the comment: its text, its author and its thread, with every reference to it in the document.'
@@ -85,6 +87,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:active-content': (detail) =>
+    `${detail === '1' ? 'Élément actif retiré' : `${detail ?? 'Les'} éléments actifs retirés`} : scripts, actions lancées à l'ouverture ou sur un événement, lancements de programme, envois de formulaire, macros, modèles distants et fichiers intégrés. Les simples liens web restent — là où pointe un lien fait partie de ce que dit le document.`,
   'removed:comments': (detail) =>
     detail === '1'
       ? 'Commentaire retiré : son texte, son auteur et son fil, avec toutes les références à lui dans le document.'

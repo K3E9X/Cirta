@@ -26,7 +26,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 
 | Support | Handled |
 |---|---|
-| PDF | The `/Info` dictionary **including non-standard keys**, XMP packet, trailer `/ID`, C2PA manifests, attachments, and a **scan of decompressed streams** — page text, JavaScript, attachments |
+| PDF | The `/Info` dictionary **including non-standard keys**, XMP packet, trailer `/ID`, C2PA manifests, and a **scan of decompressed streams** — page text, JavaScript, attachments. **What the document does**: the action run on opening (`/OpenAction`), event triggers (`/AA` on the document, pages, annotations and form fields), document-level JavaScript (with its code), `/Launch`, `/SubmitForm`, `/ImportData`, `/GoToR`/`/GoToE` (with their target), rich media, XFA forms, the list of web addresses linked, and **each embedded file** (name, size, type) — inspected in turn, its findings located under it |
 | PPTX / DOCX / XLSX | `docProps/core.xml`, `docProps/app.xml`, custom properties, thumbnail, `rsid` identifiers, comment authors, links to local or network paths, hidden slides and speaker notes — **each quoted**, slide by slide, not only counted — **and the invisible characters in the document body** |
 | `customXml/` | The second property store, which `docProps` does not cover: content-control bindings, SharePoint library columns, classification labels |
 | XLSX in particular | Comment authors (`<author>`, the `xl/persons` registry), defined names pointing outside the workbook, `xl/externalLinks/` parts — carriers neither Word nor PowerPoint uses |
@@ -726,7 +726,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 
 | Support | Removed | Deliberately kept |
 |---|---|---|
-| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation | Page content, and what annotations say |
+| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation; with `--strip-active`, scripts, actions, launches, form submissions, rich media, XFA and embedded files — and the objects they leave unreferenced, so no script stays in the bytes | Page content, what annotations say, and plain web links |
 | PPTX / DOCX / XLSX | `core.xml`, `app.xml`, custom properties, thumbnail, `rsid`, comment author names (`w:author` attribute, `<author>` element, `displayName`), Exif in embedded pictures, C2PA manifests | Local links, hidden slides, speaker notes, defined names and links between workbooks — removing them would turn live cells into `#REF!` |
 | ODT / ODS / ODP | `meta.xml`, user-defined properties, statistics, thumbnail, picture Exif, C2PA manifests | The content |
 | SVG | The `<metadata>` block, editor attributes and namespaces, generator comments | `<title>` and `<desc>` — what a screen reader announces |
