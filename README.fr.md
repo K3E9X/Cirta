@@ -899,6 +899,56 @@ claude mcp add cirta -- node /chemin/vers/Cirta/dist/cli/index.js mcp      # Cla
 { "mcpServers": { "cirta": { "command": "node", "args": ["/chemin/vers/Cirta/dist/cli/index.js", "mcp"] } } }
 ```
 
+### Données personnelles et règles de l'organisation — sur demande
+
+**`--pii`** lit aussi le texte du document — passages cachés compris, car un IBAN dans un passage
+blanc reste un IBAN — pour y trouver des données personnelles et techniques. Quand un numéro a une
+clé de contrôle, elle doit être juste : une suite de chiffres au hasard n'est pas signalée ; certaines
+formes ne comptent qu'après le mot qui les nomme.
+
+| Trouvé | Comment il est reconnu | Niveau | Affiché comme |
+|---|---|---|---|
+| IBAN | clé mod 97 | confirmé | `FR76 •••• •••• •••• •••• •••• 189` |
+| Carte bancaire | Luhn, préfixes de cartes | confirmé | `•••• •••• •••• 7893` |
+| Numéro de sécurité sociale (NIR) | sa clé | confirmé | `1 •• •• •• ••• ••• 91` |
+| SIREN / SIRET | Luhn, après « SIREN », « SIRET », « RCS » ou « TVA » | confirmé | `732 ••• •••` |
+| Adresse e-mail | forme | confirmé | `j•••@exemple.fr` |
+| Numéro de téléphone | formes française et internationale | probable | `06 •• •• •• 78` |
+| Adresse IP (privée ou publique), adresse MAC, nom d'hôte interne (`.local`, `.lan`, `.corp`, `.internal`…) | forme | probable | `10.2.•.•`, `00:1A:2B:••:••:••`, `sql01.•••.corp` |
+| Plaque d'immatriculation, numéro de passeport ou de carte d'identité | forme (le second après « passeport », « CNI »…) | probable | `AB-•••-CD`, `•••••4567` |
+
+Les valeurs sont toujours masquées, dans le terminal, en JSON et dans la page : le rapport ne doit pas
+devenir la fuite qu'il décrit. Les données personnelles sont du contenu : le nettoyage les laisse et
+les nomme comme toujours présentes.
+
+**`--rules <fichier>`** applique le vocabulaire de l'organisation — noms de projets internes,
+domaines privés, préfixes d'identifiants — écrit une fois en YAML (le sous-ensemble dont les règles
+ont besoin) ou en JSON :
+
+```yaml
+rules:
+  - id: projets
+    label: Nom de projet interne
+    level: confirmed
+    words: [Orion, Pégase]          # mots entiers, sans tenir compte de la casse
+  - id: domaine
+    label: Domaine interne
+    level: probable
+    pattern: '[a-z0-9-]+\.corp\.exemple'
+    flags: i
+```
+
+Les règles lisent le corps et chaque champ déjà signalé (un nom de projet dans le titre y est trouvé).
+Un fichier illisible est refusé, avec la ligne ou la règle et la raison. Un motif s'exécute tel
+qu'écrit : un motif qui retourne mal en arrière est lent sur un long document. Dans la page,
+« Analyse étendue » propose les deux ; le fichier de règles et le choix sont mémorisés dans ce seul
+navigateur.
+
+```
+cirta inspect --pii --rules regles.yaml dossier/
+cirta verify --rules regles.yaml rapport.clean.pdf
+```
+
 ## Interface web
 
 Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,

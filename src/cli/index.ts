@@ -39,6 +39,7 @@ import { terminalJson, terminalSafe } from './terminal.js';
 import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
+import { parseRules, type Rule } from '../core/rules.js';
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
 
@@ -98,6 +99,8 @@ ${bold(t().options)}
       --accept-changes  ${t().optAcceptChanges}
       --remove-comments ${t().optRemoveComments}
       --normalize-spaces ${t().optNormalizeSpaces}
+      --pii             ${t().optPii}
+      --rules <file>    ${t().optRules}
       --strip-active    ${t().optStripActive}
       --strip-remote-resources ${t().optStripRemote}
       --remove-notes    ${t().optRemoveNotes}
@@ -160,6 +163,9 @@ interface Args {
   stripTracking: boolean;
   burnRedactions: boolean;
   failOnInstructions: boolean;
+  pii: boolean;
+  rulesFile?: string;
+  rules?: Rule[];
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -189,6 +195,7 @@ function parseArgs(argv: string[]): Args {
     stripTracking: false,
     burnRedactions: false,
     failOnInstructions: false,
+    pii: false,
     skip: [],
     sarif: false,
   };
@@ -249,6 +256,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--fail-on-instructions':
         args.failOnInstructions = true;
+        break;
+      case '--pii':
+        args.pii = true;
+        break;
+      case '--rules':
+        args.rulesFile = argv[++i];
         break;
       case '--force-text':
         args.forceText = true;
@@ -642,7 +655,7 @@ async function runVerify(args: Args): Promise<number> {
   const report: Array<{ file: string; pass: boolean; level: string; findings: Finding[]; error?: string }> = [];
   for (const file of args.files) {
     try {
-      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine() });
+      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules });
       const left = result.findings.filter((f) => LEVELS.indexOf(f.confidence) >= floor);
       report.push({ file, pass: left.length === 0, level, findings: left });
     } catch (error) {
@@ -676,7 +689,7 @@ async function runInspect(args: Args): Promise<number> {
       const result = await inspectFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine() },
+        { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules },
       );
       results.push({ file, result });
       if (!args.json && !args.sarif) {
@@ -741,7 +754,7 @@ async function runRedact(args: Args): Promise<number> {
         { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
           removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
           removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-          burnRedactions: args.burnRedactions },
+          burnRedactions: args.burnRedactions, pii: args.pii, rules: args.rules },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
@@ -881,6 +894,16 @@ async function main(): Promise<number> {
   if (!args.command) {
     console.log(help());
     return 1;
+  }
+
+  // [F-2.3] The organisation's rules, read once; a file that does not read stops the run.
+  if (args.rulesFile) {
+    try {
+      args.rules = parseRules(await readFile(args.rulesFile, 'utf8'));
+    } catch (error) {
+      console.error(red(terminalSafe(errorText(error, lang()))));
+      return 2;
+    }
   }
 
   switch (args.command) {
