@@ -983,6 +983,13 @@ PDF; with a real password nothing inside is read. Cleaning is refused, with a no
 output file. And whatever the format, a cleaned copy is parsed again before it is delivered: one that
 does not come back as a document is refused rather than written.
 
+**A file cannot drive the terminal.** A terminal obeys escape sequences, and a document's /Author can
+hold one: retitle the window, erase the line above — a confirmed finding printed and wiped — open a
+link, write the clipboard. Every value read from a file, and every file name, is printed with its
+controls shown rather than obeyed: ESC as ␛, BEL as ␇, a C1 control as `\x9B`, a bidi override as
+`⟨U+202E⟩`. `--json` and `--sarif` escape the same characters, and `text --clean` writes the text as
+it is to a pipe or a file and only makes it visible when the output is a terminal.
+
 **A write cannot lose the original.** Every output goes through a temporary file in the same
 directory then an atomic rename; a symbolic link at the destination is refused rather than followed;
 and `--in-place` keeps a `.bak` created before any replacement.
