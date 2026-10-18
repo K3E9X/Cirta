@@ -27,6 +27,13 @@ export const ZIP_LIMITS = {
   maxMembers: 8192,
 } as const;
 
+/**
+ * [F-P2 2.4] The date every rewritten member carries: 1980-01-01, the first a
+ * ZIP can hold. The hour of the clean is not the document's to keep, and two
+ * cleans of the same file must give the same bytes.
+ */
+export const ZIP_EPOCH = new Date(1980, 0, 1);
+
 export class ArchiveTooLargeError extends Error {
   constructor(reason: string) {
     super(reason);

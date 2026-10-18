@@ -9,7 +9,7 @@
  * Both are handled here. Page content is never touched.
  */
 
-import { PDFArray, PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { PDFArray, PDFDocument, PDFHexString, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectOptions, InspectResult, RedactResult, Note } from './types.js';
 import { decryptedMetadata, renderPages, xrayPdf, type Decrypted, type RenderedPage, type XrayEngine } from './xray.js';
@@ -976,11 +976,14 @@ export async function inspectPdf(data: Uint8Array, options: InspectOptions = {})
 
   // The trailer /ID is a pair of hashes identifying this document and this
   // save. It survives every metadata wipe that does not rewrite the trailer.
+  // [F-P2 2.4] Unless it is the hash of the pages' own content — what a clean
+  // writes — which identifies nothing the pages do not already show.
   const id = doc.context.lookup(doc.context.trailerInfo.ID);
   if (id && 'asArray' in id) {
     const parts = (id as { asArray(): unknown[] }).asArray();
     const first = parts[0];
-    if (first) {
+    const written = String((first as { asString?: () => string } | undefined)?.asString?.() ?? '');
+    if (first && !(written.length === 32 && written.toUpperCase() === (await contentId(doc)))) {
       findings.push({
         kind: 'environment',
         confidence: 'probable',
@@ -1143,8 +1146,37 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   // Loading with `updateMetadata: false` is what keeps pdf-lib from stamping a
   // fresh ModDate and its own Producer string onto the document; save() itself
   // takes no such option.
+  // [F-P2 2.4] A new /ID, from the cleaned pages themselves: the original's
+  // tied the copy to it, and a fresh random one would make two cleans of the
+  // same file differ. Derived from what the pages draw, it is the same for the
+  // same input, and inspection can recompute it and see it names nothing else.
+  const id = PDFHexString.of(await contentId(doc));
+  doc.context.trailerInfo.ID = doc.context.obj([id, id]);
   const out = await quietly(() => doc.save());
   return { format: 'pdf', data: out, removed: before.findings, notes };
+}
+
+/**
+ * [F-P2 2.4] The first 16 bytes of SHA-256 over every page's content streams,
+ * as stored, in page order: what the pages draw, nothing about who saved them.
+ */
+async function contentId(doc: PDFDocument): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  for (const page of doc.getPages()) {
+    const contents = page.node.get(PDFName.of('Contents'));
+    const resolved = contents ? doc.context.lookup(contents) : undefined;
+    const streams = resolved instanceof PDFArray ? resolved.asArray().map((ref) => doc.context.lookup(ref)) : [resolved];
+    for (const stream of streams) if (stream instanceof PDFRawStream) chunks.push(stream.contents);
+    chunks.push(new TextEncoder().encode('\u0000page\u0000'));
+  }
+  const all = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, at);
+    at += chunk.length;
+  }
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', all));
+  return [...digest.subarray(0, 16)].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
 /**

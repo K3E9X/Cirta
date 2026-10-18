@@ -12,6 +12,7 @@
  */
 
 import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { ZIP_EPOCH } from './zip.js';
 import { unzipGuarded } from './zip.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
 import { byConfidence } from './types.js';
@@ -297,13 +298,15 @@ export function inspectOdf(data: Uint8Array): InspectResult {
 
 /** Repack with `mimetype` first and stored, as the OpenDocument package spec requires. */
 function repack(parts: Parts): Uint8Array {
-  const ordered: Parts = {};
+  const ordered: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {};
   const mimetype = parts['mimetype'];
-  if (mimetype) ordered['mimetype'] = mimetype;
+  // Stored, per entry: an option for it at the top level was ignored, and
+  // the member went out compressed, against the specification.
+  if (mimetype) ordered['mimetype'] = [mimetype, { level: 0 }];
   for (const [path, raw] of Object.entries(parts)) {
     if (path !== 'mimetype') ordered[path] = raw;
   }
-  return zipSync(ordered, { level: 6, ...(mimetype ? { mimetype: { level: 0 } } : {}) });
+  return zipSync(ordered, { level: 6, mtime: ZIP_EPOCH });
 }
 
 export function redactOdf(data: Uint8Array): RedactResult {
