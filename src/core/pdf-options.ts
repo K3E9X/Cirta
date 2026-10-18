@@ -19,7 +19,7 @@ const NO_VIEW = 32;
 export function removeAttachments(doc: PDFDocument): number {
   let removed = 0;
   const lookup = (v: unknown) => (v instanceof PDFRef ? doc.context.lookup(v) : v);
-  const names = lookup(doc.catalog.get(PDFName.of('Names')));
+  const names = doc.catalog instanceof PDFDict ? lookup(doc.catalog.get(PDFName.of('Names'))) : undefined;
   if (names instanceof PDFDict && names.has(PDFName.of('EmbeddedFiles'))) {
     const count = (node: unknown, seen = new Set<unknown>()): number => {
       const d = lookup(node);
