@@ -876,6 +876,10 @@ cirta inspect report.pdf --json
 # Text on standard input
 cirta text < draft.txt
 cirta text --clean < draft.txt > clean.txt
+
+# The gate before a file goes out: inspect again, exit 1 if anything confirmed is left
+cirta verify rapport.clean.docx                 # PASS / FAIL, the findings left listed
+cirta verify --fail-on probable --json outbox/   # stricter, machine-readable
 cirta text --clean --normalize-spaces < draft.txt   # also replaces no-break and narrow spaces
 cirta text --lang fr < draft.txt
 

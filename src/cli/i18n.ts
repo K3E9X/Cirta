@@ -24,6 +24,12 @@ const FR = {
   usageInspect: 'Signale les métadonnées portées par chaque fichier',
   usageRedact: 'Écrit une copie sans ces métadonnées',
   usageText: 'Lit du texte sur l’entrée standard ; le signale ou le nettoie',
+  usageVerify: 'Ré-inspecte ; sort en erreur s’il reste un constat à ce niveau (confirmed par défaut)',
+  verifyPass: 'CONFORME',
+  verifyFail: 'ÉCHEC',
+  verifyNothing: (level: string) => `aucun constat ${level} ou au-dessus`,
+  verifyLeft: (n: number, level: string) => `${n} constat${n > 1 ? 's' : ''} ${level} ou au-dessus reste${n > 1 ? 'nt' : ''} :`,
+  confidenceName: { confirmed: 'confirmé', probable: 'probable', informational: 'informatif' },
   paths:
     'Les chemins peuvent être des fichiers ou des répertoires. Les répertoires sont parcourus\n' +
     'récursivement ; les répertoires de construction et de dépendances comme node_modules,\n' +
@@ -221,6 +227,12 @@ const EN: Strings = {
   usageInspect: 'Report metadata carried by each file',
   usageRedact: 'Write a copy with that metadata removed',
   usageText: 'Read text on stdin; report or clean it',
+  usageVerify: 'Inspect again; exit non-zero if a finding at this level is left (confirmed by default)',
+  verifyPass: 'PASS',
+  verifyFail: 'FAIL',
+  verifyNothing: (level) => `no ${level} finding or above`,
+  verifyLeft: (n, level) => `${n} ${level} finding${n > 1 ? 's' : ''} or above left:`,
+  confidenceName: { confirmed: 'confirmed', probable: 'probable', informational: 'informational' },
   paths:
     'Paths may be files or directories. Directories are walked recursively for\n' +
     'documents, images and text files; build and dependency directories such as\n' +

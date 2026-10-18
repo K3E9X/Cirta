@@ -933,6 +933,10 @@ cirta inspect rapport.pdf --json
 # Texte sur l'entrée standard
 cirta text < brouillon.txt                    # analyser
 cirta text --clean < brouillon.txt > propre.txt
+
+# Le contrôle avant diffusion : ré-inspecte, sort en 1 s'il reste un constat confirmé
+cirta verify rapport.clean.docx                 # CONFORME / ÉCHEC, constats restants listés
+cirta verify --fail-on probable --json sortie/   # plus strict, lisible par une machine
 cirta text --clean --normalize-spaces < brouillon.txt   # remplace aussi les espaces insécables et fines
 
 # La garde binaire refuse un document ; --force-text passe outre si vous savez
