@@ -12,6 +12,7 @@ Chaque PR ne montre que son lot.
 | n°2 | `fix/test-campaign-2026-10-p1` | `fix/test-campaign-2026-10` | C4, C5, C6, C7 (P1) |
 | n°3 | `fix/test-campaign-2026-10-p2` | `fix/test-campaign-2026-10-p1` | C8, C9, C10, C11 (P2, P3) |
 | n°4 | `feat/active-content` | `fix/test-campaign-2026-10-p2` | F-2.1 contenu actif (F-P1) |
+| n°5 | `feat/cleaning-options` | `feat/active-content` | F-2.4 nettoyage plus fort et `verify` (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -543,6 +544,90 @@ cirta inspect --lang fr page.html    # « Pixel de suivi — https://… »
 - Les objets intégrés Office (`embeddings/*.docx`, `.xlsx`) ne sont pas inspectés récursivement : seuls les fichiers intégrés PDF le sont. Le ProgID et la taille sont rapportés.
 - Le contenu d'un objet OLE `Package` (`\x01Ole10Native`) n'est pas extrait.
 
+## F-2.4 [F-P1] — Nettoyage plus fort, options de contenu, `cirta verify`
+
+**Statut : fait pour les trois puces F-P1.** Le caviardage est fait par rastérisation, voir les écarts. Les puces F-P2 de 2.4 ne sont pas faites : sortie déterministe, manifeste, ré-encodage d'image, ZIP récursif.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| `cirta verify` | `65a389c` | `src/cli/index.ts`, `src/cli/i18n.ts` |
+| `--remove-notes`, `--remove-hidden-slides`, `--remove-hidden-sheets` | `c6a2f82` | `src/core/content-options.ts` (nouveau), `ooxml.ts` |
+| `--remove-attachments`, `--flatten-annotations` | `8150f1b` | `src/core/pdf-options.ts` (nouveau), `pdf.ts` |
+| `--strip-tracking-params` | `68e422f` | `src/core/tracking.ts` (nouveau), `markup.ts`, `mail.ts`, `plaintext.ts`, `ooxml-active.ts`, `pdf-active.ts`, `pdf.ts` |
+| `--burn-redactions` | `a01d377` | `src/core/png.ts` (nouveau), `xray.ts` (`coveredPages`, `renderPages`), `pdf.ts`, `errors.ts` |
+| Drapeaux CLI et choix du worker | `4077efe` | `src/cli/index.ts`, `src/cli/i18n.ts`, `src/web/worker.ts`, READMEs (tableau « Options de contenu ») |
+| Aller-retour LibreOffice d'un deck | commit `test(real-files)` | `scripts/real-files.mjs` |
+
+Ce qui change :
+- **`cirta verify <chemins…>`** ré-inspecte les fichiers.
+  - Le code de sortie vaut 1 s'il reste un constat au niveau `--fail-on`, `confirmed` par défaut. Un fichier illisible échoue aussi.
+  - La sortie dit `CONFORME`/`ÉCHEC` (`PASS`/`FAIL` en anglais) et liste les constats restants.
+  - `--json` donne `[{file, pass, level, findings, error?}]`.
+- **Options de contenu** : toutes désactivées par défaut, toutes annoncées par une note.
+  - `--remove-notes` (`removed:notes`).
+  - `--remove-hidden-slides` (`removed:hidden-slides`) : la diapositive part avec ses notes, sa place dans la liste, les sections et les diaporamas personnalisés.
+  - `--remove-hidden-sheets` (`removed:hidden-sheets`). La suppression est refusée (`kept:hidden-sheets`, qui nomme les feuilles et dit pourquoi) si une formule, un graphique, un cache de tableau croisé ou un nom défini les lit, ou si un nom est rattaché à une feuille par position.
+  - `--remove-attachments` (`removed:attachments`) : les octets des fichiers partent aussi, par élagage des objets orphelins.
+  - `--flatten-annotations` (`flattened:annotations` « dessinées/retirées »). L'apparence normale est dessinée dans la page selon ISO 32000 §12.5.5. Annotations cachées et popups ne sont pas dessinées ; liens et champs restent.
+  - `--strip-tracking-params` (`removed:tracking-params`). La détection (« Paramètres de suivi dans un lien ») couvre HTML, Markdown, courrier, texte, liens Office et PDF. Le retrait couvre HTML, Markdown, Office et PDF.
+  - `--burn-redactions` (`rasterized:pages`), voir les écarts.
+  - S'y ajoutent les options déjà livrées : `--accept-changes`, `--remove-comments`, `--strip-active` et `--strip-remote-resources`.
+
+Tests :
+- `test/verify.test.ts` (5) :
+  - `passes a cleaned file, exit 0`
+  - `fails a file that still carries a confirmed finding, exit 1, and says which`
+  - `is stricter with --fail-on probable`
+  - `answers in JSON for a pipeline`
+  - `fails a file it cannot read`
+- `test/content-options.test.ts` (5) :
+  - `removes every slide’s notes with removeNotes, and nothing else`
+  - `removes hidden slides with removeHiddenSlides: the slide, its notes, its place in the list`
+  - `leaves both in place by default, named`
+  - `removes a hidden sheet nothing reads`
+  - `keeps a hidden sheet a formula reads, and says why`
+- `test/pdf-options.test.ts` (2) :
+  - `removes embedded files with removeAttachments, and the bytes they held`
+  - `flattens annotations: what they show is drawn into the page, the annotations and their authors go, links stay`
+- `test/tracking.test.ts` (4) :
+  - `cleans an address and leaves everything else as it was`
+  - `reports them in HTML and Markdown links`
+  - `reports and strips them in an Office hyperlink`
+  - `strips them from HTML and from PDF links`
+- `test/burn.test.ts` (3) :
+  - `removes the covered text for good, rasterising only the page it was on, and says so`
+  - `leaves a document with nothing covered untouched`
+  - `is refused rather than skipped`
+- `test/cli-options.test.ts` (2) :
+  - `removes notes and hidden slides, and says so in French`
+  - `removes attachments and flattens annotations in a PDF, and says so`
+- `test/pdf-active.test.ts > [F-2.1] a damaged catalog > is read without a TypeError when /Root is not a dictionary (found by the fuzzer)`. Le fuzz de `verify` a trouvé un `TypeError` dans le code F-2.1. Il est corrigé sur la branche F-2.1 (`748dfea`), et le test échoue sans le correctif.
+- Real-files :
+  - `deck.pptx: reopens in LibreOffice with notes and the hidden slide removed`
+  - `deck.pptx: the hidden slide and every notes part are gone from the package`
+
+Vérification manuelle :
+```
+cirta redact deck.pptx --remove-notes --remove-hidden-slides --lang fr
+# « Diapositive masquée retirée… », « Notes du présentateur retirées sur 1 diapositive… »
+cirta redact contrat.pdf --burn-redactions
+# note « Text covered by a shape was burnt out: page 1 is now a picture of itself… » ;
+# PDF.js n'extrait plus le texte de cette page, les autres pages gardent le leur
+cirta verify contrat.clean.pdf ; echo $?      # PASS, 0
+cirta verify --fail-on probable photo.jpg     # FAIL, 1 (Exif sans GPS = probable)
+```
+La page brûlée a été rendue et regardée : le titre et le rectangle noir restent visibles, le chiffre recouvert a disparu.
+
+Écarts :
+- **`--burn-redactions` rastérise toujours la page concernée.**
+  - La spec demande d'abord d'éditer le content stream, en supprimant les `Tj`/`TJ` dont la bbox croise le rectangle. Cette édition n'est pas faite : faire correspondre les runs rendus aux opérateurs n'est pas fiable selon les polices et les encodages, et une suppression partielle laisserait une copie fausse.
+  - C'est donc le repli prévu par la spec qui s'applique, et la note nomme les pages qui perdent leur texte sélectionnable.
+  - Il faut le moteur de rendu ; sans lui, le nettoyage est refusé (`burn-unavailable`).
+  - Seules les pages examinées par la radiographie sont traitées, soit 30 pages et 8 s au plus. Au-delà, la note `limit:hidden-text-truncated` le signale.
+- **`--remove-hidden-sheets` refuse** dès qu'une référence existe, plutôt que de réparer les formules.
+- **Les nouvelles options ne sont pas encore proposées dans la page.** Elles passent dans les choix du worker ; leurs cases arrivent avec la sous-section 2.7.
+- **Dans un `.eml`**, les paramètres de suivi sont signalés mais pas retirés : les parties encodées ne sont pas réécrites.
+
 ---
 
 ## État de vérification
@@ -563,6 +648,10 @@ Branche `feat/active-content` (PR n°4) :
 - `npm run verify` : exit 0. 44 fichiers de test, **735 tests** (703 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`, dont l'aller-retour LibreOffice `active.docx`.
 
+Branche `feat/cleaning-options` (PR n°5) :
+- `npm run verify` : exit 0. 50 fichiers de test, **761 tests** (736 sur la branche F-2.1 après son correctif). Fuzz 400 itérations, puis 3 passes de 1 000 sur 3 graines : aucun crash ni blocage. Build web OK.
+- `node scripts/real-files.mjs` : `all real-file checks passed`, dont `deck.pptx`.
+
 Nouvelles options CLI (`cirta --help`) :
 ```
       --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
@@ -570,6 +659,15 @@ Nouvelles options CLI (`cirta --help`) :
       --normalize-spaces text --clean: also replace no-break and narrow spaces with ordinary ones
       --strip-active    redact: remove scripts, actions, macros, remote templates and embedded files
       --strip-remote-resources redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)
+      --remove-notes    redact: remove speaker notes (PowerPoint)
+      --remove-hidden-slides redact: remove hidden slides and their notes (PowerPoint)
+      --remove-hidden-sheets redact: remove hidden sheets nothing reads (Excel; refused otherwise)
+      --remove-attachments redact: remove embedded files (PDF)
+      --flatten-annotations redact: draw annotations into the page, then remove them, authors included (PDF)
+      --strip-tracking-params redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)
+      --burn-redactions redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)
+
+  cirta verify  <path...> [--fail-on <level>]  Inspect again; exit non-zero if a finding at this level is left (confirmed by default)
 ```
 
 ## Dettes et risques notés en cours de route
