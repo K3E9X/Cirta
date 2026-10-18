@@ -35,6 +35,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Revision number': 'Numéro de révision',
   Created: 'Créé le',
   Modified: 'Modifié le',
+  Trapping: 'Recouvrement (trapping)',
   'Creating application': 'Application de création',
   'Producing application': 'Application productrice',
   'Application version': 'Version de l’application',

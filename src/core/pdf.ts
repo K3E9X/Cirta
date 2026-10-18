@@ -31,6 +31,9 @@ const INFO_FIELDS = [
   { key: 'Producer', label: 'Producing application', kind: 'provenance' as const, confidence: 'informational' as const },
   { key: 'CreationDate', label: 'Created', kind: 'timestamp' as const, confidence: 'probable' as const },
   { key: 'ModDate', label: 'Modified', kind: 'timestamp' as const, confidence: 'probable' as const },
+  // [C9] Standard since PDF 1.3 (ISO 32000-1 §14.3.3): whether the document
+  // was trapped for print. Not a custom key, and it says nothing about anyone.
+  { key: 'Trapped', label: 'Trapping', kind: 'provenance' as const, confidence: 'informational' as const },
 ];
 
 async function load(data: Uint8Array): Promise<PDFDocument> {

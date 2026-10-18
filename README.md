@@ -54,7 +54,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | **Deceptive links** | Hostnames written in a lookalike alphabet — `аррӏе.com` in Cyrillic renders pixel-for-pixel as `apple.com` and mixes no scripts at all, which is how it got past every browser in 2017. Also mixed-alphabet hostnames, invisible characters inside a domain, and the `@` trick where the recognisable part of a URL is a username the browser discards. **Reported, never rewritten** |
 | Lookalike letters | Words mixing two scripts (`pаssword` with a Cyrillic `а`) or two widths (`Ａdmin`) — **reported, never replaced** |
 | Unicode normalisation | A document containing both `é` (U+00E9) and `e`+U+0301 — same rendering, two encodings, **one free bit per accented letter** |
-| Hyphen lookalikes | U+2010, U+2011, U+2012, U+2212 — indistinguishable from `-` on screen. Em and en dashes are excluded: they are visible and correct in typography |
+| Hyphen lookalikes | U+2010, U+2011, U+2012, U+2212 — indistinguishable from `-` on screen. Em and en dashes are excluded: they are visible and correct in typography. The minus sign U+2212 is not reported where it is arithmetic — between spaced operands (`x − y`) or before a number (`−5 °C`) — only where a hyphen would be, inside a word |
 | C0 controls | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — category `Cc`, which the `Cf` net does not cover. Reported, never removed: a colourised terminal log is full of legitimate `ESC` |
 | Spacing channels | Trailing whitespace, inconsistent spacing after full stops, mixed CRLF/LF line endings — **reported, never rewritten** |
 
@@ -478,9 +478,9 @@ the one where a generation pipeline writes whatever it likes — is read with it
 
 | Format | Open-ended part read |
 |---|---|
-| PDF | Every `/Info` key, non-standard included |
+| PDF | Every `/Info` key, non-standard included. The nine standard keys (ISO 32000-1 §14.3.3, `/Trapped` included) are not reported as custom |
 | DOCX / PPTX / XLSX | `docProps/custom.xml`, each property with its value |
-| ODT / ODS / ODP | `meta:user-defined`, each property with its value |
+| ODT / ODS / ODP | `meta:user-defined`, each property with its value. Office's own bookkeeping carried over from a `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistics…) is informational provenance; any other property stays confirmed |
 | Markdown | Every recognised front-matter key |
 | SVG / HTML | The `<metadata>` block, `generator` tags, comments |
 
@@ -951,8 +951,9 @@ ordinary French text that is about a hundred bits.
 
 The signal is not decomposition but the **mixture**. A fully decomposed file is a Mac: HFS+ stores in
 NFD and several toolchains follow. A file containing both forms is a file where something chose,
-letter by letter. Hence two distinct levels: `confirmed` for the mixture, `informational` for uniform
-NFD.
+letter by letter. Hence the levels: `probable` for a real mixture — at least 3 decomposed letters
+and at least 5 % of the accented ones — and `informational` for uniform NFD and for a stray decomposed
+letter or two, which is what a name typed on a Mac and pasted elsewhere looks like.
 
 **Hyphen lookalikes.** U+2010 and U+2011 are pixel-identical to the ASCII `-` in most fonts. En and
 em dashes are deliberately absent from the list: they are visibly longer, they are correct

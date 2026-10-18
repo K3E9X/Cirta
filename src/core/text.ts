@@ -531,6 +531,9 @@ function findConfusables(input: string): Finding[] {
  * A file where the same document holds both forms is a file where something
  * chose, letter by letter, which one to use.
  */
+const MIN_DECOMPOSED = 3;
+const MIN_DECOMPOSED_SHARE = 0.05;
+
 function findNormalizationChannel(input: string): Finding[] {
   let decomposed = 0;
   let composed = 0;
@@ -542,13 +545,19 @@ function findNormalizationChannel(input: string): Finding[] {
   if (decomposed === 0) return [];
 
   const mixed = composed > 0;
+  // [C9] One decomposed letter among composed ones is what a name typed on a
+  // Mac and pasted into a Windows document looks like. It takes several, and
+  // a share of the accented letters that a copy-paste does not explain, before
+  // the mix reads as a choice; and even then a tool is a likelier author than
+  // a person hiding bits, so it is probable, not confirmed.
+  const channel = mixed && decomposed >= MIN_DECOMPOSED && decomposed / (decomposed + composed) >= MIN_DECOMPOSED_SHARE;
   return [
     {
       kind: 'invisible-character',
-      // Mixed forms have no innocent explanation. Uniformly decomposed text
-      // does — so it is reported at a level that says "worth knowing", not
-      // "someone did this to you".
-      confidence: mixed ? 'confirmed' : 'informational',
+      // Uniformly decomposed text has an innocent explanation — macOS — so it
+      // is reported at a level that says "worth knowing", not "someone did
+      // this to you".
+      confidence: channel ? 'probable' : 'informational',
       location: 'Unicode normalisation',
       label: mixed
         ? 'Same letters written two different ways'
@@ -576,11 +585,29 @@ const HYPHEN_TWINS = new Map<number, string>([
   [0x2212, 'MINUS SIGN'],
 ]);
 
+const MINUS = 0x2212;
+const OPERAND = /[\p{L}\p{N})\]]/u;
+
+/**
+ * [C9] U+2212 is the minus sign mathematics is written with: "x − y",
+ * "−5 °C". There it is the right character, not a lookalike. It is a
+ * lookalike when it sits where a hyphen would, inside a word — "e−mail".
+ */
+function isArithmeticMinus(chars: string[], i: number): boolean {
+  const next = chars[i + 1] === ' ' ? chars[i + 2] : chars[i + 1];
+  if (next !== undefined && /\p{N}/u.test(next)) return true;
+  const spaced = chars[i - 1] === ' ' && chars[i + 1] === ' ';
+  return spaced && OPERAND.test(chars[i - 2] ?? '') && /[\p{L}\p{N}(]/u.test(chars[i + 2] ?? '');
+}
+
 function findHyphenTwins(input: string): Finding[] {
   const counts = new Map<number, number>();
-  for (const char of input) {
+  const chars = [...input];
+  for (const [i, char] of chars.entries()) {
     const cp = char.codePointAt(0)!;
-    if (HYPHEN_TWINS.has(cp)) counts.set(cp, (counts.get(cp) ?? 0) + 1);
+    if (!HYPHEN_TWINS.has(cp)) continue;
+    if (cp === MINUS && isArithmeticMinus(chars, i)) continue;
+    counts.set(cp, (counts.get(cp) ?? 0) + 1);
   }
   if (counts.size === 0) return [];
   const parts = [...counts].map(

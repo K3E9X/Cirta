@@ -55,7 +55,7 @@ Vous préférez un terminal, ou traiter un dossier entier ? [Passez à la ligne 
 | **Liens trompeurs** | Noms de domaine écrits dans un alphabet sosie — `аррӏе.com` en cyrillique s'affiche au pixel près comme `apple.com` et ne mêle aucun alphabet, ce qui lui a permis de passer tous les navigateurs en 2017. Aussi : domaines à alphabets mêlés, caractère invisible dans un domaine, et l'astuce du `@` où la partie reconnaissable d'une URL est un nom d'utilisateur que le navigateur jette. **Signalés, jamais réécrits** |
 | Lettres sosies | Mots mêlant deux alphabets (`pаssword` avec un `а` cyrillique) ou deux chasses (`Ａdmin`) — **signalés, jamais remplacés** |
 | Normalisation Unicode | Un document contenant à la fois `é` (U+00E9) et `e`+U+0301 — même rendu, deux encodages, **un bit libre par lettre accentuée** |
-| Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française |
+| Sosies du trait d'union | U+2010, U+2011, U+2012, U+2212 — indiscernables du `-` à l'écran. Les tirets cadratin et demi-cadratin sont exclus : ils sont visibles et corrects en typographie française. Le signe moins U+2212 n'est pas signalé là où il est arithmétique — entre deux opérandes espacés (`x − y`) ou devant un nombre (`−5 °C`) —, seulement là où irait un trait d'union, à l'intérieur d'un mot |
 | Contrôles C0 | `NUL`, `BEL`, `BS`, `VT`, `ESC`, `DEL` — catégorie `Cc`, que le filet `Cf` ne couvre pas. Signalés, jamais retirés : un journal de terminal en couleurs est plein d'`ESC` légitimes |
 | Canaux d'espacement | Espaces en fin de ligne, espacement irrégulier après les points, fins de ligne CRLF/LF mélangées — **signalés, jamais réécrits** |
 
@@ -515,9 +515,9 @@ chaque format — celle où une chaîne de génération écrit ce qu'elle veut �
 
 | Format | Partie ouverte lue |
 |---|---|
-| PDF | Toutes les clés `/Info`, y compris non standard |
+| PDF | Toutes les clés `/Info`, y compris non standard. Les neuf clés standard (ISO 32000-1 §14.3.3, `/Trapped` compris) ne sont pas signalées comme personnalisées |
 | DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
-| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur |
+| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur. La comptabilité propre à Office reprise d'un `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistiques…) est de la provenance informative ; toute autre propriété reste confirmée |
 | Markdown | Toutes les clés de front matter reconnues |
 | SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
 
@@ -1010,8 +1010,10 @@ lettre accentuée. Sur un texte français ordinaire, cela fait une centaine de b
 
 Le signal n'est pas la décomposition mais le **mélange**. Un fichier entièrement décomposé, c'est un
 Mac : HFS+ stocke en NFD et plusieurs chaînes d'outils suivent. Un fichier qui contient les deux
-formes est un fichier où quelque chose a choisi, lettre par lettre. D'où deux niveaux distincts :
-`confirmé` pour le mélange, `informatif` pour le NFD uniforme.
+formes est un fichier où quelque chose a choisi, lettre par lettre. D'où les niveaux : `probable`
+pour un vrai mélange — au moins 3 lettres décomposées, et au moins 5 % des lettres accentuées —, et
+`informatif` pour le NFD uniforme comme pour une ou deux lettres décomposées isolées, ce que donne un
+nom tapé sur Mac puis collé ailleurs.
 
 **Les sosies du trait d'union.** U+2010 et U+2011 sont au pixel près le `-` ASCII dans la plupart
 des polices. Les tirets demi-cadratin et cadratin sont délibérément absents de la liste : ils sont
