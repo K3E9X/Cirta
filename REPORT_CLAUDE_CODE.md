@@ -15,6 +15,7 @@ Chaque PR ne montre que son lot.
 | n°5 | `feat/cleaning-options` | `feat/active-content` | F-2.4 nettoyage plus fort et `verify` (F-P1) |
 | n°6 | `feat/llm-pipeline` | `feat/cleaning-options` | F-2.5 `sanitize-for-llm` et serveur MCP (F-P1) |
 | n°7 | `feat/dlp-rules` | `feat/llm-pipeline` | F-2.3 DLP et règles (F-P1) |
+| n°8 | `feat/legacy-formats` | `feat/dlp-rules` | F-2.2 Office ancien, Outlook `.msg`, notebooks Jupyter (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -771,6 +772,102 @@ cirta verify --rules regles.yaml note.txt  # ÉCHEC si un mot de la règle confi
 
 ---
 
+## F-2.2 [F-P1] — Formats : Office ancien, Outlook, Jupyter
+
+**Statut : fait pour les trois puces F-P1, avec un écart volontaire.**
+- `.doc`, `.xls`, `.ppt` et `.msg` sont **inspectés seulement**. Le nettoyage est refusé et le refus est documenté, comme le brief le prévoit (« livrer l'inspection seule, refuser le nettoyage, et le documenter »).
+- `.ipynb` est inspecté et nettoyé.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| F-2.2.1 Office ancien (OLE2) | `01d40ef` | `src/core/ole-props.ts`, `src/core/legacy-office.ts` (nouveaux) ; `vba.ts` (`readVbaStorage`), `index.ts`, `types.ts`, `errors.ts` (`legacy-not-rewritable`), `notes.ts`, `french.ts`, `src/cli/index.ts`, `scripts/real-files.mjs`, READMEs ; tests `test/helpers/ole.ts`, `test/legacy-office.test.ts` |
+| F-2.2.2 Outlook `.msg` | `1c73147` | `src/core/msg.ts` (nouveau) ; `mail.ts` (`partFindings` exporté), `body-text.ts`, `index.ts`, `french.ts`, READMEs ; tests `test/msg.test.ts` |
+| F-2.2.3 Notebooks Jupyter | `bce50a1` | `src/core/notebook.ts` (nouveau) ; `index.ts`, `body-text.ts`, `sanitize.ts`, `types.ts` (`clearOutputs`), `src/cli/index.ts`, `i18n.ts`, `mcp.ts`, `src/web/worker.ts`, `scripts/real-files.mjs`, READMEs ; tests `test/notebook.test.ts` |
+| Page | `aed9241` | `src/web/main.ts`, `i18n.ts`, `index.html` |
+
+Ce qui change :
+- **Office ancien (.doc, .xls, .ppt)**. Le type est reconnu au flux racine : `WordDocument`, `Workbook`/`Book`, `PowerPoint Document`. Un fichier composite qu'on ne sait pas nommer est refusé, pas deviné.
+  - **Propriétés** : les deux flux `SummaryInformation` et `DocumentSummaryInformation` (MS-OLEPS) sont lus.
+    - Champs : auteur, dernier enregistrement, titre, sujet, mots-clés, commentaires, **modèle avec son chemin**, révision, temps d'édition, dates, application, catégorie, responsable, société, propriétés personnalisées (dictionnaire).
+    - Les libellés sont ceux d'un `.docx`, donc déjà traduits. L'emplacement est l'identifiant de la norme (`SummaryInformation:PIDSI_AUTHOR`).
+    - La page de code, la langue et les valeurs vides (« 0 », « 0 min ») sont ignorées. Sur un vrai `.doc` LibreOffice, la page de code sortait sinon en « Propriété personnalisée : #1 = -535 ».
+  - **Macros** : le stockage VBA d'un `.doc` (`Macros/`) ou d'un `.xls` (`_VBA_PROJECT_CUR/`), et les projets que PowerPoint garde compressés en zlib dans des enregistrements `ExOleObjStg`. Les étiquettes sont celles d'un `.docm`.
+  - **Objets intégrés** (`ObjectPool/_*`, `MBD*`, objets PowerPoint) : type et ProgID lus dans `\x01CompObj`.
+    - Un objet Packager (`\x01Ole10Native`) est confirmé. Il donne le nom du fichier transporté, **son chemin source et son chemin temporaire sur la machine de l'auteur**.
+    - Le fichier transporté est inspecté à son tour, sur trois niveaux d'imbrication au plus.
+  - **Nettoyage refusé** avec le code `legacy-not-rewritable` : « enregistrez-le en .docx/.xlsx/.pptx… puis nettoyez cette copie ». Réécrire un fichier composite toucherait la FAT, le répertoire et, pour Word, les décalages du FIB. Rien ici ne permet de vérifier que ce serait fait sans dommage.
+- **Outlook `.msg`** (MS-OXMSG) :
+  - **Expéditeur** ; **compte Exchange** tiré de l'adresse X.500 (`/O=…/CN=JDUPONT`) ; « envoyé au nom de » ; **copies cachées** (table des destinataires, type 3) ; créateur et dernier modificateur.
+  - **Heures** : création, envoi, réception, modification (flux `__properties_version1.0`).
+  - **Objet** et identifiants de message.
+  - **En-têtes Internet** conservés (`PR_TRANSPORT_MESSAGE_HEADERS`), passés au même lecteur que ceux d'un `.eml` : client, relais, IP d'origine.
+  - **Corps** : texte et HTML passent par les mêmes passes qu'un `.eml`.
+  - **Pièces jointes** : inspectées comme celles d'un `.eml`. Un message joint est relu à son tour, sur trois niveaux ; plus profond, il est nommé (« Message joint au-delà de la limite d'imbrication »).
+  - **Nettoyage refusé**, avec le conseil d'enregistrer en `.eml`.
+- **Jupyter `.ipynb`** : reconnu à sa forme (tableau `cells`, `nbformat` numérique). Un `.ipynb` qui ne se lit pas comme JSON reste du texte.
+  - **Inspection** :
+    - noyau et langage (informatif) ; **auteurs** (confirmé) ; toute métadonnée ajoutée par une extension (papermill, Colab, VS Code…) ;
+    - métadonnées de cellule, une fois par clé ; **heures d'exécution** ;
+    - dans les sorties et les **traces d'erreur** (codes ANSI retirés, une ligne par frame) : **chemins locaux** et comptes qui en sont dérivés, secrets, **images** avec leur Exif et leur GPS (sorties et pièces jointes Markdown), SVG ;
+    - dans les sources : secrets et caractères invisibles.
+  - **Nettoyage** : les métadonnées du notebook sont réduites à `kernelspec` et `language_info` ; celles des cellules aux clés d'affichage. L'Exif est retiré de chaque image. Les sorties restent, et ce qu'elles disent encore est **nommé comme toujours présent**.
+  - **`--clear-outputs`** (`clearOutputs` dans le cœur, MCP et la page) vide les sorties et remet les compteurs à `null`. Mise en forme de Jupyter : indentation d'un espace, saut de ligne final.
+  - `sanitize-for-llm`, `--pii` et `--rules` lisent les sources et ce que les sorties ont affiché.
+- **Page** : une carte `.doc`/`.xls`/`.ppt`/`.msg` ne propose plus un téléchargement qui échouerait. Elle donne d'emblée la raison du refus et la marche à suivre. Une carte notebook propose « Vider les sorties des cellules », décochée.
+
+Tests :
+- `test/legacy-office.test.ts` (10) :
+  - `reads strings, wide strings, times and integers from a property set`
+  - `leaves out the fields a writer fills with nothing: revision 0, no minutes of editing`
+  - `identifies .doc, .xls and .ppt from the stream that holds the document`
+  - `reports author, last saver, company, template and editing time of a .doc`
+  - `reads the macros of a .doc and of an .xls, where the project is a storage of the file`
+  - `names an embedded package, the paths it came from, and inspects the file it carries`
+  - `reads the macros and objects PowerPoint keeps compressed inside its document stream`
+  - `refuses to clean, says why and what to do instead`
+  - `survives property sets whose offsets point anywhere`
+  - `refuses a compound file it cannot name, rather than guessing`
+- `test/msg.test.ts` (6) :
+  - `is told from a legacy Office file by its streams`
+  - `reports the sender, the Exchange account, the blind copies, the times and the headers it kept`
+  - `inspects each attachment, and an attached message in turn`
+  - `stops reading attached messages at a depth`
+  - `refuses to clean and says to save as .eml`
+  - `feeds the personal-data scan with the subject and the body`
+- `test/notebook.test.ts` (8) :
+  - `is told from other JSON by its shape, and by its name`
+  - `reports the metadata, the paths and accounts in outputs and tracebacks, the secrets and the pictures`
+  - `cleans the metadata and the pictures, keeps the outputs, and names what they still say`
+  - `empties the outputs and the execution counts on request`
+  - `reads the pictures attached to a Markdown cell`
+  - `survives outputs of the wrong type and pictures that are not base64`
+  - `cleans a notebook, empties its outputs with --clear-outputs, and says so in French`
+  - `gives the sources and what the outputs printed, without the pictures and the escape codes`
+- `test/i18n-fr.test.ts` : le corpus en mode français contient un `.doc` (avec objet Packager), un `.msg` (compte X.500, Bcc, message joint) et un notebook.
+- Aucun binaire dans `test/fixtures`. Les fichiers composites sont construits octet par octet par `test/helpers/ole.ts`, à partir de `cfbFile()`.
+- **Fichiers réels** (`scripts/real-files.mjs`) :
+  - LibreOffice produit un `.doc` et un `.ppt` : auteur et dernier enregistrement relus, nettoyage refusé.
+  - Les deux notebooks nettoyés sont validés par `nbformat` quand il est installé (`CIRTA_PYTHON` désigne l'interpréteur). Sinon, le script affiche `skip` et continue.
+- **Contre-lecture du `.msg`** par une implémentation indépendante (extract-msg et olefile, hors dépôt) : mêmes objet, date, Bcc, en-têtes, pièces jointes et message joint que Cirta.
+- Vérifié dans Chromium (fr-FR) : rapports `.doc`, `.msg` et notebook ; refus affiché d'emblée ; notebook téléchargé avec ses sorties vidées.
+
+Vérification manuelle :
+```
+cirta inspect --lang fr ancien.doc        # Auteur, Modèle (chemin), Compte Windows, Objet intégré (OLE), Chemin du fichier intégré…
+cirta redact ancien.doc                   # refus : « … Enregistrez-le en .docx dans Office ou LibreOffice, puis nettoyez cette copie. »
+cirta inspect message.msg                 # Sender, Exchange account (X.500 address), Blind carbon copy, Mail client…
+cirta redact --clear-outputs analyse.ipynb -o propre.ipynb
+```
+
+Écarts :
+- **Office ancien et `.msg` : inspection seule.** C'est le cas prévu par le brief. Le refus est codé, traduit et affiché d'emblée dans la page.
+- Le texte, les commentaires et les révisions des `.doc`/`.xls`/`.ppt` ne sont pas lus. Cela demanderait les structures binaires de Word, Excel et PowerPoint (pièces, SST, enregistrements de texte). La note de portée le dit. `--pii` et `--rules` n'y voient donc que les propriétés.
+- `.xls` et `.doc` chiffrés (RC4, CryptoAPI) ne sont pas détectés comme tels : leurs propriétés restent souvent lisibles, le reste n'est pas lu.
+- `.msg` : aucun vrai message Outlook dans le corpus. Aucun outil libre disponible ici n'en écrit. La lecture est vérifiée contre une implémentation indépendante, pas contre un fichier sorti d'Outlook. Les propriétés nommées (`__nameid_version1.0`) ne sont pas lues.
+- Notebook : les chemins dans le *code* ne sont pas signalés (c'est du contenu écrit par l'auteur) ; seuls les secrets et les caractères invisibles le sont. Les caractères invisibles des sources ne sont pas retirés au nettoyage : ils sont nommés comme survivants.
+
+---
+
 ## État de vérification
 
 Branche `fix/test-campaign-2026-10` (PR n°1) :
@@ -801,6 +898,10 @@ Branche `feat/dlp-rules` (PR n°7) :
 - `npm run verify` : exit 0. 56 fichiers de test, **795 tests** (776 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
 
+Branche `feat/legacy-formats` (PR n°8) :
+- `npm run verify` : exit 0. 59 fichiers de test, **823 tests** (795 avant). Fuzz sans crash. Build web OK.
+- `node scripts/real-files.mjs` : `all real-file checks passed`, dont `legacy.doc`, `legacy.ppt`, et avec `nbformat` les deux notebooks nettoyés.
+
 Nouvelles options CLI (`cirta --help`) :
 ```
       --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
@@ -817,6 +918,7 @@ Nouvelles options CLI (`cirta --help`) :
       --flatten-annotations redact: draw annotations into the page, then remove them, authors included (PDF)
       --strip-tracking-params redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)
       --burn-redactions redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)
+      --clear-outputs   redact: empty the outputs and execution counts (Jupyter notebook)
 
   cirta verify  <path...> [--fail-on <level>]  Inspect again; exit non-zero if a finding at this level is left (confirmed by default)
   cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  The text as a reader sees it, for a model; hidden instructions on stderr
