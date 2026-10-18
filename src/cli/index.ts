@@ -95,6 +95,13 @@ ${bold(t().options)}
       --normalize-spaces ${t().optNormalizeSpaces}
       --strip-active    ${t().optStripActive}
       --strip-remote-resources ${t().optStripRemote}
+      --remove-notes    ${t().optRemoveNotes}
+      --remove-hidden-slides ${t().optRemoveHiddenSlides}
+      --remove-hidden-sheets ${t().optRemoveHiddenSheets}
+      --remove-attachments ${t().optRemoveAttachments}
+      --flatten-annotations ${t().optFlattenAnnotations}
+      --strip-tracking-params ${t().optStripTracking}
+      --burn-redactions ${t().optBurnRedactions}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -140,6 +147,13 @@ interface Args {
   normalizeSpaces: boolean;
   stripActive: boolean;
   stripRemote: boolean;
+  removeNotes: boolean;
+  removeHiddenSlides: boolean;
+  removeHiddenSheets: boolean;
+  removeAttachments: boolean;
+  flattenAnnotations: boolean;
+  stripTracking: boolean;
+  burnRedactions: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -161,6 +175,13 @@ function parseArgs(argv: string[]): Args {
     normalizeSpaces: false,
     stripActive: false,
     stripRemote: false,
+    removeNotes: false,
+    removeHiddenSlides: false,
+    removeHiddenSheets: false,
+    removeAttachments: false,
+    flattenAnnotations: false,
+    stripTracking: false,
+    burnRedactions: false,
     skip: [],
     sarif: false,
   };
@@ -197,6 +218,27 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--strip-remote-resources':
         args.stripRemote = true;
+        break;
+      case '--remove-notes':
+        args.removeNotes = true;
+        break;
+      case '--remove-hidden-slides':
+        args.removeHiddenSlides = true;
+        break;
+      case '--remove-hidden-sheets':
+        args.removeHiddenSheets = true;
+        break;
+      case '--remove-attachments':
+        args.removeAttachments = true;
+        break;
+      case '--flatten-annotations':
+        args.flattenAnnotations = true;
+        break;
+      case '--strip-tracking-params':
+        args.stripTracking = true;
+        break;
+      case '--burn-redactions':
+        args.burnRedactions = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -661,7 +703,10 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote },
+        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
+          removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
+          removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
+          burnRedactions: args.burnRedactions },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
