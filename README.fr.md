@@ -845,7 +845,9 @@ provenance.** Cirta le rappelle dans son rapport de nettoyage.
 ## Interface web
 
 Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,
-téléchargez la version nettoyée. Le traitement a lieu dans l'onglet ; rien n'est téléversé.
+téléchargez la version nettoyée. Le traitement a lieu dans l'onglet ; rien n'est téléversé. Sur un
+écran de moins de 600 px, chaque constat s'affiche en carte — niveau et type, puis le champ, sa valeur
+et son emplacement — plutôt qu'en tableau à faire défiler de côté.
 
 L'interface est **bilingue**. Elle suit la langue du navigateur, un bouton dans l'en-tête la
 change, et le choix est mémorisé.

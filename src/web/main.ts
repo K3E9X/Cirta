@@ -401,7 +401,7 @@ function findingsTable(findings: Finding[]): HTMLElement {
     row.append(
       cell(`confidence confidence-${finding.confidence}`, t().confidence[finding.confidence]),
       cell('kind', t().kinds[finding.kind]),
-      cell(undefined, translateLabel(finding.label, lang())),
+      cell('label', translateLabel(finding.label, lang())),
       cell('value', preview(translateValue(finding, lang()), 120)),
       cell('location', translateLocation(finding.location, lang())),
     );

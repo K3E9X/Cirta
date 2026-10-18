@@ -792,7 +792,9 @@ cleaning report.
 ## Web interface
 
 Open the [published page](https://k3e9x.github.io/Cirta/), drop a file, read the report, download the
-cleaned copy. Processing happens in the tab; nothing is uploaded.
+cleaned copy. Processing happens in the tab; nothing is uploaded. On a screen narrower than 600px
+each finding is shown as a card — level and kind, then the field, its value and where it was found —
+rather than a table to scroll sideways.
 
 The interface is **bilingual**. It follows the browser's language, a toggle in the header switches it,
 and the choice is remembered. Drop several files and a summary bar appears — the same tally as the
