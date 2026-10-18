@@ -341,7 +341,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.txt', '.text', '.log', '.csv', '.tsv',
   // Mail exports. The header block is the most talkative metadata this tool
   // reads, and a saved draft is exactly where it survives.
-  '.eml', '.mbox',
+  '.eml', '.mbox', '.msg',
   '.json', '.yaml', '.yml', '.toml', '.ini',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',

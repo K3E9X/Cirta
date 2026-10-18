@@ -13,7 +13,7 @@ import { runCli } from './helpers/cli.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
-import { compObj, legacyOffice, ole10Native } from './helpers/ole.js';
+import { compObj, legacyOffice, ole10Native, outlookMessage } from './helpers/ole.js';
 
 /*
  * [C11.1] French mode printed English: character names ("zero-width
@@ -128,6 +128,22 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
           'ObjectPool/_1/\x01Ole10Native': ole10Native('a.txt', 'C:\\Users\\jdupont\\a.txt', '', strToU8('bonjour')),
           'ObjectPool/_2/\x01CompObj': compObj('Feuille de calcul', 'Excel.Sheet.8'),
         },
+      }),
+    ],
+    [
+      'message.msg',
+      outlookMessage({
+        strings: {
+          0x0037: 'Projet',
+          0x0c1a: 'Jean Dupont',
+          0x0c1f: '/O=CABINET/OU=GROUPE ADMINISTRATIF/CN=RECIPIENTS/CN=JDUPONT',
+          0x0042: 'Assistante',
+          0x007d: 'From: Jean Dupont <jean@exemple.fr>\r\nX-Mailer: Outlook 16.0\r\nMessage-ID: <a@poste>\r\n\r\n',
+          0x1000: 'Bonjour\u200b',
+        },
+        times: { 0x0039: new Date('2026-10-01T09:15:00Z') },
+        recipients: [{ name: 'Marie Martin', address: 'marie@exemple.fr', type: 3 }],
+        attachments: [{ name: 'note.bin', data: new Uint8Array([0, 1, 2, 0xff]) }, { name: 'Ancien', message: { strings: { 0x0c1a: 'Paul' } } }],
       }),
     ],
   ];

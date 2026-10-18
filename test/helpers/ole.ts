@@ -126,3 +126,51 @@ export function pptOleRecord(storage: Uint8Array): Uint8Array {
 }
 
 export const text = strToU8;
+
+/** An Outlook message (MS-OXMSG): properties as streams, times in the property stream, storages for recipients and attachments. */
+export interface MsgSpec {
+  /** Unicode string properties by id: 0x0037 subject, 0x0C1A sender name… */
+  strings?: Record<number, string>;
+  times?: Record<number, Date>;
+  binary?: Record<number, Uint8Array>;
+  recipients?: Array<{ name: string; address: string; type: 1 | 2 | 3 }>;
+  attachments?: Array<{ name: string; data?: Uint8Array; message?: MsgSpec }>;
+}
+
+const hex4 = (n: number) => n.toString(16).toUpperCase().padStart(4, '0');
+const utf16 = (s: string) => new Uint8Array([...s].flatMap((c) => [c.charCodeAt(0) & 0xff, c.charCodeAt(0) >> 8]));
+
+function propertyStream(header: number, fixed: Array<[number, number, number[]]>, counts: number[] = []): Uint8Array {
+  const out = new Array<number>(header).fill(0);
+  counts.forEach((n, i) => out.splice(16 + i * 4, 4, ...u32(n)));
+  for (const [id, type, value] of fixed) out.push(...u32((id << 16) | type), ...u32(6), ...value, ...new Array<number>(8 - value.length).fill(0));
+  return new Uint8Array(out);
+}
+
+function msgStreams(spec: MsgSpec, prefix: string, header: number): Record<string, Uint8Array> {
+  const streams: Record<string, Uint8Array> = {};
+  for (const [id, s] of Object.entries(spec.strings ?? {})) streams[`${prefix}__substg1.0_${hex4(Number(id))}001F`] = utf16(s);
+  for (const [id, b] of Object.entries(spec.binary ?? {})) streams[`${prefix}__substg1.0_${hex4(Number(id))}0102`] = b;
+  const times = Object.entries(spec.times ?? {}).map(([id, d]): [number, number, number[]] => [Number(id), 0x0040, filetime(BigInt(d.getTime()) * 10_000n + 116_444_736_000_000_000n)]);
+  streams[`${prefix}__properties_version1.0`] = propertyStream(header, times, header === 32 ? [spec.recipients?.length ?? 0, spec.attachments?.length ?? 0, spec.recipients?.length ?? 0, spec.attachments?.length ?? 0] : []);
+  for (const [i, r] of (spec.recipients ?? []).entries()) {
+    const at = `${prefix}__recip_version1.0_#${i.toString(16).toUpperCase().padStart(8, '0')}/`;
+    streams[`${at}__substg1.0_3001001F`] = utf16(r.name);
+    streams[`${at}__substg1.0_39FE001F`] = utf16(r.address);
+    streams[`${at}__properties_version1.0`] = propertyStream(8, [[0x0c15, 0x0003, u32(r.type)]]);
+  }
+  for (const [i, a] of (spec.attachments ?? []).entries()) {
+    const at = `${prefix}__attach_version1.0_#${i.toString(16).toUpperCase().padStart(8, '0')}/`;
+    streams[`${at}__substg1.0_3707001F`] = utf16(a.name);
+    streams[`${at}__properties_version1.0`] = propertyStream(8, [[0x3705, 0x0003, u32(a.message ? 5 : 1)]]);
+    if (a.data) streams[`${at}__substg1.0_37010102`] = a.data;
+    if (a.message) Object.assign(streams, msgStreams(a.message, `${at}__substg1.0_3701000D/`, 24));
+  }
+  return streams;
+}
+
+/** With the named-property storage every real message carries, empty here. */
+export function outlookMessage(spec: MsgSpec): Uint8Array {
+  const named = Object.fromEntries(['0002', '0003', '0004'].map((n) => [`__nameid_version1.0/__substg1.0_${n}0102`, new Uint8Array()]));
+  return cfbFile({ ...msgStreams(spec, '', 32), ...named });
+}

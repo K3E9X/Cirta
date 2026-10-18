@@ -10,6 +10,7 @@ import { collectTextContent } from './xml.js';
 import { decodeTextInput } from './text.js';
 import { parseMail } from './mime.js';
 import { pdfText } from './pdf.js';
+import { msgText } from './msg.js';
 
 const MAX = 8 * 1024 * 1024;
 
@@ -44,6 +45,8 @@ export async function bodyText(data: Uint8Array, format: Format): Promise<string
       const mail = parseMail(data);
       return [mail.headerText, ...mail.parts.filter((p) => p.text !== undefined).map((p) => p.text!)].join('\n');
     }
+    case 'msg':
+      return msgText(data);
     case 'html':
     case 'markdown':
     case 'svg':

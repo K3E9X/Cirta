@@ -77,13 +77,14 @@ import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS, ARCHIVE_
 import { byConfidence } from './types.js';
 import { isCfb, readCfb } from './cfb.js';
 import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
+import { inspectMsg } from './msg.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
-  'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt, inspection only), ' +
+  'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
   'SVG, HTML, Markdown, JPEG and PNG.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
@@ -303,7 +304,8 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
   if (isCfb(data)) {
     const legacy = compound(data);
     if (!legacy) throw new UnsupportedFormatError(UNSUPPORTED);
-    if (legacy.kind !== 'msg') return inspectLegacyOffice(legacy.cfb, legacy.kind, { ...options, inspectMember: member(options) });
+    const inner = { ...options, inspectMember: member(options) };
+    return legacy.kind === 'msg' ? inspectMsg(legacy.cfb, inner) : inspectLegacyOffice(legacy.cfb, legacy.kind, inner);
   }
 
   const image = detectImageKind(data);

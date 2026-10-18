@@ -245,6 +245,11 @@ const FIELD_LABEL: Record<string, string> = {
   'Comment text': 'Texte d’un commentaire',
   'Comment author account': 'Compte de l’auteur d’un commentaire',
   'Attachment not inspected': 'Pièce jointe non inspectée',
+  'Attached message beyond the nesting limit': 'Message joint au-delà de la limite d’imbrication',
+  'Sent on behalf of': 'Envoyé au nom de',
+  'Exchange account (X.500 address)': 'Compte Exchange (adresse X.500)',
+  Sent: 'Envoyé le',
+  Received: 'Reçu le',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':
@@ -953,8 +958,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt, inspection only), SVG, HTML, Markdown, JPEG and PNG.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt, inspection seule), SVG, HTML, Markdown, JPEG et PNG.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, SVG, HTML, Markdown, JPEG and PNG.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, SVG, HTML, Markdown, JPEG et PNG.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
