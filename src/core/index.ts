@@ -54,6 +54,8 @@ export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.
 export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
+export { manifest, manifestEntry, manifestOptions, sha256, MANIFEST_SCHEMA } from './manifest.js';
+export type { Manifest, ManifestEntry, ManifestFinding, ManifestSide } from './manifest.js';
 
 import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
 import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';

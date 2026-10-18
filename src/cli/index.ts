@@ -42,6 +42,9 @@ import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
 import { parseRules, type Rule } from '../core/rules.js';
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
+import { version } from './version.js';
+import { manifest, manifestEntry } from '../core/manifest.js';
+import { writeFile } from 'node:fs/promises';
 
 /**
  * Terminal capabilities differ enough between platforms that both colour and
@@ -111,6 +114,7 @@ ${bold(t().options)}
       --strip-tracking-params ${t().optStripTracking}
       --burn-redactions ${t().optBurnRedactions}
       --clear-outputs   ${t().optClearOutputs}
+      --manifest <file> ${t().optManifest}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -158,6 +162,7 @@ interface Args {
   stripRemote: boolean;
   removeNotes: boolean;
   clearOutputs: boolean;
+  manifest?: string;
   removeHiddenSlides: boolean;
   removeHiddenSheets: boolean;
   removeAttachments: boolean;
@@ -235,6 +240,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--strip-remote-resources':
         args.stripRemote = true;
+        break;
+      case '--manifest':
+        args.manifest = argv[++i];
         break;
       case '--clear-outputs':
         args.clearOutputs = true;
@@ -756,21 +764,39 @@ async function runRedact(args: Args): Promise<number> {
   }
 
   let failures = 0;
+  const options = {
+    removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
+    removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
+    removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
+    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, pii: args.pii, rules: args.rules,
+  };
+  // [F-P2 2.4] One entry per file cleaned, written once all are done.
+  const entries: Awaited<ReturnType<typeof manifestEntry>>[] = [];
   for (const file of args.files) {
     try {
-      const result = await redactFile(
-        new Uint8Array(await readFile(file)),
-        formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
-          removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
-          removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-          burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, pii: args.pii, rules: args.rules },
-      );
+      const input = new Uint8Array(await readFile(file));
+      const hint = formatHint(file, args.forceText);
+      const xray = await nodeXrayEngine();
+      const result = await redactFile(input, hint, { xray, ...options });
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
       // original, so a copy is taken first and named in the report.
       const saved = args.inPlace ? await backup(file) : undefined;
       await safeWrite(destination, result.data!);
+      if (args.manifest) {
+        entries.push(
+          await manifestEntry({
+            file,
+            output: destination,
+            format: result.format,
+            before: input,
+            after: result.data!,
+            findingsBefore: (await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules })).findings,
+            findingsAfter: (await inspectFile(result.data!, hint, { xray, pii: args.pii, rules: args.rules })).findings,
+            notes: result.notes.map((note) => note.code),
+          }),
+        );
+      }
 
       if (!args.json) {
         console.log(`\n${bold(terminalSafe(file))} ${dim(SYMBOL.arrow)} ${bold(terminalSafe(destination))}`);
@@ -798,6 +824,12 @@ async function runRedact(args: Args): Promise<number> {
       const message = errorText(error, lang());
       console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
+  }
+  if (args.manifest) {
+    // [F-P2 2.4] Written even when some files failed: it lists the ones cleaned.
+    const written = manifest(version(), { ...options, rules: args.rules }, entries);
+    await writeFile(args.manifest, `${JSON.stringify(written, null, 2)}\n`);
+    if (!args.json) console.log(`\n${dim(t().manifestWritten(terminalSafe(args.manifest), entries.length))}`);
   }
   return failures > 0 ? 1 : 0;
 }
