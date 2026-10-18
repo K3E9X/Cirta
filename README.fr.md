@@ -1262,6 +1262,8 @@ node scripts/smoke.mjs
 
 ### Fuzzing des parseurs
 
+Le modèle de menace, et comment signaler une vulnérabilité : [SECURITY.fr.md](SECURITY.fr.md).
+
 Cirta est pointé vers des fichiers venus de gens en qui l'utilisateur n'a aucune
 raison d'avoir confiance. C'est le modèle de menace où un bug de parseur cesse
 d'être un plantage pour devenir une vulnérabilité, et neuf modules ici mangent

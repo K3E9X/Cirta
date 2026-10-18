@@ -1190,6 +1190,8 @@ offset either way.
 
 ### Fuzzing the parsers
 
+The threat model, and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+
 Cirta is pointed at files from people the user has no reason to trust. That is
 the threat model in which a parser bug stops being a crash and becomes a
 vulnerability, and nine modules here take hostile bytes: PDF, ZIP, OOXML, ODF,
