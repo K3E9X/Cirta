@@ -213,6 +213,12 @@ const FIELD_LABEL: Record<string, string> = {
   'Field loading a remote resource': 'Champ qui charge une ressource distante',
   'Embedded object (OLE)': 'Objet intégré (OLE)',
   'ActiveX control': 'Contrôle ActiveX',
+  'Data connection': 'Connexion de données',
+  'Password stored in a connection': 'Mot de passe enregistré dans une connexion',
+  'Query table': 'Table de requête',
+  'Power Query source': 'Source Power Query',
+  'Hidden rows and columns': 'Lignes et colonnes masquées',
+  'Cells in white type': 'Cellules en blanc sur blanc',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
@@ -495,6 +501,12 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(.+) — (\d+) bytes(, .+)?$/, (m) => `${m[1]} — ${m[2]} octets${m[3] ?? ''}`],
   [/^(\d+) modules?: (.+)$/, (m) => `${m[1]} module(s) : ${m[2]}`],
+  [
+    /^(.+?): (?:(\d+) rows? \(([^)]*)\))?(?:, )?(?:(\d+) columns? \(([^)]*)\))?$/,
+    (m) =>
+      `${m[1]} : ${[m[2] ? `${m[2]} ligne(s) (${m[3]})` : '', m[4] ? `${m[4]} colonne(s) (${m[5]})` : ''].filter(Boolean).join(', ')}`,
+  ],
+  [/^(.+) — (Password|Pwd)=•+ \(user (.+)\)$/, (m) => `${m[1]} — ${m[2]}=•••••••• (utilisateur ${m[3]})`],
   [/^(\d+) bytes — the project could not be read$/, (m) => `${m[1]} octets — le projet n’a pas pu être lu`],
   // [C11.2] One line per smuggling family.
   [

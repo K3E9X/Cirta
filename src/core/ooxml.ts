@@ -26,6 +26,7 @@ import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
 import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked-changes.js';
 import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
 import { activeOfficeFindings, stripActiveOffice } from './ooxml-active.js';
+import { workbookActiveFindings } from './xlsx-active.js';
 import {
   getElementText,
   setElementText,
@@ -595,6 +596,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   // [F-2.1] Macros, remote templates, fields that run or fetch, objects, controls.
   findings.push(...activeOfficeFindings(parts));
+  findings.push(...workbookActiveFindings(parts));
 
   const hidden = findHiddenSlides(parts);
   if (hidden.length) {
