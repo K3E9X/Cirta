@@ -53,7 +53,7 @@ const CHARACTERS =
   `${tagEncode('consigne cachée')} 😀${variationEncode('trace-7')} ` +
   '𝐮𝐫𝐠𝐞𝐧𝐭 раyраl ｍｅｓｓａｇｅ café cafe\u0301 the\u0301 re\u0301seau ide\u0301e e\u2011mail \u0007 \n' +
   'ligne  \nligne  \r\nligne  \nClé : sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA AKIAABCDEFGHIJKLMNOP\n\n' +
-  '**Objet** : relance\n\nSouhaitez-vous que j’ajuste le ton ?\n[Votre nom]\n';
+  'Contact : marie.martin@exemple.fr, 06 12 34 56 78, IBAN FR76 3000 6000 0112 3456 7890 189\n**Objet** : relance\n\nSouhaitez-vous que j’ajuste le ton ?\n[Votre nom]\n';
 
 const MAIL =
   'From: Jean Dupont <jean@exemple.fr>\r\nTo: marie@exemple.fr\r\nSubject: Relance\r\nDate: Mon, 12 Oct 2026 09:00:00 +0200\r\n' +
@@ -141,7 +141,7 @@ describe('[C11.1] nothing English in French mode', () => {
     };
     for (const [name, data] of await corpus()) {
       for (const [mode, run] of [
-        ['inspect', () => inspectFile(data, hint(name))],
+        ['inspect', () => inspectFile(data, hint(name), { pii: true })],
         ['redact', () => redactFile(data, hint(name), { removeHidden: true, acceptChanges: true, removeComments: true })],
       ] as const) {
         try {
