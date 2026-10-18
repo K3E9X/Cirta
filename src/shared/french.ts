@@ -934,6 +934,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
   }),
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+  'burn-unavailable': () => ({
+    en: 'Burning redactions needs the PDF renderer, which is not available here: nothing was cleaned, rather than a copy that still holds the covered text.',
+    fr: 'Brûler les caviardages demande le moteur de rendu PDF, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui garderait le texte recouvert.',
+  }),
 };
 
 /**

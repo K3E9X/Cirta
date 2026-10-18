@@ -12,7 +12,9 @@
 import { PDFArray, PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectOptions, InspectResult, RedactResult, Note } from './types.js';
-import { decryptedMetadata, xrayPdf, type Decrypted } from './xray.js';
+import { decryptedMetadata, renderPages, xrayPdf, type Decrypted, type RenderedPage, type XrayEngine } from './xray.js';
+import { encodePng } from './png.js';
+import { pruneUnreachable } from './pdf-active.js';
 import { UnsupportedFormatError } from './errors.js';
 import { byConfidence, preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
@@ -1048,10 +1050,13 @@ export interface RedactPdfOptions {
   flattenAnnotations?: boolean;
   /** [F-2.4] Remove tracking parameters from link addresses. Default false. */
   stripTracking?: boolean;
+  /** [F-2.4] Burn text covered by a shape, by rendering the pages it is on. Needs the renderer. */
+  burnRedactions?: boolean;
+  xray?: XrayEngine;
 }
 
 export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}): Promise<RedactResult> {
-  const { removeXmp = true, stripActive: strip = false, removeAttachments: dropFiles = false, flattenAnnotations: flatten = false, stripTracking: untrack = false } = options;
+  const { removeXmp = true, stripActive: strip = false, removeAttachments: dropFiles = false, flattenAnnotations: flatten = false, stripTracking: untrack = false, burnRedactions: burn = false } = options;
 
   const doc = await load(data);
   // [C1] Rewriting a document without its key keeps the ciphertext and drops
@@ -1062,7 +1067,8 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
       'encrypted-pdf',
     );
   }
-  const before = await inspectPdf(data);
+  // When burning, what was hidden is part of what goes: read it beforehand.
+  const before = await inspectPdf(data, burn && options.xray ? { xray: options.xray } : {});
   const notes: Note[] = [];
 
   // Every key is removed, not just the eight standard ones: a generation
@@ -1098,6 +1104,20 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
 
   scrubAnnotations(doc);
 
+  // [F-2.4] Text under a shape: the pages it is on become pictures of
+  // themselves. Cutting the glyphs out of the content stream is not reliable
+  // across fonts and encodings; a picture is, and the report says what it costs.
+  if (burn) {
+    if (!options.xray) {
+      throw new UnsupportedFormatError('Burning redactions needs the PDF renderer, which is not available here.', 'burn-unavailable');
+    }
+    const pages = (await xrayPdf(data, options.xray)).coveredPages;
+    if (pages.length) {
+      await rasterize(doc, await renderPages(data, options.xray, pages));
+      notes.push({ code: 'rasterized:pages', detail: pages.join(', ') });
+    }
+  }
+
   // [F-2.4] Annotations drawn into the page first, so that a stamp or a
   // highlight a reviewer added stays visible once the annotation is gone.
   if (flatten) {
@@ -1125,4 +1145,23 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   // takes no such option.
   const out = await quietly(() => doc.save());
   return { format: 'pdf', data: out, removed: before.findings, notes };
+}
+
+/**
+ * [F-2.4] Replace each page by a picture of it: its content streams and
+ * resources go, an image drawn over its visible box takes their place. Links
+ * and other annotations stay where they were.
+ */
+async function rasterize(doc: PDFDocument, rendered: Map<number, RenderedPage>): Promise<void> {
+  const pages = doc.getPages();
+  for (const [n, picture] of rendered) {
+    const page = pages[n - 1];
+    if (!page) continue;
+    const image = await doc.embedPng(encodePng(picture.rgba, picture.width, picture.height));
+    page.node.delete(PDFName.of('Contents'));
+    page.node.set(PDFName.of('Resources'), doc.context.obj({}));
+    const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = picture.view;
+    page.drawImage(image, { x: x0, y: y0, width: x1 - x0, height: y1 - y0 });
+  }
+  pruneUnreachable(doc);
 }

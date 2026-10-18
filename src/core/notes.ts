@@ -41,6 +41,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'rasterized:pages': (detail) =>
+    `Text covered by a shape was burnt out: page${(detail ?? '').includes(',') ? 's' : ''} ${detail ?? '?'} ${(detail ?? '').includes(',') ? 'are' : 'is'} now a picture of ${(detail ?? '').includes(',') ? 'themselves' : 'itself'}, so the covered text is gone for good — and so is the selectable, searchable text of ${(detail ?? '').includes(',') ? 'those pages' : 'that page'}. Other pages are unchanged.`,
   'removed:tracking-params': (detail) =>
     `Removed the tracking parameters (utm_*, fbclid, gclid…) from ${detail ?? 'the'} link${detail === '1' ? '' : 's'}; the rest of each address is unchanged.`,
   'removed:attachments': (detail) =>
@@ -105,6 +107,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'rasterized:pages': (detail) =>
+    `Le texte recouvert par une forme a été brûlé : ${(detail ?? '').includes(',') ? 'les pages' : 'la page'} ${detail ?? '?'} ${(detail ?? '').includes(',') ? 'sont' : 'est'} désormais une image d'elle${(detail ?? '').includes(',') ? 's' : ''}-même${(detail ?? '').includes(',') ? 's' : ''}, le texte recouvert a donc disparu pour de bon — et avec lui le texte sélectionnable et cherchable de ${(detail ?? '').includes(',') ? 'ces pages' : 'cette page'}. Les autres pages sont inchangées.`,
   'removed:tracking-params': (detail) =>
     `Paramètres de suivi (utm_*, fbclid, gclid…) retirés de ${detail ?? 'les'} lien${detail === '1' ? '' : 's'} ; le reste de chaque adresse est inchangé.`,
   'removed:attachments': (detail) =>

@@ -370,6 +370,8 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
       removeAttachments: options.removeAttachments,
       flattenAnnotations: options.flattenAnnotations,
       stripTracking: options.stripTracking,
+      burnRedactions: options.burnRedactions,
+      xray: options.xray,
     });
     await assertReadablePdf(result.data!);
     return noteSurvivors(result, hint, options);

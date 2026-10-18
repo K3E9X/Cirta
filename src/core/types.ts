@@ -172,6 +172,8 @@ export type NoteCode =
   | 'flattened:annotations'
   /** [F-2.4] Tracking parameters were removed from links, on request. */
   | 'removed:tracking-params'
+  /** [F-2.4] Pages turned into pictures to burn covered text; detail lists them. */
+  | 'rasterized:pages'
   /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
   | 'changed:nfc'
   /** [C8] Typographic spaces were left as written. */
@@ -216,6 +218,8 @@ export interface InspectOptions {
   flattenAnnotations?: boolean;
   /** [F-2.4] Cleaning only: remove tracking parameters (utm_*, fbclid, gclid…) from links. */
   stripTracking?: boolean;
+  /** [F-2.4] Cleaning only: remove PDF text covered by a shape for good. Needs `xray`. */
+  burnRedactions?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
   /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */
