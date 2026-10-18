@@ -49,6 +49,10 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `Accepted ${detail ?? 'the'} tracked change${detail === '1' ? '' : 's'}: deleted and moved-away text is gone from the file, inserted text stays as ordinary text, and the record of formatting changes is dropped. The document now reads as it did with every change accepted in Word.`,
   'removed:hidden-text': (detail) =>
     `Removed ${detail ?? 'the'} hidden passage${detail === '1' ? '' : 's'} a reader could not see — the text, not the formatting around it. Text that is only faint, and anything listed as probable, was left: it may be meant to be seen.`,
+  'changed:nfc': (detail) =>
+    `Recomposed ${detail ?? 'the'} accented letter${detail === '1' ? '' : 's'} (NFC): composed and decomposed forms were mixed, and the mix is itself a channel. The letters read the same; their bytes changed.`,
+  'kept:typographic-spaces': (detail) =>
+    `Left ${detail ?? 'the'} typographic space${detail === '1' ? '' : 's'} (no-break, narrow…) as written: that is typography — French puts one before ":", "!" and "?" — not a mark.`,
   'limit:hidden-text-doubtful': (detail) =>
     `Most of the text on page ${detail ?? '?'} drew no ink. Either the page is built to hide it, or it uses a font or an image this check cannot draw; the pixels cannot tell the two apart, so what is listed there is marked probable. Open the page and compare.`,
 };
@@ -89,6 +93,10 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `${detail === '1' ? 'Modification suivie acceptée' : `${detail ?? 'Les'} modifications suivies acceptées`} : le texte supprimé ou déplacé a quitté le fichier, le texte inséré reste comme texte ordinaire, et l'historique des changements de mise en forme est retiré. Le document se lit désormais comme si toutes les modifications avaient été acceptées dans Word.`,
   'removed:hidden-text': (detail) =>
     `${detail === '1' ? 'Passage caché retiré' : `${detail ?? 'Les'} passages cachés retirés`} — le texte qu'un lecteur ne voyait pas, pas la mise en forme autour. Le texte seulement pâle, et ce qui est listé comme probable, a été laissé : il est peut-être fait pour être vu.`,
+  'changed:nfc': (detail) =>
+    `${detail === '1' ? 'Lettre accentuée recomposée' : `${detail ?? 'Les'} lettres accentuées recomposées`} (NFC) : formes composée et décomposée étaient mêlées, et ce mélange est à lui seul un canal. Les lettres se lisent pareil ; leurs octets ont changé.`,
+  'kept:typographic-spaces': (detail) =>
+    `${detail === '1' ? 'Espace typographique laissée' : `${detail ?? 'Les'} espaces typographiques laissées`} telles qu'écrites (insécable, fine…) : c'est la typographie — le français en met une avant « : », « ! » et « ? » —, pas une marque.`,
   'limit:hidden-text-doubtful': (detail) =>
     `La majeure partie du texte de la page ${detail ?? '?'} n'a laissé aucune encre. Soit la page est faite pour le cacher, soit elle utilise une police ou une image que ce contrôle ne sait pas dessiner ; les pixels ne permettent pas de trancher, donc ce qui y est listé est marqué probable. Ouvrez la page et comparez.`,
 };

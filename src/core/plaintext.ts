@@ -101,6 +101,18 @@ export interface PlainTextClean extends CleanTextResult {
    * placeholders a template expected you to fill. Words, so never removed here.
    */
   toReview: Finding[];
+  /**
+   * [C8] What the cleaned text still carries above informational, measured by
+   * reading it again: a lookalike domain, styled letters, a secret, the lines
+   * an assistant wrote. A clean that only says what it removed reads as "the
+   * text is clean"; this says what it is not.
+   */
+  survivors: Finding[];
+}
+
+export interface PlainTextCleanOptions {
+  /** Replace no-break and other typographic spaces with U+0020. Off by default. */
+  normalizeSpaces?: boolean;
 }
 
 /*
@@ -110,8 +122,11 @@ export interface PlainTextClean extends CleanTextResult {
  * zero-width space inside `**bold**` would otherwise stop the Markdown rule
  * from seeing the markers at all.
  */
-export function cleanPlainText(text: string): PlainTextClean {
-  const characters = cleanText(text);
+export function cleanPlainText(text: string, options: PlainTextCleanOptions = {}): PlainTextClean {
+  // [C8] Only what is confirmed or probable goes. A no-break space before a
+  // colon is French typography, reported as informational, and stays unless
+  // asked; decomposed letters are recomposed only when the forms were mixed.
+  const characters = cleanText(text, { normalizeSpaces: options.normalizeSpaces ?? false, normalize: 'when-flagged' });
   const headers = stripToolHeaders(characters.text);
   const markdown = stripMarkdownResidue(headers.text);
   const toReview = findResidue(markdown.text).filter(
@@ -126,5 +141,6 @@ export function cleanPlainText(text: string): PlainTextClean {
     markdownRemoved: markdown.removed,
     markdownKept: markdown.keptAsDocument,
     toReview,
+    survivors: inspectPlainText(markdown.text).filter((finding) => finding.confidence !== 'informational'),
   };
 }

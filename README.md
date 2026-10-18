@@ -357,10 +357,10 @@ Three points that matter:
 
 Emoji joiners and Persian and Indic non-joiners are preserved in bodies as everywhere else.
 
-**Typographic spaces are kept in documents.** A no-break space before a colon is correct French
-typography: normalising it would degrade the document. It is therefore reported as `informational`
-and left in place — unlike the Text tab, where cleaning a pasted excerpt does normalise them. The
-difference is deliberate.
+**Typographic spaces are kept, everywhere.** A no-break space before a colon is correct French
+typography: normalising it would degrade the text. It is reported as `informational` and left in
+place — in documents, in text files, and in the Text tab and `cirta text --clean` too, which say how
+many they kept. Replacing them is a choice: `--normalize-spaces`, or the checkbox next to "Clean".
 
 **The PDF case is weaker, and structurally so.** A PDF string operand contains glyph codes, not
 Unicode. With a simple encoding the two coincide, but an embedded subset font maps them arbitrarily
@@ -726,7 +726,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX` | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
 | ZIP | **Nothing** — refused | Repacking would change compression, ordering and timestamps of every member |
-| Text | Invisible characters, exotic spaces normalised, NFC | Emoji joiners and Persian/Indic non-joiners |
+| Text | Invisible characters; NFC when forms are mixed; exotic spaces only with `--normalize-spaces` | Emoji joiners and Persian/Indic non-joiners |
 | Document bodies | Invisible characters and their numeric-reference equivalents, in visible text only | XML structure, tag names, attributes, **typographic spaces** |
 | PDF bodies | Nothing — reported but not removable without rewriting the content stream | Page text |
 
@@ -860,6 +860,7 @@ cirta inspect report.pdf --json
 # Text on standard input
 cirta text < draft.txt
 cirta text --clean < draft.txt > clean.txt
+cirta text --clean --normalize-spaces < draft.txt   # also replaces no-break and narrow spaces
 cirta text --lang fr < draft.txt
 
 # The binary guard refuses a document; --force-text overrides it if you know
@@ -913,8 +914,17 @@ change how the image renders.
 
 **Text** — invisible characters are removed, except where they do legitimate typographic work: emoji
 sequence joiners (`👩‍💻`), presentation selectors after a pictographic character, and non-joiners
-between two letters, which Persian and Indic orthographies require. Exotic spaces are normalised to
-`U+0020`, then the text goes to NFC.
+between two letters, which Persian and Indic orthographies require. **Only what is confirmed or
+probable is removed.** Typographic spaces stay unless `--normalize-spaces` is given; decomposed
+letters are recomposed (NFC) only when composed and decomposed forms are mixed — text that is
+uniformly decomposed, as macOS writes it, is left alone. A typographed French text that carries
+nothing else comes out byte for byte identical.
+
+Every change to the words is announced with its count — letters recomposed, spaces replaced,
+Markdown symbols removed — on stderr (whether or not it is a terminal) and in the page. And so is
+what the clean leaves: the cleaned text is read again, and anything still above informational — a
+lookalike domain, styled letters, a credential, the lines an assistant addressed to you — is listed
+under **"still in the cleaned text"**.
 
 Behind the named list, a net catches the whole Unicode `Cf` category — otherwise every format
 character added to the standard would pass unnoticed. That net has its own exceptions, for the

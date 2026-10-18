@@ -384,10 +384,11 @@ Trois précisions qui comptent :
 
 Les liants d'emoji et les anti-liants persans et indiens sont préservés dans le corps comme ailleurs.
 
-**Les espaces typographiques sont conservés dans les documents.** Une espace insécable avant un
-deux-points est de la typographie française correcte : la normaliser dégraderait le document. Elle
-est donc signalée en `informatif` et laissée en place — contrairement à l'onglet Texte, où le
-nettoyage d'un extrait collé les normalise. La différence est délibérée.
+**Les espaces typographiques sont conservées, partout.** Une espace insécable avant un deux-points
+est de la typographie française correcte : la normaliser dégraderait le texte. Elle est signalée en
+`informatif` et laissée en place — dans les documents, les fichiers texte, et aussi dans l'onglet
+Texte et `cirta text --clean`, qui disent combien ils en ont gardé. Les remplacer est un choix :
+`--normalize-spaces`, ou la case à côté de « Nettoyer ».
 
 **Le cas du PDF est plus faible, et c'est structurel.** Un opérande de chaîne PDF contient des codes
 de glyphes, pas de l'Unicode. Avec un encodage simple les deux coïncident, mais une police
@@ -774,7 +775,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
 | ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
-| Texte | Caractères invisibles, espaces exotiques normalisés, NFC | Liants d'emoji et anti-liants persans/indiens |
+| Texte | Caractères invisibles ; NFC si les formes sont mêlées ; espaces exotiques seulement avec `--normalize-spaces` | Liants d'emoji et anti-liants persans/indiens |
 | Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
 | Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |
 
@@ -914,6 +915,7 @@ cirta inspect rapport.pdf --json
 # Texte sur l'entrée standard
 cirta text < brouillon.txt                    # analyser
 cirta text --clean < brouillon.txt > propre.txt
+cirta text --clean --normalize-spaces < brouillon.txt   # remplace aussi les espaces insécables et fines
 
 # La garde binaire refuse un document ; --force-text passe outre si vous savez
 # ce que vous faites (elle est délibérément grossière, donc faillible)
@@ -972,7 +974,16 @@ conservés : les supprimer changerait le rendu de l'image.
 **Texte** — les caractères invisibles sont retirés, sauf lorsqu'ils accomplissent un travail
 typographique légitime : liants de séquences emoji (`👩‍💻`), sélecteurs de présentation après un
 caractère pictographique, et anti-liants entre deux lettres, indispensables aux orthographes persane
-et indiennes. Les espaces exotiques sont normalisés en `U+0020`, puis le texte passe en NFC.
+et indiennes. **Seul ce qui est confirmé ou probable est retiré.** Les espaces typographiques restent
+sauf avec `--normalize-spaces` ; les lettres décomposées ne sont recomposées (NFC) que si formes
+composée et décomposée sont mêlées — un texte uniformément décomposé, comme l'écrit macOS, n'est pas
+touché. Un texte français typographié qui ne porte rien d'autre ressort identique octet pour octet.
+
+Chaque changement des mots est annoncé avec son compteur — lettres recomposées, espaces remplacées,
+symboles Markdown retirés — sur stderr (terminal ou non) et dans la page. Ce que le nettoyage laisse
+l'est aussi : le texte nettoyé est relu, et tout ce qui reste au-dessus d'informatif — domaine sosie,
+lettres stylisées, secret, phrases qu'un assistant vous adressait — est listé sous **« toujours dans
+le texte nettoyé »**.
 
 Derrière la liste nommée, un filet attrape toute la catégorie Unicode `Cf` — sinon chaque caractère
 de format ajouté à la norme passerait sans bruit. Ce filet a lui aussi ses exceptions, pour la raison

@@ -367,7 +367,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
     // Typographic spaces are preserved, as they are in every document body:
     // a file on disk is authored content, not a paste being tidied up, and
     // flattening the no-break space in "Objet : le rapport" is a regression.
-    const result = cleanText(text, { normalizeSpaces: false });
+    const result = cleanText(text, { normalizeSpaces: false, normalize: 'when-flagged' });
     // Mail headers that name a tool go too. They are metadata by every
     // definition this tool uses, and on a generated draft they are the single
     // most explicit mark in the file — X-Mailer naming the desktop client that
@@ -378,6 +378,9 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
     if (result.kept.length) {
       notes.push({ code: 'kept:content', detail: result.kept.map((f) => f.label).join(', ') });
     }
+    // [C8] What changed in the words, and what was deliberately left.
+    if (result.recomposed) notes.push({ code: 'changed:nfc', detail: String(result.recomposed) });
+    if (result.spacesKept) notes.push({ code: 'kept:typographic-spaces', detail: String(result.spacesKept) });
     return noteSurvivors(
       {
         format,

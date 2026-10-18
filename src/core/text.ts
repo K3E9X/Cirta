@@ -810,8 +810,12 @@ export function scanText(input: string): TextScan {
 export interface CleanTextOptions {
   /** Replace exotic whitespace with U+0020. Default true. */
   normalizeSpaces?: boolean;
-  /** Apply Unicode NFC normalization. Default true. */
-  normalize?: boolean;
+  /**
+   * Apply Unicode NFC normalization. Default true. `'when-flagged'` applies
+   * it only when the mix of forms was reported above informational: text that
+   * is uniformly decomposed, as macOS writes it, is left as it is.
+   */
+  normalize?: boolean | 'when-flagged';
 }
 
 export interface CleanTextResult {
@@ -824,6 +828,12 @@ export interface CleanTextResult {
    */
   kept: Finding[];
   decoded: string[];
+  /** [C8] Typographic spaces left as written, because nobody asked to replace them. */
+  spacesKept: number;
+  /** [C8] Typographic spaces replaced with U+0020, on request. */
+  spacesReplaced: number;
+  /** [C8] Accented letters recomposed by NFC. */
+  recomposed: number;
 }
 
 /**
@@ -870,6 +880,7 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
 
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const kept: string[] = [];
+  let spaces = 0;
 
   for (let i = 0; i < codepoints.length; i++) {
     const cp = codepoints[i]!;
@@ -877,21 +888,40 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
       if (isFunctional(cp, codepoints[i - 1], codepoints[i + 1])) kept.push(String.fromCodePoint(cp));
       continue;
     }
-    if (normalizeSpaces && EXOTIC_SPACES.has(cp)) {
-      kept.push(' ');
+    if (EXOTIC_SPACES.has(cp)) {
+      spaces++;
+      kept.push(normalizeSpaces ? ' ' : String.fromCodePoint(cp));
       continue;
     }
     kept.push(String.fromCodePoint(cp));
   }
 
   let text = kept.join('');
-  if (normalize) text = text.normalize('NFC');
+  const normalisation = scan.findings.find((finding) => finding.location === 'Unicode normalisation');
+  const recompose =
+    normalize === 'when-flagged' ? normalisation !== undefined && normalisation.confidence !== 'informational' : normalize;
+  let recomposed = 0;
+  if (recompose && normalisation) {
+    for (const grapheme of text.match(/\P{M}\p{M}+/gu) ?? []) {
+      if (grapheme.normalize('NFC').length < grapheme.length) recomposed++;
+    }
+  }
+  if (recompose) text = text.normalize('NFC');
+
+  // What was found and not changed is not "removed": the spaces when they
+  // stay, the decomposed letters when they are not recomposed.
+  const untouched = (finding: Finding) =>
+    (!normalizeSpaces && EXOTIC_SPACES.has(parseInt(finding.location.slice(2), 16)) && finding.location.startsWith('U+')) ||
+    (!recompose && finding.location === 'Unicode normalisation');
 
   return {
     text,
-    removed: scan.findings.filter((finding) => !isKeptFinding(finding)),
+    removed: scan.findings.filter((finding) => !isKeptFinding(finding) && !untouched(finding)),
     kept: scan.findings.filter(isKeptFinding),
     decoded: scan.decoded,
+    spacesKept: normalizeSpaces ? 0 : spaces,
+    spacesReplaced: normalizeSpaces ? spaces : 0,
+    recomposed,
   };
 }
 

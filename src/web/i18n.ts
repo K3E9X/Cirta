@@ -195,7 +195,12 @@ const FR = {
     'Ce que le presse-papiers transportait en plus du texte. Ici, seul le texte a été gardé ; un éditeur d’e-mail riche peut au contraire en conserver une partie si vous y collez directement. Pour l’éviter : « Copier le texte nettoyé » après Nettoyer, ou collez sans mise en forme — Ctrl+Maj+V dans la plupart des navigateurs, menu Édition › « Coller et adapter le style » sur Mac.',
   headersRemoved: (names: string) =>
     `En-têtes de courrier retirés : ${names}. Ils nomment le logiciel, pas le message.`,
-  keptWarning: 'Trouvé mais laissé en place — à vous de trancher :',
+  keptWarning: 'Toujours dans le texte nettoyé — à vous de trancher :',
+  spacesKept: (n: number) =>
+    `${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} conservée${n > 1 ? 's' : ''} (insécable, fine…) : c’est la typographie française, pas une marque. Cochez « Remplacer aussi les espaces insécables et fines » pour les remplacer.`,
+  spacesReplaced: (n: number) => `${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} remplacée${n > 1 ? 's' : ''} par une espace ordinaire.`,
+  recomposed: (n: number) =>
+    `${n} lettre${n > 1 ? 's' : ''} accentuée${n > 1 ? 's' : ''} recomposée${n > 1 ? 's' : ''} (NFC) : les formes composée et décomposée étaient mêlées.`,
   copyCleaned: 'Copier le texte nettoyé',
   copied: 'Copié',
   selected: 'Sélectionné — Ctrl+C',
@@ -390,7 +395,11 @@ const EN: Strings = {
     'What the clipboard carried besides the text. Only the text was kept here; a rich mail editor may keep part of it if you paste there directly. To avoid that: “Copy the cleaned text” after Clean, or paste without formatting — Ctrl+Shift+V in most browsers, Edit › “Paste and Match Style” on a Mac.',
   headersRemoved: (names) =>
     `Mail headers removed: ${names}. They name the software, not the message.`,
-  keptWarning: 'Found but left in place — your call:',
+  keptWarning: 'Still in the cleaned text — your call:',
+  spacesKept: (n) =>
+    `${n} typographic space${n > 1 ? 's' : ''} kept (no-break, narrow…): that is typography, not a mark. Tick “Also replace no-break and narrow spaces” to replace them.`,
+  spacesReplaced: (n) => `${n} typographic space${n > 1 ? 's' : ''} replaced with an ordinary space.`,
+  recomposed: (n) => `${n} accented letter${n > 1 ? 's' : ''} recomposed (NFC): composed and decomposed forms were mixed.`,
   copyCleaned: 'Copy the cleaned text',
   copied: 'Copied',
   selected: 'Selected — Ctrl+C',

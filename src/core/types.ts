@@ -148,7 +148,11 @@ export type NoteCode =
   /** Tracked changes were accepted, on request. */
   | 'removed:tracked-changes'
   /** Comments were removed, on request. */
-  | 'removed:comments';
+  | 'removed:comments'
+  /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
+  | 'changed:nfc'
+  /** [C8] Typographic spaces were left as written. */
+  | 'kept:typographic-spaces';
 
 export interface Note {
   code: NoteCode;

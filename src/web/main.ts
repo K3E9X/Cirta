@@ -819,6 +819,7 @@ function setupText(): void {
   const results = must<HTMLElement>('#text-results');
   const scanButton = must<HTMLButtonElement>('#text-scan');
   const cleanButton = must<HTMLButtonElement>('#text-clean');
+  const normalizeSpaces = must<HTMLInputElement>('#text-normalize-spaces');
 
   const render = (node: HTMLElement) => {
     results.replaceChildren(node);
@@ -877,11 +878,12 @@ function setupText(): void {
   cleanButton.addEventListener('click', async () => {
     // The same clean the CLI runs: invisible characters, then mail headers that
     // name a tool, then Markdown a mail client would show as symbols.
-    const result = cleanPlainText(input.value);
+    const result = cleanPlainText(input.value, { normalizeSpaces: normalizeSpaces.checked });
     input.value = result.text;
     // Only when something actually changed: a field that flashes "cleaned"
     // over identical text would be the page claiming work it did not do.
-    const changed = result.removed.length || result.headersRemoved.length || result.markdownRemoved;
+    const changed =
+      result.removed.length || result.headersRemoved.length || result.markdownRemoved || result.spacesReplaced || result.recomposed;
     if (changed) replay(input, 'is-cleaned');
 
     // The count covers everything the clean took out, not only characters: a
@@ -892,7 +894,7 @@ function setupText(): void {
       undefined,
       result.removed.length
         ? t().removedCount(result.removed.length)
-        : result.markdownRemoved || result.headersRemoved.length
+        : result.markdownRemoved || result.headersRemoved.length || result.spacesReplaced || result.recomposed
           ? t().formattingRemoved
           : t().nothingToRemove,
     );
@@ -918,11 +920,20 @@ function setupText(): void {
     if (result.markdownRemoved) node.append(el('p', 'note', t().markdownRemoved(result.markdownRemoved)));
     if (result.markdownKept) node.append(el('p', 'note', t().markdownKept));
 
-    // Les lettres sosies font partie d'un mot : le nettoyage ne les touche pas.
-    // Sans cette mention, le décompte ci-dessus se lirait comme « c'est propre ».
-    if (result.kept.length) {
+    // [C8] Every change to the words is announced, with its count.
+    if (result.recomposed) node.append(el('p', 'note', t().recomposed(result.recomposed)));
+    if (result.spacesReplaced) node.append(el('p', 'note', t().spacesReplaced(result.spacesReplaced)));
+    if (result.spacesKept) node.append(el('p', 'note', t().spacesKept(result.spacesKept)));
+
+    // Ce que le nettoyage laisse — lettres sosies, secret, symboles stylisés —,
+    // mesuré en relisant le texte nettoyé. Sans cette mention, le décompte
+    // ci-dessus se lirait comme « c'est propre ». Les phrases à revoir ont leur
+    // propre tableau juste en dessous.
+    const reviewed = new Set(result.toReview.map((f) => `${f.label}\u0000${f.location}`));
+    const survivors = result.survivors.filter((f) => !reviewed.has(`${f.label}\u0000${f.location}`));
+    if (survivors.length) {
       node.append(el('p', 'note note-warn', t().keptWarning));
-      node.append(findingsTable(result.kept));
+      node.append(findingsTable(survivors));
     }
 
     // Lines an assistant addressed to you, and placeholders still to fill.
