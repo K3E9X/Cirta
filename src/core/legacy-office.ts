@@ -169,12 +169,16 @@ const prefix = (findings: Finding[], where: string): Finding[] =>
  * file it carries, with the paths that file had on the author's machine. The
  * carried file is inspected in turn, as an attachment would be.
  */
-async function objectFindings(
+export async function objectFindings(
   location: string,
   read: (name: string) => Uint8Array | undefined,
   inspectMember: InspectOptions['inspectMember'],
+  className?: string,
 ): Promise<Finding[]> {
-  const { userType, progId } = readCompObj(read('\x01CompObj'));
+  const compObj = readCompObj(read('\x01CompObj'));
+  const userType = compObj.userType;
+  // [F-P2 2.2] An RTF object names its class beside the data, an OLE1 Package carries no CompObj.
+  const progId = compObj.progId ?? className;
   const native = readOle10Native(read('\x01Ole10Native'));
   const isPackage = progId === 'Package' || native !== undefined;
   const what = native

@@ -373,6 +373,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.json', '.yaml', '.yml', '.toml', '.ini',
   // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
   '.ipynb',
+  // [F-P2 2.2]
+  '.rtf',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
   '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',

@@ -230,6 +230,7 @@ const MIME: Record<Format, string> = {
   ppt: 'application/vnd.ms-powerpoint',
   msg: 'application/vnd.ms-outlook',
   ipynb: 'application/x-ipynb+json',
+  rtf: 'application/rtf',
   text: 'text/plain',
 };
 

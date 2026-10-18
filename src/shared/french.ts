@@ -42,6 +42,8 @@ const FIELD_LABEL: Record<string, string> = {
   Company: 'Société',
   Manager: 'Responsable',
   Template: 'Modèle',
+  'Hyperlink base': 'Base des liens hypertexte',
+  'Last backup': 'Dernière sauvegarde',
   'Total editing time': 'Temps d’édition total',
   'Custom properties': 'Propriétés personnalisées',
   'Embedded thumbnail': 'Miniature intégrée',
@@ -535,6 +537,8 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(.+) — (\d+) bytes(, .+)?$/, (m) => `${m[1]} — ${m[2]} octets${m[3] ?? ''}`],
+  [/^(object|linked object)(, ProgID .+)?$/, (m) => `${m[1] === 'object' ? 'objet' : 'objet lié'}${m[2] ?? ''}`],
+  [/^(\d+) bytes(, ProgID .+)$/, (m) => `${m[1]} octets${m[2]}`],
   [/^(\d+) modules?: (.+)$/, (m) => `${m[1]} module(s) : ${m[2]}`],
   [
     /^(.+?): (?:(\d+) rows? \(([^)]*)\))?(?:, )?(?:(\d+) columns? \(([^)]*)\))?$/,

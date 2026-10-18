@@ -424,6 +424,26 @@ try {
       check('dossier.zip: cleaned and its members reopened', false, String(error).slice(0, 200));
     }
   }
+  // [F-P2 2.2] LibreOffice's own RTF, an author and a company written into its info group:
+  // inspected, cleaned, and the cleaned copy read back as text by LibreOffice.
+  try {
+    await soffice(['--convert-to', 'rtf', '--outdir', dir, join(dir, 'source.docx')], 'rtf');
+    const rtf = (await readFile(join(dir, 'source.rtf'), 'latin1')).replace('{\\info', '{\\info{\\author Marie Martin}{\\*\\company Cabinet Martin}');
+    const original = new Uint8Array(Buffer.from(rtf, 'latin1'));
+    const report = await inspectFile(original, 'source.rtf');
+    check('source.rtf: inspected as rtf', report.format === 'rtf', report.format);
+    check('source.rtf: the author and the generator are named', report.findings.some((f) => f.label === 'Author' && f.value === 'Marie Martin') && report.findings.some((f) => f.label === 'Producing application' && /LibreOffice/.test(f.value)));
+    const cleaned = await redactFile(original, 'source.rtf');
+    const left = (await inspectFile(cleaned.data, 'source.rtf')).findings.filter((f) => f.confidence !== 'informational');
+    check('source.rtf: nothing survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    await writeFile(join(dir, 'clean.rtf'), cleaned.data);
+    const out = join(dir, 'out-rtf');
+    await soffice(['--convert-to', 'txt:Text', '--outdir', out, join(dir, 'clean.rtf')], 'out-rtf');
+    const text = await readFile(join(out, 'clean.txt'), 'utf8');
+    check('source.rtf: the cleaned copy reopens with its text', text.includes('Rapport trimestriel') && text.includes('Objet'), text.slice(0, 120));
+  } catch (error) {
+    check('source.rtf: produced by LibreOffice, cleaned and reopened', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

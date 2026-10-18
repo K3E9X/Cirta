@@ -85,6 +85,7 @@ import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
 import { reencodeImage } from './reencode.js';
+import { isRtf, inspectRtf, redactRtf } from './rtf.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -92,7 +93,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.';
+  'Jupyter notebooks, RTF, SVG, HTML, Markdown, JPEG and PNG.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -196,6 +197,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isCfb(data)) return undefined;
   const image = detectImageKind(data);
   if (image) return image;
+  if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
   try {
     const text = decodeTextInput(data, decodeOptions(hint));
@@ -331,6 +333,8 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
       notes: [{ code: 'scope:image-metadata-only' }],
     };
   }
+
+  if (isRtf(data)) return inspectRtf(data, { ...options, inspectMember: member(options) });
 
   // [C4] Before the markup sniff: a mail whose body is HTML is a mail first.
   if (isMail(data, hint)) return inspectEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray }));
@@ -532,6 +536,8 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
       options,
     );
   }
+
+  if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);
 
   if (isMail(data, hint)) {
     return noteSurvivors(await redactEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray })), hint, options);

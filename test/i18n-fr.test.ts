@@ -26,7 +26,7 @@ import { compObj, legacyOffice, ole10Native, outlookMessage } from './helpers/ol
  */
 
 const ENGLISH =
-  /\b(the|and|of|to|from|with|not|by|is|are|this|that|which|was|were|has|have|its|into|only|still|than|there|their|characters?|bytes|hidden|slides?|files?|keys?|rotate|placed|outside|comments|colou?r|attributes?|written|named|found|removed|kept|text|read|chunks?|attachment|line|header|body|links?|preview|picture|space|hyphen|joiner|mark|selector|isolate|override|control|filler|cell|vowel|separator|anchor|unparseable|invalid|failed|parse|data|unexpected|summary|unreadable|carrying|rows?|columns?|user)\b/i;
+  /\b(the|and|of|to|from|with|not|by|is|are|this|that|which|was|were|has|have|its|into|only|still|than|there|their|characters?|bytes|hidden|slides?|files?|keys?|rotate|placed|outside|comments|colou?r|attributes?|written|named|found|removed|kept|text|read|chunks?|attachment|line|header|body|links?|preview|picture|space|hyphen|joiner|mark|selector|isolate|override|control|filler|cell|vowel|separator|anchor|unparseable|invalid|failed|parse|data|unexpected|summary|unreadable|carrying|rows?|columns?|user|object)\b/i;
 
 const enc = (text: string) => new TextEncoder().encode(text);
 
@@ -123,6 +123,16 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     [
       'liens.html',
       enc('<!doctype html><html><body><a href="javascript:x()">Ouvrir</a><a href="data:text/html,x">Facture</a><a href="https://www.google.com/url?q=https://e.example/">Banque</a></body></html>'),
+    ],
+    [
+      'contrat.rtf',
+      enc(
+        '{\\rtf1\\ansi{\\*\\generator Riched20 10.0}{\\info{\\title Contrat}{\\author Jeanne}{\\operator Marc}{\\*\\company Cabinet}{\\manager Me Martin}{\\category Juridique}{\\keywords bail}{\\doccomm Projet}{\\hlinkbase C:\\\\Users\\\\jd\\\\Docs}' +
+          '{\\creatim\\yr2024\\mo3\\dy5\\hr10\\min20}{\\revtim\\yr2024\\mo3\\dy6\\hr9\\min5}{\\printim\\yr2024\\mo3\\dy6\\hr9\\min6}{\\buptim\\yr2024\\mo3\\dy6\\hr9\\min7}\\version4\\edmins125}' +
+          '{\\*\\template C:\\\\Users\\\\jd\\\\Normal.dotm}{\\*\\rsidtbl \\rsid1\\rsid2}{\\*\\revtbl {Unknown;}{Jeanne;}}{\\*\\userprops {\\propname Client}\\proptype30{\\staticval ACME}}' +
+          '\\pard Texte{\\object\\objemb{\\*\\objclass Excel.Sheet.8}{\\*\\objdata 0105}{\\result x}}{\\object\\objlink{\\*\\objdata 010500000100000006000000457863656c000d000000433a5c615c622e786c7378000000000000}}' +
+          '{\\field{\\*\\fldinst {INCLUDEPICTURE "https://e.example/p.gif"}}{\\fldrslt {}}}\\par}',
+      ),
     ],
     ['vide.pdf', new Uint8Array(0)],
     [

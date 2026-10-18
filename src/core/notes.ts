@@ -23,6 +23,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Outlook message: sender and recipients, the Internet headers it kept, the times it records, the body, and each attachment inspected like an archive member — an attached message in turn. The message is never rewritten; save it as .eml to clean it.',
   'scope:notebook': () =>
     'Notebook: its metadata and each cell\'s, the outputs (local paths, account names, credentials, tracebacks) and the pictures in them. The code itself is read for credentials only. A statistical model watermark in the wording would not show up here.',
+  'scope:rtf': () =>
+    'RTF document: its info group (author, last saved by, company, dates, editing time), the program that wrote it, custom properties, the template path, revision identifiers, the names behind tracked changes and comments, embedded objects with the files they carry, the metadata of its pictures and the targets of its fields. The wording is not analysed.',
   'reencoded:image': () =>
     'The picture was rebuilt from its decoded pixels: whatever was not pixels is gone, the orientation is applied, the colour profile kept. A lossless PNG keeps every pixel value, so a message hidden in their low bits would survive; a JPEG is quantised again, which disturbs one without guaranteeing it is gone.',
   'removed:outputs': (detail) => `Removed the outputs of ${detail ?? 'every'} cell${detail === '1' ? '' : 's'}, with their execution counts.`,
@@ -102,6 +104,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Message Outlook : expéditeur et destinataires, les en-têtes Internet qu'il a gardés, les heures qu'il note, le corps, et chaque pièce jointe inspectée comme un membre d'archive — un message joint à son tour. Le message n'est jamais réécrit ; enregistrez-le en .eml pour le nettoyer.",
   'scope:notebook': () =>
     "Notebook : ses métadonnées et celles de chaque cellule, les sorties (chemins locaux, noms de compte, secrets, traces d'erreur) et les images qu'elles contiennent. Le code lui-même n'est lu que pour les secrets. Un filigrane statistique dans la formulation n'apparaîtrait pas ici.",
+  'scope:rtf': () =>
+    "Document RTF : son groupe d'informations (auteur, dernier enregistrement, société, dates, temps d'édition), le programme qui l'a écrit, les propriétés personnalisées, le chemin du modèle, les identifiants de révision, les noms derrière les révisions et les commentaires, les objets intégrés avec les fichiers qu'ils portent, les métadonnées de ses images et les cibles de ses champs. La formulation n'est pas analysée.",
   'reencoded:image': () =>
     "L'image a été reconstruite à partir de ses pixels décodés : tout ce qui n'était pas pixel est parti, l'orientation est appliquée, le profil de couleur conservé. Un PNG sans perte garde chaque valeur de pixel, donc un message caché dans leurs bits de poids faible survivrait ; un JPEG est requantifié, ce qui le perturbe sans garantir qu'il disparaisse.",
   'removed:outputs': (detail) => `Sorties retirées de ${detail ?? 'toutes les'} cellule${detail === '1' ? '' : 's'}, avec leurs compteurs d'exécution.`,

@@ -40,7 +40,7 @@ const OPTIONS: Record<CleanKey, { formats: Format[]; count: (findings: Finding[]
   removeNotes: { formats: ['pptx'], count: (fs) => labelled('Speaker notes text')(fs) || labelled('Speaker notes')(fs) },
   removeHiddenSlides: { formats: ['pptx'], count: (fs) => labelled('Text of a hidden slide')(fs) || labelled('Hidden slides')(fs) },
   removeHiddenSheets: { formats: ['xlsx'], count: labelled('Hidden worksheets') },
-  stripActive: { formats: ['pdf', ...OFFICE], count: (fs) => fs.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length },
+  stripActive: { formats: ['pdf', 'rtf', ...OFFICE], count: (fs) => fs.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length },
   stripRemote: { formats: ['html', 'markdown'], count: labelled('Tracking pixel', 'Remote resource loaded on opening') },
   stripTracking: { formats: ['html', 'markdown', 'pdf', ...OFFICE], count: labelled('Tracking parameters in a link') },
   removeAttachments: { formats: ['pdf'], count: labelled('Embedded file') },
