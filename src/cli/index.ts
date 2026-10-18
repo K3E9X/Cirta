@@ -362,6 +362,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.svg', '.html', '.htm',
   '.md', '.markdown', '.mdx',
   '.jpg', '.jpeg', '.png',
+  // [F-P2 2.2] WebP and GIF cleaned; TIFF, HEIC and AVIF inspected.
+  '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif', '.avif',
   '.zip', '.epub',
   // Plain text and source files. An invisible character in a .py or a .json
   // travels exactly as far as one in a .docx, and a bidi override in source is

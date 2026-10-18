@@ -85,6 +85,7 @@ import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
 import { reencodeImage } from './reencode.js';
+import { PICTURE_LOCATION, REWRITABLE_PICTURES } from './picture-formats.js';
 import { isRtf, inspectRtf, redactRtf } from './rtf.js';
 import { isEpub, inspectEpub, redactEpub } from './epub.js';
 
@@ -94,7 +95,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG and PNG.';
+  'Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -217,8 +218,10 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
 }
 
 /** Image metadata, plus whatever the fingerprinter derives from it. */
+const imageLocation = (image: Format) => (image === 'jpeg' ? 'JPEG segments' : image === 'png' ? 'PNG chunks' : PICTURE_LOCATION[image as keyof typeof PICTURE_LOCATION]);
+
 function imageFindings(data: Uint8Array, image: Format): Finding[] {
-  const found = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+  const found = inspectImage(data, imageLocation(image));
   return [...found, ...fingerprint(found)].sort(byConfidence);
 }
 
@@ -424,7 +427,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 /** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
-const MEMBER_REFUSALS = new Set(['epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
 
 /**
  * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
@@ -526,13 +529,22 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
 
   const image = detectImageKind(data);
   if (image) {
-    const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+    // [F-P2 2.2] Inspected only: refused rather than handed back with its metadata.
+    if (!REWRITABLE_PICTURES.has(image)) {
+      throw new UnsupportedFormatError(
+        `A ${image.toUpperCase()} picture is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure. Export it as JPEG or PNG and clean that copy.`,
+        'image-not-rewritable',
+        image,
+      );
+    }
+    const before = inspectImage(data, imageLocation(image));
     const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
     if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
     let cleaned: Uint8Array = stripImageMetadata(data) ?? data;
     // [F-P2 2.4] Rebuilt from the pixels, on request; refused rather than skipped without a codec.
     if (options.reencodeImages) {
       if (!options.imageCodec) throw new UnsupportedFormatError('Re-encoding pictures needs an image codec, which is not available here.', 'reencode-unavailable');
+      if (image !== 'jpeg' && image !== 'png') throw new UnsupportedFormatError('Re-encoding is offered for JPEG and PNG pictures.', 'reencode-unavailable', image);
       cleaned = await reencodeImage(data, image, options.imageCodec);
       notes.push({ code: 'reencoded:image' });
     }

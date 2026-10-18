@@ -513,6 +513,26 @@ try {
   } catch (error) {
     check('plan.vsdx: cleaned and reopened', false, String(error).slice(0, 200));
   }
+  // [F-P2 2.2] ImageMagick's own GIF and TIFF, a comment written into each: the GIF cleaned
+  // and decoded again by ImageMagick, the TIFF read and refused.
+  try {
+    await run('convert', ['-version']);
+    await run('convert', ['-size', '16x8', 'xc:red', '-set', 'comment', 'Retouche par Marie Martin', join(dir, 'im.gif')]);
+    await run('convert', ['-size', '16x8', 'xc:blue', '-set', 'comment', 'Scan de Marie Martin', '-compress', 'none', join(dir, 'im.tif')]);
+    const gif = new Uint8Array(await readFile(join(dir, 'im.gif')));
+    check('im.gif: the comment is read', (await inspectFile(gif, 'im.gif')).findings.some((f) => f.label === 'Embedded comment' && f.value.includes('Marie Martin')));
+    const cleaned = await redactFile(gif, 'im.gif');
+    await writeFile(join(dir, 'im.clean.gif'), cleaned.data);
+    const { stdout } = await run('identify', [join(dir, 'im.clean.gif')]);
+    check('im.gif: the cleaned copy decodes in ImageMagick, at its size, without the comment', /GIF 16x8/.test(stdout) && !Buffer.from(cleaned.data).includes(Buffer.from('Marie')), stdout.trim());
+    const tif = new Uint8Array(await readFile(join(dir, 'im.tif')));
+    check('im.tif: the description is read', (await inspectFile(tif, 'im.tif')).findings.some((f) => f.value.includes('Marie Martin')));
+    const refused = await redactFile(tif, 'im.tif').then(() => undefined, (error) => error);
+    check('im.tif: refused rather than rewritten', refused?.code === 'image-not-rewritable', String(refused));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  ImageMagick is not installed: GIF and TIFF not checked');
+    else check('im.gif / im.tif: written by ImageMagick, inspected and cleaned', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

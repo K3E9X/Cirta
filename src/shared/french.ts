@@ -44,6 +44,7 @@ const FIELD_LABEL: Record<string, string> = {
   Template: 'Modèle',
   'Hyperlink base': 'Base des liens hypertexte',
   'Last backup': 'Dernière sauvegarde',
+  'Private chunk': 'Bloc privé',
   Contributor: 'Contributeur',
   Publisher: 'Éditeur',
   'Book identifier': 'Identifiant du livre',
@@ -425,6 +426,14 @@ const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^document body \((.+)\)$/, (m) => `corps du document (${m[1]})`],
 ];
 
+/** [F-P2 2.2] Where the other picture formats keep their metadata. */
+const PICTURE_LOCATION_FR: Record<string, string> = {
+  'WebP chunks': 'blocs WebP',
+  'GIF blocks': 'blocs GIF',
+  'TIFF directory': 'répertoire TIFF',
+  'HEIF items': 'éléments HEIF',
+};
+
 /** Locations the core states in prose rather than as a path or a field name. */
 const LOCATION_TEXT: Record<string, string> = {
   'mixed-script words': 'mots à alphabets mêlés',
@@ -758,6 +767,8 @@ export const translateLocation = (location: string, lang: Lang): string => {
 
   const container = /^(JPEG segments|PNG chunks)(.*)$/.exec(location);
   if (container) return `${container[1] === 'JPEG segments' ? 'segments JPEG' : 'blocs PNG'}${container[2]}`;
+  const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
+  if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
   for (const [pattern, render] of LOCATION_PATTERNS) {
     const match = pattern.exec(location);
@@ -992,8 +1003,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, SVG, HTML, Markdown, JPEG et PNG.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
@@ -1032,10 +1043,16 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
           fr: `Les fichiers Office anciens (.doc, .xls, .ppt) sont inspectés mais pas réécrits : reconstruire un fichier composite sans l’abîmer n’est pas une chose que cet outil sait vérifier. Enregistrez-le en .${detail === 'xls' ? 'xlsx' : detail === 'ppt' ? 'pptx' : 'docx'} dans Office ou LibreOffice, puis nettoyez cette copie.`,
         },
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
-  'reencode-unavailable': () => ({
-    en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
-    fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
-  }),
+  'reencode-unavailable': (detail) =>
+    detail
+      ? {
+          en: `Re-encoding is offered for JPEG and PNG pictures, not ${detail.toUpperCase()}: nothing was cleaned, rather than a copy that was not re-encoded. Clean it without re-encoding.`,
+          fr: `Le ré-encodage est proposé pour les images JPEG et PNG, pas ${detail.toUpperCase()} : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été. Nettoyez-la sans ré-encodage.`,
+        }
+      : {
+          en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
+          fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
+        },
   'archive-too-large': (detail) => {
     const [limit, value = ''] = (detail ?? '').split(/:(.*)/s);
     if (limit === 'members') return { en: `This archive declares more than ${value} members; it is refused rather than read in part.`, fr: `Cette archive déclare plus de ${value} membres ; elle est refusée plutôt que lue en partie.` };
@@ -1045,6 +1062,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
       fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
     };
   },
+  'image-not-rewritable': (detail) => ({
+    en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Cirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
+    fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Cirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,
+  }),
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,
     fr: `Le fichier de règles n’a pas pu être lu : ${translateRulesDetail(detail ?? 'raison inconnue')}.`,

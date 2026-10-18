@@ -25,6 +25,12 @@ export type Format =
   | 'markdown'
   | 'jpeg'
   | 'png'
+  /** [F-P2 2.2] More pictures: WebP and GIF cleaned, TIFF, HEIC and AVIF inspected only. */
+  | 'webp'
+  | 'gif'
+  | 'tiff'
+  | 'heic'
+  | 'avif'
   | 'zip'
   | 'eml'
   /** [F-2.2] Legacy Office (OLE2 compound files) and Outlook messages: inspected, not rewritten. */

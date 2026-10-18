@@ -11,6 +11,7 @@ import { incrementalPdf } from './helpers/incremental-pdf.js';
 import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.js';
 import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
+import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -156,6 +157,11 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
       }),
     ],
     ['plan.vsdx', vsdx({ creator: 'Jeanne', company: 'Cabinet', pageText: 'Ser\u200bveur', hyperlink: 'file:///C:/Users/jd/a.vsdx', comments: [{ name: 'Marc', initials: 'M' }], connection: 'Data Source=C:\\a.xlsx;Password=x', media: makeJpeg() })],
+    ['photo.webp', await webpWithMetadata()],
+    ['anim.gif', await gifWithMetadata()],
+    ['scan.tif', tiffWithMetadata()],
+    ['photo.heic', heifWithMetadata('heic')],
+    ['photo.avif', heifWithMetadata('avif')],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',
