@@ -17,6 +17,7 @@ Chaque PR ne montre que son lot.
 | n°7 | `feat/dlp-rules` | `feat/llm-pipeline` | F-2.3 DLP et règles (F-P1) |
 | n°8 | `feat/legacy-formats` | `feat/dlp-rules` | F-2.2 Office ancien, Outlook `.msg`, notebooks Jupyter (F-P1) |
 | n°9 | `feat/ui-options` | `feat/legacy-formats` | F-2.7 options avancées, plan avant téléchargement, avant/après (F-P1) |
+| n°10 | `feat/hardening` | `feat/ui-options` | F-2.8 robustesse XML, fuzzers, corpus réel élargi, `SECURITY.md` (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -923,6 +924,81 @@ Vérification manuelle : `npm run dev` (ou `dist-web`). Ouvrir « Options avanc�
 
 ---
 
+## F-2.8 [F-P1] — Sécurité et robustesse
+
+**Statut : fait pour les quatre puces.** Les nouveaux tests ont trouvé deux défauts, corrigés dans le même commit que leurs tests.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| F-2.8.1 XML hostile, et deux correctifs | `4efcf8e` | `test/xml-robustness.test.ts` (nouveau) ; `src/core/hidden-text.ts` (profondeur de paragraphes), `src/core/notebook.ts` (profondeur JSON) |
+| F-2.8.2 Fuzzers des nouveaux analyseurs | `e9ca088` | `test/fuzz-parsers.test.ts`, `test/helpers/mutate.ts` (nouveaux), READMEs |
+| F-2.8.3 Corpus réel élargi | `d80e933` | `scripts/real-files.mjs`, READMEs |
+| F-2.8.4 `SECURITY.md` et modèle de menace | `ff9ca3b` | `SECURITY.md`, `SECURITY.fr.md`, `test/no-network.test.ts` (nouveaux), READMEs |
+
+Ce qui change :
+- **XML hostile.** Les tests vérifient d'abord ce que `xml.ts` promet : un DOCTYPE est du texte, et aucune entité n'est résolue au-delà des cinq prédéfinies et des références numériques.
+  - Billion laughs dans un `.docx` et un SVG : rien n'est développé.
+  - Entités externes (`file:///etc/passwd`, adresse de métadonnées cloud) : rien n'est lu, que ce soit dans Office, SVG, OpenDocument ou XMP.
+  - Un attribut de 8 Mo et un attribut non fermé : lus jusqu'au bout.
+  - Deux défauts trouvés :
+    - **Imbrication de paragraphes Word, quadratique.** 100 000 niveaux prenaient 46 s à inspecter (20 000 niveaux : 1,8 s ; 40 000 : 6,6 s ; nettoyage 21 s). Chaque paragraphe relisait tout son corps. Au-delà de 32 niveaux, un paragraphe est maintenant lu avec celui qui l'englobe. Word n'imbrique que par les zones de texte, sur un ou deux niveaux. Résultat à 40 000 niveaux : 0,1 s.
+    - **Notebook JSON imbriqué 200 000 fois.** `JSON.parse` passait, puis `JSON.stringify` débordait la pile : un `RangeError`, donc un plantage et non un refus. Au-delà de 512 niveaux, le fichier n'est plus pris pour un notebook (le `json` de Python s'arrête vers 1 000) et il est lu comme du texte.
+- **Fuzzers.** `test/fuzz-parsers.test.ts`, dans `npm test`, part de graines construites par les helpers de test. `scripts/fuzz.mjs` travaille sur `dist` et ne peut pas les utiliser.
+  - Cibles : lecteur CFB, puis `.doc`/`.ppt`/`.msg` de bout en bout ; jeux de propriétés OLE ; enregistrements PowerPoint ; MIME (`parseMail`, `.eml`) ; IFD Exif, dont une boucle explicite (IFD0 dont les pointeurs Exif et suivant visent lui-même) ; fichier de règles ; données personnelles ; notebooks (inspection et nettoyage).
+  - Mutateur ajouté : il renvoie un décalage vers une position antérieure.
+  - 150 itérations par cible par défaut. `FUZZ_ITERATIONS` et `FUZZ_SEED` lancent une campagne plus longue.
+  - Campagne de 5 000 itérations sur 3 graines : aucun constat. Environ 80 % des `.doc` et `.msg` mutés sont encore lus comme tels, donc les mutations atteignent bien les analyseurs.
+- **Corpus réel.** LibreOffice produit `.xlsx`, `.ods`, `.pptx`, `.odp` et un PDF, chacun avec un auteur. Trois assertions par fichier :
+  - l'auteur est trouvé ;
+  - rien de confirmé ne survit au nettoyage ;
+  - une vraie implémentation rouvre la copie : LibreOffice ; pour le PDF, poppler (`pdfinfo` sans auteur, `pdftotext` retrouve le texte).
+
+  Un outil absent est annoncé `skip`, jamais compté comme réussi.
+- **`SECURITY.md` / `SECURITY.fr.md`** :
+  - signalement : onglet Security de GitHub, ou un ticket sans détail ;
+  - ce qui est protégé, et contre qui ;
+  - une table par surface (ce qui pourrait arriver, ce que fait Cirta, quel test le vérifie) ;
+  - le hors-périmètre : filigranes statistiques, pixels, formats seulement inspectés, machine compromise, dépendances.
+- **Promesses vérifiées.** « Pas de réseau » et « valeurs rendues comme du texte » étaient affirmés sans test. `test/no-network.test.ts` vérifie maintenant :
+  - qu'aucun module ne fait de requête réseau ni n'en importe un (une sonde important `node:https` le fait échouer) ;
+  - que la page porte `connect-src 'none'` ;
+  - que le worker retire les moyens réseau avant de charger PDF.js ;
+  - qu'aucun module de la page n'écrit de balisage depuis une chaîne.
+
+Tests :
+- `test/xml-robustness.test.ts` (6) :
+  - `resolves no entity: the scanner keeps an entity reference as written`
+  - `does not expand a billion laughs, in a .docx or in an SVG`
+  - `reads no external entity: no file, no address, in Office, SVG, OpenDocument or XMP`
+  - `survives XML nested a hundred thousand levels deep`
+  - `survives an attribute of several megabytes and an unclosed one`
+  - `refuses or reads, never crashes, on a notebook nested beyond what JSON tools handle`
+- `test/fuzz-parsers.test.ts` (6) :
+  - `compound files: the reader, then .doc, .ppt and .msg end to end`
+  - `OLE property sets and PowerPoint records`
+  - `MIME mail`
+  - `Exif IFDs, an offset loop among them`
+  - `the rules parser and the personal-data scan`
+  - `notebooks, inspected and cleaned`
+- `test/no-network.test.ts` (3) :
+  - `no source module imports a networking module or makes a request`
+  - `the page forbids every connection, and the worker removes the means before loading PDF.js`
+  - `no page module writes markup from a string`
+- `scripts/real-files.mjs` : 15 vérifications de plus (5 fichiers × 3).
+
+Vérification manuelle :
+```
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
+CIRTA_PYTHON=/chemin/vers/python-avec-nbformat node scripts/real-files.mjs
+```
+
+Écarts :
+- `scripts/fuzz.mjs` n'a pas reçu les nouvelles cibles : il travaille sur `dist` en JavaScript et n'a pas les graines, construites par les helpers TypeScript de test. Les nouvelles cibles tournent dans vitest, donc dans `verify`.
+- Une règle dont le motif fait exploser le retour arrière reste sans garde (pas de délai d'expiration en JavaScript). C'est dit dans `SECURITY.md`.
+- Le signalement par l'onglet Security suppose que le dépôt a activé le signalement privé de vulnérabilités. Ce réglage n'a pas été vérifié d'ici ; le texte prévoit l'autre voie.
+
+---
+
 ## État de vérification
 
 Branche `fix/test-campaign-2026-10` (PR n°1) :
@@ -960,6 +1036,10 @@ Branche `feat/legacy-formats` (PR n°8) :
 Branche `feat/ui-options` (PR n°9) :
 - `npm run verify` : exit 0. 61 fichiers de test, **832 tests** (823 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
+
+Branche `feat/hardening` (PR n°10) :
+- `npm run verify` : exit 0. 64 fichiers de test, **847 tests** (832 avant). Fuzz : 3 588 entrées, `no crash and no hang`. Build web OK.
+- `CIRTA_PYTHON=… node scripts/real-files.mjs` : `all real-file checks passed`, 41 vérifications `ok`, aucun `skip` (LibreOffice, poppler et nbformat présents).
 
 Nouvelles options CLI (`cirta --help`) :
 ```
