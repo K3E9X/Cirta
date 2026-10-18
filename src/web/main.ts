@@ -328,6 +328,8 @@ function beforeAfter(format: Format, before: Uint8Array, redacted: RedactResult)
 
 /** [F-2.2] Formats read and never rewritten. */
 const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
+/** [F-P2 2.2] Pictures read and never rewritten. */
+const FIXED_PICTURES = new Set(['tiff', 'heic', 'avif']);
 
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -829,6 +831,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
       if (LEGACY.has(result.format)) {
         // [F-2.2] Inspected, never rewritten: the reason and what to do, before any click.
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
+      } else if (FIXED_PICTURES.has(result.format)) {
+        node.append(el('p', 'note', errorText({ code: 'image-not-rewritable', detail: result.format }, lang())));
       } else {
         const foot = el('div', 'card-foot');
         // [F-2.7] The options this file is offered — its format takes them and
