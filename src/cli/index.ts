@@ -355,7 +355,7 @@ function printFindings(findings: Finding[]): void {
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
-  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm',
+  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm', '.vsdx', '.vsdm',
   '.odt', '.ods', '.odp',
   // [F-2.2] Legacy Office, inspected only.
   '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot',

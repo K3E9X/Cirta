@@ -92,7 +92,7 @@ import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 
 const UNSUPPORTED =
-  'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
+  'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
   'Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG and PNG.';
 
@@ -120,7 +120,7 @@ function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
   return (
     isOdf(parts) ||
     isEpub(parts) ||
-    Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'])
+    Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'] ?? parts['visio/document.xml'])
   );
 }
 
@@ -190,6 +190,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
       if (parts['word/document.xml']) return 'docx';
       if (parts['ppt/presentation.xml']) return 'pptx';
       if (parts['xl/workbook.xml']) return 'xlsx';
+      if (parts['visio/document.xml']) return 'vsdx';
       return 'zip';
     } catch {
       return undefined;

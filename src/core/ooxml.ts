@@ -28,6 +28,7 @@ import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked
 import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
 import { activeOfficeFindings, stripActiveOffice, stripTrackingOffice } from './ooxml-active.js';
 import { workbookActiveFindings } from './xlsx-active.js';
+import { anonymizeVisio, visioFindings } from './visio.js';
 import { removeHiddenSheets, removeHiddenSlides, removeNotes } from './content-options.js';
 import {
   getElementText,
@@ -95,6 +96,7 @@ function detectOoxmlFormat(parts: Parts): Format {
   if (parts['word/document.xml']) return 'docx';
   if (parts['ppt/presentation.xml']) return 'pptx';
   if (parts['xl/workbook.xml']) return 'xlsx';
+  if (parts['visio/document.xml']) return 'vsdx';
   return 'docx';
 }
 
@@ -110,7 +112,7 @@ function findC2paParts(parts: Parts): string[] {
 
 /** Embedded pictures, which keep their own camera metadata. */
 function findMediaParts(parts: Parts): string[] {
-  return Object.keys(parts).filter((p) => /^(ppt|word|xl)\/media\//.test(p));
+  return Object.keys(parts).filter((p) => /^(ppt|word|xl|visio)\/media\//.test(p));
 }
 
 /**
@@ -332,7 +334,9 @@ function findSpeakerNotes(parts: Parts): number {
 function isBodyPart(path: string): boolean {
   return /^word\/(document|footnotes|endnotes|comments|header\d*|footer\d*)\.xml$/.test(path) ||
     /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/.test(path) ||
-    path === 'xl/sharedStrings.xml';
+    path === 'xl/sharedStrings.xml' ||
+    // [F-P2 2.2] The text of a Visio drawing's shapes and masters.
+    /^visio\/(pages|masters)\/[^/]+\.xml$/.test(path);
 }
 
 /**
@@ -646,6 +650,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   findings.push(...structuralGenerator(parts, format));
   findings.push(...findWorkbookIdentities(parts));
   findings.push(...commentFindings(parts));
+  if (format === 'vsdx') findings.push(...visioFindings(parts));
   findings.push(...inspectBodyText(parts));
   if (format === 'docx') findings.push(...hiddenInDocx(parts), ...trackedChangeFindings(parts));
   if (format === 'pptx') findings.push(...hiddenInPptx(parts));
@@ -893,6 +898,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     // [C6] Spreadsheets and decks name comment authors in elements and
     // registries of their own, wherever the producer put them.
     anonymizeComments(parts);
+    anonymizeVisio(parts);
   }
 
   if (removeComments) {

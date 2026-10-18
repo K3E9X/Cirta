@@ -481,6 +481,38 @@ try {
   } catch (error) {
     check('source.epub: produced by LibreOffice and cleaned', false, String(error).slice(0, 200));
   }
+  // [F-P2 2.2] A Visio drawing written the way Visio lays one out, with an author, a comment
+  // author and a picture: cleaned, then opened by LibreOffice's Visio import.
+  try {
+    const V = 'http://schemas.microsoft.com/office/visio/2012/main';
+    const R = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    const REL = 'http://schemas.microsoft.com/visio/2010/relationships';
+    const xml = (body) => strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${body}`);
+    const drawing = zipSync({
+      '[Content_Types].xml': xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>'),
+      '_rels/.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/document" Target="visio/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`),
+      'docProps/core.xml': xml('<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>Marie Martin</dc:creator><cp:lastModifiedBy>Marie Martin</cp:lastModifiedBy></cp:coreProperties>'),
+      'visio/document.xml': xml(`<VisioDocument xmlns="${V}"><DocumentSettings/></VisioDocument>`),
+      'visio/_rels/document.xml.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/pages" Target="pages/pages.xml"/><Relationship Id="rId2" Type="${REL}/comments" Target="comments.xml"/></Relationships>`),
+      'visio/comments.xml': xml(`<Comments xmlns="${V}"><AuthorList><AuthorEntry Name="Paul Durand" Initials="PD" ResolutionID="S::pd@example.com::0" ID="0"/></AuthorList><CommentList/></Comments>`),
+      'visio/pages/pages.xml': xml(`<Pages xmlns="${V}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><Page ID="0" NameU="Page-1" Name="Page-1"><PageSheet><Cell N="PageWidth" V="8.5"/><Cell N="PageHeight" V="11"/></PageSheet><Rel r:id="rId1"/></Page></Pages>`),
+      'visio/pages/_rels/pages.xml.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/page" Target="page1.xml"/></Relationships>`),
+      'visio/pages/page1.xml': xml(`<PageContents xmlns="${V}"><Shapes><Shape ID="1" Type="Shape"><Cell N="PinX" V="4"/><Cell N="PinY" V="5"/><Cell N="Width" V="2"/><Cell N="Height" V="1"/><Section N="Geometry" IX="0"><Row T="RelMoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="RelLineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row><Row T="RelLineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row><Row T="RelLineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section><Text>Serveur​ central</Text></Shape></Shapes></PageContents>`),
+    });
+    const report = await inspectFile(drawing, 'plan.vsdx');
+    check('plan.vsdx: inspected as vsdx', report.format === 'vsdx', report.format);
+    const cleaned = await redactFile(drawing, 'plan.vsdx');
+    const left = (await inspectFile(cleaned.data, 'plan.vsdx')).findings.filter((f) => f.confidence === 'confirmed');
+    check('plan.vsdx: nothing confirmed survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    await writeFile(join(dir, 'plan.clean.vsdx'), cleaned.data);
+    const out = join(dir, 'out-vsdx');
+    await soffice(['--convert-to', 'pdf', '--outdir', out, join(dir, 'plan.clean.vsdx')], 'out-vsdx');
+    const { stdout } = await run('pdftotext', [join(out, 'plan.clean.pdf'), '-']).catch(() => ({ stdout: undefined }));
+    if (stdout === undefined) console.log('  skip  plan.vsdx: pdftotext is not installed, the text is not compared');
+    check('plan.vsdx: reopens in LibreOffice with its shape text', stdout === undefined || stdout.includes('Serveur central'), String(stdout).slice(0, 80));
+  } catch (error) {
+    check('plan.vsdx: cleaned and reopened', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

@@ -15,6 +15,8 @@ export type Format =
   | 'pptx'
   | 'docx'
   | 'xlsx'
+  /** [F-P2 2.2] A Visio drawing. */
+  | 'vsdx'
   | 'odt'
   | 'ods'
   | 'odp'

@@ -10,6 +10,7 @@ import { encryptedPdf } from './helpers/encrypted-pdf.js';
 import { incrementalPdf } from './helpers/incremental-pdf.js';
 import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.js';
 import { runCli } from './helpers/cli.js';
+import { vsdx } from './helpers/visio.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -154,6 +155,7 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
         'p.xhtml': strToU8('x'),
       }),
     ],
+    ['plan.vsdx', vsdx({ creator: 'Jeanne', company: 'Cabinet', pageText: 'Ser\u200bveur', hyperlink: 'file:///C:/Users/jd/a.vsdx', comments: [{ name: 'Marc', initials: 'M' }], connection: 'Data Source=C:\\a.xlsx;Password=x', media: makeJpeg() })],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',
@@ -223,8 +225,8 @@ describe('[C11.1] nothing English in French mode', () => {
       // So are an identifier (w:color, tEXt:Author) and what « » quotes.
       const words = text
         .replace(/«[^»]*»/g, ' ')
-        .replace(/[^\s—]*[/\\:=][^\s—]*/g, ' ')
         .replace(/Data Source|Initial Catalog|User ID/g, ' ')
+        .replace(/[^\s—]*[/\\:=][^\s—]*/g, ' ')
         .replace(/en-tête \S+/g, ' ');
       const match = ENGLISH.exec(words);
       if (match) english.push(`${where}: «${match[0]}» in ${text.slice(0, 140)}`);

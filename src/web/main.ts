@@ -231,6 +231,7 @@ const MIME: Record<Format, string> = {
   msg: 'application/vnd.ms-outlook',
   ipynb: 'application/x-ipynb+json',
   rtf: 'application/rtf',
+  vsdx: 'application/vnd.ms-visio.drawing.main+xml',
   epub: 'application/epub+zip',
   text: 'text/plain',
 };

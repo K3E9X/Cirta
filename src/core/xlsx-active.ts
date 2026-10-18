@@ -21,8 +21,8 @@ const MAX_MASHUP = 8 * 1024 * 1024;
 
 export const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1]?.replace(/&amp;/g, '&').replace(/&quot;/g, '"');
 
-const PASSWORD = /\b(Password|Pwd)\s*=\s*("[^"]*"|[^;]*)/i;
-const USER = /\b(?:User ID|UID|User)\s*=\s*("[^"]*"|[^;]*)/i;
+export const PASSWORD = /\b(Password|Pwd)\s*=\s*("[^"]*"|[^;]*)/i;
+export const USER = /\b(?:User ID|UID|User)\s*=\s*("[^"]*"|[^;]*)/i;
 
 function connectionFindings(parts: Parts): Finding[] {
   const xml = parts['xl/connections.xml'];
