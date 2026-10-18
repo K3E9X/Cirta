@@ -90,6 +90,7 @@ ${bold(t().options)}
       --force-text      ${t().optForceText}
       --remove-hidden   ${t().optRemoveHidden}
       --accept-changes  ${t().optAcceptChanges}
+      --remove-comments ${t().optRemoveComments}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -131,6 +132,7 @@ interface Args {
   forceText: boolean;
   removeHidden: boolean;
   acceptChanges: boolean;
+  removeComments: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -148,6 +150,7 @@ function parseArgs(argv: string[]): Args {
     forceText: false,
     removeHidden: false,
     acceptChanges: false,
+    removeComments: false,
     skip: [],
     sarif: false,
   };
@@ -172,6 +175,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--accept-changes':
         args.acceptChanges = true;
+        break;
+      case '--remove-comments':
+        args.removeComments = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -593,7 +599,7 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges },
+        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
@@ -614,6 +620,8 @@ async function runRedact(args: Args): Promise<number> {
         // Tracked changes left in, with the option that takes them out.
         const tracked = (result.kept ?? []).some((f) => TRACKED_LABELS.has(f.label));
         if (!args.acceptChanges && tracked) console.log(`  ${dim(t().acceptChangesHint)}`);
+        const comments = (result.kept ?? []).some((f) => f.label === 'Comment text');
+        if (!args.removeComments && comments) console.log(`  ${dim(t().removeCommentsHint)}`);
       }
     } catch (error) {
       failures++;

@@ -327,7 +327,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
         'archive-not-rewritable',
       );
     }
-    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges }), hint, options);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments }), hint, options);
   }
 
   const image = detectImageKind(data);

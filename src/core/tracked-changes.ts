@@ -20,7 +20,7 @@ const MAX_PER_KIND = 20;
 
 const BODY_PARTS = /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes|comments)\.xml$/;
 
-interface Element {
+export interface Element {
   start: number;
   end: number;
   /** The content between the tags; empty for a self-closing element. */
@@ -37,7 +37,7 @@ const ends = (code: number) => code === 0x3e || code === 0x2f || code === 0x20 |
  * respected. indexOf all the way: the parts can be megabytes, and a regex
  * that looks for a closing tag rescans from every unclosed opening.
  */
-function elements(xml: string, name: string): Element[] {
+export function elements(xml: string, name: string): Element[] {
   const out: Element[] = [];
   const opener = `<${name}`;
   const closer = `</${name}>`;

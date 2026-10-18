@@ -132,6 +132,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Deleted text still in the file (tracked changes)': 'Texte supprimé encore présent (suivi de modifications)',
   'Moved text still at its old place (tracked changes)': 'Texte déplacé encore à son ancienne place (suivi de modifications)',
   'Inserted text not yet accepted (tracked changes)': 'Texte inséré pas encore accepté (suivi de modifications)',
+  'Comment text': 'Texte d’un commentaire',
+  'Comment author account': 'Compte de l’auteur d’un commentaire',
   'Attachment not inspected': 'Pièce jointe non inspectée',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',

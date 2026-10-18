@@ -150,6 +150,48 @@ try {
       check('tracked.docx: reopens in LibreOffice with changes accepted', false, String(error).slice(0, 200));
     }
   }
+
+  // [C6] A comment removed, then reopened: LibreOffice's DOCX with a Word
+  // comment anchored in its text, the parts and references Word writes.
+  if (docxName) {
+    const parts = unzipSync(new Uint8Array(await readFile(join(dir, docxName))));
+    const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    parts['word/comments.xml'] = strToU8(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:comments ${W}><w:comment w:id="7" w:author="Paul Durand" w:initials="PD"><w:p><w:r><w:t>Ne pas envoyer au client</w:t></w:r></w:p></w:comment></w:comments>`,
+    );
+    parts['word/document.xml'] = strToU8(
+      strFromU8(parts['word/document.xml']).replace(
+        /<w:body>/,
+        '<w:body><w:p><w:commentRangeStart w:id="7"/><w:r><w:t>Budget commente</w:t></w:r><w:commentRangeEnd w:id="7"/><w:r><w:commentReference w:id="7"/></w:r></w:p>',
+      ),
+    );
+    parts['word/_rels/document.xml.rels'] = strToU8(
+      strFromU8(parts['word/_rels/document.xml.rels']).replace(
+        '</Relationships>',
+        '<Relationship Id="rIdCmt7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>',
+      ),
+    );
+    parts['[Content_Types].xml'] = strToU8(
+      strFromU8(parts['[Content_Types].xml']).replace(
+        '</Types>',
+        '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+      ),
+    );
+    const commented = zipSync(parts);
+    const before = await inspectFile(commented, 'commented.docx');
+    check('commented.docx: the comment text is reported', before.findings.some((f) => f.value.includes('Ne pas envoyer au client')));
+    const removed = await redactFile(commented, 'commented.docx', { removeComments: true });
+    await writeFile(join(dir, 'commented.clean.docx'), removed.data);
+    const out = join(dir, 'out-commented');
+    try {
+      await soffice(['--convert-to', 'txt:Text', '--outdir', out, join(dir, 'commented.clean.docx')], 'out-commented');
+      const text = await readFile(join(out, 'commented.clean.txt'), 'utf8');
+      check('commented.docx: reopens in LibreOffice with comments removed', text.includes('Budget commente'), text.slice(0, 120));
+      check('commented.docx: the comment is gone', !unzipSync(removed.data)['word/comments.xml']);
+    } catch (error) {
+      check('commented.docx: reopens in LibreOffice with comments removed', false, String(error).slice(0, 200));
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

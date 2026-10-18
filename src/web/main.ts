@@ -723,6 +723,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         // change to the document, so offered, never assumed.
         const trackedCount = result.findings.filter((f) => TRACKED_LABELS.has(f.label)).length;
         const acceptChanges = trackedCount > 0 && result.format === 'docx' ? option(t().acceptChangesOption(trackedCount)) : undefined;
+        const commentCount = result.findings.filter((f) => f.label === 'Comment text').length;
+        const removeComments = commentCount > 0 && ['docx', 'xlsx', 'pptx'].includes(result.format) ? option(t().removeCommentsOption(commentCount)) : undefined;
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -732,8 +734,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             const redacted = await redactFile(data, formatHint(file.name), {
               removeHidden: removeHidden?.checked === true,
               acceptChanges: acceptChanges?.checked === true,
+              removeComments: removeComments?.checked === true,
             });
-            for (const box of [removeHidden, acceptChanges]) if (box) box.disabled = true;
+            for (const box of [removeHidden, acceptChanges, removeComments]) if (box) box.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));

@@ -41,6 +41,10 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:comments': (detail) =>
+    detail === '1'
+      ? 'Removed the comment: its text, its author and its thread, with every reference to it in the document.'
+      : `Removed ${detail ?? 'the'} comments: their text, their authors and the threads they belonged to, with every reference to them in the document.`,
   'removed:tracked-changes': (detail) =>
     `Accepted ${detail ?? 'the'} tracked change${detail === '1' ? '' : 's'}: deleted and moved-away text is gone from the file, inserted text stays as ordinary text, and the record of formatting changes is dropped. The document now reads as it did with every change accepted in Word.`,
   'removed:hidden-text': (detail) =>
@@ -77,6 +81,10 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:comments': (detail) =>
+    detail === '1'
+      ? 'Commentaire retiré : son texte, son auteur et son fil, avec toutes les références à lui dans le document.'
+      : `${detail ?? 'Les'} commentaires retirés : leur texte, leurs auteurs et les fils dont ils faisaient partie, avec toutes les références à eux dans le document.`,
   'removed:tracked-changes': (detail) =>
     `${detail === '1' ? 'Modification suivie acceptée' : `${detail ?? 'Les'} modifications suivies acceptées`} : le texte supprimé ou déplacé a quitté le fichier, le texte inséré reste comme texte ordinaire, et l'historique des changements de mise en forme est retiré. Le document se lit désormais comme si toutes les modifications avaient été acceptées dans Word.`,
   'removed:hidden-text': (detail) =>
