@@ -21,7 +21,7 @@ import { inspectClipboardHtml } from '../core/clipboard.js';
 import { translateLabel, translateValue, translateLocation, noteText, errorText } from '../shared/french.js';
 import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
-import { exposure, type Exposure } from '../core/exposure.js';
+import { exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
 import { AIMED_LABEL } from '../core/hidden-text.js';
 import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
@@ -29,7 +29,6 @@ import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
 import { PROFILES, type ProfileName } from '../shared/profiles.js';
 import {
   preview,
-  type Confidence,
   type Finding,
   type Format,
   type Note,

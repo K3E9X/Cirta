@@ -4,7 +4,10 @@
     "noEmit": true,
     // Widened from the build config, which emits only from src/.
     "rootDir": ".",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  // The base config leaves src/web/ out of the build; this one is what checks it.
+  "exclude": ["node_modules", "dist", "dist-web"]
 }
