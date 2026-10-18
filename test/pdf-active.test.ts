@@ -83,3 +83,11 @@ describe('[F-2.1] --strip-active from the command line', () => {
     expect(Buffer.from(readFileSync(join(dir, 'b.pdf'))).includes('app.alert')).toBe(false);
   });
 });
+
+describe('[F-2.1] a damaged catalog', () => {
+  it('is read without a TypeError when /Root is not a dictionary (found by the fuzzer)', async () => {
+    const pdf = new TextEncoder().encode('%PDF-1.4\n1 0 obj\n5\nendobj\ntrailer\n<</Root 1 0 R>>\n%%EOF\n');
+    const outcome = await inspectFile(pdf, 'pdf').then(() => 'read', (error: Error) => error.name);
+    expect(outcome).not.toBe('TypeError');
+  });
+});

@@ -44,7 +44,8 @@ const dict = (value: unknown, lookup: Lookup): PDFDict | undefined => {
   return resolved instanceof PDFDict ? resolved : undefined;
 };
 
-const get = (d: PDFDict | undefined, key: string) => d?.get(PDFName.of(key));
+/** A key of a dictionary — of something that really is one: a damaged file's catalog may not be. */
+const get = (d: unknown, key: string) => (d instanceof PDFDict ? d.get(PDFName.of(key)) : undefined);
 
 /** A file specification as a name: a string, or a dictionary's /UF, /F or /Win /F. */
 function fileName(value: unknown, lookup: Lookup): string | undefined {
@@ -151,7 +152,7 @@ export function scanActive(doc: PDFDocument): ActiveScan {
   const findings: Finding[] = [];
   const files: EmbeddedFile[] = [];
   const uris = new Set<string>();
-  const catalog = doc.catalog;
+  const catalog: PDFDict | undefined = doc.catalog instanceof PDFDict ? doc.catalog : undefined;
 
   const report = (label: string, location: string, action: PDFDict, where?: string) => {
     if (findings.length >= MAX_ACTIONS) return;
@@ -306,7 +307,7 @@ export function stripActive(doc: PDFDocument): number {
   };
   const isActive = (value: unknown) => chain(value, lookup).some((action) => ACTIVE.has(text(get(action, 'S'), lookup) ?? ''));
 
-  const catalog = doc.catalog;
+  const catalog: PDFDict | undefined = doc.catalog instanceof PDFDict ? doc.catalog : undefined;
   const open = lookup(get(catalog, 'OpenAction'));
   if (open instanceof PDFDict) drop(catalog, 'OpenAction');
   drop(catalog, 'AA');
