@@ -13,6 +13,7 @@
  */
 
 import type { Finding, Note } from '../core/types.js';
+import type { ErrorCode } from '../core/errors.js';
 import { NOTE_TEXT_EN, NOTE_TEXT_FR } from '../core/notes.js';
 
 export type Lang = 'fr' | 'en';
@@ -126,6 +127,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
+  'Encrypted document': 'Document chiffré',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':
@@ -217,6 +219,15 @@ const FIELD_LABEL: Record<string, string> = {
 
 /** Descriptive values the core writes in prose rather than reporting verbatim data. */
 const VALUE_TEXT: Record<string, string> = {
+  // [C1] Ce qu'un PDF chiffré laisse lire.
+  'encrypted, with an empty user password: it opens without one, so its metadata was decrypted and is reported here':
+    'chiffré avec un mot de passe utilisateur vide : il s’ouvre sans mot de passe, ses métadonnées ont donc été déchiffrées et sont listées ici',
+  'opening it needs a password: nothing inside was read, so its metadata, text and hidden text are unknown':
+    'il faut un mot de passe pour l’ouvrir : rien n’a été lu à l’intérieur, ses métadonnées, son texte et son texte caché sont donc inconnus',
+  'it could not be decrypted here: nothing inside was read':
+    'il n’a pas pu être déchiffré ici : rien n’a été lu à l’intérieur',
+  'decrypting it needs the PDF renderer, which is not available here: nothing inside was read':
+    'le déchiffrer demande le moteur de rendu PDF, absent ici : rien n’a été lu à l’intérieur',
   'rendered preview of document content': 'aperçu visuel du contenu du document',
   'signed provenance manifest': 'manifeste de provenance signé',
   'present — may carry provenance manifests or source data':
@@ -239,6 +250,7 @@ const VALUE_TEXT: Record<string, string> = {
  * sentence they read as a bug, so both shapes are translated here.
  */
 const CONTENT_KIND: Record<string, string> = {
+  'a password is needed to open it': 'il faut un mot de passe pour l’ouvrir',
   'local links': 'liens locaux',
   'hidden slides': 'diapositives masquées',
   'speaker notes': 'notes du présentateur',
@@ -656,3 +668,42 @@ export const noteText = (note: Note, lang: Lang): string =>
   (lang === 'en' ? NOTE_TEXT_EN : NOTE_TEXT_FR)[note.code](
     note.detail === undefined ? undefined : translateDetail(note.detail, lang),
   );
+
+/* ------------------------------------------------------------- refusals -- */
+
+/**
+ * A refusal in the reader's language. The core's errors carry a code; this is
+ * where each front-end turns it into a sentence. An error without a code —
+ * a file the system could not open, say — keeps its own message.
+ */
+const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
+  unsupported: () => ({
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG and PNG.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG et PNG.',
+  }),
+  unparseable: (detail) => ({
+    en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
+    fr: `Ce fichier n’a pas pu être lu${detail ? ` : ${detail}` : '.'}`,
+  }),
+  'encrypted-pdf': () => ({
+    en: 'This PDF is encrypted. Cleaning it would need its key; without one the copy would be unreadable, so it is not attempted. Remove the protection in the application that set it, then clean the result.',
+    fr: 'Ce PDF est chiffré. Le nettoyer demanderait sa clé ; sans elle, la copie serait illisible, donc ce n’est pas tenté. Retirez la protection dans l’application qui l’a posée, puis nettoyez le résultat.',
+  }),
+  'output-unreadable': (detail) => ({
+    en: `The cleaned copy did not parse again, so it was not delivered${detail ? ` (${detail})` : ''}. The original is untouched.`,
+    fr: `La copie nettoyée n’a pas pu être relue, elle n’a donc pas été livrée${detail ? ` (${detail})` : ''}. L’original est intact.`,
+  }),
+  'archive-not-rewritable': () => ({
+    en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
+    fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
+  }),
+  'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+};
+
+export function errorText(error: unknown, lang: Lang): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && code in ERROR_TEXT) {
+    return ERROR_TEXT[code as ErrorCode]((error as { detail?: string }).detail)[lang];
+  }
+  return error instanceof Error ? error.message : String(error);
+}

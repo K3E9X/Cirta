@@ -56,7 +56,7 @@ export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 
 import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
 import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';
-import { inspectPdf, redactPdf } from './pdf.js';
+import { inspectPdf, redactPdf, assertReadablePdf } from './pdf.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
@@ -68,12 +68,8 @@ import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
 import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
 import { byConfidence } from './types.js';
 
-export class UnsupportedFormatError extends Error {
-  constructor(detail: string) {
-    super(detail);
-    this.name = 'UnsupportedFormatError';
-  }
-}
+import { UnsupportedFormatError } from './errors.js';
+export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
@@ -204,7 +200,7 @@ export async function inspectFile(data: Uint8Array, hint?: string, options: Insp
       throw error;
     }
     const detail = error instanceof Error ? error.message : String(error);
-    throw new UnsupportedFormatError(`This file could not be parsed: ${detail}`);
+    throw new UnsupportedFormatError(`This file could not be parsed: ${detail}`, 'unparseable', detail);
   }
 }
 
@@ -261,14 +257,20 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
 const findingKey = (finding: Finding): string => `${finding.label}\u0000${finding.location}`;
 
 async function noteSurvivors(result: RedactResult, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
-  if (!result.data || result.removed.length === 0) return result;
+  if (!result.data) return result;
   let survivors: Finding[];
   try {
     // Rendered again, not assumed: hidden text is page content, which cleaning
     // leaves alone, and the cleaned copy is checked for it like everything else.
     survivors = (await inspectFile(result.data, hint, { xray: options.xray })).findings;
-  } catch {
-    return result;
+  } catch (error) {
+    // [C1] A copy this library cannot read back is not handed over. Returning
+    // it unchecked is how an unreadable PDF went out with "9 fields removed".
+    throw new UnsupportedFormatError(
+      'The cleaned copy did not parse again, so it was not delivered.',
+      'output-unreadable',
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   /*
@@ -302,12 +304,17 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 export async function redactFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
-  if (isPdf(data)) return noteSurvivors(await redactPdf(data), hint, options);
+  if (isPdf(data)) {
+    const result = await redactPdf(data);
+    await assertReadablePdf(result.data!);
+    return noteSurvivors(result, hint, options);
+  }
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) {
       throw new UnsupportedFormatError(
         'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
+        'archive-not-rewritable',
       );
     }
     return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden }), hint, options);

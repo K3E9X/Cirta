@@ -10,7 +10,7 @@ import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
 import { lang, setLang, detectLang, t } from './i18n.js';
-import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
+import { translateLabel, errorText, translateValue, translateLocation, noteText } from '../shared/french.js';
 import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
@@ -521,7 +521,7 @@ async function runInspect(args: Args): Promise<number> {
       }
     } catch (error) {
       failures++;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorText(error, lang());
       if (args.json || args.sarif) results.push({ file, error: message });
       else console.error(`\n${bold(file)}\n  ${red(message)}`);
     }
@@ -589,7 +589,7 @@ async function runRedact(args: Args): Promise<number> {
       }
     } catch (error) {
       failures++;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorText(error, lang());
       console.error(`\n${bold(file)}\n  ${red(message)}`);
     }
   }
@@ -730,7 +730,7 @@ main()
     process.exitCode = code;
   })
   .catch((error: unknown) => {
-    if (error instanceof UnsupportedFormatError) console.error(red(error.message));
+    if (error instanceof UnsupportedFormatError) console.error(red(errorText(error, lang())));
     else console.error(red(error instanceof Error ? error.stack ?? error.message : String(error)));
     process.exitCode = 1;
   });

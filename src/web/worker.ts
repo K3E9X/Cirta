@@ -52,7 +52,7 @@ export type WorkerRequest =
 export type WorkerResponse =
   | { id: number; ok: true; op: 'inspect'; result: InspectResult; hidden: XrayRegion[] }
   | { id: number; ok: true; op: 'redact'; result: Omit<RedactResult, 'data'>; data?: ArrayBuffer }
-  | { id: number; ok: false; error: string };
+  | { id: number; ok: false; error: string; code?: string; detail?: string };
 
 self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const { id, op, data, hint } = event.data;
@@ -79,10 +79,15 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       buffer ? [buffer] : [],
     );
   } catch (error) {
+    // The code travels with the message, so the page can word the refusal in
+    // its reader's language rather than the core's.
+    const coded = error as { code?: unknown; detail?: unknown };
     (self as unknown as Worker).postMessage({
       id,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      code: typeof coded?.code === 'string' ? coded.code : undefined,
+      detail: typeof coded?.detail === 'string' ? coded.detail : undefined,
     } satisfies WorkerResponse);
   }
 });

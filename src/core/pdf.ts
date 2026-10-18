@@ -12,7 +12,8 @@
 import { PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectOptions, InspectResult, RedactResult, Note } from './types.js';
-import { xrayPdf } from './xray.js';
+import { decryptedMetadata, xrayPdf, type Decrypted } from './xray.js';
+import { UnsupportedFormatError } from './errors.js';
 import { byConfidence, preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { scanContent } from './archive.js';
@@ -830,6 +831,105 @@ function scrubAnnotations(doc: PDFDocument): void {
   }
 }
 
+/** The /Info dictionary as names and decoded values, standard and custom keys alike. */
+function infoEntries(doc: PDFDocument): Map<string, string> {
+  const out = new Map<string, string>();
+  const info = doc.context.lookup(doc.context.trailerInfo.Info);
+  if (!info || !('keys' in info) || !('get' in info)) return out;
+  const dict = info as unknown as { keys(): PDFName[]; get(k: PDFName): unknown };
+  for (const key of dict.keys()) {
+    const raw = dict.get(key);
+    if (!raw) continue;
+    const value = String(
+      (raw as { decodeText?: () => string }).decodeText?.() ?? (raw as { asString?: () => string }).asString?.() ?? raw,
+    );
+    out.set(key.asString().replace(/^\//, ''), value);
+  }
+  return out;
+}
+
+/**
+ * Findings for /Info entries. The eight standard fields have their own labels;
+ * /Info is an open dictionary, though, and the custom keys a generation
+ * pipeline writes into it are usually the most revealing entries in the file.
+ */
+function infoFindings(entries: Map<string, string>): Finding[] {
+  const findings: Finding[] = [];
+  for (const field of INFO_FIELDS) {
+    const value = entries.get(field.key);
+    if (value?.trim()) {
+      findings.push({ kind: field.kind, confidence: field.confidence, location: `/Info /${field.key}`, label: field.label, value });
+    }
+  }
+  const known = new Set(INFO_FIELDS.map((f) => f.key));
+  for (const [name, raw] of entries) {
+    const value = raw.trim();
+    if (known.has(name) || !value) continue;
+    findings.push({ kind: 'provenance', confidence: 'confirmed', location: `/Info /${name}`, label: `Custom info key: ${name}`, value });
+  }
+  return findings;
+}
+
+function xmpFindings(xmp: string): Finding[] {
+  const findings: Finding[] = [];
+  for (const field of XMP_FIELDS) {
+    const value = xmpValue(xmp, field.property);
+    if (value) {
+      findings.push({ kind: field.kind, confidence: field.confidence, location: `/Metadata ${field.property}`, label: field.label, value });
+    }
+  }
+  findings.push(...findSourceTypes(xmp, '/Metadata'));
+  if (looksLikeC2pa(xmp)) findings.push(...describeC2pa(xmp, '/Metadata'));
+  return findings;
+}
+
+const ENCRYPTED: Record<Decrypted['status'] | 'no-engine', string> = {
+  decrypted: 'encrypted, with an empty user password: it opens without one, so its metadata was decrypted and is reported here',
+  password: 'opening it needs a password: nothing inside was read, so its metadata, text and hidden text are unknown',
+  failed: 'it could not be decrypted here: nothing inside was read',
+  'no-engine': 'decrypting it needs the PDF renderer, which is not available here: nothing inside was read',
+};
+
+/** What an encrypted PDF says, as far as it can really be read. */
+async function encryptedMetadata(data: Uint8Array, options: InspectOptions): Promise<Finding[]> {
+  const decrypted = options.xray ? await decryptedMetadata(data, options.xray) : undefined;
+  const findings: Finding[] = [
+    {
+      kind: 'provenance',
+      confidence: 'confirmed',
+      location: 'trailer /Encrypt',
+      label: 'Encrypted document',
+      value: ENCRYPTED[decrypted?.status ?? 'no-engine'],
+    },
+  ];
+  if (decrypted?.status === 'decrypted') {
+    findings.push(...infoFindings(decrypted.info));
+    if (decrypted.xmp) findings.push(...xmpFindings(decrypted.xmp));
+  }
+  return findings;
+}
+
+/**
+ * [C1] A cleaned PDF is parsed again before it is handed over. pdf-lib saves
+ * whatever it holds; on an input it misread, that is a file with no catalog,
+ * and the cleaner reported success on it. Bytes that do not come back as a
+ * document with a page tree are refused.
+ */
+export async function assertReadablePdf(bytes: Uint8Array): Promise<void> {
+  const refuse = (detail: string): never => {
+    throw new UnsupportedFormatError('The cleaned copy did not parse again, so it was not delivered.', 'output-unreadable', detail);
+  };
+  let doc: PDFDocument;
+  try {
+    doc = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true, throwOnInvalidObject: true });
+  } catch (error) {
+    return refuse(error instanceof Error ? error.message : String(error));
+  }
+  const catalog = catalogDict(doc);
+  if (!catalog) return refuse('no /Root dictionary');
+  if (!(doc.context.lookup(catalog.get(PDFName.of('Pages'))) instanceof PDFDict)) refuse('no page tree');
+}
+
 export async function inspectPdf(data: Uint8Array, options: InspectOptions = {}): Promise<InspectResult> {
   const started = Date.now();
   const doc = await load(data);
@@ -838,45 +938,20 @@ export async function inspectPdf(data: Uint8Array, options: InspectOptions = {})
   const notes: Note[] = [];
 
   findings.push(...priorRevisions(data));
-  findings.push(...(await revisionLeaks(data, doc, parseMs)));
-  findings.push(...annotationAuthors(doc));
 
-  const info = doc.context.lookup(doc.context.trailerInfo.Info);
-  if (info && 'get' in info) {
-    for (const field of INFO_FIELDS) {
-      const raw = (info as { get(k: PDFName): unknown }).get(PDFName.of(field.key));
-      if (!raw) continue;
-      const value = String((raw as { decodeText?: () => string; asString?: () => string }).decodeText?.() ??
-        (raw as { asString?: () => string }).asString?.() ??
-        raw);
-      if (value.trim()) {
-        findings.push({
-          kind: field.kind,
-          confidence: field.confidence,
-          location: `/Info /${field.key}`,
-          label: field.label,
-          value,
-        });
-      }
-    }
-  }
-
-  const xmp = readXmp(doc);
-  if (xmp) {
-    for (const field of XMP_FIELDS) {
-      const value = xmpValue(xmp, field.property);
-      if (value) {
-        findings.push({
-          kind: field.kind,
-          confidence: field.confidence,
-          location: `/Metadata ${field.property}`,
-          label: field.label,
-          value,
-        });
-      }
-    }
-    findings.push(...findSourceTypes(xmp, '/Metadata'));
-    if (looksLikeC2pa(xmp)) findings.push(...describeC2pa(xmp, '/Metadata'));
+  // [C1] An encrypted document's strings and streams are ciphertext. Read with
+  // pdf-lib, which cannot decrypt, its /Info came out as random bytes reported
+  // as an author and dates. Only what was really decrypted is reported, and
+  // nothing that reads strings or streams runs on it.
+  const encrypted = doc.isEncrypted;
+  if (encrypted) {
+    findings.push(...(await encryptedMetadata(data, options)));
+  } else {
+    findings.push(...(await revisionLeaks(data, doc, parseMs)));
+    findings.push(...annotationAuthors(doc));
+    findings.push(...infoFindings(infoEntries(doc)));
+    const xmp = readXmp(doc);
+    if (xmp) findings.push(...xmpFindings(xmp));
   }
 
   // The trailer /ID is a pair of hashes identifying this document and this
@@ -896,35 +971,10 @@ export async function inspectPdf(data: Uint8Array, options: InspectOptions = {})
     }
   }
 
-  // The eight fields above are the standard ones, but /Info is an open
-  // dictionary: a generation pipeline can write anything into it, and those
-  // custom keys are usually the most revealing entries in the whole file.
-  if (info && 'keys' in info) {
-    const known = new Set(INFO_FIELDS.map((f) => f.key));
-    const dict = info as unknown as { keys(): PDFName[]; get(k: PDFName): unknown };
-    for (const key of dict.keys()) {
-      const name = key.asString().replace(/^\//, '');
-      if (known.has(name)) continue;
-      const raw = dict.get(key);
-      if (!raw) continue;
-      const value = String(
-        (raw as { decodeText?: () => string }).decodeText?.() ??
-          (raw as { asString?: () => string }).asString?.() ??
-          raw,
-      ).trim();
-      if (!value) continue;
-      findings.push({
-        kind: 'provenance',
-        confidence: 'confirmed',
-        location: `/Info /${name}`,
-        label: `Custom info key: ${name}`,
-        value,
-      });
-    }
+  if (!encrypted) {
+    findings.push(...scanStreams(doc));
+    findings.push(...scanPageFonts(doc));
   }
-
-  findings.push(...scanStreams(doc));
-  findings.push(...scanPageFonts(doc));
   findings.push(...structuralPdf(doc, findings));
 
   const names = catalogDict(doc)?.get(PDFName.of('Names'));
@@ -968,7 +1018,10 @@ async function hiddenText(data: Uint8Array, options: InspectOptions, findings: F
     if (result.doubtful.length) notes.push({ code: 'limit:hidden-text-doubtful', detail: result.doubtful.join(', ') });
     return notes;
   } catch (error) {
-    return [{ code: 'limit:hidden-text-unchecked', detail: error instanceof Error ? error.message : String(error) }];
+    // PDF.js's own words are English and technical; the one case a reader
+    // meets, a password, is said in terms the front-ends can translate.
+    const password = error instanceof Error && error.name === 'PasswordException';
+    return [{ code: 'limit:hidden-text-unchecked', detail: password ? 'a password is needed to open it' : error instanceof Error ? error.message : String(error) }];
   }
 }
 
@@ -980,8 +1033,16 @@ export interface RedactPdfOptions {
 export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}): Promise<RedactResult> {
   const { removeXmp = true } = options;
 
-  const before = await inspectPdf(data);
   const doc = await load(data);
+  // [C1] Rewriting a document without its key keeps the ciphertext and drops
+  // what decrypts it: the result opened nowhere. Refused, never attempted.
+  if (doc.isEncrypted) {
+    throw new UnsupportedFormatError(
+      'This PDF is encrypted. Cleaning it would need its key; without one the copy would be unreadable, so it is not attempted.',
+      'encrypted-pdf',
+    );
+  }
+  const before = await inspectPdf(data);
   const notes: Note[] = [];
 
   // Every key is removed, not just the eight standard ones: a generation

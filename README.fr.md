@@ -1035,6 +1035,15 @@ commence par ce mot reste traité comme du texte.
 qui est *décompressé* — la mémoire est déjà dépensée. La taille annoncée est la revendication de
 l'archive et un fichier forgé peut mentir : c'est une garde, pas une preuve.
 
+**Un PDF chiffré est signalé, pas nettoyé.** Ses chaînes et ses flux sont chiffrés : lu sans sa clé,
+un dictionnaire /Info n'est que des octets aléatoires, et une réécriture garde le chiffré en perdant
+ce qui le déchiffre. L'inspection dit que le document est chiffré et ne montre /Info et le XMP que
+tels que PDF.js les déchiffre — ce qu'il sait faire quand le mot de passe utilisateur est vide, le cas
+du PDF « protégé contre la copie » ; avec un vrai mot de passe, rien n'est lu à l'intérieur. Le
+nettoyage est refusé, avec un code de sortie non nul et aucun fichier écrit. Et quel que soit le
+format, une copie nettoyée est relue avant d'être livrée : si elle ne se relit pas comme un document,
+elle est refusée au lieu d'être écrite.
+
 **Une écriture ne peut pas perdre l'original.** Toute sortie passe par un fichier temporaire du même
 répertoire puis un renommage atomique ; un lien symbolique en destination est refusé plutôt que suivi ;
 et `--in-place` conserve un `.bak` créé avant tout remplacement.
