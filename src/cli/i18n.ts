@@ -41,6 +41,8 @@ const FR = {
   optNormalizeSpaces: 'text --clean : remplace aussi les espaces insécables et fines par des espaces ordinaires',
   optStripActive: 'redact : retire scripts, actions, macros, modèles distants et fichiers intégrés',
   stripActiveHint: 'Des scripts, actions, macros ou fichiers intégrés sont restés. Relancez avec --strip-active pour les retirer.',
+  optStripRemote: 'redact : retire images, styles, scripts et cadres chargés depuis le réseau, pixels de suivi compris (HTML, Markdown)',
+  stripRemoteHint: 'Des ressources chargées depuis le réseau sont restées. Relancez avec --strip-remote-resources pour les retirer.',
   removeCommentsHint: 'Le texte des commentaires est resté (leurs auteurs sont anonymisés). Relancez avec --remove-comments pour les retirer.',
   aimedAlert: (n: number) =>
     n > 1
@@ -236,6 +238,8 @@ const EN: Strings = {
   optNormalizeSpaces: 'text --clean: also replace no-break and narrow spaces with ordinary ones',
   optStripActive: 'redact: remove scripts, actions, macros, remote templates and embedded files',
   stripActiveHint: 'Scripts, actions, macros or embedded files were left in. Run again with --strip-active to remove them.',
+  optStripRemote: 'redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)',
+  stripRemoteHint: 'Resources loaded from the network were left in. Run again with --strip-remote-resources to remove them.',
   removeCommentsHint: 'Comment text was left in (its authors are anonymised). Run again with --remove-comments to remove them.',
   aimedAlert: (n: number) =>
     n > 1

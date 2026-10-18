@@ -220,6 +220,8 @@ const FR = {
   removeCommentsOption: (n: number) => (n > 1 ? `Retirer les ${n} commentaires` : 'Retirer le commentaire'),
   stripActiveOption: (n: number) =>
     n > 1 ? `Retirer les ${n} éléments actifs (scripts, actions, fichiers intégrés)` : 'Retirer l’élément actif (script, action, fichier intégré)',
+  stripRemoteOption: (n: number) =>
+    n > 1 ? `Retirer les ${n} ressources chargées depuis le réseau (pixels de suivi compris)` : 'Retirer la ressource chargée depuis le réseau',
   acceptChangesOption: (n: number) =>
     n > 1 ? `Accepter les ${n} modifications suivies (le texte supprimé quitte le fichier)` : 'Accepter la modification suivie (le texte supprimé quitte le fichier)',
   removeHiddenOption: (n: number) =>
@@ -421,6 +423,8 @@ const EN: Strings = {
   removeCommentsOption: (n) => (n > 1 ? `Remove the ${n} comments` : 'Remove the comment'),
   stripActiveOption: (n) =>
     n > 1 ? `Remove the ${n} active elements (scripts, actions, embedded files)` : 'Remove the active element (script, action, embedded file)',
+  stripRemoteOption: (n) =>
+    n > 1 ? `Remove the ${n} resources loaded from the network (tracking pixels included)` : 'Remove the resource loaded from the network',
   acceptChangesOption: (n) =>
     n > 1 ? `Accept the ${n} tracked changes (deleted text leaves the file)` : 'Accept the tracked change (deleted text leaves the file)',
   removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),

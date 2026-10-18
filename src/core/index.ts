@@ -62,6 +62,7 @@ import { looksLikeMail } from './mime.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
+import { stripRemoteResources } from './beacons.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -396,9 +397,13 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   const format = detectFormat(data, hint);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     const text = decodeTextInput(data, decodeOptions(hint));
-    const { text: cleaned, hiddenRemoved } = redactMarkupCounted(text, format, { removeHidden: options.removeHidden });
+    const counted = redactMarkupCounted(text, format, { removeHidden: options.removeHidden });
     const notes: Note[] = [{ code: 'scope:markup-metadata-only' }];
-    if (hiddenRemoved) notes.push({ code: 'removed:hidden-text', detail: String(hiddenRemoved) });
+    if (counted.hiddenRemoved) notes.push({ code: 'removed:hidden-text', detail: String(counted.hiddenRemoved) });
+    // [F-2.1] Remote pictures, styles, scripts and frames, on request.
+    const remote = options.stripRemote && format !== 'svg' ? stripRemoteResources(counted.text, format === 'markdown') : { text: counted.text, removed: 0 };
+    if (remote.removed) notes.push({ code: 'removed:remote-resources', detail: String(remote.removed) });
+    const cleaned = remote.text;
     return noteSurvivors(
       {
         format,

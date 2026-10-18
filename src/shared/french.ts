@@ -219,6 +219,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Power Query source': 'Source Power Query',
   'Hidden rows and columns': 'Lignes et colonnes masquées',
   'Cells in white type': 'Cellules en blanc sur blanc',
+  'Tracking pixel': 'Pixel de suivi',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',

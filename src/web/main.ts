@@ -733,6 +733,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         // [F-2.1] Scripts, actions, macros, embedded files: taken out only when asked.
         const activeCount = result.findings.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length;
         const stripActive = activeCount > 0 && STRIPPABLE_ACTIVE.has(result.format) ? option(t().stripActiveOption(activeCount)) : undefined;
+        const remoteCount = result.findings.filter((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening').length;
+        const stripRemote = remoteCount > 0 && ['html', 'markdown'].includes(result.format) ? option(t().stripRemoteOption(remoteCount)) : undefined;
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -744,8 +746,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
               acceptChanges: acceptChanges?.checked === true,
               removeComments: removeComments?.checked === true,
               stripActive: stripActive?.checked === true,
+              stripRemote: stripRemote?.checked === true,
             });
-            for (const box of [removeHidden, acceptChanges, removeComments, stripActive]) if (box) box.disabled = true;
+            for (const box of [removeHidden, acceptChanges, removeComments, stripActive, stripRemote]) if (box) box.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));
