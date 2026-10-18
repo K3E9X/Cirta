@@ -17,6 +17,25 @@ const leaks = async (bytes: Uint8Array) =>
   );
 
 describe('text an earlier revision still holds', () => {
+  it('[C3] recovers text whose page was pointed at a new stream, leaving the old one orphaned', async () => {
+    // The usual shape of an incremental save: the earlier content stream is
+    // still defined in the file and referenced by nothing. Read as part of the
+    // current document, it made the earlier text look current, and nothing
+    // was ever reported lost.
+    const pdf = incrementalPdf('Version 1 : salaire propose 85 000 EUR', 'Version 2 : salaire a discuter', {
+      newContentsObject: true,
+    });
+    const found = await leaks(pdf);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.value).toContain('85 000');
+    expect(found[0]?.confidence).toBe('confirmed');
+  });
+
+  it('[C3] reports nothing when the orphaned stream says what the current one says', async () => {
+    const same = 'Rapport annuel du service juridique';
+    expect(await leaks(incrementalPdf(same, same, { newContentsObject: true }))).toEqual([]);
+  });
+
   it('recovers a sentence deleted in a later revision', async () => {
     const secret = 'Salaire de Lotfi Zakaria : 58000 EUR par an';
     const found = await leaks(incrementalPdf(secret, 'Rapport de synthese annuel du service'));

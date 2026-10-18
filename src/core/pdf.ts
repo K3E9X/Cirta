@@ -9,7 +9,7 @@
  * Both are handled here. Page content is never touched.
  */
 
-import { PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { PDFArray, PDFDocument, PDFName, PDFDict, PDFRef, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { parseToUnicode, decodeWithToUnicode, type ToUnicode } from './cmap.js';
 import type { Finding, InspectOptions, InspectResult, RedactResult, Note } from './types.js';
 import { decryptedMetadata, xrayPdf, type Decrypted } from './xray.js';
@@ -551,13 +551,45 @@ function eofOffsets(text: string): number[] {
  * Using one alone would make the comparison silently empty for half the files
  * it is asked about.
  */
+/**
+ * Every stream reachable from the trailer's /Root: page contents, form
+ * XObjects, annotation appearances, and whatever else the document still
+ * points at.
+ *
+ * [C3] Not every stream in the file. An incremental save usually writes a new
+ * content stream and points the page at it, leaving the earlier stream defined
+ * and referenced by nothing; enumerating every object read that orphan as part
+ * of the current document, so text the update removed looked current and was
+ * never reported lost — the textbook case went unseen.
+ */
+function reachableStreams(doc: PDFDocument): PDFRawStream[] {
+  const streams: PDFRawStream[] = [];
+  const seen = new Set<unknown>();
+  const queue: unknown[] = [doc.context.trailerInfo.Root];
+  let visited = 0;
+  while (queue.length && visited++ < 200_000) {
+    let item = queue.pop();
+    if (item instanceof PDFRef) item = doc.context.lookup(item);
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    if (item instanceof PDFRawStream) {
+      streams.push(item);
+      queue.push(...item.dict.values());
+    } else if (item instanceof PDFDict) {
+      queue.push(...item.values());
+    } else if (item instanceof PDFArray) {
+      queue.push(...item.asArray());
+    }
+  }
+  return streams;
+}
+
 function documentText(doc: PDFDocument): string {
   const pieces = pageTexts(doc).filter(Boolean);
   let budget = MAX_STREAM_BYTES;
 
-  for (const [, object] of doc.context.enumerateIndirectObjects()) {
+  for (const object of reachableStreams(doc)) {
     if (budget <= 0) break;
-    if (!(object instanceof PDFRawStream)) continue;
     let bytes: Uint8Array;
     try {
       bytes = decodePDFRawStream(object).decode();
