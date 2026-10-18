@@ -166,6 +166,10 @@ export type NoteCode =
   | 'removed:hidden-sheets'
   /** [F-2.4] Hidden sheets were asked to go and stayed: something reads them. */
   | 'kept:hidden-sheets'
+  /** [F-2.4] Embedded files were removed, on request. */
+  | 'removed:attachments'
+  /** [F-2.4] Annotations were drawn into the page and removed; detail "drawn/removed". */
+  | 'flattened:annotations'
   /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
   | 'changed:nfc'
   /** [C8] Typographic spaces were left as written. */
@@ -204,6 +208,10 @@ export interface InspectOptions {
   removeHiddenSlides?: boolean;
   /** [F-2.4] Cleaning only: remove hidden sheets nothing else refers to. */
   removeHiddenSheets?: boolean;
+  /** [F-2.4] Cleaning only: remove the files a PDF carries. */
+  removeAttachments?: boolean;
+  /** [F-2.4] Cleaning only: draw PDF annotations into their pages and remove them. */
+  flattenAnnotations?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
   /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */

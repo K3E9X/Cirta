@@ -41,6 +41,12 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:attachments': (detail) =>
+    `Removed ${detail ?? 'the'} embedded file${detail === '1' ? '' : 's'}, and the bytes ${detail === '1' ? 'it' : 'they'} held.`,
+  'flattened:annotations': (detail) => {
+    const [drawn, removed] = (detail ?? '0/0').split('/');
+    return `Flattened ${removed} annotation${removed === '1' ? '' : 's'}: ${drawn} drawn into the page as ${drawn === '1' ? 'it' : 'they'} appeared, ${Number(removed) - Number(drawn)} with nothing to show removed — ${Number(removed) - Number(drawn) === 1 ? 'its' : 'their'} text is gone. Authors and comments go with them; links and form fields stay.`;
+  },
   'removed:notes': (detail) =>
     `Removed the speaker notes of ${detail ?? 'the'} slide${detail === '1' ? '' : 's'}, with every reference to them.`,
   'removed:hidden-slides': (detail) =>
@@ -97,6 +103,12 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:attachments': (detail) =>
+    `${detail === '1' ? 'Fichier intégré retiré' : `${detail ?? 'Les'} fichiers intégrés retirés`}, avec les octets qu'${detail === '1' ? 'il contenait' : 'ils contenaient'}.`,
+  'flattened:annotations': (detail) => {
+    const [drawn, removed] = (detail ?? '0/0').split('/');
+    return `${removed} annotation(s) aplatie(s) : ${drawn} dessinée(s) dans la page telle(s) qu'elle(s) apparaissai(en)t, ${Number(removed) - Number(drawn)} sans apparence retirée(s) — leur texte a disparu. Auteurs et commentaires partent avec elles ; liens et champs de formulaire restent.`;
+  },
   'removed:notes': (detail) =>
     `Notes du présentateur retirées sur ${detail ?? 'les'} diapositive${detail === '1' ? '' : 's'}, avec toutes les références vers elles.`,
   'removed:hidden-slides': (detail) =>

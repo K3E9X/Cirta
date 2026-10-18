@@ -352,7 +352,7 @@ export function stripActive(doc: PDFDocument): number {
 }
 
 /** Delete every indirect object the trailer no longer leads to. */
-function pruneUnreachable(doc: PDFDocument): void {
+export function pruneUnreachable(doc: PDFDocument): void {
   const reachable = new Set<string>();
   const queue: unknown[] = [doc.context.trailerInfo.Root, doc.context.trailerInfo.Info];
   let steps = 0;

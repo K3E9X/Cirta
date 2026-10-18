@@ -364,7 +364,11 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
 async function redact(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
   refuseEmpty(data);
   if (isPdf(data)) {
-    const result = await redactPdf(data, { stripActive: options.stripActive });
+    const result = await redactPdf(data, {
+      stripActive: options.stripActive,
+      removeAttachments: options.removeAttachments,
+      flattenAnnotations: options.flattenAnnotations,
+    });
     await assertReadablePdf(result.data!);
     return noteSurvivors(result, hint, options);
   }

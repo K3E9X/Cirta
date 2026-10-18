@@ -23,6 +23,7 @@ import { findSourceTypes } from './sourcetype.js';
 import { XMP_FIELDS, xmpValue } from './xmp.js';
 import { quietly } from './quiet.js';
 import { embeddedFindings, scanActive, stripActive } from './pdf-active.js';
+import { flattenAnnotations, removeAttachments } from './pdf-options.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -1041,10 +1042,14 @@ export interface RedactPdfOptions {
   removeXmp?: boolean;
   /** [F-2.1] Remove scripts, actions, rich media, XFA and embedded files. Default false. */
   stripActive?: boolean;
+  /** [F-2.4] Remove embedded files. Default false. */
+  removeAttachments?: boolean;
+  /** [F-2.4] Draw annotations into their pages and remove them. Default false. */
+  flattenAnnotations?: boolean;
 }
 
 export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}): Promise<RedactResult> {
-  const { removeXmp = true, stripActive: strip = false } = options;
+  const { removeXmp = true, stripActive: strip = false, removeAttachments: dropFiles = false, flattenAnnotations: flatten = false } = options;
 
   const doc = await load(data);
   // [C1] Rewriting a document without its key keeps the ciphertext and drops
@@ -1090,6 +1095,17 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   }
 
   scrubAnnotations(doc);
+
+  // [F-2.4] Annotations drawn into the page first, so that a stamp or a
+  // highlight a reviewer added stays visible once the annotation is gone.
+  if (flatten) {
+    const { drawn, removed } = flattenAnnotations(doc);
+    if (removed) notes.push({ code: 'flattened:annotations', detail: `${drawn}/${removed}` });
+  }
+  if (dropFiles) {
+    const removed = removeAttachments(doc);
+    if (removed) notes.push({ code: 'removed:attachments', detail: String(removed) });
+  }
 
   if (strip) {
     const removed = stripActive(doc);
