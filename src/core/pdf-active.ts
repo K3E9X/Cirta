@@ -14,6 +14,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream, PD
 import type { Finding, InspectResult } from './types.js';
 import { preview } from './types.js';
 import { cleanUrl, trackingFinding } from './tracking.js';
+import { linkFindings } from './links.js';
 
 type Lookup = (value: unknown) => unknown;
 
@@ -249,6 +250,7 @@ export function scanActive(doc: PDFDocument): ActiveScan {
       value: `${file.name} — ${file.data.length} bytes${file.mime ? `, ${file.mime}` : ''}`,
     });
   }
+  findings.push(...linkFindings(uris, 'links'));
   for (const uri of uris) {
     const tracked = trackingFinding(uri, 'links');
     if (tracked) findings.push(tracked);

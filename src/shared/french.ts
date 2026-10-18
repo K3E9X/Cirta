@@ -239,6 +239,9 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Encrypted document': 'Document chiffré',
   'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
+  'Link that runs a script': 'Lien qui exécute un script',
+  'Link to data carried in the address': 'Lien vers des données portées par l’adresse',
+  'Link through an open redirector': 'Lien qui passe par un redirecteur ouvert',
   'Deleted text still in the file (tracked changes)': 'Texte supprimé encore présent (suivi de modifications)',
   'Moved text still at its old place (tracked changes)': 'Texte déplacé encore à son ancienne place (suivi de modifications)',
   'Inserted text not yet accepted (tracked changes)': 'Texte inséré pas encore accepté (suivi de modifications)',
@@ -781,6 +784,8 @@ function translateReasons(value: string): string {
  */
 const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
+  // [F-P2 2.1] Liens piégés.
+  [/^data:(\S+) \(a page, opened as one\)$/, (m) => `data:${m[1]} (une page, ouverte comme telle)`],
   [
     /^(\d+) revisions are present(.*?)\. A reader shows only the newest; the previous ones were appended to, never removed, and the first ends ([\d,]+) bytes in — about (\d+)% of the file\. Text covered or deleted in a later revision is still readable in an earlier one$/,
     (m) =>

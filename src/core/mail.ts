@@ -16,6 +16,7 @@ import { decodeWords, parseMail, type MailPart } from './mime.js';
 import { inspectPlainText } from './plaintext.js';
 import { inspectMarkup } from './markup.js';
 import { findHtmlLinks } from './url.js';
+import { htmlLinkTargets, linkFindings } from './links.js';
 import { remoteFindings } from './beacons.js';
 import { trackingFindings } from './tracking.js';
 import { findResidue } from './residue.js';
@@ -78,6 +79,7 @@ export function partFindings(part: Pick<MailPart, 'type' | 'text'>): Finding[] {
     return [
       ...inspectMarkup(text, 'html'),
       ...findHtmlLinks(text),
+      ...linkFindings(htmlLinkTargets(text), 'links'),
       ...remoteFindings(text, 'document body'),
       ...trackingFindings(text, 'links'),
       // The words of an HTML body are what a recipient reads; the residue an
