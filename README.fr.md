@@ -1336,6 +1336,13 @@ d'autre dans la suite ne le remarquerait. La première conversion sert de témoi
 sait même pas fabriquer l'entrée, le script s'arrête en le disant plutôt qu'en échouant, parce que
 cela ne prouve rien sur le nettoyage. La CI l'exécute sur Linux, après `verify`.
 
+Le corpus : `.docx` et `.odt`, modifications suivies, commentaires, contenu actif, une présentation avec
+notes et diapositive masquée, `.xlsx`, `.ods`, `.pptx`, `.odp` et un PDF — chacun avec un auteur qui doit
+être trouvé, puis absent de la copie nettoyée, que LibreOffice (poppler pour le PDF, s'il est installé)
+doit rouvrir —, un `.doc` et un `.ppt` dont le nettoyage doit être refusé, et deux notebooks validés par
+`nbformat` quand `CIRTA_PYTHON` désigne un Python qui l'a. Un outil absent est annoncé `skip`, jamais
+compté comme réussi.
+
 ```bash
 node scripts/real-files.mjs
 ```

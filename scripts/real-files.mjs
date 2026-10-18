@@ -350,6 +350,55 @@ try {
       }
     }
   }
+  // [F-2.8] A wider corpus, made by LibreOffice: spreadsheets, decks and a PDF, each with an author.
+  // Each must be read (the author found), cleaned (nothing confirmed left) and reopened by a real
+  // implementation: LibreOffice for the packages, poppler's pdfinfo and pdftotext for the PDF.
+  {
+    const META = '<office:meta><meta:initial-creator>Jeanne Dupont</meta:initial-creator><dc:creator>Marc Leroy</dc:creator><dc:title>Budget</dc:title></office:meta>';
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" office:version="1.3"';
+    const flat = (type, body) => `<?xml version="1.0" encoding="UTF-8"?><office:document ${NS} office:mimetype="application/vnd.oasis.opendocument.${type}">${META}<office:body>${body}</office:body></office:document>`;
+    await writeFile(join(dir, 'corpus-sheet.fods'), flat('spreadsheet', '<office:spreadsheet><table:table table:name="F1"><table:table-row><table:table-cell><text:p>Montant 42</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet>'));
+    await writeFile(join(dir, 'corpus-deck.fodp'), flat('presentation', '<office:presentation><draw:page draw:name="p1"/></office:presentation>'));
+    await writeFile(join(dir, 'corpus-text.fodt'), flat('text', '<office:text><text:p>Bonjour le corpus</text:p></office:text>'));
+    const cases = [['corpus-sheet.fods', 'xlsx'], ['corpus-sheet.fods', 'ods'], ['corpus-deck.fodp', 'pptx'], ['corpus-deck.fodp', 'odp'], ['corpus-text.fodt', 'pdf']];
+    let poppler = true;
+    try {
+      await run('pdfinfo', ['-v'], { timeout: 30_000 });
+    } catch {
+      poppler = false;
+    }
+    for (const [source, format] of cases) {
+      const name = `${source.replace(/\.f?od.$/, '')}.${format}`;
+      try {
+        await soffice(['--convert-to', format, '--outdir', dir, join(dir, source)], `corpus-${format}`);
+        const bytes = new Uint8Array(await readFile(join(dir, name)));
+        const report = await inspectFile(bytes, name);
+        const author = report.findings.find((f) => f.label === 'Author' || f.label === 'Initial author')?.value;
+        check(`${name}: read as ${format}, the author found`, report.format === format && author === 'Jeanne Dupont', `${report.format}, ${author}`);
+        const cleaned = await redactFile(bytes, name);
+        const left = (await inspectFile(cleaned.data, name)).findings.filter((f) => f.confidence === 'confirmed');
+        check(`${name}: nothing confirmed survives the clean`, left.length === 0, left.map((f) => `${f.label}: ${f.value}`).join('; '));
+        const cleanName = name.replace(/(\.[^.]+)$/, '.clean$1');
+        await writeFile(join(dir, cleanName), cleaned.data);
+        if (format === 'pdf') {
+          if (!poppler) {
+            console.log(`  skip  ${cleanName}: poppler (pdfinfo, pdftotext) is not installed`);
+            continue;
+          }
+          const info = (await run('pdfinfo', [join(dir, cleanName)], { timeout: 60_000 })).stdout;
+          const text = (await run('pdftotext', [join(dir, cleanName), '-'], { timeout: 60_000 })).stdout;
+          check(`${cleanName}: poppler opens it, no author, the page text intact`, !/Jeanne|Marc/.test(info) && text.includes('Bonjour le corpus'), info.split('\n').filter((l) => /Author|Creator|Producer/.test(l)).join('; '));
+        } else {
+          const out = join(dir, `out-corpus-${format}`);
+          await soffice(['--convert-to', 'pdf', '--outdir', out, join(dir, cleanName)], `out-corpus-${format}`);
+          const pdf = await readFile(join(out, cleanName.replace(/\.[^.]+$/, '.pdf')));
+          check(`${cleanName}: reopens in LibreOffice`, pdf.length > 500, `${pdf.length} bytes`);
+        }
+      } catch (error) {
+        check(`${name}: produced by LibreOffice, cleaned and reopened`, false, String(error).slice(0, 200));
+      }
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }
