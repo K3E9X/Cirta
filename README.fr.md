@@ -783,20 +783,24 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 
 | Support | Retiré | Conservé délibérément |
 |---|---|---|
-| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA, l'auteur et les horodatages de chaque annotation ; avec `--strip-active`, scripts, actions, lancements, envois de formulaire, médias enrichis, XFA et fichiers intégrés — ainsi que les objets qu'ils laissent orphelins, pour qu'aucun script ne reste dans les octets | Le contenu des pages, ce que disent les annotations, et les simples liens web |
+| PDF | **Toutes** les clés `/Info` (y compris personnalisées), le flux `/Metadata` XMP, les manifestes C2PA, l'auteur et les horodatages de chaque annotation ; avec `--strip-active`, scripts, actions, lancements, envois de formulaire, médias enrichis, XFA et fichiers intégrés — ainsi que les objets qu'ils laissent orphelins, pour qu'aucun script ne reste dans les octets. L'`/ID` de fin de fichier écrit par le producteur — une paire d'empreintes qui relie chaque copie à l'original — est remplacé par une empreinte du contenu des pages nettoyées, que l'inspection reconnaît et ne signale pas | Le contenu des pages, ce que disent les annotations, et les simples liens web |
 | PPTX / DOCX / XLSX | Avec `--strip-active` : le projet VBA, un modèle distant, les instructions des champs DDE et INCLUDE distants (le dernier résultat du champ reste comme texte). Toujours : `core.xml`, `app.xml`, propriétés personnalisées, miniature, `rsid`, noms d'auteurs de commentaires (attribut `w:author`, élément `<author>`, `displayName`), Exif des images intégrées, manifestes C2PA | Liens locaux, diapositives masquées, notes du présentateur, noms définis et liens entre classeurs — les retirer transformerait des cellules vivantes en `#REF!`. Objets intégrés et contrôles ActiveX, ancrés dans la mise en page : les retirer l'abîmerait, ils restent donc, nommés |
 | ODT / ODS / ODP | `meta.xml`, propriétés utilisateur, statistiques, miniature, Exif des images, manifestes C2PA | Le contenu |
 | SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
 | HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération | JSON-LD — ce qu'indexe un moteur de recherche |
 | Markdown | Clés de front matter identifiantes ; délimiteurs retirés s'il ne reste rien dedans | Le corps, les autres clés, les lignes d'attribution |
-| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA | JFIF et profil ICC — les retirer changerait le rendu |
-| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA | `IHDR`, `PLTE`, `IDAT`, `IEND` |
-| ZIP | **Rien** — refusé | Repacker changerait compression, ordre et horodatages de tous les membres |
+| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA, **données après la fin de l'image** (une archive accolée, un bloc constructeur). Avec `--reencode-images`, l'image est reconstruite à partir de ses pixels : tout ce qui n'est pas pixel part, l'orientation est appliquée | JFIF et profil ICC — les retirer changerait le rendu |
+| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA, données après `IEND` ; avec `--reencode-images`, tous les blocs sauf l'image et son profil | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
+| ZIP | **Chaque membre** pris en charge, avec les mêmes options, une archive imbriquée à son tour ; recompressés dans leur ordre, chaque membre daté du 1er janvier 1980. **Un seul membre impossible à nettoyer — un programme, un fichier Office ancien, un PDF chiffré — et l'archive est refusée**, en les nommant | L'ordre et les noms des membres |
 | DOC / XLS / PPT / MSG | **Rien** — refusé, avec la raison et la marche à suivre : enregistrer en `.docx`/`.xlsx`/`.pptx` (un message en `.eml`) et nettoyer cette copie | Reconstruire un fichier composite (sa table de secteurs, son répertoire, et pour Word les décalages qui pointent d'un flux à l'autre) n'est pas une chose que cet outil sait vérifier avoir faite sans dommage |
 | Notebook Jupyter | Les métadonnées du notebook sauf le noyau et le langage (Jupyter en a besoin pour l'exécuter), les métadonnées de cellule sauf ce qui change l'affichage (`tags`, `collapsed`, `jupyter`…), les métadonnées de chaque image des sorties et des pièces jointes ; avec `--clear-outputs`, les sorties et les compteurs d'exécution | Les sorties, par défaut : c'est ce que l'auteur a calculé, et ce qu'elles disent encore — un chemin, un compte — est nommé comme toujours présent |
 | Texte | Caractères invisibles ; NFC si les formes sont mêlées ; espaces exotiques seulement avec `--normalize-spaces` | Liants d'emoji et anti-liants persans/indiens |
 | Corps des documents | Caractères invisibles et références numériques équivalentes, dans le texte visible uniquement | Structure XML, noms de balises, attributs, **espaces typographiques** |
 | Corps des PDF | Rien — signalé mais non retirable sans réécrire le flux de contenu | Le texte des pages |
+
+### Même entrée, mêmes octets
+
+Deux nettoyages du même fichier avec les mêmes options donnent les mêmes octets, quelle que soit l'heure : les paquets réécrits datent chaque membre du 1er janvier 1980, l'`/ID` d'un PDF est une empreinte des pages nettoyées, rien n'enregistre l'heure du nettoyage. Une copie nettoyée se vérifie en nettoyant à nouveau l'original et en comparant les empreintes — avec `--manifest`, elles sont écrites.
 
 ### Le nettoyage est mesuré, pas affirmé
 
@@ -869,6 +873,8 @@ sauf si on la donne, et le rapport dit ce qu'elle a changé — ou pourquoi elle
 | `--strip-remote-resources` | Retire images, styles, scripts et cadres chargés depuis le réseau, pixels de suivi compris | HTML, Markdown |
 | `--burn-redactions` | Supprime pour de bon le texte recouvert par une forme : chaque page qui en contient devient une image d'elle-même, et perd donc son texte sélectionnable — le rapport nomme ces pages. Demande le moteur de rendu PDF ; sans lui, le nettoyage est refusé | PDF |
 | `--clear-outputs` | Vide les sorties de chaque cellule et remet son compteur d'exécution à zéro | Notebook Jupyter |
+| `--reencode-images` | Reconstruit l'image à partir de ses pixels décodés : données après la fin, segments et blocs privés, commentaires et miniatures partent ; l'orientation EXIF est appliquée aux pixels et le profil ICC gardé. Demande le canvas natif (la page utilise celui du navigateur) ; sans lui, le nettoyage est refusé. Un PNG sans perte garde chaque valeur de pixel, donc un message dans leurs bits de poids faible survit | JPEG, PNG |
+| `--manifest <fichier>` | Écrit un manifeste de chaîne de traçabilité : SHA-256 et taille avant et après, les constats avant et après **par libellé et emplacement, jamais par valeur**, les options, la version de Cirta et l'heure | Tous |
 
 ```
 cirta redact deck.pptx --remove-notes --remove-hidden-slides
