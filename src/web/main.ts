@@ -26,6 +26,7 @@ import { stylometry } from '../core/stylometry.js';
 import { AIMED_LABEL } from '../core/hidden-text.js';
 import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
 import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
+import { PROFILES, type ProfileName } from '../shared/profiles.js';
 import {
   preview,
   type Confidence,
@@ -937,7 +938,18 @@ function setupFiles(): void {
 
 /** [F-2.7] The advanced cleaning options, remembered in this browser; each new card starts from them. */
 function setupCleanOptions(): void {
-  for (const box of document.querySelectorAll<HTMLInputElement>('#clean-options input[data-clean]')) {
+  const boxes = [...document.querySelectorAll<HTMLInputElement>('#clean-options input[data-clean]')];
+  // [F-P2 2.3] A profile ticks its options and unticks the others, as the command line's --profile sets them.
+  for (const button of document.querySelectorAll<HTMLButtonElement>('#clean-options button[data-profile]')) {
+    button.addEventListener('click', () => {
+      const chosen = PROFILES[button.dataset.profile as ProfileName];
+      for (const box of boxes) {
+        box.checked = chosen.options[box.dataset.clean as CleanKey] === true;
+        box.dispatchEvent(new Event('change'));
+      }
+    });
+  }
+  for (const box of boxes) {
     const key = box.dataset.clean as CleanKey;
     box.checked = cleanState[key] === true;
     box.addEventListener('change', () => {

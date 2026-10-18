@@ -2116,3 +2116,12 @@ textarea.is-cleaned {
   color: var(--ink-2);
   font-style: italic;
 }
+
+/* [F-P2 2.3] Profiles: tick a set of options in one click. */
+.clean-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+}

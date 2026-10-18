@@ -43,6 +43,7 @@ import { parseRules, type Rule } from '../core/rules.js';
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
 import { version } from './version.js';
+import { isProfile, PROFILES } from '../shared/profiles.js';
 import { REPORT_SCHEMA } from '../core/report-schema.js';
 import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
@@ -117,6 +118,7 @@ ${bold(t().options)}
       --burn-redactions ${t().optBurnRedactions}
       --clear-outputs   ${t().optClearOutputs}
       --manifest <file> ${t().optManifest}
+      --profile <name>  ${t().optProfile}
       --reencode-images ${t().optReencodeImages}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
@@ -166,6 +168,7 @@ interface Args {
   removeNotes: boolean;
   clearOutputs: boolean;
   manifest?: string;
+  profile?: string;
   reencodeImages: boolean;
   removeHiddenSlides: boolean;
   removeHiddenSheets: boolean;
@@ -248,6 +251,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--reencode-images':
         args.reencodeImages = true;
+        break;
+      case '--profile':
+        args.profile = argv[++i];
         break;
       case '--manifest':
         args.manifest = argv[++i];
@@ -946,6 +952,18 @@ async function main(): Promise<number> {
   if (!args.command) {
     console.log(help());
     return 1;
+  }
+
+  // [F-P2 2.3] A profile sets the cleaning options and the threshold in one word.
+  // Options given explicitly are added to it; an explicit --fail-on wins.
+  if (args.profile !== undefined) {
+    if (!isProfile(args.profile)) {
+      console.error(red(terminalSafe(t().unknownProfile(args.profile, Object.keys(PROFILES).join(', ')))));
+      return 2;
+    }
+    const chosen = PROFILES[args.profile];
+    for (const [key, value] of Object.entries(chosen.options)) if (value) (args as unknown as Record<string, boolean>)[key] = true;
+    args.failOn ??= chosen.failOn;
   }
 
   // [F-2.3] The organisation's rules, read once; a file that does not read stops the run.

@@ -108,6 +108,8 @@ const FR = {
   outputSingle: '--output n’accepte qu’un seul fichier d’entrée ; utilisez --in-place pour plusieurs.',
   unknownCommand: (cmd: string) => `Commande inconnue : ${cmd}`,
   unknownOption: (opt: string) => `Option inconnue : ${opt}`,
+  unknownProfile: (name: string, known: string) => `Profil inconnu : ${name} (${known})`,
+  optProfile: 'minimal, balanced ou strict : les options de nettoyage et le seuil --fail-on en un mot',
   binaryReasons: {
     signature: 'l’entrée ressemble à un fichier binaire, pas à du texte',
     'nul-bytes': 'l’entrée contient des octets NUL : ce n’est pas du texte',
@@ -329,6 +331,8 @@ const EN: Strings = {
   outputSingle: '--output takes a single input file; use --in-place for several.',
   unknownCommand: (cmd) => `Unknown command: ${cmd}`,
   unknownOption: (opt) => `Unknown option: ${opt}`,
+  unknownProfile: (name, known) => `Unknown profile: ${name} (${known})`,
+  optProfile: 'minimal, balanced or strict: the cleaning options and the --fail-on threshold in one word',
   binaryReasons: {
     signature: 'the input looks like a binary file, not text',
     'nul-bytes': 'the input contains NUL bytes, so it is not text',
