@@ -134,6 +134,26 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
           '{\\field{\\*\\fldinst {INCLUDEPICTURE "https://e.example/p.gif"}}{\\fldrslt {}}}\\par}',
       ),
     ],
+    [
+      'livre.epub',
+      zipSync({
+        mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+        'META-INF/container.xml': strToU8('<container><rootfiles><rootfile full-path="c.opf"/></rootfiles></container>'),
+        'c.opf': strToU8('<package unique-identifier="u"><metadata><dc:identifier id="u">urn:uuid:7f9b7746-eaa4-4454-9edb-73fa9e2e5d56</dc:identifier><dc:title>Livre</dc:title><dc:creator>Jeanne</dc:creator><dc:contributor>Marc</dc:contributor><dc:contributor opf:role="bkp">calibre (6.5.0)</dc:contributor><dc:publisher>Cabinet</dc:publisher><dc:date>2024-03-05</dc:date><meta property="dcterms:modified">2024-03-06T09:05:00Z</meta><meta name="calibre:timestamp" content="2024-03-05"/></metadata></package>'),
+        'toc.ncx': strToU8('<ncx><docAuthor><text>Jeanne</text></docAuthor></ncx>'),
+        'p.xhtml': strToU8('<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Bon​jour</p></body></html>'),
+        'META-INF/calibre_bookmarks.txt': strToU8('x'),
+        'iTunesMetadata.plist': strToU8('<plist/>'),
+      }),
+    ],
+    [
+      'drm.epub',
+      zipSync({
+        mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+        'META-INF/encryption.xml': strToU8('<encryption><EncryptedData><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/><CipherData><CipherReference URI="p.xhtml"/></CipherData></EncryptedData></encryption>'),
+        'p.xhtml': strToU8('x'),
+      }),
+    ],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',

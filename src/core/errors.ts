@@ -22,6 +22,8 @@ export type ErrorCode =
   | 'legacy-not-rewritable'
   /** [F-P2 2.4] Re-encoding pictures was asked for and no codec is available. */
   | 'reencode-unavailable'
+  /** [F-P2 2.2] An EPUB under DRM: its pages cannot be read, so they cannot be cleaned. Detail: the encrypted members. */
+  | 'epub-encrypted'
   /** An empty file. */
   | 'empty-file'
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */

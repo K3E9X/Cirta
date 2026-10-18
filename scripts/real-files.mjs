@@ -444,6 +444,43 @@ try {
   } catch (error) {
     check('source.rtf: produced by LibreOffice, cleaned and reopened', false, String(error).slice(0, 200));
   }
+  // [F-P2 2.2] LibreOffice's own EPUB: cleaned, nothing confirmed left, and every
+  // XML part still well formed (xmllint, where it is installed).
+  try {
+    await soffice(['--convert-to', 'epub', '--outdir', dir, join(dir, 'source.docx')], 'epub');
+    const original = new Uint8Array(await readFile(join(dir, 'source.epub')));
+    const report = await inspectFile(original, 'source.epub');
+    check('source.epub: inspected as epub', report.format === 'epub', report.format);
+    check('source.epub: the generator and the identifier are named', report.findings.some((f) => f.label === 'Producing application' && /LibreOffice/.test(f.value)) && report.findings.some((f) => f.label === 'Book identifier'));
+    const cleaned = await redactFile(original, 'source.epub');
+    const left = (await inspectFile(cleaned.data, 'source.epub')).findings.filter((f) => f.confidence === 'confirmed');
+    check('source.epub: nothing confirmed survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    const members = unzipSync(cleaned.data);
+    check('source.epub: the pages keep their text', Object.entries(members).some(([p, b]) => p.endsWith('.xhtml') && strFromU8(b).includes('Rapport trimestriel')));
+    let xmllint = true;
+    try {
+      await run('xmllint', ['--version']);
+    } catch {
+      xmllint = false;
+      console.log('  skip  source.epub: xmllint is not installed, well-formedness not checked');
+    }
+    if (xmllint) {
+      for (const [path, bytes] of Object.entries(members)) {
+        if (!/\.(?:xhtml|opf|ncx|xml)$/.test(path)) continue;
+        const file = join(dir, `epub-${path.replace(/[/\\]/g, '_')}`);
+        await writeFile(file, bytes);
+        let ok = true;
+        try {
+          await run('xmllint', ['--noout', file]);
+        } catch {
+          ok = false;
+        }
+        check(`source.epub → ${path}: well formed after the clean`, ok);
+      }
+    }
+  } catch (error) {
+    check('source.epub: produced by LibreOffice and cleaned', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

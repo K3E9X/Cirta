@@ -34,6 +34,8 @@ export type Format =
   | 'ipynb'
   /** [F-P2 2.2] Rich Text Format. */
   | 'rtf'
+  /** [F-P2 2.2] An EPUB book. */
+  | 'epub'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -148,6 +150,7 @@ export type NoteCode =
   /** [F-2.2] A Jupyter notebook: metadata, outputs and the pictures in them. */
   | 'scope:notebook'
   | 'scope:rtf'
+  | 'scope:epub'
   /** [F-P2 2.4] The picture was rebuilt from its pixels, on request. */
   | 'reencoded:image'
   /** [F-2.2] A notebook's outputs were removed, on request. */

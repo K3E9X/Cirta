@@ -86,6 +86,7 @@ import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
 import { reencodeImage } from './reencode.js';
 import { isRtf, inspectRtf, redactRtf } from './rtf.js';
+import { isEpub, inspectEpub, redactEpub } from './epub.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -93,7 +94,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, SVG, HTML, Markdown, JPEG and PNG.';
+  'Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG and PNG.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -118,6 +119,7 @@ const isMail = (data: Uint8Array, hint?: string) =>
 function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
   return (
     isOdf(parts) ||
+    isEpub(parts) ||
     Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'])
   );
 }
@@ -184,6 +186,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
     try {
       const parts = unzipGuarded(data);
       if (isOdf(parts)) return 'odt'; // refined by inspectOdf
+      if (isEpub(parts)) return 'epub';
       if (parts['word/document.xml']) return 'docx';
       if (parts['ppt/presentation.xml']) return 'pptx';
       if (parts['xl/workbook.xml']) return 'xlsx';
@@ -312,6 +315,7 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return inspectArchive(data, options);
+    if (isEpub(parts)) return inspectEpub(data, options);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
   }
   if (isCfb(data)) {
@@ -419,7 +423,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 /** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
-const MEMBER_REFUSALS = new Set(['unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+const MEMBER_REFUSALS = new Set(['epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
 
 /**
  * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
@@ -505,6 +509,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return noteSurvivors(await redactArchive(data, options, 0), hint, options);
+    if (isEpub(parts)) return noteSurvivors(await redactEpub(data, { removeHidden: options.removeHidden, stripTracking: options.stripTracking }), hint, options);
     return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets, stripTracking: options.stripTracking }), hint, options);
   }
 

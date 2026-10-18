@@ -44,6 +44,13 @@ const FIELD_LABEL: Record<string, string> = {
   Template: 'Modèle',
   'Hyperlink base': 'Base des liens hypertexte',
   'Last backup': 'Dernière sauvegarde',
+  Contributor: 'Contributeur',
+  Publisher: 'Éditeur',
+  'Book identifier': 'Identifiant du livre',
+  'Calibre metadata': 'Métadonnées calibre',
+  'Reading position saved by calibre': 'Position de lecture enregistrée par calibre',
+  'Purchase record (Apple Books)': 'Trace d’achat (Apple Books)',
+  'Encrypted content (DRM)': 'Contenu chiffré (DRM)',
   'Total editing time': 'Temps d’édition total',
   'Custom properties': 'Propriétés personnalisées',
   'Embedded thumbnail': 'Miniature intégrée',
@@ -415,6 +422,7 @@ const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
   [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
+  [/^document body \((.+)\)$/, (m) => `corps du document (${m[1]})`],
 ];
 
 /** Locations the core states in prose rather than as a path or a field name. */
@@ -990,6 +998,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
     fr: `Ce fichier n’a pas pu être lu${detail ? ` : ${detail}` : '.'}`,
+  }),
+  'epub-encrypted': (detail) => ({
+    en: `This book is encrypted (DRM)${detail ? `: ${detail}` : ''}. Its pages cannot be read without the key, so they cannot be cleaned, and it is not rewritten.`,
+    fr: `Ce livre est chiffré (DRM)${detail ? ` : ${detail}` : ''}. Ses pages sont illisibles sans la clé, elles ne peuvent donc pas être nettoyées, et il n’est pas réécrit.`,
   }),
   'encrypted-pdf': () => ({
     en: 'This PDF is encrypted. Cleaning it would need its key; without one the copy would be unreadable, so it is not attempted. Remove the protection in the application that set it, then clean the result.',
