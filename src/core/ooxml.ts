@@ -27,6 +27,7 @@ import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked
 import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
 import { activeOfficeFindings, stripActiveOffice } from './ooxml-active.js';
 import { workbookActiveFindings } from './xlsx-active.js';
+import { removeHiddenSheets, removeHiddenSlides, removeNotes } from './content-options.js';
 import {
   getElementText,
   setElementText,
@@ -675,6 +676,10 @@ export interface RedactOoxmlOptions {
   removeComments?: boolean;
   /** [F-2.1] Remove macros, remote templates and fields that run or fetch. Default false. */
   stripActive?: boolean;
+  /** [F-2.4] Remove speaker notes, hidden slides, hidden sheets. Default false. */
+  removeNotes?: boolean;
+  removeHiddenSlides?: boolean;
+  removeHiddenSheets?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -803,6 +808,9 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     acceptChanges = false,
     removeComments = false,
     stripActive = false,
+    removeNotes: dropNotes = false,
+    removeHiddenSlides: dropHiddenSlides = false,
+    removeHiddenSheets: dropHiddenSheets = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -886,6 +894,22 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   if (removeComments) {
     const removed = removeAllComments(parts);
     if (removed) notes.push({ code: 'removed:comments', detail: String(removed) });
+  }
+
+  // [F-2.4] Content that goes only when asked. Hidden slides first: their
+  // notes leave with them, and are not counted twice.
+  if (dropHiddenSlides && format === 'pptx') {
+    const removed = removeHiddenSlides(parts, removePart);
+    if (removed) notes.push({ code: 'removed:hidden-slides', detail: String(removed) });
+  }
+  if (dropNotes && format === 'pptx') {
+    const removed = removeNotes(parts, removePart);
+    if (removed) notes.push({ code: 'removed:notes', detail: String(removed) });
+  }
+  if (dropHiddenSheets && format === 'xlsx') {
+    const { removed, refused } = removeHiddenSheets(parts, removePart);
+    if (removed) notes.push({ code: 'removed:hidden-sheets', detail: String(removed) });
+    if (refused.length) notes.push({ code: 'kept:hidden-sheets', detail: refused.join(', ') });
   }
 
   if (stripActive) {

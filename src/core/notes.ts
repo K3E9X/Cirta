@@ -41,6 +41,14 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:notes': (detail) =>
+    `Removed the speaker notes of ${detail ?? 'the'} slide${detail === '1' ? '' : 's'}, with every reference to them.`,
+  'removed:hidden-slides': (detail) =>
+    `Removed ${detail ?? 'the'} hidden slide${detail === '1' ? '' : 's'}, with ${detail === '1' ? 'its' : 'their'} notes and ${detail === '1' ? 'its' : 'their'} place in the slide list, sections and custom shows.`,
+  'removed:hidden-sheets': (detail) =>
+    `Removed ${detail ?? 'the'} hidden sheet${detail === '1' ? '' : 's'}. Nothing else in the workbook referred to ${detail === '1' ? 'it' : 'them'}.`,
+  'kept:hidden-sheets': (detail) =>
+    `Hidden sheets kept: ${detail ?? 'they'} — a formula, a defined name or a chart reads them, and removing them would turn cells into #REF!. Delete them in Excel, where the references can be fixed, then clean again.`,
   'removed:remote-resources': (detail) =>
     `Removed ${detail ?? 'the'} remote resource${detail === '1' ? '' : 's'} — pictures, styles, scripts and frames fetched from a server when the document is opened, tracking pixels included. A Markdown image keeps its description as text.`,
   'removed:active-content': (detail) =>
@@ -89,6 +97,14 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:notes': (detail) =>
+    `Notes du présentateur retirées sur ${detail ?? 'les'} diapositive${detail === '1' ? '' : 's'}, avec toutes les références vers elles.`,
+  'removed:hidden-slides': (detail) =>
+    `${detail === '1' ? 'Diapositive masquée retirée' : `${detail ?? 'Les'} diapositives masquées retirées`}, avec leurs notes et leur place dans la liste des diapositives, les sections et les diaporamas personnalisés.`,
+  'removed:hidden-sheets': (detail) =>
+    `${detail === '1' ? 'Feuille masquée retirée' : `${detail ?? 'Les'} feuilles masquées retirées`}. Rien d'autre dans le classeur n'y faisait référence.`,
+  'kept:hidden-sheets': (detail) =>
+    `Feuilles masquées conservées : ${detail ?? 'elles'} — une formule, un nom défini ou un graphique les lit, et les retirer changerait des cellules en #REF!. Supprimez-les dans Excel, où les références peuvent être corrigées, puis nettoyez à nouveau.`,
   'removed:remote-resources': (detail) =>
     `${detail === '1' ? 'Ressource distante retirée' : `${detail ?? 'Les'} ressources distantes retirées`} — images, styles, scripts et cadres chargés depuis un serveur à l'ouverture du document, pixels de suivi compris. Une image Markdown garde sa description en texte.`,
   'removed:active-content': (detail) =>
