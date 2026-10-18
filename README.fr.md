@@ -1272,7 +1272,14 @@ XML et punycode.
 npm run fuzz                                  # passe courte
 node scripts/fuzz.mjs --iterations 12000 --seed 31337
 node scripts/fuzz.mjs --target pdf
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
 ```
+
+Les parseurs ajoutés ensuite — fichiers composites (Office ancien, Outlook), jeux de propriétés OLE,
+enregistrements PowerPoint, courrier MIME, IFD Exif, fichier de règles, recherche de données
+personnelles, notebooks — sont fuzzés par `test/fuzz-parsers.test.ts`, dans `npm test`, à partir de
+graines construites par les helpers de test ; un mutateur renvoie des décalages vers des positions
+antérieures, ce qui fait boucler les formats chaînés par décalage.
 
 Sans dépendance, par mutation : des fichiers valides sont construits, puis on
 inverse des bits, on tronque, on recolle, on répète, et on écrase les champs de

@@ -1199,7 +1199,13 @@ CBOR, JUMBF, image containers, XML and punycode.
 npm run fuzz                                  # a short run
 node scripts/fuzz.mjs --iterations 12000 --seed 31337
 node scripts/fuzz.mjs --target pdf
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
 ```
+
+The parsers added later — compound files (legacy Office, Outlook), OLE property sets, PowerPoint
+records, MIME mail, Exif IFDs, the rules file, the personal-data scan, notebooks — are fuzzed by
+`test/fuzz-parsers.test.ts`, inside `npm test`, from seeds the test helpers build; one mutator aims
+offsets back at earlier positions, which is how offset-chained formats loop.
 
 It is dependency-free and mutation-based: valid files are built, then bit-flipped,
 truncated, spliced, repeated, and had their length fields overwritten with the
