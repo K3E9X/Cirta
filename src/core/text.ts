@@ -361,6 +361,26 @@ export interface TextScan {
  * variation-selector byte encodings. Returns printable payloads only, so that
  * incidental emoji modifiers do not produce noise.
  */
+const isTag = (cp: number) => cp >= 0xe0000 && cp <= 0xe007f;
+const isSelector = (cp: number) => (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef);
+
+const SMUGGLERS = [
+  { has: isTag, label: 'Tag characters', location: 'U+E0000–U+E007F', decodedAs: 'tag characters' },
+  { has: isSelector, label: 'Variation selectors', location: 'U+FE00–U+FE0F, U+E0100–U+E01EF', decodedAs: 'variation selectors' },
+];
+
+/** Text a payload may be: printable, in any script, with ordinary whitespace. */
+const READABLE = /^[\P{C}\t\n\r]+$/u;
+
+function utf8(bytes: number[]): string | undefined {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes));
+    return READABLE.test(text) && /[\p{L}\p{N}]/u.test(text) ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function decodePayloads(codepoints: number[]): string[] {
   const out: string[] = [];
 
@@ -372,19 +392,17 @@ function decodePayloads(codepoints: number[]): string[] {
     if (/^[\x20-\x7e\s]+$/.test(text)) out.push(`tag characters → "${text}"`);
   }
 
-  // Variation-selector encoding: byte b → U+FE00+b (b<16) or U+E0100+(b-16).
-  const vsBytes: number[] = [];
-  for (const cp of codepoints) {
-    if (cp >= 0xfe00 && cp <= 0xfe0f) vsBytes.push(cp - 0xfe00);
-    else if (cp >= 0xe0100 && cp <= 0xe01ef) vsBytes.push(cp - 0xe0100 + 16);
-  }
-  if (vsBytes.length >= 3) {
-    try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(vsBytes));
-      if (/^[\x20-\x7e\s]+$/.test(text)) out.push(`variation selectors → "${text}"`);
-    } catch {
-      // Not valid UTF-8; the selectors are presentational rather than a payload.
-    }
+  // Variation-selector encoding: byte b → U+FE00+b (b<16) or U+E0100+(b-16),
+  // the common scheme. [C11.4] Some encoders skip the offset and write
+  // U+E0100+b, which only reaches bytes up to 239 but covers ASCII; when the
+  // first reading is not text, the second is tried. Neither is reported unless
+  // it decodes to readable UTF-8: otherwise the selectors are presentational.
+  const selectors = codepoints.filter(isSelector);
+  if (selectors.length >= 3) {
+    const common = selectors.map((cp) => (cp <= 0xfe0f ? cp - 0xfe00 : cp - 0xe0100 + 16));
+    const offsetless = selectors.map((cp) => (cp <= 0xfe0f ? cp - 0xfe00 : cp - 0xe0100));
+    const text = utf8(common) ?? utf8(offsetless);
+    if (text) out.push(`variation selectors → "${text}"`);
   }
 
   out.push(...decodeZeroWidth(codepoints));
@@ -795,6 +813,25 @@ export function scanText(input: string): TextScan {
   }
 
   const findings: Finding[] = [];
+  const decoded = decodePayloads(carriers);
+  // [C11.2] Tag characters and variation selectors spell things one
+  // codepoint per byte; reported one line per distinct codepoint, a single
+  // smuggled sentence came out as fifteen rows. One row per family, with the
+  // total and what it reads.
+  for (const smuggler of SMUGGLERS) {
+    const members = [...counts].filter(([cp]) => smuggler.has(cp));
+    if (!members.length) continue;
+    const total = members.reduce((sum, [, n]) => sum + n, 0);
+    const payload = decoded.find((line) => line.startsWith(`${smuggler.decodedAs} → `));
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'confirmed',
+      location: smuggler.location,
+      label: smuggler.label,
+      value: `${total} character${total > 1 ? 's' : ''} (${members.length} distinct)${payload ? ` — read ${payload.slice(smuggler.decodedAs.length + 3)}` : ''}`,
+    });
+    for (const [cp] of members) counts.delete(cp);
+  }
   for (const [cp, count] of [...counts].sort((a, b) => b[1] - a[1])) {
     const name = EXOTIC_SPACES.get(cp) ?? describe(cp);
     findings.push({
@@ -831,7 +868,7 @@ export function scanText(input: string): TextScan {
   findings.push(...findWhitespaceChannels(input));
   findings.push(...findControlCharacters(input));
 
-  return { findings, decoded: decodePayloads(carriers) };
+  return { findings, decoded };
 }
 
 export interface CleanTextOptions {

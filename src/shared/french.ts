@@ -156,6 +156,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Text a browser does not render': 'Texte qu’un navigateur n’affiche pas',
+  'Tag characters': 'Caractères d’étiquette (tag)',
+  'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Encrypted document': 'Document chiffré',
   'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
@@ -428,6 +430,11 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
     (m) => `${m[1]} diapositive(s) masquée(s), toujours présentes dans le fichier`,
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
+  // [C11.2] One line per smuggling family.
+  [
+    /^(\d+) characters? \((\d+) distinct\)(?: — read ([\s\S]*))?$/,
+    (m) => `${m[1]} caractère(s) (${m[2]} distinct(s))${m[3] ? ` — se lit ${m[3]}` : ''}`,
+  ],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [
