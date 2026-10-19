@@ -79,7 +79,7 @@ function ensureWorker(): Worker {
  * this browser only. Storage can be refused (private browsing, blocked site
  * data); the choices then last for the visit, and nothing breaks.
  */
-const STORE = { pii: 'cirta.pii', rules: 'cirta.rules', rulesName: 'cirta.rules.name' };
+const STORE = { pii: 'cirta.pii', rules: 'cirta.rules', rulesName: 'cirta.rules.name', theme: 'cirta.theme' };
 const stored = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
@@ -774,6 +774,18 @@ const sources = new WeakMap<SessionEntry, File>();
 /** What the last batch clean said, shown again when the summary is redrawn. */
 let batchStatus: { text: string; error?: boolean } | undefined;
 
+/**
+ * [F-P3 2.7] Says a result out loud, through the page's one status region.
+ * Emptied first, so the same sentence twice — two clean texts in a row — is
+ * announced twice rather than taken for no change.
+ */
+function announce(text: string): void {
+  const region = document.querySelector<HTMLElement>('#announce');
+  if (!region) return;
+  region.textContent = '';
+  requestAnimationFrame(() => (region.textContent = text));
+}
+
 /** Tally and export, refreshed after each file resolves. */
 function renderSummary(anchor: HTMLElement): void {
   const done = session.filter((entry) => entry.result || entry.error);
@@ -796,6 +808,7 @@ function renderSummary(anchor: HTMLElement): void {
   if (failures) parts.push(t().failureCount(failures));
 
   const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
+  announce(parts.join(' · '));
   const button = el('button', 'button button-small', t().exportReport);
   button.addEventListener('click', () => {
     const json = JSON.stringify(done.map(({ file, path, result, error }) => ({ file: path === file ? file : path, result, error })), null, 2);
@@ -1024,12 +1037,11 @@ function setupFiles(): void {
     folder.value = '';
   });
 
+  // [F-P3 2.7] The zone opens the picker on a click, for the mouse; the keyboard has #file-pick.
   dropzone.addEventListener('click', () => input.click());
-  dropzone.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      input.click();
-    }
+  must<HTMLButtonElement>('#file-pick').addEventListener('click', (event) => {
+    event.stopPropagation();
+    input.click();
   });
   input.addEventListener('change', () => {
     accept(input.files);
@@ -1193,6 +1205,7 @@ function setupText(): void {
     }
     const findings = inspectClipboardHtml(html);
     const node = card(t().clipboardTitle, undefined, findings.length ? t().itemCount(findings.length) : undefined);
+    announce(`${t().clipboardTitle} — ${findings.length ? t().itemCount(findings.length) : t().clipboardClean}`);
     if (findings.length) {
       node.append(findingsTable(findings));
       node.append(el('p', 'note', t().clipboardNote));
@@ -1208,11 +1221,9 @@ function setupText(): void {
     // enregistré nommait l'assistant, collé ici il ne montrait que ses
     // caractères bizarres.
     const findings = inspectPlainText(input.value);
-    const node = card(
-      t().scanTitle,
-      undefined,
-      findings.length ? t().itemCount(findings.length) : t().textFound,
-    );
+    const badge = findings.length ? t().itemCount(findings.length) : t().textFound;
+    const node = card(t().scanTitle, undefined, badge);
+    announce(`${t().scanTitle} — ${badge}`);
     node.append(provenanceBanner(findings));
     if (findings.length === 0) {
       node.append(el('p', 'empty', t().textNothing));
@@ -1238,15 +1249,13 @@ function setupText(): void {
     // The count covers everything the clean took out, not only characters: a
     // header reading "nothing to remove" above "Markdown removed" contradicted
     // the card it sat on.
-    const node = card(
-      t().cleanTitle,
-      undefined,
-      result.removed.length
-        ? t().removedCount(result.removed.length)
-        : result.markdownRemoved || result.headersRemoved.length || result.spacesReplaced || result.recomposed
-          ? t().formattingRemoved
-          : t().nothingToRemove,
-    );
+    const badge = result.removed.length
+      ? t().removedCount(result.removed.length)
+      : result.markdownRemoved || result.headersRemoved.length || result.spacesReplaced || result.recomposed
+        ? t().formattingRemoved
+        : t().nothingToRemove;
+    const node = card(t().cleanTitle, undefined, badge);
+    announce(`${t().cleanTitle} — ${badge}`);
     if (result.removed.length === 0) {
       node.append(el('p', 'empty', t().textNoInvisible));
     } else {
@@ -1376,7 +1385,41 @@ function setupLanguage(): void {
   });
 }
 
+/**
+ * [F-P3 2.7] Auto, light, dark. The page's inline script already applied a
+ * stored choice before first paint; this keeps the switch, the stored value and
+ * the browser's own colour for its toolbar in step with it.
+ */
+function setupTheme(): void {
+  type Theme = 'auto' | 'light' | 'dark';
+  const button = must<HTMLButtonElement>('#theme-toggle');
+  const root = document.documentElement;
+  const next: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' };
+  const metas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
+  const system = metas.map((meta) => meta.content);
+  const toolbar: Record<'light' | 'dark', string> = { light: '#ffffff', dark: '#0b0b0a' };
+  const current = (): Theme => (root.dataset['theme'] === 'light' || root.dataset['theme'] === 'dark' ? root.dataset['theme'] : 'auto');
+
+  const apply = (theme: Theme) => {
+    if (theme === 'auto') delete root.dataset['theme'];
+    else root.dataset['theme'] = theme;
+    metas.forEach((meta, at) => (meta.content = theme === 'auto' ? (system[at] ?? '') : toolbar[theme]));
+    // The prefix gives way on a narrow screen but stays in the button's name.
+    button.replaceChildren(el('span', 'theme-prefix', t().themePrefix), t().themeLabel[theme]);
+    button.title = t().themeTitle;
+  };
+
+  apply(current());
+  button.addEventListener('click', () => {
+    const theme = next[current()];
+    apply(theme);
+    store(STORE.theme, theme === 'auto' ? null : theme);
+  });
+  document.addEventListener('cirta:language', () => apply(current()));
+}
+
 setupLanguage();
+setupTheme();
 setupTabs();
 setupFiles();
 setupScanOptions();

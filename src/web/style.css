@@ -39,6 +39,8 @@
   --warn: #8a6100;
   --warn-wash: #fdf4df;
   --danger: #b3271e;
+  /* Inline code and keys: the paper in light, a step above it in dark. */
+  --code: var(--paper);
 
   --r: 6px;
   --shell: 74rem;
@@ -50,8 +52,19 @@
     "Liberation Mono", monospace;
 }
 
+/*
+ * [F-P3 2.7] Dark follows the system unless the reader chose a theme with the
+ * switch in the header, which sets data-theme on the root. The two dark blocks
+ * hold the same colours; test/theme.test.ts keeps them from drifting apart.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
     --bg: #0b0b0a;
     --paper: #141413;
     --ink: #f4f1ea;
@@ -65,7 +78,27 @@
     --warn: #e0ab4a;
     --warn-wash: #241d0f;
     --danger: #f08073;
+    --code: #1c1b19;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b0b0a;
+  --paper: #141413;
+  --ink: #f4f1ea;
+  --ink-2: #9a948a;
+  --line: #262521;
+  --line-2: #3d3b34;
+  --accent: #ff8347;
+  --on-accent: #0b0b0a;
+  --accent-wash: #1f1511;
+  --ok: #68c48b;
+  --warn: #e0ab4a;
+  --warn-wash: #241d0f;
+  --danger: #f08073;
+  --code: #1c1b19;
 }
 
 *,
@@ -93,6 +126,24 @@ body {
   font: 1rem/1.65 var(--sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/*
+ * [F-P3 2.7] The attribute wins over any class: .button's display showed the
+ * rules' « Forget » button with nothing to forget, and Tab stopped on it.
+ */
+[hidden] {
+  display: none !important;
+}
+
+/* [F-P3 2.7] Read by a screen reader, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 :focus-visible {
@@ -234,18 +285,11 @@ h3 {
 code,
 kbd {
   font: 0.86em var(--mono);
-  background: var(--paper);
+  background: var(--code);
   border: 1px solid var(--line);
   padding: 0.08em 0.32em;
   border-radius: 3px;
   white-space: nowrap;
-}
-
-@media (prefers-color-scheme: dark) {
-  code,
-  kbd {
-    background: #1c1b19;
-  }
 }
 
 /*
@@ -349,6 +393,23 @@ pre code {
 .lang-toggle:hover {
   color: var(--ink);
   border-color: var(--accent);
+}
+
+/*
+ * [F-P3 2.7] Under 24rem the header ran 35px wider than a 320px screen in
+ * French. The theme switch then shows only its value; the word « Thème » is
+ * hidden from sight, not from a screen reader, so the name still says what the
+ * button is about.
+ */
+@media (max-width: 23.99rem) {
+  .theme-prefix {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* ----------------------------------------------------------------- hero -- */
@@ -637,7 +698,7 @@ pre code {
 }
 
 .dropzone:hover,
-.dropzone:focus-visible,
+.dropzone:focus-within,
 .dropzone.is-active {
   border-color: var(--accent);
   background: var(--accent-wash);
@@ -645,7 +706,7 @@ pre code {
 }
 
 .dropzone:hover::before,
-.dropzone:focus-visible::before,
+.dropzone:focus-within::before,
 .dropzone.is-active::before {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
@@ -688,6 +749,8 @@ textarea {
 
 textarea:focus-visible {
   border-color: var(--accent);
+  /* [F-P3 2.7] A one-pixel colour change alone was too faint a focus. */
+  box-shadow: 0 0 0 1px var(--accent);
   outline: none;
 }
 
@@ -736,8 +799,16 @@ textarea:focus-visible {
   white-space: pre-line;
 }
 
+.dropzone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .dropzone-folder {
-  margin-top: 0.6rem;
   padding: 0.2rem 0.5rem;
   border: 0;
   background: none;

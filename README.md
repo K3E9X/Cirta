@@ -999,8 +999,31 @@ everything still works. The service worker is the one piece that fetches, and on
 files, the ones the browser loads anyway — `test/no-network.test.ts` names that single call and the
 guard before it.
 
+**Accessibility.** Every control is reached with the keyboard and shows where the focus is. The drop
+zone takes a drop or a click; beside it, « Choose files » and « or a whole folder » are real buttons.
 The tabs follow ARIA practice: one stop in the tab order, arrow keys (and <kbd>Home</kbd>/<kbd>End</kbd>)
-move between them.
+move between them. The result cards appear silently, so a status region says what came of the work —
+the files' summary line, what an analysis or a clean of pasted text found. Labels follow the language
+switch. At 320px wide nothing scrolls sideways, which is what a 1280px window zoomed to 400 % shows.
+
+**Light and dark.** The page follows the system. The « Theme » switch in the header forces light or dark,
+and the choice is kept in this browser. It is applied before the page is drawn, by the one inline
+script the policy allows by its hash, so a page set to light does not flash dark first.
+
+`scripts/a11y.mjs` audits the built site: axe-core in Chromium, both languages, light and dark from the
+system and each one forced against it, with results on screen and every section open; then the
+keyboard walk, the announcements, the theme and the 320px width. CI runs it on every push. It needs two
+packages Cirta does not depend on, installed for the run only:
+
+```bash
+npm run build:web
+npm install --no-save playwright@1.56.1 axe-core@4.10.3
+npx playwright install chromium
+node scripts/a11y.mjs
+```
+
+An automated audit is not a screen-reader session: what a screen reader actually says has not been
+tested.
 
 To run it locally:
 

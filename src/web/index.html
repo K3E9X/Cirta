@@ -30,15 +30,22 @@
     <!--
       Set before first paint, so the hero's chips start hidden instead of
       showing for a frame and then vanishing when the reading line begins. It
-      is the only inline script, it reads one media query and touches one
-      attribute, and it makes no request of any kind. Skipped when the reader
-      has asked for reduced motion, which leaves every chip visible from the
-      start.
+      is the only inline script, it reads one media query and one stored
+      choice, touches two attributes, and makes no request of any kind. The
+      motion class is skipped when the reader has asked for reduced motion,
+      which leaves every chip visible from the start. [F-P3 2.7] The theme the
+      reader chose, if any, is applied here too, so that a page set to light
+      does not flash dark on a dark system; storage can be refused, and the
+      page then follows the system.
     -->
     <script>
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
         document.documentElement.classList.add('motion');
       }
+      try {
+        var theme = localStorage.getItem('cirta.theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+      } catch (refused) {}
     </script>
   </head>
   <body>
@@ -66,11 +73,18 @@
           <a href="#cli"><span data-lang="fr">Ligne de commande</span><span data-lang="en">Command line</span></a>
         </nav>
         <div class="nav-end">
+          <button id="theme-toggle" class="lang-toggle" type="button"><span class="theme-prefix"><span data-lang="fr">Thème : </span><span data-lang="en">Theme: </span></span>auto</button>
           <button id="lang-toggle" class="lang-toggle" type="button">English</button>
         </div>
       </div>
     </header>
 
+    <!--
+      [F-P3 2.7] One main landmark from the hero to the last section. The hero
+      and the figures sat outside every landmark, so a screen reader moving
+      from landmark to landmark never reached them.
+    -->
+    <main>
     <!-- ------------------------------------------------------------ hero -- -->
 
     <section class="hero" id="top">
@@ -169,7 +183,6 @@
 
     <!-- ------------------------------------------------------------ tool -- -->
 
-    <main>
       <section class="band" id="outil">
         <div class="shell row">
           <p class="eyebrow"><span class="eyebrow-index">01</span> — <span data-lang="fr">Analyse</span><span data-lang="en">Inspect</span></p>
@@ -186,6 +199,13 @@
             </p>
 
             <div class="tool">
+              <!--
+                [F-P3 2.7] What a screen reader hears when a result lands: the
+                cards appear silently below, and without this a blind reader had
+                to go looking for them. Outside both panels, since a region in a
+                hidden tab is not read. Filled by main.ts in the page's language.
+              -->
+              <p id="announce" class="visually-hidden" role="status"></p>
               <nav class="tabs" role="tablist">
                 <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
                   <span data-lang="fr">Documents</span><span data-lang="en">Documents</span>
@@ -196,12 +216,21 @@
               </nav>
 
               <section id="panel-files" class="panel" role="tabpanel" aria-labelledby="tab-files">
-                <div id="dropzone" class="dropzone" tabindex="0" role="button">
+                <div id="dropzone" class="dropzone">
                   <p class="dropzone-title" data-lang="fr">Déposez un document</p>
                   <p class="dropzone-title" data-lang="en">Drop a document</p>
                   <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, VSDX, ODT, ODS, ODP, DOC, XLS, PPT, RTF, EPUB, SVG, HTML, Markdown, LaTeX, JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, MP4, MOV, M4A, MP3, WAV, ZIP, TAR, GZ, 7Z, e-mails (.eml, .msg), agendas et contacts (.ics, .vcf), notebooks Jupyter, et tout fichier texte ou source</p>
                   <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, VSDX, ODT, ODS, ODP, DOC, XLS, PPT, RTF, EPUB, SVG, HTML, Markdown, LaTeX, JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, MP4, MOV, M4A, MP3, WAV, ZIP, TAR, GZ, 7Z, email (.eml, .msg), calendars and contacts (.ics, .vcf), Jupyter notebooks, and any text or source file</p>
-                  <button type="button" id="folder-pick" class="dropzone-folder"><span data-lang="fr">ou un dossier entier</span><span data-lang="en">or a whole folder</span></button>
+                  <!--
+                    [F-P3 2.7] The zone takes a drop and a click; the keyboard and
+                    a screen reader get real buttons. A zone that was itself a
+                    button, with a button inside it, was announced as one control
+                    and the inner one could not be told apart.
+                  -->
+                  <div class="dropzone-actions">
+                    <button type="button" id="file-pick" class="button button-small"><span data-lang="fr">Choisir des fichiers</span><span data-lang="en">Choose files</span></button>
+                    <button type="button" id="folder-pick" class="dropzone-folder"><span data-lang="fr">ou un dossier entier</span><span data-lang="en">or a whole folder</span></button>
+                  </div>
                   <input type="file" id="folder-input" webkitdirectory multiple hidden />
                   <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.pptm,.docm,.xlsm,.vsdx,.vsdm,.odt,.ods,.odp,.doc,.xls,.ppt,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.webp,.gif,.tif,.tiff,.heic,.heif,.avif,.mp4,.m4v,.mov,.m4a,.3gp,.mp3,.wav,.zip,.tar,.tgz,.gz,.7z,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.msg,.json,.ipynb,.rtf,.tex,.ltx,.sty,.cls,.bib,.ics,.ifb,.vcf,.vcard,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
                 </div>
@@ -225,8 +254,8 @@
                 <details class="clean-options" id="clean-options">
                   <summary><span data-lang="fr">Options avancées</span><span data-lang="en">Advanced options</span></summary>
                   <p class="clean-options-intro"><span data-lang="fr">Les métadonnées sont toujours retirées. Ces choix changent le contenu : ils sont décochés par défaut, s’appliquent aux fichiers où ils ont un sens, et chaque fiche dit ce que fera le téléchargement avant qu’il ait lieu. Ils restent dans ce navigateur.</span><span data-lang="en">Metadata is always removed. These choices change the content: they are off by default, apply to the files where they make sense, and each card says what the download will do before it happens. They stay in this browser.</span></p>
-                  <div class="clean-profiles" role="group" aria-label="Profils">
-                    <span><span data-lang="fr">Profil :</span><span data-lang="en">Profile:</span></span>
+                  <div class="clean-profiles" role="group" aria-labelledby="clean-profiles-label">
+                    <span id="clean-profiles-label"><span data-lang="fr">Profil :</span><span data-lang="en">Profile:</span></span>
                     <button type="button" class="button button-small" data-profile="minimal"><span data-lang="fr">Minimal</span><span data-lang="en">Minimal</span></button>
                     <button type="button" class="button button-small" data-profile="balanced"><span data-lang="fr">Équilibré</span><span data-lang="en">Balanced</span></button>
                     <button type="button" class="button button-small" data-profile="strict"><span data-lang="fr">Strict</span><span data-lang="en">Strict</span></button>
