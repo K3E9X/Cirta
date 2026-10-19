@@ -32,7 +32,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { Finding } from './types.js';
 import { preview } from './types.js';
-import { AIMED_LABEL, CONTRAST, HIDDEN_LABEL, TINY_PT, aimedAtModel, type HiddenHow } from './hidden-text.js';
+import { CONTRAST, HIDDEN_LABEL, TINY_PT, hiddenPurpose, type HiddenHow } from './hidden-text.js';
 import { quietly } from './quiet.js';
 
 /* ---------------------------------------------------------- the engine -- */
@@ -600,14 +600,14 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
     const k = `${page}\u0000${run.how}\u0000${run.text}`;
     if (seen.has(k) || !run.text) return false;
     seen.add(k);
-    const aimed = aimedAtModel(run.text);
-    // An order to a model in half-point type is no less certain for being small.
-    const certain = (aimed || (run.how !== 'tiny' && run.how !== 'faint')) && !doubtful.includes(page);
+    // [P0-2] An order to a model, or a pile of keywords, in half-point type is no less certain for being small.
+    const purpose = hiddenPurpose(run.text);
+    const certain = (purpose !== undefined || (run.how !== 'tiny' && run.how !== 'faint')) && !doubtful.includes(page);
     findings.push({
       kind: 'invisible-character',
       confidence: certain ? 'confirmed' : 'probable',
       location: `page ${page}`,
-      label: aimed ? AIMED_LABEL : LABEL[run.how],
+      label: purpose ?? LABEL[run.how],
       value: preview(run.text, 160),
     });
     return true;
@@ -644,7 +644,7 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
             regions.push({
               page: n,
               how: run.how,
-              label: aimedAtModel(run.text) ? AIMED_LABEL : LABEL[run.how],
+              label: hiddenPurpose(run.text) ?? LABEL[run.how],
               text: run.text,
               crop: picture,
               box: {
