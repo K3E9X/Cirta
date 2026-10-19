@@ -7,9 +7,11 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
-const ROOT = new URL('../dist-web/', import.meta.url).pathname;
+// A path, not a URL's pathname: on Windows that reads /D:/…
+const ROOT = fileURLToPath(new URL('../dist-web/', import.meta.url));
 let failures = 0;
 const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${ok || !detail ? '' : ` — ${detail}`}`);

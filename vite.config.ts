@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { execSync } from 'node:child_process';
 import { hashRows, serviceWorkerSource, sha256Sums, webManifest } from './src/shared/site.js';
 import { defineConfig, type Plugin } from 'vite';
@@ -97,7 +97,7 @@ function progressiveApp(): Plugin {
     apply: 'build',
     configResolved(config) {
       base = config.base;
-      outDir = config.build.outDir.startsWith('/') ? config.build.outDir : join(config.root, config.build.outDir);
+      outDir = isAbsolute(config.build.outDir) ? config.build.outDir : join(config.root, config.build.outDir);
     },
     transformIndexHtml: {
       order: 'post',
