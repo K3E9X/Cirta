@@ -2,7 +2,7 @@
   "name": "cirta-vscode",
   "displayName": "Cirta",
   "description": "What a document says about its making — metadata, hidden text, active content, invisible characters — found in the editor, locally.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "k3e9x",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/K3E9X/Cirta" },

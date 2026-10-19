@@ -56,7 +56,7 @@ interface Rule {
  * report that silently drops what it failed to open is how a scan passes by
  * doing nothing.
  */
-export function toSarif(entries: SarifInput[], version = '0.1.0'): object {
+export function toSarif(entries: SarifInput[], version?: string): object {
   const rules = new Map<string, Rule>();
   const results: object[] = [];
 
@@ -119,7 +119,8 @@ export function toSarif(entries: SarifInput[], version = '0.1.0'): object {
           driver: {
             name: 'Cirta',
             informationUri: 'https://github.com/k3e9x/Cirta',
-            version,
+            // The caller's version: the library cannot know which Cirta embeds it.
+            ...(version ? { version } : {}),
             rules: [...rules.values()],
           },
         },
