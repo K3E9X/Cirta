@@ -1015,6 +1015,8 @@ npm run build
 npm link          # makes the `cirta` command available
 ```
 
+Or a single file with no Node to install: [`node scripts/build-sea.mjs`](#releases-binaries-and-the-performance-budget) builds one for the system it runs on. `cirta --version` says which version you have.
+
 Output is **bilingual**: it follows `LC_ALL`/`LC_MESSAGES`/`LANG`, and `--lang fr|en` overrides. The
 default is English, unlike the web page's — a terminal with no locale set is a server or a CI runner,
 not somebody expressing a preference.
@@ -1089,7 +1091,7 @@ a check somebody disables within a week. Ready-made copies are in
 ## As a library
 
 ```bash
-npm install /path/to/Cirta   # a built clone; the npm registry once it is published there
+npm install /path/to/Cirta   # a built clone; `npm install cirta` once a release is published (see Releases)
 ```
 
 ```js
@@ -1262,6 +1264,44 @@ npm run build      # library + CLI to dist/
 npm run build:web  # static site to dist-web/
 node scripts/smoke.mjs
 ```
+
+### Releases, binaries and the performance budget
+
+**What changed** is in [`CHANGELOG.md`](CHANGELOG.md), newest first; a release moves its *Unreleased*
+section under the version.
+
+**Releasing** is tagging: a tag `v1.2.3` runs `.github/workflows/release.yml`. The full verification
+runs first. Then `scripts/check-release.mjs` refuses, listing every reason, in any of these cases:
+- the tag is not the package's version;
+- the changelog does not describe that version;
+- there is no `LICENSE` file;
+- the package misses an entry point, its types or the schema, or carries sources or tests.
+
+`scripts/try-package.mjs` then installs the packed package into an empty folder and uses the command, the
+library and its types from there. Only then does `npm publish --provenance` run, the provenance statement
+signed with the workflow's identity. **Not yet published:** the check refuses today, for want of a
+`LICENSE` file naming the copyright holder.
+
+**Single-file binaries.** `node scripts/build-sea.mjs` makes the command line one executable that needs
+no Node installation (a Node single executable application), then runs it. It carries everything but the
+PDF renderer and the native canvas: the binary says PDF pages were not rendered and refuses
+`--burn-redactions` and `--reencode-images`, as an install without the optional canvas does. CI builds
+and runs it on Linux, macOS and Windows at every push. A release attaches one per system, each with a
+provenance attestation. They carry **no Apple or Microsoft code signature** — that needs certificates
+the project does not hold — so macOS and Windows warn on first launch. What proves where a binary comes
+from is its attestation:
+
+```bash
+gh attestation verify cirta-linux-x64 -R K3E9X/Cirta
+```
+
+**Performance budget.** `node scripts/perf.mjs` builds, for each of PDF, DOCX, ODT, EPUB, JPEG, PNG,
+ZIP, text and HTML, a file of about 50 MB carrying what the cleaner removes. It inspects and cleans each
+one in a process of its own, then holds the time and peak memory to
+[`perf-budget.json`](perf-budget.json). A dedicated CI job runs it at every push and puts the table on the
+run's summary page. The budgets are about four times the times measured on a development machine, so a
+format becoming ten times slower fails, not a slower runner. Measured there: 50 MB of text in 9 s
+to inspect and 18 s to clean, at 1 GB; a 50 MB PDF in 2 s and 4 s.
 
 ### The logo
 

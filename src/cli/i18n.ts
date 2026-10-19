@@ -81,6 +81,7 @@ const FR = {
   unknownLevel: (level: string) =>
     `Niveau inconnu : ${level}. Attendu : confirmed, probable ou informational.`,
   optHelp: 'Affiche ce message',
+  optVersion: 'Affiche la version',
   confidenceTitle: 'Niveaux',
   confConfirmed: 'Donnée identifiante littérale — un nom, une société, un chemin local',
   confProbable: 'Information réelle sur vous ou votre travail, pas toujours sensible',
@@ -307,6 +308,7 @@ const EN: Strings = {
   unknownLevel: (level) =>
     `Unknown level: ${level}. Expected confirmed, probable or informational.`,
   optHelp: 'Show this message',
+  optVersion: 'Show the version',
   confidenceTitle: 'Confidence',
   confConfirmed: 'Verbatim identifying data — a name, a company, a local path',
   confProbable: 'Real information about you or your workflow, not always sensitive',

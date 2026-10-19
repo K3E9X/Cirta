@@ -1,0 +1,14 @@
+{
+  "sizeMB": 50,
+  "formats": {
+    "pdf": { "inspectMs": 8000, "redactMs": 15000, "rssMB": 1100 },
+    "docx": { "inspectMs": 2000, "redactMs": 12000, "rssMB": 900 },
+    "odt": { "inspectMs": 2000, "redactMs": 12000, "rssMB": 900 },
+    "epub": { "inspectMs": 6000, "redactMs": 20000, "rssMB": 1300 },
+    "jpeg": { "inspectMs": 2000, "redactMs": 3000, "rssMB": 512 },
+    "png": { "inspectMs": 1000, "redactMs": 1000, "rssMB": 600 },
+    "zip": { "inspectMs": 40000, "redactMs": 90000, "rssMB": 1000 },
+    "text": { "inspectMs": 36000, "redactMs": 72000, "rssMB": 2048 },
+    "html": { "inspectMs": 38000, "redactMs": 100000, "rssMB": 2200 }
+  }
+}

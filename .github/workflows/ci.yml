@@ -35,3 +35,37 @@ jobs:
       - name: Round-trip real documents through LibreOffice
         if: runner.os == 'Linux'
         run: node scripts/real-files.mjs
+
+  # [F-P2 2.8] The performance budget: for each format, a 50 MB file inspected
+  # and cleaned, its time and peak memory held to perf-budget.json. One runner,
+  # so the budgets measure the code rather than the machine; the table lands on
+  # the run's summary page.
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/perf.mjs
+
+  # [F-P2 2.8] The single-file binary, built and run on each system it is
+  # released for, so a release does not find out first.
+  sea:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-sea.mjs
+

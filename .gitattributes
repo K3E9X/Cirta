@@ -1,0 +1,5 @@
+# Text files keep LF on every system. Checked out with CRLF (Git for Windows'
+# default), a script's #! line is no longer stripped when vitest loads it for
+# a test, and the tests that read a workflow, the changelog or the action
+# no longer match line by line. Git still detects binaries itself.
+* text=auto eol=lf

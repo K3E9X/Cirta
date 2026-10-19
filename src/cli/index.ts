@@ -128,6 +128,7 @@ ${bold(t().options)}
       --sarif           ${t().optSarif}
       --fail-on <level> ${t().optFailOn}
   -h, --help            ${t().optHelp}
+  -V, --version         ${t().optVersion}
 
 ${bold(t().confidenceTitle)}
   confirmed      ${t().confConfirmed}
@@ -161,6 +162,8 @@ interface Args {
   json: boolean;
   clean: boolean;
   help: boolean;
+  /** [F-P2 2.8] Print the version and stop. */
+  version: boolean;
   forceText: boolean;
   removeHidden: boolean;
   acceptChanges: boolean;
@@ -199,6 +202,7 @@ function parseArgs(argv: string[]): Args {
     json: false,
     clean: false,
     help: false,
+    version: false,
     forceText: false,
     removeHidden: false,
     acceptChanges: false,
@@ -223,6 +227,10 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     switch (arg) {
+      case '-V':
+      case '--version':
+        args.version = true;
+        break;
       case '-h':
       case '--help':
         args.help = true;
@@ -903,6 +911,11 @@ async function main(): Promise<number> {
     return 2;
   }
   if (args.lang === 'fr' || args.lang === 'en') setLang(args.lang);
+
+  if (args.version) {
+    console.log(`cirta ${version()}`);
+    return 0;
+  }
 
   // Asking for help succeeded; being invoked with nothing did not.
   if (args.help) {

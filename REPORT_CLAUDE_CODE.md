@@ -24,6 +24,7 @@ Chaque PR ne montre que son lot.
 | n°14 | `feat/p2-profiles` | `feat/p2-library` | F-P2 2.3 profils `--profile` |
 | n°15 | `feat/p2-formats` | `feat/p2-profiles` | F-P2 2.2 RTF, EPUB, Visio, WebP/GIF/TIFF/HEIC/AVIF, LaTeX, iCalendar, vCard |
 | n°16 | `feat/p2-ui` | `feat/p2-formats` | F-P2 2.7 dossier et lot, export HTML/Markdown, hors ligne, vérifiabilité du site |
+| n°17 | `feat/p2-release` | `feat/p2-ui` | F-P2 2.8 budget de performance, publication npm avec provenance, binaires, CHANGELOG |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1431,6 +1432,80 @@ cirta inspect --lang fr --report rapport.md contrat.docx
 
 ---
 
+## F-P2 2.8 — Performance, distribution
+
+**Statut : fait, sauf la signature de code Apple/Microsoft des binaires, impossible ici, et la publication elle-même, bloquée par l'absence de `LICENSE`.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Passe texte en mémoire linéaire (correctif trouvé par la mesure) | `4530b1f` | `src/core/text.ts` |
+| Budget de performance par format, mesuré en CI | `926e77d` | `scripts/perf.mjs`, `perf-budget.json` (nouveaux) ; `.github/workflows/ci.yml` (job `perf`) ; test `test/perf-budget.test.ts` |
+| `CHANGELOG.md` | `fc3fbe0` | `CHANGELOG.md` (nouveau) |
+| Publication npm avec provenance | `99a20f7` | `.github/workflows/release.yml`, `scripts/check-release.mjs`, `scripts/check-release.d.mts`, `scripts/try-package.mjs` (nouveaux) ; `package.json` ; test `test/release.test.ts` |
+| Binaires autonomes (Node SEA), attestés | `c6cbe0b` | `scripts/build-sea.mjs` (nouveau) ; `src/cli/version.ts`, `src/cli/index.ts`, `src/cli/i18n.ts` (`--version`) ; `release.yml` (jobs `binaries`, `github-release`), `ci.yml` (job `sea`) ; `package.json` (`esbuild`, `postject`) ; `.gitignore` |
+| Documentation | `dc16fab` | `README.md`, `README.fr.md` |
+
+Ce qui change :
+- **Budget de performance.**
+  - `scripts/perf.mjs` fabrique, pour neuf formats, un fichier d'environ 50 Mo qui porte ce que le nettoyage retire.
+  - Chaque format est inspecté puis nettoyé dans un processus à part ; le temps d'inspection, le temps de nettoyage et la mémoire maximale sont comparés à `perf-budget.json`.
+  - Dépassement, métadonnée non trouvée ou constat confirmé restant : échec.
+  - Job CI `perf` (ubuntu-latest) ; tableau dans le résumé de l'exécution.
+- **Défaut trouvé par la mesure.** La passe caractères :
+  - avant : 50 Mo de texte en 33 s d'inspection, 66 s de nettoyage, 2,8 Go ;
+  - quatre allocations par caractère supprimées ;
+  - après : 9 s, 18 s, 1 Go, résultats identiques (tests inchangés et verts).
+- **CHANGELOG.** Format *Keep a Changelog*, avec une section *Unreleased* et une section 0.1.0.
+- **Publication npm.**
+  - Workflow sur étiquette `v*`, dans l'ordre : `verify`, `check-release` (étiquette = version, section du changelog, `LICENSE`, contenu du paquet, `repository`, `publishConfig.provenance`), `try-package` (paquet installé dans un dossier vide et utilisé), puis `npm publish --provenance` avec `id-token: write`.
+  - Le nom `cirta` est libre sur npm.
+- **Binaires.**
+  - `build-sea.mjs` : bundle CommonJS (esbuild), blob SEA, injection dans une copie de Node (postject), re-signature ad hoc sous macOS, puis essai du binaire.
+  - En CI, construits et lancés sous Linux, macOS et Windows à chaque push.
+  - À la publication : un binaire par système, attesté (Sigstore) et joint à la release GitHub.
+  - Le CLI gagne `--version`.
+
+Tests :
+- `test/perf-budget.test.ts` (2) : `gives every format a time to inspect, a time to clean and a peak memory, for 50 MB` ; `is measured in CI, after the build, on every push`.
+- `test/release.test.ts` (8) :
+  - `lets a ready release through`
+  - `refuses a tag that is not the version, a version the changelog does not describe, a missing licence`
+  - `refuses a package that lacks the types or carries the sources`
+  - `asks npm for provenance, tied to this repository`
+  - `keeps a changelog with an Unreleased section and the version published so far`
+  - `publishes from a version tag only, after the checks, with npm provenance`
+  - `says which version it is, as a binary must`
+  - `releases single-file binaries for three systems, each built, run and attested, and builds them in CI too`
+
+Vérification manuelle :
+- `node scripts/perf.mjs` (Linux, Node 22) :
+
+  | Format | Inspection | Nettoyage | Mémoire maximale |
+  |---|---|---|---|
+  | PDF | 1,9 s | 3,6 s | 529 Mo |
+  | DOCX | 0,2 s | 3,1 s | 437 Mo |
+  | ODT | 0,2 s | 2,8 s | 440 Mo |
+  | EPUB | 1,4 s | 4,8 s | 633 Mo |
+  | JPEG | 0,1 s | 0,4 s | 179 Mo |
+  | PNG | 3 ms | 35 ms | 274 Mo |
+  | ZIP | 9,4 s | 22,3 s | 460 Mo |
+  | texte | 9,0 s | 17,7 s | 1,0 Go |
+  | HTML | 9,4 s | 26,6 s | 1,1 Go |
+
+- `node scripts/check-release.mjs v0.1.0` : refusé, pour la seule raison attendue (pas de `LICENSE`, donc absent du paquet).
+- `npm publish --dry-run` : 260 fichiers, 561 ko.
+- `node scripts/try-package.mjs` : depuis le paquet installé, la commande, l'inspection, `cirta`, `cirta/node`, le schéma et les types TypeScript fonctionnent.
+- `node scripts/build-sea.mjs` : `cirta-linux-x64`, 119 Mo. Lancé avec `env -i PATH=/nonexistent` (aucun Node accessible), il inspecte un PDF et un DOCX en français et les nettoie ; pour le PDF, il dit que les pages n'ont pas été rendues.
+
+Écarts :
+- **Pas de signature de code Apple (Developer ID, notarisation) ni Microsoft (Authenticode)** : il faut des certificats que le projet n'a pas. À la place, une attestation de provenance Sigstore par binaire (`gh attestation verify`). macOS et Windows avertiront au premier lancement ; c'est écrit dans le README.
+- **Pas de fichier `LICENSE`.** `package.json` et le README disent MIT, mais la licence MIT exige sa notice avec le nom du titulaire des droits, que je ne peux pas inventer. `check-release` refuse donc toute publication tant que le propriétaire ne l'a pas ajouté.
+- **Le workflow de publication n'a pas tourné** : aucune étiquette n'a été posée. Ses étapes sont testées une à une ici (`verify`, `check-release`, `try-package`, `build-sea` sous Linux, `npm publish --dry-run`), et la construction des binaires tourne en CI sur les trois systèmes. La publication npm demande une configuration côté npm (*trusted publishing* pour ce workflow, ou un secret `NPM_TOKEN`).
+- **Les binaires laissent de côté le rendu PDF et le canvas** : radiographie, `--burn-redactions` et `--reencode-images` indisponibles dans le binaire, et annoncés comme tels.
+- **Budgets mesurés sur une seule machine de développement**, multipliés par quatre. Le premier passage en CI dira s'ils sont bien calibrés pour le runner.
+
+---
+
 ## Bilan final
 
 **Fait :**
@@ -1439,9 +1514,9 @@ cirta inspect --lang fr --report rapport.md contrat.docx
 
 Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
 
-- F-P2, en cours : 2.1, 2.4, 2.5, 2.3, 2.2 et 2.7 (PR n°31 à n°36).
+- F-P2, en cours : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7 et 2.8 (PR n°31 à n°37).
 
-**Pas encore fait :** F-P2 2.8 et 2.6, puis F-P3.
+**Pas encore fait :** F-P2 2.6, puis F-P3.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1456,7 +1531,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après tout F-P1 (PR n°30) | 64 | **848** |
 | Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
 | Après F-P2 2.2 (PR n°35) | 78 | 919 |
-| Après F-P2 2.7 (PR n°36) | 81 | **936** |
+| Après F-P2 2.7 (PR n°36) | 81 | 936 |
+| Après F-P2 2.8 (PR n°37) | 83 | **946** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 

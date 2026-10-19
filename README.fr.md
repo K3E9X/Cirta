@@ -1080,6 +1080,8 @@ npm run build
 npm link          # rend la commande `cirta` disponible
 ```
 
+Ou un seul fichier, sans Node à installer : [`node scripts/build-sea.mjs`](#publications-binaires-et-budget-de-performance) en construit un pour le système où il tourne. `cirta --version` dit quelle version vous avez.
+
 La sortie est **bilingue** : elle suit `LC_ALL`/`LC_MESSAGES`/`LANG`, et `--lang fr|en` passe outre.
 Le défaut est l'anglais, contrairement à la page web — un terminal sans locale définie est un serveur
 ou un runner de CI, pas quelqu'un qui exprime une préférence.
@@ -1157,7 +1159,7 @@ est un contrôle désactivé en une semaine. Des copies prêtes à l'emploi sont
 ## Comme bibliothèque
 
 ```bash
-npm install /chemin/vers/Cirta   # un clone construit ; le registre npm une fois publié
+npm install /chemin/vers/Cirta   # un clone construit ; `npm install cirta` une fois une version publiée (voir Publications)
 ```
 
 ```js
@@ -1324,6 +1326,45 @@ et `--in-place` conserve un `.bak` créé avant tout remplacement.
 ```bash
 npm run verify     # typage, tests, build, scénario CLI de bout en bout, build web
 ```
+
+### Publications, binaires et budget de performance
+
+**Ce qui change** est dans [`CHANGELOG.md`](CHANGELOG.md), le plus récent d'abord ; une publication
+range sa section *Unreleased* sous la version.
+
+**Publier**, c'est poser une étiquette : `v1.2.3` déclenche `.github/workflows/release.yml`. La
+vérification complète passe d'abord. Puis `scripts/check-release.mjs` refuse, en listant chaque raison,
+dans chacun de ces cas :
+- l'étiquette n'est pas la version du paquet ;
+- le changelog ne décrit pas cette version ;
+- il n'y a pas de fichier `LICENSE` ;
+- le paquet manque d'un point d'entrée, de ses types ou du schéma, ou emporte des sources ou des tests.
+
+`scripts/try-package.mjs` installe ensuite le paquet empaqueté dans un dossier vide et s'en sert : la
+commande, la bibliothèque, ses types. Alors seulement `npm publish --provenance` s'exécute,
+l'attestation de provenance signée avec l'identité du workflow. **Pas encore publié :** le contrôle refuse
+aujourd'hui, faute d'un fichier `LICENSE` nommant le titulaire des droits.
+
+**Binaires autonomes.** `node scripts/build-sea.mjs` fait de la ligne de commande un seul exécutable,
+sans installation de Node (une *single executable application* de Node), puis le lance. Il contient
+tout sauf le moteur de rendu PDF et le canvas natif : le binaire dit que les pages PDF n'ont pas été
+rendues et refuse `--burn-redactions` et `--reencode-images`, comme une installation sans le canvas
+optionnel. La CI le construit et le lance sous Linux, macOS et Windows à chaque push. Une publication en
+joint un par système, chacun avec une attestation de provenance. Ils ne portent **aucune signature de
+code Apple ou Microsoft** — il faudrait des certificats que le projet n'a pas —, donc macOS et Windows
+préviennent au premier lancement. Ce qui prouve d'où vient un binaire, c'est son attestation :
+
+```bash
+gh attestation verify cirta-linux-x64 -R K3E9X/Cirta
+```
+
+**Budget de performance.** `node scripts/perf.mjs` fabrique, pour PDF, DOCX, ODT, EPUB, JPEG, PNG, ZIP,
+texte et HTML, un fichier d'environ 50 Mo portant ce que le nettoyage retire. Il inspecte et nettoie
+chacun dans un processus à part, puis confronte le temps et la mémoire maximale à
+[`perf-budget.json`](perf-budget.json). Un job de CI dédié le lance à chaque push et en publie le tableau
+dans le résumé de l'exécution. Les budgets valent environ quatre fois les temps mesurés sur une machine
+de développement : c'est un format devenu dix fois plus lent qui échoue, pas un runner plus lent. Mesuré
+là : 50 Mo de texte en 9 s à l'inspection et 18 s au nettoyage, à 1 Go ; un PDF de 50 Mo en 2 s et 4 s.
 
 ### Le logo
 

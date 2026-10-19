@@ -1,0 +1,98 @@
+name: Release
+
+# [F-P2 2.8] A tag v1.2.3 publishes 1.2.3: to npm with a provenance statement,
+# and as single-file binaries on the GitHub release, each attested. Nothing
+# goes out unless the version, the changelog, the licence and the package's
+# contents pass scripts/check-release.mjs, after the full verification.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: node scripts/check-release.mjs ${{ github.ref_name }}
+      # The package as a user gets it: packed, installed into an empty folder, used.
+      - run: node scripts/try-package.mjs
+
+  npm:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm's provenance statement is signed with the workflow's OIDC identity.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/check-release.mjs ${{ github.ref_name }}
+      # With npm's trusted publishing configured for this workflow, no token is
+      # needed; otherwise the NPM_TOKEN secret is used.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  binaries:
+    needs: check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Builds the binary, then runs it: --version, an inspection, a clean.
+      - run: node scripts/build-sea.mjs
+      # No Apple or Microsoft code signature (the project holds no certificate):
+      # a provenance statement signed by GitHub through Sigstore instead, which
+      # `gh attestation verify <binary> -R K3E9X/Cirta` checks.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'build/sea/cirta-*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.os }}
+          path: build/sea/cirta-*
+
+  github-release:
+    needs: [npm, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+      - run: >-
+          gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME"
+          --notes "What changed: CHANGELOG.md. Each binary is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+

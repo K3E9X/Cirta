@@ -552,10 +552,19 @@ function findConfusables(input: string): Finding[] {
 const MIN_DECOMPOSED = 3;
 const MIN_DECOMPOSED_SHARE = 0.05;
 
+/**
+ * A letter that normalisation can change: a base with combining marks, or a
+ * letter outside ASCII. An ASCII letter is the same in NFC and NFD, so
+ * leaving it out changes no count — and on 50 MB of prose it was most of the
+ * time and a string allocated per letter.
+ */
+const NORMALISABLE = /\P{M}\p{M}+|(?![\x00-\x7f])\p{L}/gu;
+
 function findNormalizationChannel(input: string): Finding[] {
+  if (!/[^\x00-\x7f]/.test(input)) return [];
   let decomposed = 0;
   let composed = 0;
-  for (const grapheme of input.match(/\P{M}\p{M}+|\p{L}/gu) ?? []) {
+  for (const [grapheme] of input.matchAll(NORMALISABLE)) {
     const nfc = grapheme.normalize('NFC');
     if (nfc.length < grapheme.length) decomposed++;
     else if (grapheme.normalize('NFD').length > grapheme.length) composed++;
@@ -619,6 +628,8 @@ function isArithmeticMinus(chars: string[], i: number): boolean {
 }
 
 function findHyphenTwins(input: string): Finding[] {
+  // The character array below is built only when there is a twin to place.
+  if (!/[\u2010-\u2012\u02d7\u2212]/.test(input)) return [];
   const counts = new Map<number, number>();
   const chars = [...input];
   for (const [i, char] of chars.entries()) {
@@ -796,8 +807,24 @@ function findMathAlphanumerics(input: string): Finding[] {
   ];
 }
 
+/**
+ * The text's code points in a typed array. `[...input]` allocated a string
+ * per character and an array to hold them: on 50 MB of text, gigabytes.
+ * Reading past either end gives undefined, as it did.
+ */
+function codePoints(input: string): Uint32Array {
+  const out = new Uint32Array(input.length);
+  let n = 0;
+  for (let i = 0; i < input.length; i++) {
+    const cp = input.codePointAt(i)!;
+    out[n++] = cp;
+    if (cp > 0xffff) i++;
+  }
+  return out.subarray(0, n);
+}
+
 export function scanText(input: string): TextScan {
-  const codepoints = [...input].map((c) => c.codePointAt(0)!);
+  const codepoints = codePoints(input);
   const counts = new Map<number, number>();
   const carriers: number[] = [];
 
@@ -942,31 +969,39 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
   const { normalizeSpaces = true, normalize = true } = options;
   const scan = scanText(input);
 
-  const codepoints = [...input].map((c) => c.codePointAt(0)!);
-  const kept: string[] = [];
+  // The text in slices between the characters that change, rather than one
+  // string per character joined again: the same result, without the gigabytes.
+  const parts: string[] = [];
   let spaces = 0;
-
-  for (let i = 0; i < codepoints.length; i++) {
-    const cp = codepoints[i]!;
+  let last = 0;
+  let previous: number | undefined;
+  for (let i = 0; i < input.length; ) {
+    const cp = input.codePointAt(i)!;
+    const width = cp > 0xffff ? 2 : 1;
+    const next = i + width < input.length ? input.codePointAt(i + width) : undefined;
+    let replacement: string | undefined;
     if (isInvisible(cp)) {
-      if (isFunctional(cp, codepoints[i - 1], codepoints[i + 1])) kept.push(String.fromCodePoint(cp));
-      continue;
-    }
-    if (EXOTIC_SPACES.has(cp)) {
+      if (!isFunctional(cp, previous, next)) replacement = '';
+    } else if (EXOTIC_SPACES.has(cp)) {
       spaces++;
-      kept.push(normalizeSpaces ? ' ' : String.fromCodePoint(cp));
-      continue;
+      if (normalizeSpaces) replacement = ' ';
     }
-    kept.push(String.fromCodePoint(cp));
+    if (replacement !== undefined) {
+      parts.push(input.slice(last, i), replacement);
+      last = i + width;
+    }
+    previous = cp;
+    i += width;
   }
+  parts.push(input.slice(last));
 
-  let text = kept.join('');
+  let text = parts.join('');
   const normalisation = scan.findings.find((finding) => finding.location === 'Unicode normalisation');
   const recompose =
     normalize === 'when-flagged' ? normalisation !== undefined && normalisation.confidence !== 'informational' : normalize;
   let recomposed = 0;
   if (recompose && normalisation) {
-    for (const grapheme of text.match(/\P{M}\p{M}+/gu) ?? []) {
+    for (const [grapheme] of text.matchAll(/\P{M}\p{M}+/gu)) {
       if (grapheme.normalize('NFC').length < grapheme.length) recomposed++;
     }
   }
