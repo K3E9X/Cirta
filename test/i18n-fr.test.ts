@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { strToU8, zipSync } from 'fflate';
+import { gzipSync, strToU8, zipSync } from 'fflate';
 import { inspectFile, redactFile, type Finding, type Note } from '../src/core/index.js';
 import { errorText, noteText, translateLabel, translateLocation, translateValue } from '../src/shared/french.js';
 import { makeDocx, makeJpeg, makePdf, makePng, makePptx, makeRichPptx, makeXlsx, tagEncode, variationEncode } from './fixtures.js';
@@ -13,6 +13,7 @@ import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
+import { tar, whereFroms } from './helpers/tar.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -174,6 +175,17 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
       }),
     ],
     ['long.wav', wav({ info: { IART: 'M' }, rf64: true })],
+    [
+      'dossier.tar',
+      tar([
+        { name: 'd/a.txt', data: 'a\u200bb', uname: 'marie', gname: 'compta', uid: 501, gid: 20, mtime: 1709287200, pax: { 'SCHILY.xattr.com.apple.quarantine': '0083;65e1;Safari;X', 'SCHILY.xattr.user.xdg.origin.url': 'https://a.example/x', 'SCHILY.xattr.com.apple.FinderInfo': 'v', comment: 'c' } },
+        { name: 'd/l', type: '2', link: '/home/marie/x', uid: 501, uname: 'marie' },
+        { name: 'd/m', type: '2', link: '../../x', uid: 501, uname: 'marie' },
+        { name: 'd/._a.txt', data: whereFroms('https://b.example/y'), uname: 'marie', uid: 501 },
+      ]),
+    ],
+    ['dossier.tar.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501, mtime: 1709287200 }]), { filename: 'dossier.tar', mtime: new Date(1709287200000) })],
+    ['rapport.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501 }]))],
     [
       'memo.mp3',
       bytes(

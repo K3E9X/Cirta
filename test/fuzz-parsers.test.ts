@@ -16,7 +16,8 @@ import { mutations, ITERATIONS, SEED } from './helpers/mutate.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { vsdx } from './helpers/visio.js';
 import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
-import { zipSync } from 'fflate';
+import { tar } from './helpers/tar.js';
+import { gzipSync, zipSync } from 'fflate';
 
 /*
  * [F-2.8] The parsers added since the fuzzer was written, fuzzed the same
@@ -181,6 +182,12 @@ describe('[F-2.8] fuzzing the new parsers', () => {
         if (error.code !== 'media-not-rewritable') throw error;
       });
     });
+    const inspectOnly = (name: string) => async (input: Uint8Array) => {
+      await inspectFile(input, name);
+    };
+    const archive = tar([{ name: 'd/a.txt', data: 'a', uname: 'm', uid: 1, mtime: 1, pax: { 'SCHILY.xattr.com.apple.quarantine': '0083;1;S;X', comment: 'c' } }, { name: `d/${'x'.repeat(120)}`, data: 'b' }, { name: 'd/l', type: '2', link: '/x' }]);
+    await fuzz('tar', [archive], inspectOnly('a.tar'));
+    await fuzz('gz', [gzipSync(archive, { filename: 'a.tar', mtime: new Date(0) })], inspectOnly('a.tar.gz'));
     await fuzz('mp4', [movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf', apple: phone, xmpCreator: 'M' }), movie({ brand: 'qt  ' }), movie({ brand: 'M4A ' })], both('a.mp4'));
   }, TIMEOUT * 4);
 });

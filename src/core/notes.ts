@@ -41,6 +41,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
     'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
+  'scope:archive-inspect-only': () =>
+    'Archive read but not rewritten: its headers — owners, dates, the attributes macOS keeps, links, the original name — and each member, inspected as it would be on its own. To clean, extract it, clean the files and archive them again, or as a ZIP, which Cirta cleans.',
   'scope:media': () =>
     'Video or audio: the container’s metadata — dates, place, device, software, tags, embedded pictures. The picture and the sound themselves are not analysed: a watermark carried in them would not show up here. Cleaning removes the metadata and leaves the picture and the sound byte for byte as they were.',
   'scope:image-metadata-only': () =>
@@ -133,6 +135,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
     "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
+  'scope:archive-inspect-only': () =>
+    'Archive lue mais pas réécrite : ses en-têtes — propriétaires, dates, attributs que garde macOS, liens, nom d’origine — et chacun de ses fichiers, inspecté comme il le serait seul. Pour la nettoyer, extrayez-la, nettoyez les fichiers et archivez-les de nouveau, ou en ZIP, que Cirta nettoie.',
   'scope:media': () =>
     'Vidéo ou audio : les métadonnées du conteneur — dates, lieu, appareil, logiciel, étiquettes, images intégrées. L’image et le son eux-mêmes ne sont pas analysés : un filigrane qu’ils porteraient n’apparaîtrait pas ici. Le nettoyage retire les métadonnées et laisse l’image et le son octet pour octet tels qu’ils étaient.',
   'scope:image-metadata-only': () =>

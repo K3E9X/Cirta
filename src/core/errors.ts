@@ -28,6 +28,8 @@ export type ErrorCode =
   | 'image-not-rewritable'
   /** [F-P2 2.2] A ZIP past a limit: too many members, too much content, a compression bomb. Detail: `members:N`, `bytes:N` or `ratio:<member>`. */
   | 'archive-too-large'
+  /** [F-P3 2.2] A TAR, gzip or 7z archive: inspected, never rewritten. Detail: the format. */
+  | 'archive-inspect-only'
   /** [F-P3 2.2] A media file read but not rewritten. Detail: what kind (rf64). */
   | 'media-not-rewritable'
   /** An empty file. */

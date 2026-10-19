@@ -82,6 +82,16 @@ const FIELD_LABEL: Record<string, string> = {
   Tape: 'Bande',
   Client: 'Client',
   'iXML metadata': 'Métadonnées iXML',
+  'Owner account': 'Compte propriétaire',
+  'Owner group': 'Groupe propriétaire',
+  'Member dates': 'Dates des fichiers',
+  'Download address': 'Adresse de téléchargement',
+  'Quarantine attribute (macOS)': 'Attribut de quarantaine (macOS)',
+  'Extended attributes': 'Attributs étendus',
+  'Link to an absolute path': 'Lien vers un chemin absolu',
+  'Link out of the archive': 'Lien qui sort de l’archive',
+  'Original file name': 'Nom de fichier d’origine',
+  'Operating system': 'Système d’exploitation',
   'LaTeX comment': 'Commentaire LaTeX',
   Organizer: 'Organisateur',
   Attendees: 'Participants',
@@ -831,6 +841,12 @@ export const translateLocation = (location: string, lang: Lang): string => {
   if (location === 'MPEG audio (encoder header)') return 'audio MPEG (en-tête de l’encodeur)';
   const riff = /^WAV chunks(.*)$/.exec(location);
   if (riff) return `blocs WAV${riff[1]}`;
+  const tarHeaders = /^TAR headers(?: \((.+)\))?$/.exec(location);
+  if (tarHeaders) {
+    const field = tarHeaders[1] === 'link' ? 'lien' : tarHeaders[1] === 'pax comment' ? 'commentaire pax' : tarHeaders[1];
+    return `en-têtes TAR${field ? ` (${field})` : ''}`;
+  }
+  if (location === 'gzip header') return 'en-tête gzip';
   const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
   if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
@@ -1068,8 +1084,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A, MP3 et WAV.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV; TAR and gzip, inspection only.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A, MP3 et WAV ; TAR et gzip, en inspection seule.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
@@ -1125,6 +1141,13 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     return {
       en: `The member “${value}” inflates more than 1,000 times its stored size: a compression bomb, not a document. The file is refused.`,
       fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
+    };
+  },
+  'archive-inspect-only': (detail) => {
+    const name = detail === 'gz' ? 'gzip' : detail === '7z' ? '7z' : 'TAR';
+    return {
+      en: `A ${name} archive is inspected but not rewritten: rebuilding it means choosing owners, dates and modes for each file, which Cirta will not decide for you. Extract it, clean the files, and archive them again — or as a ZIP, which Cirta cleans.`,
+      fr: `Une archive ${name} est inspectée mais pas réécrite : la reconstruire voudrait dire choisir propriétaires, dates et droits de chaque fichier, ce que Cirta ne décidera pas à votre place. Extrayez-la, nettoyez les fichiers et archivez-les de nouveau — ou en ZIP, que Cirta nettoie.`,
     };
   },
   'media-not-rewritable': () => ({

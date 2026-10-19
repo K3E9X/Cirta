@@ -593,6 +593,35 @@ try {
     if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg is not installed: WAV not checked');
     else check('ff.wav: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
   }
+  // [F-P3 2.2] GNU tar's own archive (POSIX format, extended attributes kept) and its .tgz: the
+  // owner, the group, the address a browser left on the file, the link out; refused on cleaning.
+  try {
+    await run('tar', ['--version']);
+    const folder = join(dir, 'arch', 'dossier');
+    await run('mkdir', ['-p', folder]);
+    await writeFile(join(folder, 'notes.txt'), 'Bon\u200bjour');
+    await run('ln', ['-sf', '/home/marie/secret.txt', join(folder, 'lien')]);
+    let xattr = true;
+    try {
+      await run('setfattr', ['-n', 'user.xdg.origin.url', '-v', 'https://intranet.example.com/rh/notes.txt', join(folder, 'notes.txt')]);
+    } catch {
+      xattr = false;
+      console.log('  skip  setfattr or extended attributes unavailable: the download address is not checked');
+    }
+    await run('tar', ['--format=posix', '--xattrs', '--owner=marie:1001', '--group=compta:1002', '-C', join(dir, 'arch'), '-cf', join(dir, 'gnu.tar'), 'dossier']);
+    await run('tar', ['--owner=marie:1001', '-C', join(dir, 'arch'), '-czf', join(dir, 'gnu.tgz'), 'dossier']);
+    const archive = new Uint8Array(await readFile(join(dir, 'gnu.tar')));
+    const found = (await inspectFile(archive, 'gnu.tar')).findings;
+    check('gnu.tar: the owner, the group, the link out and the zero-width space in a member are read', found.some((f) => f.label === 'Owner account' && f.value === 'marie (uid 1001)') && found.some((f) => f.label === 'Owner group' && f.value === 'compta (gid 1002)') && found.some((f) => f.label === 'Link to an absolute path') && found.some((f) => f.kind === 'invisible-character' && f.location.startsWith('dossier/notes.txt')));
+    if (xattr) check('gnu.tar: the address the file was downloaded from is read from its attributes', found.some((f) => f.label === 'Download address' && f.value === 'https://intranet.example.com/rh/notes.txt'));
+    const tgz = (await inspectFile(new Uint8Array(await readFile(join(dir, 'gnu.tgz'))), 'gnu.tgz')).findings;
+    check('gnu.tgz: the TAR inside the gzip is read', tgz.some((f) => f.label === 'Owner account' && f.location.endsWith('TAR headers (uname)')));
+    const refused = await redactFile(archive, 'gnu.tar').then(() => undefined, (error) => error);
+    check('gnu.tar: refused on cleaning rather than rebuilt', refused?.code === 'archive-inspect-only', String(refused));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  tar is not installed: TAR and gzip not checked');
+    else check('gnu.tar / gnu.tgz: written by GNU tar and inspected', false, String(error).slice(0, 200));
+  }
   // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
   // text the same to the character (pdflatex and pdftotext, where they are installed).
   try {

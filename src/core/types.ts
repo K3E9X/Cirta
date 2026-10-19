@@ -57,6 +57,9 @@ export type Format =
   | 'mp3'
   /** [F-P3 2.2] RIFF/WAVE, and RF64 inspected only. */
   | 'wav'
+  /** [F-P3 2.2] Archives inspected only: TAR, gzip, 7z. */
+  | 'tar'
+  | 'gz'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -188,6 +191,8 @@ export type NoteCode =
   | 'scope:image-metadata-only'
   /** [F-P3 2.2] Video and audio: the container's metadata, not the picture or the sound. */
   | 'scope:media'
+  /** [F-P3 2.2] A TAR, gzip or 7z archive: read, never rewritten. */
+  | 'scope:archive-inspect-only'
   /** An archive was walked; the report aggregates its members. */
   | 'scope:archive'
   /** Archive traversal stopped at a built-in limit. */

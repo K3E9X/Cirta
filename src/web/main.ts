@@ -238,6 +238,8 @@ const MIME: Record<Format, string> = {
   m4a: 'audio/mp4',
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
+  tar: 'application/x-tar',
+  gz: 'application/gzip',
   zip: 'application/zip',
   doc: 'application/msword',
   xls: 'application/vnd.ms-excel',
