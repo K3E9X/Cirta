@@ -36,6 +36,12 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - `cirta sanitize-for-llm`.
   - A local MCP server (`cirta mcp`).
   - SARIF output.
+- **Integrations.**
+  - `--changed-only` and `--base <ref>`: only the files a commit or a pull request changes.
+  - A pre-commit hook (`.pre-commit-hooks.yaml`).
+  - A GitHub Action: findings annotated on the pull request, the check failed at `fail-on`, SARIF for code scanning on request.
+  - A VS Code extension: invisible characters underlined where they are, any file inspected or cleaned from the Explorer.
+  - A browser extension for Chrome and Firefox: the page, with no permission and no connection allowed.
 - **Profiles.** `--profile minimal|balanced|strict`.
 - **Chain of custody.**
   - Deterministic output: the same file cleaned twice gives the same bytes.
@@ -64,6 +70,7 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ### Fixed
 
+- The release workflow was not valid YAML; GitHub would have refused it.
 - An encrypted PDF is refused rather than rewritten into an unreadable copy.
 - Terminal escape sequences in a document can no longer drive the terminal (CWE-150).
 - Text replaced through a new content stream in a later PDF revision is found.

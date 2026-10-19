@@ -60,6 +60,12 @@ describe('[F-P2 2.6] --changed-only', () => {
     const none = runCli(['verify', '--lang', 'fr', '--changed-only', '--base', 'HEAD'], undefined, { cwd: dir });
     expect(none.status).toBe(0);
     expect(none.stderr.toString() + none.stdout.toString()).toContain('Aucun fichier pris en charge modifié');
+    // Machine output stays machine-readable when there is nothing to read.
+    const json = runCli(['inspect', '--json', '--changed-only', '--base', 'HEAD'], undefined, { cwd: dir });
+    expect([json.status, json.stdout.toString().trim()]).toEqual([0, '[]']);
+    const sarif = runCli(['inspect', '--sarif', '--changed-only', '--base', 'HEAD'], undefined, { cwd: dir });
+    expect(sarif.status).toBe(0);
+    expect(JSON.parse(sarif.stdout.toString()).runs[0].results).toEqual([]);
   });
 
   it('refuses outside a repository, and an unknown base, saying why', () => {
