@@ -59,7 +59,7 @@ describe('[F-P2 2.6] the browser extension', () => {
     const release = readFileSync('.github/workflows/release.yml', 'utf8');
     const extensions = release.slice(release.indexOf('\n  extensions:'), release.indexOf('\n  github-release:'));
     expect(extensions).toMatch(/attest-build-provenance@v2[\s\S]*subject-path: 'build\/extensions\/\*'/);
-    expect(release).toMatch(/needs: \[npm, binaries, extensions\]/);
+    expect(release).toMatch(/needs: \[npm, binaries, extensions, single-file\]/);
   });
 
   it('the VS Code extension has the library’s version', () => {
