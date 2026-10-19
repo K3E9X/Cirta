@@ -1024,12 +1024,11 @@ function setupFiles(): void {
     folder.value = '';
   });
 
+  // [F-P3 2.7] The zone opens the picker on a click, for the mouse; the keyboard has #file-pick.
   dropzone.addEventListener('click', () => input.click());
-  dropzone.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      input.click();
-    }
+  must<HTMLButtonElement>('#file-pick').addEventListener('click', (event) => {
+    event.stopPropagation();
+    input.click();
   });
   input.addEventListener('change', () => {
     accept(input.files);

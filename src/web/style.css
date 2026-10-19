@@ -637,7 +637,7 @@ pre code {
 }
 
 .dropzone:hover,
-.dropzone:focus-visible,
+.dropzone:focus-within,
 .dropzone.is-active {
   border-color: var(--accent);
   background: var(--accent-wash);
@@ -645,7 +645,7 @@ pre code {
 }
 
 .dropzone:hover::before,
-.dropzone:focus-visible::before,
+.dropzone:focus-within::before,
 .dropzone.is-active::before {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
@@ -688,6 +688,8 @@ textarea {
 
 textarea:focus-visible {
   border-color: var(--accent);
+  /* [F-P3 2.7] A one-pixel colour change alone was too faint a focus. */
+  box-shadow: 0 0 0 1px var(--accent);
   outline: none;
 }
 
@@ -736,8 +738,16 @@ textarea:focus-visible {
   white-space: pre-line;
 }
 
+.dropzone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .dropzone-folder {
-  margin-top: 0.6rem;
   padding: 0.2rem 0.5rem;
   border: 0;
   background: none;
