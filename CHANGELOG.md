@@ -61,6 +61,8 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - Report export.
   - Works offline: a service worker that keeps only the site's files.
   - A « Check this site » box, `SHA256SUMS`, and a provenance attestation for every published file.
+  - A light and a dark theme, following the system or chosen in the header.
+  - Accessibility: real buttons in the drop zone, results announced to screen readers, every label in both languages; an axe-core audit, a keyboard walk and a 320px check on every push (`scripts/a11y.mjs`).
 - **Interface.** French and English throughout, in the terminal and on the page.
 - **Performance budget.** Every format, at 50 MB, held to a time and a peak memory on every push.
 - **Distribution.**

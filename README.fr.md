@@ -1063,8 +1063,33 @@ est au repos — coupez le réseau ensuite, et tout fonctionne encore. Le servic
 pièce qui fait une requête, et seulement vers les fichiers du site lui-même, ceux que le navigateur
 charge de toute façon — `test/no-network.test.ts` nomme cet appel unique et la garde qui le précède.
 
-Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les flèches
-(et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux.
+**Accessibilité.** Chaque commande s'atteint au clavier et montre où est le focus. La zone de dépôt
+accepte un fichier déposé ou un clic ; à côté, « Choisir des fichiers » et « ou un dossier entier » sont
+de vrais boutons. Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les
+flèches (et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux. Les fiches de résultat apparaissent
+sans bruit ; une zone de statut dit donc ce qu'a donné le travail — la ligne de bilan des fichiers, ce
+qu'une analyse ou un nettoyage du texte collé a trouvé. Les libellés suivent le changement de langue.
+À 320 px de large, rien ne défile sur le côté, ce qu'affiche une fenêtre de 1280 px zoomée à 400 %.
+
+**Clair et sombre.** La page suit le système. Le bouton « Thème » de l'en-tête impose le clair ou le
+sombre, et le choix est gardé dans ce navigateur. Il est appliqué avant que la page soit dessinée, par
+le seul script en ligne que la politique autorise par son empreinte : une page réglée en clair ne
+s'affiche pas d'abord en sombre.
+
+`scripts/a11y.mjs` audite le site construit : axe-core dans Chromium, les deux langues, le clair et le
+sombre du système et chacun imposé contre lui, avec des résultats à l'écran et toutes les sections
+ouvertes ; puis le parcours au clavier, les annonces, le thème et la largeur de 320 px. La CI le lance
+à chaque push. Il demande deux paquets dont Cirta ne dépend pas, installés pour l'exécution seulement :
+
+```bash
+npm run build:web
+npm install --no-save playwright@1.56.1 axe-core@4.10.3
+npx playwright install chromium
+node scripts/a11y.mjs
+```
+
+Un audit automatique n'est pas une session avec un lecteur d'écran : ce qu'un lecteur d'écran dit
+réellement n'a pas été testé.
 
 Pour l'exécuter localement :
 
