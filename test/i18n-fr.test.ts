@@ -116,6 +116,14 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['brouillon.txt', enc(CHARACTERS)],
     ['dossier.zip', zipSync({ 'interne.zip': zipSync({ 'photo.jpg': photo }), 'notes.txt': strToU8('jeton ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA') })],
     ['casse.zip', new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8, 9])],
+    [
+      'pieges.zip',
+      zipSync({ 'facture\u202Efdp.exe': strToU8('MZ'), '../evasion.txt': strToU8('x'), 'releve.pdf.exe': strToU8('MZ'), 'p\u0430ypal.pdf': strToU8('x'), 'ra\u200bpport.pdf': strToU8('x') }),
+    ],
+    [
+      'liens.html',
+      enc('<!doctype html><html><body><a href="javascript:x()">Ouvrir</a><a href="data:text/html,x">Facture</a><a href="https://www.google.com/url?q=https://e.example/">Banque</a></body></html>'),
+    ],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',

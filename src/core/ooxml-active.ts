@@ -20,6 +20,7 @@ import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { readVbaProject, summariseVba } from './vba.js';
 import { cleanUrl, trackingFinding } from './tracking.js';
+import { linkFindings } from './links.js';
 
 type Parts = Record<string, Uint8Array>;
 
@@ -115,6 +116,7 @@ export function activeOfficeFindings(parts: Parts): Finding[] {
     if (rel.type === 'hyperlink') {
       const tracked = trackingFinding(rel.target, rel.rels);
       if (tracked) findings.push(tracked);
+      findings.push(...linkFindings([rel.target], rel.rels));
     }
     if (rel.type === 'attachedTemplate') {
       push('Remote template loaded on opening', isRemoteTarget(rel.target) ? 'confirmed' : 'probable', rel.rels, rel.target);

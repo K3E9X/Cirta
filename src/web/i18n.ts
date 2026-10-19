@@ -65,6 +65,7 @@ const FR = {
     environment: 'environnement',
     'invisible-character': 'invisible',
     'deceptive-link': 'lien trompeur',
+    'deceptive-name': 'nom trompeur',
     'active-content': 'contenu actif',
   },
 
@@ -296,6 +297,7 @@ const EN: Strings = {
     environment: 'environment',
     'invisible-character': 'invisible',
     'deceptive-link': 'deceptive link',
+    'deceptive-name': 'deceptive name',
     'active-content': 'active content',
   },
 

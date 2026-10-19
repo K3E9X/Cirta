@@ -34,7 +34,7 @@ export class RulesError extends UnsupportedFormatError {
 }
 
 const LEVELS = new Set(['confirmed', 'probable', 'informational']);
-const KINDS = new Set(['identity', 'provenance', 'timestamp', 'environment', 'invisible-character', 'deceptive-link', 'active-content']);
+const KINDS = new Set(['identity', 'provenance', 'timestamp', 'environment', 'invisible-character', 'deceptive-link', 'active-content', 'deceptive-name']);
 const MAX_RULES = 500;
 const MAX_PER_RULE = 50;
 const MAX_TEXT = 4 * 1024 * 1024;

@@ -24,6 +24,8 @@ import { byConfidence } from './types.js';
 import { hiddenInHtml, stripHiddenHtml } from './hidden-text.js';
 import { remoteFindings } from './beacons.js';
 import { trackingFindings } from './tracking.js';
+import { htmlLinkTargets, linkFindings, markdownLinkTargets } from './links.js';
+import { findHtmlLinks } from './url.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
 
@@ -368,6 +370,9 @@ export function detectMarkupFormat(text: string, hint?: string): MarkupFormat | 
   return undefined;
 }
 
+/** The text-and-target mismatches only: the lookalike-domain pass already runs on the whole text. */
+const linksShown = (findings: Finding[]) => findings.filter((f) => f.label === 'Link text shows a different address');
+
 export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   const findings =
     format === 'svg' ? inspectSvg(text) : format === 'html' ? inspectHtml(text) : inspectMarkdown(text);
@@ -379,6 +384,15 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   // [F-2.1] What opening the page fetches from elsewhere.
   if (format !== 'svg') findings.push(...remoteFindings(text, 'document body', format === 'markdown'));
   findings.push(...trackingFindings(text, 'links'));
+  // [F-P2 2.1] Links that run, carry a page, or bounce through a redirector;
+  // and link text that shows one address on a link to another.
+  if (format === 'html') findings.push(...linkFindings(htmlLinkTargets(text), 'links'), ...linksShown(findHtmlLinks(text)));
+  if (format === 'markdown') {
+    const links = markdownLinkTargets(text);
+    findings.push(...linkFindings([...links.map((l) => l.target), ...htmlLinkTargets(text)], 'links'));
+    const anchors = links.map((l) => `<a href="${l.target.replace(/"/g, '&quot;')}">${l.text}</a>`).join('\n');
+    findings.push(...linksShown(findHtmlLinks(anchors)));
+  }
   // The body goes to fingerprint() as a source, so a local path or a session
   // identifier sitting in a trailing "generated from …" line is found. Without
   // it a Markdown draft was quieter than the same bytes saved as .txt, which is

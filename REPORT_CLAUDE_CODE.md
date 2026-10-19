@@ -18,6 +18,7 @@ Chaque PR ne montre que son lot.
 | n°8 | `feat/legacy-formats` | `feat/dlp-rules` | F-2.2 Office ancien, Outlook `.msg`, notebooks Jupyter (F-P1) |
 | n°9 | `feat/ui-options` | `feat/legacy-formats` | F-2.7 options avancées, plan avant téléchargement, avant/après (F-P1) |
 | n°10 | `feat/hardening` | `feat/ui-options` | F-2.8 robustesse XML, fuzzers, corpus réel élargi, `SECURITY.md` (F-P1) |
+| n°11 | `feat/p2-links` | `feat/hardening` | F-P2 2.1 liens et noms de fichiers piégés |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1064,6 +1065,58 @@ Nouvelles options CLI (`cirta --help`) :
   cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  The text as a reader sees it, for a model; hidden instructions on stderr
   cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
 ```
+
+## F-P2 2.1 — Liens et noms de fichiers piégés
+
+**Statut : fait.** Les paramètres de suivi étaient déjà faits (F-2.4), et le décalage texte/adresse dans les courriers aussi (C4). Ce lot étend ce décalage aux pages HTML et au Markdown.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Liens | `363f852` | `src/core/links.ts` (nouveau) ; `markup.ts`, `mail.ts`, `pdf-active.ts`, `ooxml-active.ts`, `french.ts` ; test `test/links.test.ts` |
+| Noms de fichiers | `13745d6` | `src/core/filenames.ts` (nouveau) ; `index.ts` (membres d'archive), `mail.ts`, `msg.ts`, `pdf-active.ts`, `legacy-office.ts`, `types.ts` (genre `deceptive-name`), `rules.ts`, i18n CLI et web, `french.ts` ; test `test/filenames.test.ts` |
+| READMEs | commit `docs` | `README.md`, `README.fr.md` |
+
+Ce qui change :
+- **Liens `javascript:` et `vbscript:`** : contenu actif, confirmé, quelles que soient la casse et les espaces en tête.
+- **Liens `data:`** : confirmés quand l'adresse porte une page (`text/html`, SVG, script), probables sinon.
+- **Redirecteurs ouverts** :
+  - douze points connus (`google.com/url`, `l.facebook.com`, safelinks d'Outlook, LinkedIn, YouTube, Bing, DuckDuckGo, VK, Slack, Reddit, Steam, Instagram), confirmés, avec la destination décodée ;
+  - tout autre site qui passe une adresse absolue vers un autre hôte dans `url=`, `next=`, `redirect=`… : probable.
+- **Où les liens sont lus** : pages HTML et Markdown (`href`, `action`, `formaction`, `[texte](cible)`), corps de courrier, relations de lien hypertexte Office, actions `/URI` des PDF.
+- **Décalage entre texte affiché et adresse** (C4), désormais aussi dans les pages HTML et le Markdown.
+- **Noms de fichiers**, lus dans les membres d'archive, les pièces jointes de courrier et d'Outlook, les fichiers joints aux PDF et les objets Packager :
+  - forçage de sens d'écriture : le rapport donne ce que le nom affiche et sa vraie extension (« affiché « invoiceexe.pdf », se termine en réalité par .exe ») ;
+  - double extension qui cache un programme ;
+  - caractères invisibles ;
+  - alphabets mêlés dans un même mot ;
+  - membre d'archive qui sort de son dossier (`../`, `/`, `C:\`).
+- **Nouveau genre de constat `deceptive-name`** (« nom trompeur »), aussi accepté par les fichiers de règles.
+
+Tests :
+- `test/links.test.ts` (5) :
+  - `names a javascript: link and a data: link, with what the data is`
+  - `names a known open redirector and where it really goes`
+  - `flags an unknown site that hands an address in its query to another host, as probable`
+  - `reads them in an HTML page, a Markdown file, a mail, an Office document and a PDF`
+  - `reads them in the links of a PDF, and the names of the files it carries`
+- `test/filenames.test.ts` (5) :
+  - `shows what a right-to-left override makes a name look like, and what it is`
+  - `names a double extension that hides a program, spaces included`
+  - `names invisible characters and mixed alphabets in a name`
+  - `names an archive member that would be written outside its folder`
+  - `reads the names of archive members, mail attachments and Outlook attachments`
+- Corpus français : une archive de noms piégés et une page de liens piégés.
+
+Vérification manuelle :
+```
+cirta inspect --lang fr pieges.zip   # « Nom de fichier avec un contrôle de sens d'écriture — affiché « factureexe.pdf », se termine en réalité par .exe (U+202E) »
+```
+
+Écarts :
+- La liste des redirecteurs connus est finie ; le cas générique (paramètre d'adresse vers un autre hôte) rattrape les autres, en probable.
+- Pas de nettoyage : les liens et les noms sont du contenu, ils sont signalés.
+
+---
 
 ## Bilan final
 
