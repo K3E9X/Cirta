@@ -1973,6 +1973,40 @@ Vérification manuelle :
 
 ---
 
+## Release 0.2.0
+
+**Statut : préparée.** La branche `claude/watermark-removal-tool-ni3vi6` contient tout ce qu'il faut ; le tag `v0.2.0`, posé sur `main` après la fusion, déclenche la publication.
+
+Choix du propriétaire, demandés avant de commencer :
+- **0.2.0 plutôt que 0.1.0.** Le `CHANGELOG` décrivait déjà 0.1.0 comme la première version, jamais publiée sur npm. Tout le travail de la campagne et des lots F était sous *Unreleased* ; il devient `[0.2.0] — 2026-10-19`.
+- **Licence au nom de K3E9X.**
+- **Pas de npm cette fois.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| `LICENSE` (MIT, K3E9X) ; README : lien, et ce qu'un tag publie | `067fde7` | `LICENSE` (nouveau), `README.md`, `README.fr.md` |
+| Version 0.2.0 partout | `b4c9ebc` | `package.json`, `package-lock.json`, `integrations/vscode/package.json`, `CHANGELOG.md`, `src/cli/mcp.ts`, `src/cli/index.ts`, `src/core/sarif.ts` |
+| La release GitHub ne dépend plus de npm | `d65650a` | `.github/workflows/release.yml`, `test/release.test.ts` |
+
+Ce qui change :
+- **Deux versions écrites à la main**, qui auraient dit 0.1.0 pour toujours :
+  - le `serverInfo` du serveur MCP lit maintenant `version()` ;
+  - la version de l'outil dans le rapport SARIF est passée par la ligne de commande. La bibliothèque l'omet plutôt que de deviner quel Cirta l'embarque.
+- **npm devient optionnel.** Le job `npm` ne tourne que si la variable de dépôt `PUBLISH_NPM` vaut `true`, une fois la publication de confiance npm ou le secret `NPM_TOKEN` en place. Le job `github-release` n'attend plus que les binaires, les extensions et le fichier unique.
+- **Une release créée à la main** depuis la page GitHub pousse elle-même le tag. Les fichiers sont alors ajoutés à cette release (`gh release upload --clobber`) au lieu d'une seconde tentative de création.
+
+Tests ajoutés dans `test/release.test.ts` :
+- `carries the MIT licence with its holder, and the release as it stands passes its check` ;
+- `states one version everywhere: the editor extension, the MCP server, the SARIF report` ;
+- `keeps a changelog with an Unreleased section and the version published so far` (étendu : section datée de la version, lien pour chaque titre) ;
+- les deux tests du workflow, étendus : npm conditionnel, `github-release` sans npm, et l'envoi vers une release existante.
+
+Vérification :
+- `node scripts/check-release.mjs v0.2.0` : « ready (288 files, 654033 bytes packed) » ;
+- `npm run verify` : 100 fichiers, 1056 tests, vert. Deux anciens tests (`test/browser-extension.test.ts`, `test/single-file.test.ts`) attendaient encore `needs: [npm, …]` et ont été mis à jour avec le workflow.
+
+---
+
 ## Bilan final
 
 **Fait :**
