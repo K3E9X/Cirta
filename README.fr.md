@@ -1096,6 +1096,35 @@ Sans `--fail-on`, une analyse signale et réussit quand même : analyser n'est p
 est un contrôle désactivé en une semaine. Des copies prêtes à l'emploi sont dans
 [`examples/`](examples/) — un workflow GitHub Actions et un hook pre-commit.
 
+## Comme bibliothèque
+
+```bash
+npm install /chemin/vers/Cirta   # un clone construit ; le registre npm une fois publié
+```
+
+```js
+import { inspectFile, redactFile } from 'cirta';
+import { nodeXrayEngine } from 'cirta/node'; // facultatif : rend les pages PDF pour la recherche de texte caché
+
+const rapport = await inspectFile(octets, 'contrat.pdf', { xray: await nodeXrayEngine() });
+const nettoye = await redactFile(octets, 'contrat.pdf', { removeComments: true });
+// nettoye.data : les octets nettoyés ; nettoye.removed : ce qui est parti ; nettoye.kept : ce qui reste
+```
+
+Les types sont publiés avec le paquet (`dist/core/index.d.ts`) ; [`examples/library.mjs`](examples/library.mjs)
+est un exemple Node complet, que le test de fumée exécute contre le paquet construit. Chaque option de la
+ligne de commande est une option de `redactFile`. Les refus sont des `UnsupportedFormatError` portant un
+`code` (`unsupported`, `encrypted-pdf`, `legacy-not-rewritable`, `archive-not-rewritable`…), jamais une
+`Error` nue.
+
+**Versions.** Le paquet suit semver à partir de 1.0 ; avant, une version mineure peut changer l'API. Le rapport JSON a sa propre version : chaque entrée de
+`cirta inspect --json` porte `"schema": "cirta.report/1"`, décrit par
+[`schema/report.v1.json`](schema/report.v1.json) (JSON Schema 2020-12, exporté aussi en
+`cirta/schema/report.v1.json`), contre lequel la suite de tests valide la sortie de la ligne de commande
+et les résultats de la bibliothèque. La version 1 est additive : de nouveaux formats, genres de constats et
+codes de note peuvent y apparaître, un lecteur doit donc accepter des valeurs qu'il ne connaît pas ; un
+champ retiré ou renommé en ferait la version 2.
+
 ## Détail du traitement
 
 **PDF** — les clés du dictionnaire `/Info` sont supprimées plutôt que vidées, pour ne pas laisser

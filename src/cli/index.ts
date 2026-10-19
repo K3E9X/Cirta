@@ -43,6 +43,7 @@ import { parseRules, type Rule } from '../core/rules.js';
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
 import { version } from './version.js';
+import { REPORT_SCHEMA } from '../core/report-schema.js';
 import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
 import { writeFile } from 'node:fs/promises';
@@ -706,7 +707,7 @@ async function runVerify(args: Args): Promise<number> {
 const translateConfidence = (level: (typeof LEVELS)[number]) => t().confidenceName[level];
 
 async function runInspect(args: Args): Promise<number> {
-  const results: Array<{ file: string; result?: InspectResult; error?: string }> = [];
+  const results: Array<{ file: string; result?: InspectResult; error?: string; code?: string }> = [];
   let failures = 0;
 
   for (const file of args.files) {
@@ -731,7 +732,8 @@ async function runInspect(args: Args): Promise<number> {
     } catch (error) {
       failures++;
       const message = errorText(error, lang());
-      if (args.json || args.sarif) results.push({ file, error: message });
+      const code = (error as { code?: unknown } | null)?.code;
+      if (args.json || args.sarif) results.push({ file, error: message, ...(typeof code === 'string' ? { code } : {}) });
       else console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
   }
@@ -743,7 +745,8 @@ async function runInspect(args: Args): Promise<number> {
     return exitCode(args, results, failures);
   }
   if (args.json) {
-    console.log(terminalJson(results));
+    // [F-P2 2.5] Versioned: each entry names the schema it follows, schema/report.v1.json.
+    console.log(terminalJson(results.map((entry) => ({ schema: REPORT_SCHEMA, ...entry }))));
     return exitCode(args, results, failures);
   }
 

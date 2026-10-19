@@ -162,6 +162,18 @@ try {
   check('text says why it refused', /not text|UTF-8/.test(binary.output), binary.output);
   check('text writes nothing when refusing', binary.stdout === '', JSON.stringify(binary.stdout));
 
+  // --- [F-P2 2.5] the library, as a dependent imports it -------------------
+  // `import { inspectFile } from 'cirta'` resolves through the package's own
+  // "exports", as it will in a project that depends on it.
+  try {
+    const example = execFileSync(process.execPath, ['examples/library.mjs', pdfPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const entry = JSON.parse(example);
+    check('the library example imports from "cirta" and "cirta/node"', entry.schema === 'cirta.report/1' && entry.result.format === 'pdf');
+    check('the library reports the author', entry.result.findings.some((f) => f.label === 'Author'));
+  } catch (error) {
+    check('the library example runs', false, String(error).slice(0, 300));
+  }
+
   // --- exit codes ---------------------------------------------------------
   check('missing file exits non-zero', runCli(['inspect', join(dir, 'nope.pdf')]).status !== 0);
   check('unknown command exits 2', runCli(['wat']).status === 2);

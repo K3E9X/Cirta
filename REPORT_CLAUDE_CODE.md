@@ -20,6 +20,7 @@ Chaque PR ne montre que son lot.
 | n°10 | `feat/hardening` | `feat/ui-options` | F-2.8 robustesse XML, fuzzers, corpus réel élargi, `SECURITY.md` (F-P1) |
 | n°11 | `feat/p2-links` | `feat/hardening` | F-P2 2.1 liens et noms de fichiers piégés |
 | n°12 | `feat/p2-cleaning` | `feat/p2-links` | F-P2 2.4 sortie déterministe, manifeste, archives, ré-encodage des images |
+| n°13 | `feat/p2-library` | `feat/p2-cleaning` | F-P2 2.5 API de bibliothèque, rapport JSON versionné et son schéma |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1188,6 +1189,44 @@ sha256sum photo.clean.jpg; cirta redact photo.jpg -o b.jpg; sha256sum b.jpg   # 
 Écarts :
 - Le ré-encodage n'est déterministe qu'à codec égal : un autre navigateur, ou une autre version du canvas natif, encode autrement.
 - Un membre d'archive qui pointe hors de son dossier (`../`) garde son nom ; il est signalé (2.1).
+
+---
+
+## F-P2 2.5 — API de bibliothèque et rapport JSON versionné
+
+**Statut : fait.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| API, exports, schéma, exemple | `0a4772a` | `package.json` (`exports`, `files`, `ajv` en dev), `schema/report.v1.json`, `src/core/report-schema.ts`, `src/cli/node.ts`, `examples/library.mjs` (nouveaux) ; `src/cli/index.ts`, `src/core/index.ts`, `scripts/smoke.mjs`, READMEs ; test `test/report-schema.test.ts` |
+
+Ce qui change :
+- **`import { inspectFile, redactFile } from 'cirta'`** fonctionne, par le champ `exports` du paquet, avec les types (`dist/core/index.d.ts`).
+  - `cirta/node` fournit les moteurs Node du CLI (`nodeXrayEngine`, `nodeImageCodec`).
+  - `cirta/schema/report.v1.json` donne le schéma.
+  - Le paquet publié contient `dist` et `schema`, sans les tests (vérifié avec `npm pack --dry-run`).
+- **Exemple Node** : `examples/library.mjs`. Le test de fumée l'exécute contre la version construite, avec résolution par les `exports` du paquet.
+- **Rapport JSON versionné** : chaque entrée de `inspect --json` porte `"schema": "cirta.report/1"`, et un refus porte son `code`.
+  - `schema/report.v1.json` (JSON Schema 2020-12) le décrit. La suite valide contre lui, avec ajv, la sortie du CLI (résultats et refus) et les résultats de la bibliothèque.
+  - La version 1 est additive : genres, formats et codes de note sont des chaînes, le niveau de confiance une énumération.
+- **README** : section « bibliothèque » : installation depuis un clone tant que le paquet n'est pas sur le registre, semver à partir de 1.0, versionnement propre du rapport.
+
+Tests :
+- `test/report-schema.test.ts` (2) :
+  - `validates what inspect --json prints, results and refusals alike`
+  - `validates what the library returns`
+- `scripts/smoke.mjs` :
+  - `the library example imports from "cirta" and "cirta/node"`
+  - `the library reports the author`
+
+Vérification manuelle :
+```
+npm run build && node examples/library.mjs offre.pdf   # JSON avec "schema": "cirta.report/1", puis offre.clean.pdf
+```
+
+Écarts :
+- Le paquet n'est pas publié sur npm : la publication avec provenance relève de 2.8 et demande un jeton du registre.
+- Le changement de forme (champ `schema` dans chaque entrée) est additif : un lecteur existant qui ignore les champs inconnus n'est pas cassé.
 
 ---
 
