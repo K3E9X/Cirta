@@ -236,7 +236,12 @@ describe('[F-P3 2.5] cirta serve from the command line', () => {
     expect((await fetch(`http://127.0.0.1:${port}/health`)).status).toBe(200);
     const exit = new Promise<number | null>((resolve) => child.on('exit', resolve));
     child.kill('SIGTERM');
-    expect(await exit).toBe(0);
-    expect(stderr).toMatch(/Stopped\./);
+    const code = await exit;
+    // Windows has no signals: kill() ends the process outright. The clean stop matters where
+    // SIGTERM is sent — a container, a service manager — and is checked there.
+    if (process.platform !== 'win32') {
+      expect(code).toBe(0);
+      expect(stderr).toMatch(/Stopped\./);
+    }
   }, 60_000);
 });

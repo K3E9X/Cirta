@@ -1,4 +1,5 @@
-import { copyFileSync, mkdtempSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -31,15 +32,23 @@ describe('[F-P3 2.5] the single-file build', () => {
     }
   });
 
-  it('as a module, from a folder with no node_modules, inspects and cleans a document', async () => {
+  it('as a module, from a folder with no node_modules, inspects and cleans a document', () => {
+    // Imported by a Node of its own, natively: no test runner resolving anything for it.
     const alone = mkdtempSync(join(tmpdir(), 'cirta-alone-'));
     copyFileSync(files.module, join(alone, 'cirta.mjs'));
-    const cirta = await import(pathToFileURL(join(alone, 'cirta.mjs')).href);
-    const report = await cirta.inspectFile(makeDocx(), 'rapport.docx');
-    expect(report.findings.some((f: { value: string }) => /Lotfi Zakaria/.test(f.value))).toBe(true);
-    const cleaned = await cirta.redactFile(makeDocx(), 'rapport.docx');
-    expect(cleaned.removed.length).toBeGreaterThan(0);
-    expect(cirta.REPORT_SCHEMA).toBe('cirta.report/1');
+    writeFileSync(join(alone, 'rapport.docx'), makeDocx());
+    const script = `
+      import { readFileSync } from 'node:fs';
+      const cirta = await import(${JSON.stringify(pathToFileURL(join(alone, 'cirta.mjs')).href)});
+      const bytes = new Uint8Array(readFileSync(${JSON.stringify(join(alone, 'rapport.docx'))}));
+      const report = await cirta.inspectFile(bytes, 'rapport.docx');
+      const cleaned = await cirta.redactFile(bytes, 'rapport.docx');
+      console.log(JSON.stringify({ values: report.findings.map((f) => f.value), removed: cleaned.removed.length, schema: cirta.REPORT_SCHEMA }));
+    `;
+    const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: alone, encoding: 'utf8' }));
+    expect(out.values.some((value: string) => /Lotfi Zakaria/.test(value))).toBe(true);
+    expect(out.removed).toBeGreaterThan(0);
+    expect(out.schema).toBe('cirta.report/1');
   });
 
   it('as a classic script, in a context with only what a browser offers', async () => {
