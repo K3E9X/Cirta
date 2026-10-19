@@ -975,6 +975,21 @@ declare 800 MB; caps applied afterwards bound what is *reported*, not what is *d
 memory is already spent. The declared size is the archive's claim and a forged file can lie: this is
 a guard, not a proof.
 
+**An encrypted PDF is reported, not cleaned.** Its strings and streams are ciphertext: read without
+its key, an /Info dictionary is random bytes, and a rewrite keeps the ciphertext while dropping what
+decrypts it. Inspection says the document is encrypted and shows /Info and XMP only as PDF.js
+decrypts them — which it can when the user password is empty, the usual "protected against copying"
+PDF; with a real password nothing inside is read. Cleaning is refused, with a non-zero exit and no
+output file. And whatever the format, a cleaned copy is parsed again before it is delivered: one that
+does not come back as a document is refused rather than written.
+
+**A file cannot drive the terminal.** A terminal obeys escape sequences, and a document's /Author can
+hold one: retitle the window, erase the line above — a confirmed finding printed and wiped — open a
+link, write the clipboard. Every value read from a file, and every file name, is printed with its
+controls shown rather than obeyed: ESC as ␛, BEL as ␇, a C1 control as `\x9B`, a bidi override as
+`⟨U+202E⟩`. `--json` and `--sarif` escape the same characters, and `text --clean` writes the text as
+it is to a pipe or a file and only makes it visible when the output is a terminal.
+
 **A write cannot lose the original.** Every output goes through a temporary file in the same
 directory then an atomic rename; a symbolic link at the destination is refused rather than followed;
 and `--in-place` keeps a `.bak` created before any replacement.

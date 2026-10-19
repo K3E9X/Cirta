@@ -17,7 +17,7 @@ import type { XrayRegion } from '../core/xray.js';
 import { inspectPlainText, cleanPlainText } from '../core/plaintext.js';
 import { removeScaffolding } from '../core/residue.js';
 import { inspectClipboardHtml } from '../core/clipboard.js';
-import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
+import { translateLabel, translateValue, translateLocation, noteText, errorText } from '../shared/french.js';
 import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
 import { exposure, type Exposure } from '../core/exposure.js';
@@ -55,7 +55,7 @@ function ensureWorker(): Worker {
     if (!entry) return;
     pending.delete(event.data.id);
     if (event.data.ok) entry.resolve(event.data as never);
-    else entry.reject(new Error(event.data.error));
+    else entry.reject(Object.assign(new Error(event.data.error), { code: event.data.code, detail: event.data.detail }));
   });
   worker.addEventListener('error', () => {
     // A worker that failed to load stays failed; forgetting it lets the next
@@ -743,7 +743,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
           } catch (error) {
             node.classList.remove('is-cleaning');
             button.textContent = t().cleanFailed;
-            node.append(el('p', 'error', error instanceof Error ? error.message : String(error)));
+            node.append(el('p', 'error', errorText(error, lang())));
           }
         });
         foot.append(button);
@@ -755,7 +755,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
   } catch (error) {
     node.classList.remove('is-busy');
     node.querySelector('.count')?.remove();
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorText(error, lang());
     node.append(el('p', 'error', message));
     record({ error: message });
   }

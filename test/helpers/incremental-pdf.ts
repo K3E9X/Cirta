@@ -25,7 +25,16 @@ function xrefEntry(offset: number, generation: number, type: 'n' | 'f'): string 
  * one of these checks needs, written by the same code so the two differ in the
  * update and in nothing else.
  */
-export function incrementalPdf(first: string, second?: string): Uint8Array {
+export interface IncrementalOptions {
+  /**
+   * Write the update the way most editors do: a new content stream object and
+   * the page redefined to point at it. The first revision's stream is then
+   * still defined in the file and referenced by nothing — an orphan.
+   */
+  newContentsObject?: boolean;
+}
+
+export function incrementalPdf(first: string, second?: string, options: IncrementalOptions = {}): Uint8Array {
   const body = (shown: string) => `BT /F1 12 Tf 20 100 Td (${shown}) Tj ET\n`;
 
   const objects = [
@@ -55,6 +64,25 @@ export function incrementalPdf(first: string, second?: string): Uint8Array {
   out += `trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n${firstXref}\n%%EOF\n`;
 
   if (second === undefined) return enc.encode(out);
+
+  if (options.newContentsObject) {
+    // ---- the incremental update: a new stream 6, and page 3 pointing at it --
+    const streamAt = out.length;
+    const replaced = body(second);
+    out += `6 0 obj\n<</Length ${replaced.length}>>\nstream\n${replaced}endstream\nendobj\n`;
+    const pageAt = out.length;
+    out += '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]/Resources<</Font<</F1 5 0 R>>>>/Contents 6 0 R>>\nendobj\n';
+    const xrefAt = out.length;
+    out +=
+      'xref\n0 1\n' +
+      xrefEntry(0, 65535, 'f') +
+      '3 1\n' +
+      xrefEntry(pageAt, 0, 'n') +
+      '6 1\n' +
+      xrefEntry(streamAt, 0, 'n') +
+      `trailer\n<</Size 7/Root 1 0 R/Prev ${firstXref}>>\nstartxref\n${xrefAt}\n%%EOF\n`;
+    return enc.encode(out);
+  }
 
   // ---- the incremental update: object 4 again, with the text replaced ------
   const updatedAt = out.length;

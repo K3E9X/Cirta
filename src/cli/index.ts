@@ -10,7 +10,7 @@ import { basename, extname, dirname, join } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
 import { lang, setLang, detectLang, t } from './i18n.js';
-import { translateLabel, translateValue, translateLocation, noteText } from '../shared/french.js';
+import { translateLabel, errorText, translateValue, translateLocation, noteText } from '../shared/french.js';
 import { safeWrite, backup } from './write.js';
 import {
   inspectFile,
@@ -35,6 +35,7 @@ import {
   type Stylometry,
 } from '../core/index.js';
 import { nodeXrayEngine } from './xray-engine.js';
+import { terminalJson, terminalSafe } from './terminal.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 
 /**
@@ -101,6 +102,21 @@ ${bold(t().confidenceTitle)}
 ${bold(t().scopeTitle)}
   ${t().scopeBody}
 `.replace(/^\n+|\n+$/g, '');
+
+/*
+ * [C2] What came out of a file is made safe before it reaches the terminal —
+ * findings, notes, paths — and nowhere else: our own colours are escape codes
+ * too, so the line as a whole cannot be cleaned once they are in it.
+ */
+const safeFinding = (finding: Finding): Finding => ({
+  ...finding,
+  label: terminalSafe(finding.label),
+  value: terminalSafe(finding.value),
+  location: terminalSafe(finding.location),
+});
+const safeFindings = (findings: Finding[]): Finding[] => findings.map(safeFinding);
+const safeNotes = (notes: Note[]): Note[] =>
+  notes.map((note) => (note.detail === undefined ? note : { ...note, detail: terminalSafe(note.detail) }));
 
 interface Args {
   command: string | undefined;
@@ -312,7 +328,7 @@ async function expandPaths(paths: string[], skip: string[] = []): Promise<string
       continue;
     }
     const found = (await walkDirectory(path, skipSet)).sort();
-    if (found.length === 0) console.error(dim(t().noSupported(path)));
+    if (found.length === 0) console.error(dim(t().noSupported(terminalSafe(path))));
     out.push(...found);
   }
   return out;
@@ -510,31 +526,32 @@ async function runInspect(args: Args): Promise<number> {
       );
       results.push({ file, result });
       if (!args.json && !args.sarif) {
-        console.log(`\n${bold(file)} ${dim(`(${result.format})`)}`);
+        console.log(`\n${bold(terminalSafe(file))} ${dim(`(${result.format})`)}`);
         // Ahead of everything: an order to a model hidden from the reader is the
         // one finding that is an attack rather than a trace.
         const aimed = result.findings.filter((f) => f.label === AIMED_LABEL).length;
         if (aimed) console.log(`  ${red(bold(t().aimedAlert(aimed)))}`);
-        printProvenance(result.findings);
-        printFindings(result.findings);
-        printNotes(result.notes);
+        const findings = safeFindings(result.findings);
+        printProvenance(findings);
+        printFindings(findings);
+        printNotes(safeNotes(result.notes));
       }
     } catch (error) {
       failures++;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorText(error, lang());
       if (args.json || args.sarif) results.push({ file, error: message });
-      else console.error(`\n${bold(file)}\n  ${red(message)}`);
+      else console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
   }
 
   // SARIF is what a pipeline reads, so it is emitted alone on stdout with
   // nothing else mixed in — a stray banner makes the file unparseable.
   if (args.sarif) {
-    console.log(JSON.stringify(toSarif(results), null, 2));
+    console.log(terminalJson(toSarif(results)));
     return exitCode(args, results, failures);
   }
   if (args.json) {
-    console.log(JSON.stringify(results, null, 2));
+    console.log(terminalJson(results));
     return exitCode(args, results, failures);
   }
 
@@ -577,11 +594,11 @@ async function runRedact(args: Args): Promise<number> {
       await safeWrite(destination, result.data!);
 
       if (!args.json) {
-        console.log(`\n${bold(file)} ${dim(SYMBOL.arrow)} ${bold(destination)}`);
+        console.log(`\n${bold(terminalSafe(file))} ${dim(SYMBOL.arrow)} ${bold(terminalSafe(destination))}`);
         console.log(`  ${green(t().fieldsRemoved(result.removed.length))}`);
-        if (saved) console.log(`  ${dim(t().originalKept(saved))}`);
-        printFindings(result.removed);
-        printNotes(result.notes);
+        if (saved) console.log(`  ${dim(t().originalKept(terminalSafe(saved)))}`);
+        printFindings(safeFindings(result.removed));
+        printNotes(safeNotes(result.notes));
         // Hidden text a cleaner could have taken out, had it been asked to.
         const removable = ['docx', 'pptx', 'html', 'markdown'].includes(result.format);
         const hidden = (result.kept ?? []).some(removableFinding);
@@ -589,8 +606,8 @@ async function runRedact(args: Args): Promise<number> {
       }
     } catch (error) {
       failures++;
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`\n${bold(file)}\n  ${red(message)}`);
+      const message = errorText(error, lang());
+      console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
   }
   return failures > 0 ? 1 : 0;
@@ -619,7 +636,9 @@ async function runText(args: Args): Promise<number> {
     // The same clean the page runs. They used to differ: the page removed mail
     // headers that named a tool and the CLI kept them.
     const result = cleanPlainText(input);
-    process.stdout.write(result.text);
+    // The cleaned text is the data, and is written as it is — except to a
+    // terminal, where its controls would be obeyed rather than shown.
+    process.stdout.write(process.stdout.isTTY ? result.text.split('\n').map(terminalSafe).join('\n') : result.text);
     if (process.stderr.isTTY) {
       const count = result.removed.length;
       const anything = count || result.headersRemoved.length || result.markdownRemoved;
@@ -633,7 +652,7 @@ async function runText(args: Args): Promise<number> {
       for (const finding of result.kept) {
         console.error(
           yellow(
-            t().leftInPlace(translateLabel(finding.label, lang()), translateValue(finding, lang())),
+            t().leftInPlace(terminalSafe(translateLabel(finding.label, lang())), terminalSafe(translateValue(finding, lang()))),
           ),
         );
       }
@@ -643,9 +662,9 @@ async function runText(args: Args): Promise<number> {
         console.error(
           yellow(
             t().toReview(
-              translateLabel(finding.label, lang()),
-              translateLocation(finding.location, lang()),
-              finding.value,
+              terminalSafe(translateLabel(finding.label, lang())),
+              terminalSafe(translateLocation(finding.location, lang())),
+              terminalSafe(finding.value),
             ),
           ),
         );
@@ -660,13 +679,13 @@ async function runText(args: Args): Promise<number> {
   // assistant that wrote it.
   const findings = inspectPlainText(input);
   if (args.json) {
-    console.log(JSON.stringify({ format: 'text', findings }, null, 2));
+    console.log(terminalJson({ format: 'text', findings }));
     return 0;
   }
 
   console.log(bold('stdin'));
-  printProvenance(findings);
-  printFindings(findings);
+  printProvenance(safeFindings(findings));
+  printFindings(safeFindings(findings));
   printNotes([{ code: 'scope:invisible-characters-only' }]);
   printExposure(exposure(input));
   printStyle(stylometry(input));
@@ -730,7 +749,7 @@ main()
     process.exitCode = code;
   })
   .catch((error: unknown) => {
-    if (error instanceof UnsupportedFormatError) console.error(red(error.message));
+    if (error instanceof UnsupportedFormatError) console.error(red(errorText(error, lang())));
     else console.error(red(error instanceof Error ? error.stack ?? error.message : String(error)));
     process.exitCode = 1;
   });

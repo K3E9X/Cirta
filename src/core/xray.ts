@@ -59,6 +59,7 @@ export interface XrayPage {
 export interface XrayDocument {
   numPages: number;
   getPage(n: number): Promise<XrayPage>;
+  getMetadata?(): Promise<{ info?: Record<string, unknown>; metadata?: { getRaw?(): unknown } | null }>;
 }
 
 /** What getDocument returns: the document, and the handle that tears it down. */
@@ -451,7 +452,7 @@ function tinyRuns(items: XrayTextItem[]): Run[] {
  */
 async function offPageText(data: Uint8Array, engine: XrayEngine, views: Map<number, number[]>, deadline: number): Promise<Run[][]> {
   const out: Run[][] = [];
-  const enlarged = await enlargePages(data.slice()).catch(() => undefined);
+  const enlarged = await enlargePages(new Uint8Array(data)).catch(() => undefined);
   if (!enlarged) return out;
   const task = openDocument(engine, enlarged);
   const doc = await task.promise.catch(() => undefined);
@@ -501,7 +502,9 @@ function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
   return engine.pdfjs.getDocument({
     // PDF.js transfers the buffer it is given to its worker, which empties the
     // caller's copy; pdf-lib reading the same bytes afterwards found nothing.
-    data: data.slice(),
+    // A plain Uint8Array copy: a Node Buffer is a valid input to this library,
+    // and PDF.js refuses one — and Buffer#slice is a view, not a copy.
+    data: new Uint8Array(data),
     isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
@@ -521,6 +524,50 @@ function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
     verbosity: 0,
     ...engine.documentOptions,
   });
+}
+
+/** What PDF.js could make of an encrypted document's metadata. */
+export type Decrypted =
+  | { status: 'decrypted'; info: Map<string, string>; xmp?: string }
+  | { status: 'password' }
+  | { status: 'failed'; reason: string };
+
+/** Keys PDF.js adds to the info it returns that are not in the file's /Info. */
+const DERIVED = new Set(['PDFFormatVersion', 'Language', 'EncryptFilterName', 'IsLinearized', 'IsAcroFormPresent', 'IsXFAPresent', 'IsCollectionPresent', 'IsSignaturesPresent', 'Custom']);
+
+const infoValue = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : value && typeof value === 'object' && 'name' in value ? String((value as { name: unknown }).name) : undefined;
+
+/**
+ * The /Info dictionary and XMP packet of an encrypted PDF, decrypted the way a
+ * reader opens it: with the empty user password most "protected" PDFs have.
+ * pdf-lib cannot decrypt; PDF.js can, so it is asked. A document that needs a
+ * real password is reported as such and nothing in it is read.
+ */
+export async function decryptedMetadata(data: Uint8Array, engine: XrayEngine): Promise<Decrypted> {
+  const task = openDocument(engine, data);
+  try {
+    const doc = await task.promise;
+    const meta = await doc.getMetadata?.();
+    const info = new Map<string, string>();
+    for (const [key, raw] of Object.entries(meta?.info ?? {})) {
+      if (DERIVED.has(key)) continue;
+      const value = infoValue(raw);
+      if (value !== undefined) info.set(key, value);
+    }
+    const custom = (meta?.info?.['Custom'] ?? {}) as Record<string, unknown>;
+    for (const [key, raw] of Object.entries(custom)) {
+      const value = infoValue(raw);
+      if (value !== undefined) info.set(key, value);
+    }
+    const raw = meta?.metadata?.getRaw?.();
+    return { status: 'decrypted', info, xmp: typeof raw === 'string' ? raw : undefined };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'PasswordException') return { status: 'password' };
+    return { status: 'failed', reason: error instanceof Error ? error.message : String(error) };
+  } finally {
+    await task.destroy().catch(() => undefined);
+  }
 }
 
 export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<XrayResult> {

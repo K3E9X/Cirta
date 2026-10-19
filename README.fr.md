@@ -1035,6 +1035,23 @@ commence par ce mot reste traité comme du texte.
 qui est *décompressé* — la mémoire est déjà dépensée. La taille annoncée est la revendication de
 l'archive et un fichier forgé peut mentir : c'est une garde, pas une preuve.
 
+**Un PDF chiffré est signalé, pas nettoyé.** Ses chaînes et ses flux sont chiffrés : lu sans sa clé,
+un dictionnaire /Info n'est que des octets aléatoires, et une réécriture garde le chiffré en perdant
+ce qui le déchiffre. L'inspection dit que le document est chiffré et ne montre /Info et le XMP que
+tels que PDF.js les déchiffre — ce qu'il sait faire quand le mot de passe utilisateur est vide, le cas
+du PDF « protégé contre la copie » ; avec un vrai mot de passe, rien n'est lu à l'intérieur. Le
+nettoyage est refusé, avec un code de sortie non nul et aucun fichier écrit. Et quel que soit le
+format, une copie nettoyée est relue avant d'être livrée : si elle ne se relit pas comme un document,
+elle est refusée au lieu d'être écrite.
+
+**Un fichier ne peut pas piloter le terminal.** Un terminal obéit aux séquences d'échappement, et le
+champ /Author d'un document peut en contenir une : renommer la fenêtre, effacer la ligne précédente —
+un constat confirmé affiché puis effacé —, ouvrir un lien, écrire dans le presse-papiers. Toute valeur
+lue dans un fichier, et tout nom de fichier, est affichée avec ses caractères de contrôle montrés au
+lieu d'être exécutés : ESC devient ␛, BEL ␇, un contrôle C1 `\x9B`, un forçage bidi `⟨U+202E⟩`.
+`--json` et `--sarif` échappent les mêmes caractères, et `text --clean` écrit le texte tel quel vers un
+tube ou un fichier, et ne le rend visible que si la sortie est un terminal.
+
 **Une écriture ne peut pas perdre l'original.** Toute sortie passe par un fichier temporaire du même
 répertoire puis un renommage atomique ; un lien symbolique en destination est refusé plutôt que suivi ;
 et `--in-place` conserve un `.bak` créé avant tout remplacement.
