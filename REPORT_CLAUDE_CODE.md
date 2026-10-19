@@ -1446,7 +1446,7 @@ cirta inspect --lang fr --report rapport.md contrat.docx
 | Binaires autonomes (Node SEA), attestés | `c6cbe0b` | `scripts/build-sea.mjs` (nouveau) ; `src/cli/version.ts`, `src/cli/index.ts`, `src/cli/i18n.ts` (`--version`) ; `release.yml` (jobs `binaries`, `github-release`), `ci.yml` (job `sea`) ; `package.json` (`esbuild`, `postject`) ; `.gitignore` |
 | Documentation | `dc16fab` | `README.md`, `README.fr.md` |
 | Correctif : `release.yml` n'était pas du YAML valide (trouvé pendant 2.6) | `5e9981f` | `.github/workflows/release.yml` ; test `test/release.test.ts` |
-| Correctif : les scripts `.mjs` gardent LF sous Windows (CI Windows rouge sur `test/release.test.ts`) | `51e42fa` | `.gitattributes` (nouveau) ; test `test/release.test.ts` |
+| Correctif : les fichiers texte gardent LF sous Windows (CI Windows rouge sur `test/release.test.ts`) | `51e42fa`, `7d31a96` | `.gitattributes` (nouveau) ; test `test/release.test.ts` |
 
 Ce qui change :
 - **Budget de performance.**
@@ -1480,7 +1480,10 @@ Tests :
   - `says which version it is, as a binary must`
   - `releases single-file binaries for three systems, each built, run and attested, and builds them in CI too`
 - `test/release.test.ts`, ajouté par le correctif `5e9981f` : `the workflows are valid YAML` (un cas par workflow : `ci.yml`, `release.yml`, `pages.yml`). Il échoue sur la version d'avant le correctif.
-- `test/release.test.ts`, ajouté par le correctif `51e42fa` : `on every system, by .gitattributes`. Cause du rouge : Git pour Windows extrait en CRLF, et vite-node ne retire la ligne `#!` que si elle finit par LF ; l'import de `scripts/check-release.mjs` échouait en erreur de syntaxe. Reproduit ici en convertissant le fichier en CRLF ; un clone avec `core.autocrlf=true` garde désormais les `.mjs` en LF.
+- `test/release.test.ts`, ajouté par les correctifs `51e42fa` et `7d31a96` : `on every system, by .gitattributes`.
+  - Cause du rouge : Git pour Windows extrait en CRLF. Vite-node ne retire la ligne `#!` que si elle finit par LF, donc l'import de `scripts/check-release.mjs` échouait en erreur de syntaxe.
+  - Une fois l'import réparé (`*.mjs` en LF), les tests qui lisent `release.yml` ligne à ligne échouaient à leur tour : CRLF défait `\n` et `$`. D'où `* text=auto eol=lf` pour tous les fichiers texte.
+  - Reproduit ici en convertissant le fichier en CRLF. Un clone avec `core.autocrlf=true` ne contient plus aucun fichier en CRLF, et `release`, `perf-budget` et `site` y passent.
 
 Vérification manuelle :
 - `node scripts/perf.mjs` (Linux, Node 22) :
@@ -1515,12 +1518,13 @@ Vérification manuelle :
 
 | Élément | Commit | Fichiers |
 |---|---|---|
-| `--changed-only`, `--base <ref>` | `60c5ef9` | `src/cli/changed.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` ; `test/helpers/cli.ts` (option `cwd`) ; `vite.config.ts` (stderr de git) ; test `test/changed-only.test.ts` |
-| Hook pre-commit | `501f679` | `.pre-commit-hooks.yaml` (nouveau) ; `package.json` (`prepare`) ; test `test/pre-commit.test.ts` |
-| Action GitHub, annotations SARIF, exemple | `d305c81` | `action.yml`, `scripts/sarif-annotations.mjs`, `scripts/sarif-annotations.d.mts`, `examples/github-action.yml` (nouveaux) ; `ci.yml` (job `action`) ; test `test/github-action.test.ts` |
-| Extension VS Code | `0f7109a` | `integrations/vscode/` (nouveau : `package.json`, `src/extension.ts`, `src/diagnostics.ts`, `README.md`, `.vscodeignore`) ; `scripts/build-vscode.mjs` (nouveau) ; `tsconfig.web.json` ; `package.json` (`@types/vscode`) ; `.gitignore` ; test `test/vscode-extension.test.ts` |
-| Extension de navigateur ; les deux extensions en CI et à la publication | `5a1cb7b` | `scripts/build-browser-extension.mjs`, `scripts/build-browser-extension.d.mts` (nouveaux) ; `src/web/index.html` (marqueurs `<!--cirta:site-only-->`), `src/web/main.ts` ; `ci.yml` (job `extensions`), `release.yml` (job `extensions`) ; tests `test/browser-extension.test.ts`, `test/release.test.ts` |
-| Documentation | `d602732` | `README.md`, `README.fr.md`, `CHANGELOG.md` ; test `test/changed-only.test.ts` (sorties vides promises par le README) |
+| `--changed-only`, `--base <ref>` | `28fc05c` | `src/cli/changed.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` ; `test/helpers/cli.ts` (option `cwd`) ; `vite.config.ts` (stderr de git) ; test `test/changed-only.test.ts` |
+| Hook pre-commit | `a59f98c` | `.pre-commit-hooks.yaml` (nouveau) ; `package.json` (`prepare`) ; test `test/pre-commit.test.ts` |
+| Action GitHub, annotations SARIF, exemple | `0fb53de` | `action.yml`, `scripts/sarif-annotations.mjs`, `scripts/sarif-annotations.d.mts`, `examples/github-action.yml` (nouveaux) ; `ci.yml` (job `action`) ; test `test/github-action.test.ts` |
+| Extension VS Code | `3c52857` | `integrations/vscode/` (nouveau : `package.json`, `src/extension.ts`, `src/diagnostics.ts`, `README.md`, `.vscodeignore`) ; `scripts/build-vscode.mjs` (nouveau) ; `tsconfig.web.json` ; `package.json` (`@types/vscode`) ; `.gitignore` ; test `test/vscode-extension.test.ts` |
+| Extension de navigateur ; les deux extensions en CI et à la publication | `546f7bd` | `scripts/build-browser-extension.mjs`, `scripts/build-browser-extension.d.mts` (nouveaux) ; `src/web/index.html` (marqueurs `<!--cirta:site-only-->`), `src/web/main.ts` ; `ci.yml` (job `extensions`), `release.yml` (job `extensions`) ; tests `test/browser-extension.test.ts`, `test/release.test.ts` |
+| Documentation | `b243b85` | `README.md`, `README.fr.md`, `CHANGELOG.md` ; test `test/changed-only.test.ts` (sorties vides promises par le README) |
+| Correctif Windows (CI) : `--changed-only` et le test VS Code | `d162d0a` | `src/cli/changed.ts` ; tests `test/changed-only.test.ts`, `test/vscode-extension.test.ts` |
 
 Ce qui change :
 - **`--changed-only`.**
@@ -1549,10 +1553,11 @@ Ce qui change :
 - **CI et publication.** Job CI `extensions` : `.vsix` empaqueté, extension de navigateur construite, `web-ext lint`. À la publication, les deux sont attestés et joints à la release.
 
 Tests :
-- `test/changed-only.test.ts` (4) :
+- `test/changed-only.test.ts` (5) :
   - `takes the staged files, as a pre-commit hook sees them`
   - `takes what changed since --base, as a pull request does, renamed and deleted files aside`
   - `fails a verify on what changed only, and says so when nothing did`
+  - `names the files the same however the folder is spelled` (ajouté par le correctif `d162d0a`)
   - `refuses outside a repository, and an unknown base, saying why`
 - `test/pre-commit.test.ts` (2) : `runs the installed cirta verify; installed from git, the package builds itself` ; `takes the files a folder walk takes, and no others`.
 - `test/github-action.test.ts` (3) :
@@ -1588,9 +1593,13 @@ Vérification manuelle :
 - **Pas de publication dans les boutiques** (Marketplace VS Code, Chrome Web Store, addons.mozilla.org) : il faut les comptes du propriétaire. Les paquets sont joints à chaque release, attestés.
 - **Firefox non lancé** : seul le linter de Mozilla a lu l'extension. Elle a tourné dans Chromium.
 - **Pas de `LICENSE`** (voir F-P2 2.8) : `vsce` est lancé avec `--skip-license` tant que le fichier manque ; il est copié dans l'extension dès qu'il existe.
+- **Défauts Windows trouvés par la CI, corrigés (`d162d0a`)** :
+  - `--changed-only` comparait les chemins absolus de git avec ceux du dossier courant. Sur les runners Windows, ce sont deux écritures du même dossier (`C:\Users\RUNNER~1` et `C:/Users/runneradmin`), et chaque fichier revenait en `../../…/nom`. Le calcul se fait désormais en chemins relatifs au dépôt, à partir de `git rev-parse --show-prefix`. Un test reproduit le défaut sous Linux avec un lien symbolique.
+  - Le substitut de `Uri` du test VS Code gardait les barres obliques inverses, là où `Uri.file` de VS Code met des `/`. L'extension elle-même était juste.
+  - Le même test comparait l'original à un second `makeDocx()`, dont les dates ZIP suivent l'horloge. Il échouait quand une seconde passait entre les deux appels, et ici aussi sous charge. Il compare désormais avec les octets écrits.
 - **Correctifs hors lot, sur la branche de 2.8 (PR n°37), chacun avec un test** :
   - `release.yml` n'était pas du YAML valide ; trouvé en y ajoutant le job `extensions` (`5e9981f`).
-  - La CI Windows était rouge sur `test/release.test.ts` : fins de ligne CRLF (`51e42fa`).
+  - La CI Windows était rouge sur `test/release.test.ts` : fins de ligne CRLF (`51e42fa`, `7d31a96`).
 
 ---
 
@@ -1620,8 +1629,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
 | Après F-P2 2.2 (PR n°35) | 78 | 919 |
 | Après F-P2 2.7 (PR n°36) | 81 | 936 |
-| Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f` et `51e42fa`) | 83 | 950 |
-| Après F-P2 2.6 (PR n°38) | 88 | **970** |
+| Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f`, `51e42fa`, `7d31a96`) | 83 | 950 |
+| Après F-P2 2.6 (PR n°38) | 88 | **971** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
