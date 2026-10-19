@@ -137,8 +137,8 @@ describe('[F-P3 2.6] cirta watch from the command line', () => {
     let stderr = '';
     child.stdout.on('data', (data) => (stdout += data));
     child.stderr.on('data', (data) => (stderr += data));
-    await expect.poll(() => /Watching/.test(stderr), { timeout: 30_000 }).toBe(true);
-    expect(stderr).toMatch(/inspection only/i);
+    // Two writes to stderr, which a pipe may deliver apart: wait for the second as well.
+    await expect.poll(() => /Watching/.test(stderr) && /inspection only/i.test(stderr), { timeout: 30_000 }).toBe(true);
     // makeDocx() stamps the current time into the ZIP: the bytes written are the ones to compare with.
     const written = makeDocx();
     await writeFile(join(dir, 'letter.docx'), written);
@@ -162,7 +162,7 @@ describe('[F-P3 2.6] cirta watch from the command line', () => {
     let stderr = '';
     child.stdout.on('data', (data) => (stdout += data));
     child.stderr.on('data', (data) => (stderr += data));
-    await expect.poll(() => /Watching/.test(stderr), { timeout: 30_000 }).toBe(true);
+    await expect.poll(() => /Watching/.test(stderr) && /Cleaning:/.test(stderr), { timeout: 30_000 }).toBe(true);
     await mkdir(join(dir, 'sub'), { recursive: true });
     await writeFile(join(dir, 'sub', 'letter.docx'), makeDocx());
     // A gzip: inspected only, so refused on cleaning.
