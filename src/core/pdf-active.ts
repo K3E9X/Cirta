@@ -13,6 +13,7 @@
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream, PDFRef, PDFString, decodePDFRawStream } from 'pdf-lib';
 import type { Finding, InspectResult } from './types.js';
 import { preview } from './types.js';
+import { cleanUrl, trackingFinding } from './tracking.js';
 
 type Lookup = (value: unknown) => unknown;
 
@@ -248,6 +249,10 @@ export function scanActive(doc: PDFDocument): ActiveScan {
       value: `${file.name} — ${file.data.length} bytes${file.mime ? `, ${file.mime}` : ''}`,
     });
   }
+  for (const uri of uris) {
+    const tracked = trackingFinding(uri, 'links');
+    if (tracked) findings.push(tracked);
+  }
   if (uris.size) {
     const list = [...uris];
     findings.push({
@@ -353,7 +358,7 @@ export function stripActive(doc: PDFDocument): number {
 }
 
 /** Delete every indirect object the trailer no longer leads to. */
-function pruneUnreachable(doc: PDFDocument): void {
+export function pruneUnreachable(doc: PDFDocument): void {
   const reachable = new Set<string>();
   const queue: unknown[] = [doc.context.trailerInfo.Root, doc.context.trailerInfo.Info];
   let steps = 0;
@@ -376,4 +381,33 @@ function pruneUnreachable(doc: PDFDocument): void {
   for (const [ref] of doc.context.enumerateIndirectObjects()) {
     if (!reachable.has(ref.toString())) doc.context.delete(ref);
   }
+}
+
+/** [F-2.4] Tracking parameters out of every /URI action. Returns how many links changed. */
+export function stripTrackingPdf(doc: PDFDocument): number {
+  let changed = 0;
+  const seen = new Set<unknown>();
+  // Actions are often written inline, in an annotation inline in /Annots:
+  // every container is walked, direct objects included, each once.
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 32 || seen.has(value)) return;
+    seen.add(value);
+    if (value instanceof PDFArray) {
+      for (const item of value.asArray()) visit(item, depth + 1);
+    } else if (value instanceof PDFDict) {
+      const uri = value.get(PDFName.of('URI'));
+      if (value.get(PDFName.of('S'))?.toString() === '/URI' && (uri instanceof PDFString || uri instanceof PDFHexString)) {
+        const cleaned = cleanUrl(uri.decodeText());
+        if (cleaned !== undefined) {
+          // As bytes in hex: a literal string would need its parentheses and
+          // backslashes escaped, and a URI is ASCII, not text to re-encode.
+          value.set(PDFName.of('URI'), PDFHexString.of([...cleaned].map((c) => (c.charCodeAt(0) & 0xff).toString(16).padStart(2, '0')).join('')));
+          changed++;
+        }
+      }
+      for (const item of value.values()) if (!(item instanceof PDFRef)) visit(item, depth + 1);
+    }
+  };
+  for (const [, object] of doc.context.enumerateIndirectObjects()) visit(object, 0);
+  return changed;
 }

@@ -232,6 +232,58 @@ try {
       check('active.docx: reopens in LibreOffice with active content stripped', false, String(error).slice(0, 200));
     }
   }
+
+  // [F-2.4] A deck with notes and a hidden slide, both removed, then opened by
+  // LibreOffice: two pages exported, where there were three slides.
+  {
+    const P = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const PML = 'application/vnd.openxmlformats-officedocument.presentationml';
+    const rels = (...items) =>
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id, type, target]) => `<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`).join('')}</Relationships>`;
+    const tree = (content) => `<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>${content}</p:spTree></p:cSld>`;
+    const box = (words) => `<p:sp><p:nvSpPr><p:cNvPr id="2" name="T"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="6000000" cy="1000000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${words}</a:t></a:r></a:p></p:txBody></p:sp>`;
+    const files = {};
+    const overrides = [`<Override PartName="/ppt/presentation.xml" ContentType="${PML}.presentation.main+xml"/>`, `<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="${PML}.slideMaster+xml"/>`, `<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="${PML}.slideLayout+xml"/>`];
+    const slides = [['Premiere', 'Note un'], ['Secrete', 'Note deux', true], ['Derniere']];
+    slides.forEach(([words, notes, hidden], i) => {
+      const n = i + 1;
+      files[`ppt/slides/slide${n}.xml`] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ${P}${hidden ? ' show="0"' : ''}>${tree(box(words))}</p:sld>`);
+      overrides.push(`<Override PartName="/ppt/slides/slide${n}.xml" ContentType="${PML}.slide+xml"/>`);
+      const own = [['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml']];
+      if (notes) {
+        files[`ppt/notesSlides/notesSlide${n}.xml`] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes ${P}>${tree(box(notes))}</p:notes>`);
+        files[`ppt/notesSlides/_rels/notesSlide${n}.xml.rels`] = strToU8(rels(['rId1', 'slide', `../slides/slide${n}.xml`]));
+        overrides.push(`<Override PartName="/ppt/notesSlides/notesSlide${n}.xml" ContentType="${PML}.notesSlide+xml"/>`);
+        own.push(['rId2', 'notesSlide', `../notesSlides/notesSlide${n}.xml`]);
+      }
+      files[`ppt/slides/_rels/slide${n}.xml.rels`] = strToU8(rels(...own));
+    });
+    files['ppt/presentation.xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation ${P}><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>${slides.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i + 2}"/>`).join('')}</p:sldIdLst><p:sldSz cx="9144000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`);
+    files['ppt/_rels/presentation.xml.rels'] = strToU8(rels(['rId1', 'slideMaster', 'slideMasters/slideMaster1.xml'], ...slides.map((_, i) => [`rId${i + 2}`, 'slide', `slides/slide${i + 1}.xml`])));
+    files['ppt/slideMasters/slideMaster1.xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster ${P}>${tree('')}<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>`);
+    files['ppt/slideMasters/_rels/slideMaster1.xml.rels'] = strToU8(rels(['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml']));
+    files['ppt/slideLayouts/slideLayout1.xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout ${P}>${tree('')}</p:sldLayout>`);
+    files['ppt/slideLayouts/_rels/slideLayout1.xml.rels'] = strToU8(rels(['rId1', 'slideMaster', '../slideMasters/slideMaster1.xml']));
+    files['_rels/.rels'] = strToU8(rels(['rId1', 'officeDocument', 'ppt/presentation.xml']));
+    files['[Content_Types].xml'] = strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${overrides.join('')}</Types>`);
+    const deck = zipSync(files);
+    const cleaned = await redactFile(deck, 'deck.pptx', { removeNotes: true, removeHiddenSlides: true });
+    await writeFile(join(dir, 'deck.clean.pptx'), cleaned.data);
+    const out = join(dir, 'out-deck');
+    try {
+      await soffice(['--convert-to', 'pdf', '--outdir', out, join(dir, 'deck.clean.pptx')], 'out-deck');
+      const pdf = await readFile(join(out, 'deck.clean.pdf'), 'latin1');
+      const pages = (pdf.match(/\/Type\s*\/Page\b(?!s)/g) ?? []).length;
+      // LibreOffice leaves hidden slides out of a PDF export anyway, so the
+      // page count says the deck opens; the package says the slide is gone.
+      check('deck.pptx: reopens in LibreOffice with notes and the hidden slide removed', pages === 2, `${pages} page(s)`);
+      const kept = unzipSync(cleaned.data);
+      check('deck.pptx: the hidden slide and every notes part are gone from the package', !kept['ppt/slides/slide2.xml'] && !Object.keys(kept).some((p) => p.includes('notesSlide')));
+    } catch (error) {
+      check('deck.pptx: reopens in LibreOffice with notes and the hidden slide removed', false, String(error).slice(0, 200));
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

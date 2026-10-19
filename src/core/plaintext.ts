@@ -34,6 +34,7 @@ import { findSourceTypes } from './sourcetype.js';
 import { fingerprint, BODY_TEXT } from './fingerprint.js';
 import { hiddenInHtml, htmlInMail } from './hidden-text.js';
 import { looksLikeMail } from './mime.js';
+import { trackingFindings } from './tracking.js';
 
 /**
  * [C9] The body of a pasted mail, or the text itself. The residue checks
@@ -97,6 +98,7 @@ export function inspectPlainText(text: string): Finding[] {
     ...emailHeaders(text),
     ...findSourceTypes(text, 'file contents'),
     ...residueOf(text),
+    ...trackingFindings(text, 'links'),
     ...hiddenInMail(text),
   ];
   // The body is handed to fingerprint() as a source so that a path or a session

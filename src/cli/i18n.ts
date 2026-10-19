@@ -24,6 +24,12 @@ const FR = {
   usageInspect: 'Signale les métadonnées portées par chaque fichier',
   usageRedact: 'Écrit une copie sans ces métadonnées',
   usageText: 'Lit du texte sur l’entrée standard ; le signale ou le nettoie',
+  usageVerify: 'Ré-inspecte ; sort en erreur s’il reste un constat à ce niveau (confirmed par défaut)',
+  verifyPass: 'CONFORME',
+  verifyFail: 'ÉCHEC',
+  verifyNothing: (level: string) => `aucun constat ${level} ou au-dessus`,
+  verifyLeft: (n: number, level: string) => `${n} constat${n > 1 ? 's' : ''} ${level} ou au-dessus reste${n > 1 ? 'nt' : ''} :`,
+  confidenceName: { confirmed: 'confirmé', probable: 'probable', informational: 'informatif' },
   paths:
     'Les chemins peuvent être des fichiers ou des répertoires. Les répertoires sont parcourus\n' +
     'récursivement ; les répertoires de construction et de dépendances comme node_modules,\n' +
@@ -43,6 +49,13 @@ const FR = {
   stripActiveHint: 'Des scripts, actions, macros ou fichiers intégrés sont restés. Relancez avec --strip-active pour les retirer.',
   optStripRemote: 'redact : retire images, styles, scripts et cadres chargés depuis le réseau, pixels de suivi compris (HTML, Markdown)',
   stripRemoteHint: 'Des ressources chargées depuis le réseau sont restées. Relancez avec --strip-remote-resources pour les retirer.',
+  optRemoveNotes: 'redact : retire les notes du présentateur (PowerPoint)',
+  optRemoveHiddenSlides: 'redact : retire les diapositives masquées et leurs notes (PowerPoint)',
+  optRemoveHiddenSheets: 'redact : retire les feuilles masquées que rien ne lit (Excel ; refusé sinon)',
+  optRemoveAttachments: 'redact : retire les fichiers intégrés (PDF)',
+  optFlattenAnnotations: 'redact : dessine les annotations dans la page puis les retire, auteurs compris (PDF)',
+  optStripTracking: 'redact : retire utm_*, fbclid, gclid… des liens (HTML, Markdown, Office, PDF)',
+  optBurnRedactions: 'redact : supprime pour de bon le texte recouvert par une forme ; la page concernée devient une image (PDF)',
   removeCommentsHint: 'Le texte des commentaires est resté (leurs auteurs sont anonymisés). Relancez avec --remove-comments pour les retirer.',
   aimedAlert: (n: number) =>
     n > 1
@@ -221,6 +234,12 @@ const EN: Strings = {
   usageInspect: 'Report metadata carried by each file',
   usageRedact: 'Write a copy with that metadata removed',
   usageText: 'Read text on stdin; report or clean it',
+  usageVerify: 'Inspect again; exit non-zero if a finding at this level is left (confirmed by default)',
+  verifyPass: 'PASS',
+  verifyFail: 'FAIL',
+  verifyNothing: (level) => `no ${level} finding or above`,
+  verifyLeft: (n, level) => `${n} ${level} finding${n > 1 ? 's' : ''} or above left:`,
+  confidenceName: { confirmed: 'confirmed', probable: 'probable', informational: 'informational' },
   paths:
     'Paths may be files or directories. Directories are walked recursively for\n' +
     'documents, images and text files; build and dependency directories such as\n' +
@@ -240,6 +259,13 @@ const EN: Strings = {
   stripActiveHint: 'Scripts, actions, macros or embedded files were left in. Run again with --strip-active to remove them.',
   optStripRemote: 'redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)',
   stripRemoteHint: 'Resources loaded from the network were left in. Run again with --strip-remote-resources to remove them.',
+  optRemoveNotes: 'redact: remove speaker notes (PowerPoint)',
+  optRemoveHiddenSlides: 'redact: remove hidden slides and their notes (PowerPoint)',
+  optRemoveHiddenSheets: 'redact: remove hidden sheets nothing reads (Excel; refused otherwise)',
+  optRemoveAttachments: 'redact: remove embedded files (PDF)',
+  optFlattenAnnotations: 'redact: draw annotations into the page, then remove them, authors included (PDF)',
+  optStripTracking: 'redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)',
+  optBurnRedactions: 'redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)',
   removeCommentsHint: 'Comment text was left in (its authors are anonymised). Run again with --remove-comments to remove them.',
   aimedAlert: (n: number) =>
     n > 1

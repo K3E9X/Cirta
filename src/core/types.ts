@@ -158,6 +158,22 @@ export type NoteCode =
   | 'removed:active-content'
   /** [F-2.1] Resources loaded from the network were removed, on request. */
   | 'removed:remote-resources'
+  /** [F-2.4] Speaker notes were removed, on request. */
+  | 'removed:notes'
+  /** [F-2.4] Hidden slides were removed, on request. */
+  | 'removed:hidden-slides'
+  /** [F-2.4] Hidden sheets were removed, on request. */
+  | 'removed:hidden-sheets'
+  /** [F-2.4] Hidden sheets were asked to go and stayed: something reads them. */
+  | 'kept:hidden-sheets'
+  /** [F-2.4] Embedded files were removed, on request. */
+  | 'removed:attachments'
+  /** [F-2.4] Annotations were drawn into the page and removed; detail "drawn/removed". */
+  | 'flattened:annotations'
+  /** [F-2.4] Tracking parameters were removed from links, on request. */
+  | 'removed:tracking-params'
+  /** [F-2.4] Pages turned into pictures to burn covered text; detail lists them. */
+  | 'rasterized:pages'
   /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
   | 'changed:nfc'
   /** [C8] Typographic spaces were left as written. */
@@ -190,6 +206,20 @@ export interface InspectOptions {
   removeComments?: boolean;
   /** [F-2.1] Cleaning only: remove scripts, actions, macros and embedded files. Off by default. */
   stripActive?: boolean;
+  /** [F-2.4] Cleaning only: remove every slide's speaker notes. */
+  removeNotes?: boolean;
+  /** [F-2.4] Cleaning only: remove slides marked hidden, with their notes. */
+  removeHiddenSlides?: boolean;
+  /** [F-2.4] Cleaning only: remove hidden sheets nothing else refers to. */
+  removeHiddenSheets?: boolean;
+  /** [F-2.4] Cleaning only: remove the files a PDF carries. */
+  removeAttachments?: boolean;
+  /** [F-2.4] Cleaning only: draw PDF annotations into their pages and remove them. */
+  flattenAnnotations?: boolean;
+  /** [F-2.4] Cleaning only: remove tracking parameters (utm_*, fbclid, gclid…) from links. */
+  stripTracking?: boolean;
+  /** [F-2.4] Cleaning only: remove PDF text covered by a shape for good. Needs `xray`. */
+  burnRedactions?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
   /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */

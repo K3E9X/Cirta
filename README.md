@@ -790,6 +790,32 @@ binding* is an imperceptible mark in the content itself, letting a verifier fetc
 remotely. **A removed manifest therefore does not mean no provenance remains.** Cirta says so in its
 cleaning report.
 
+### Content options — opt-in, each one announced
+
+Ordinary cleaning never changes what a document says. These do, so each is off unless given, and the
+report says what it changed — or why it did not.
+
+| Option | What it does | Formats |
+|---|---|---|
+| `--accept-changes` | Accepts every tracked change: deleted text leaves the file | DOCX |
+| `--remove-comments` | Removes every comment, its author and its thread | DOCX, XLSX, PPTX |
+| `--remove-hidden` | Removes text a reader cannot see | DOCX, PPTX, HTML, Markdown |
+| `--remove-notes` | Removes the speaker notes of every slide | PPTX |
+| `--remove-hidden-slides` | Removes hidden slides, with their notes and their place in the slide list, sections and custom shows | PPTX |
+| `--remove-hidden-sheets` | Removes hidden sheets **that nothing reads**; if a formula, a chart or a defined name reads one, nothing goes and the report says which and why (`#REF!` otherwise) | XLSX |
+| `--remove-attachments` | Removes embedded files, and the bytes they held | PDF |
+| `--flatten-annotations` | Draws each annotation into its page as it appeared, then removes it with its author; links and form fields stay | PDF |
+| `--strip-active` | Removes scripts, actions, macros, remote templates, DDE and remote INCLUDE fields, embedded files | PDF, DOCX, XLSX, PPTX |
+| `--strip-tracking-params` | Removes `utm_*`, `fbclid`, `gclid`, `mc_eid`… from links, the rest of each address unchanged | HTML, Markdown, Office, PDF |
+| `--strip-remote-resources` | Removes pictures, styles, scripts and frames loaded from the network, tracking pixels included | HTML, Markdown |
+| `--burn-redactions` | Removes text covered by a shape for good: each page that holds some becomes a picture of itself, so it loses its selectable text — the report names those pages. Needs the PDF renderer; without it the clean is refused | PDF |
+
+```
+cirta redact deck.pptx --remove-notes --remove-hidden-slides
+cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attachments
+cirta verify contrat.clean.pdf
+```
+
 ## Web interface
 
 Open the [published page](https://k3e9x.github.io/Cirta/), drop a file, read the report, download the
@@ -876,6 +902,10 @@ cirta inspect report.pdf --json
 # Text on standard input
 cirta text < draft.txt
 cirta text --clean < draft.txt > clean.txt
+
+# The gate before a file goes out: inspect again, exit 1 if anything confirmed is left
+cirta verify rapport.clean.docx                 # PASS / FAIL, the findings left listed
+cirta verify --fail-on probable --json outbox/   # stricter, machine-readable
 cirta text --clean --normalize-spaces < draft.txt   # also replaces no-break and narrow spaces
 cirta text --lang fr < draft.txt
 

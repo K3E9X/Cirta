@@ -843,6 +843,32 @@ manifeste signé dans le conteneur — c'est celui que Cirta retire, et le retra
 retrouver le manifeste à distance. **Un manifeste retiré ne signifie donc pas qu'il ne reste aucune
 provenance.** Cirta le rappelle dans son rapport de nettoyage.
 
+### Options de contenu — à la demande, chacune annoncée
+
+Le nettoyage ordinaire ne change jamais ce que dit un document. Celles-ci, si : chacune est désactivée
+sauf si on la donne, et le rapport dit ce qu'elle a changé — ou pourquoi elle ne l'a pas fait.
+
+| Option | Ce qu'elle fait | Formats |
+|---|---|---|
+| `--accept-changes` | Accepte toutes les modifications suivies : le texte supprimé quitte le fichier | DOCX |
+| `--remove-comments` | Retire chaque commentaire, son auteur et son fil | DOCX, XLSX, PPTX |
+| `--remove-hidden` | Retire le texte qu'un lecteur ne voit pas | DOCX, PPTX, HTML, Markdown |
+| `--remove-notes` | Retire les notes du présentateur de chaque diapositive | PPTX |
+| `--remove-hidden-slides` | Retire les diapositives masquées, avec leurs notes et leur place dans la liste, les sections et les diaporamas personnalisés | PPTX |
+| `--remove-hidden-sheets` | Retire les feuilles masquées **que rien ne lit** ; si une formule, un graphique ou un nom défini en lit une, rien ne part et le rapport dit laquelle et pourquoi (`#REF!` sinon) | XLSX |
+| `--remove-attachments` | Retire les fichiers intégrés, et les octets qu'ils contenaient | PDF |
+| `--flatten-annotations` | Dessine chaque annotation dans sa page telle qu'elle apparaissait, puis la retire avec son auteur ; liens et champs restent | PDF |
+| `--strip-active` | Retire scripts, actions, macros, modèles distants, champs DDE et INCLUDE distants, fichiers intégrés | PDF, DOCX, XLSX, PPTX |
+| `--strip-tracking-params` | Retire `utm_*`, `fbclid`, `gclid`, `mc_eid`… des liens, le reste de chaque adresse inchangé | HTML, Markdown, Office, PDF |
+| `--strip-remote-resources` | Retire images, styles, scripts et cadres chargés depuis le réseau, pixels de suivi compris | HTML, Markdown |
+| `--burn-redactions` | Supprime pour de bon le texte recouvert par une forme : chaque page qui en contient devient une image d'elle-même, et perd donc son texte sélectionnable — le rapport nomme ces pages. Demande le moteur de rendu PDF ; sans lui, le nettoyage est refusé | PDF |
+
+```
+cirta redact deck.pptx --remove-notes --remove-hidden-slides
+cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attachments
+cirta verify contrat.clean.pdf
+```
+
 ## Interface web
 
 Ouvrez la [page publiée](https://k3e9x.github.io/Cirta/), déposez un fichier, consultez le rapport,
@@ -933,6 +959,10 @@ cirta inspect rapport.pdf --json
 # Texte sur l'entrée standard
 cirta text < brouillon.txt                    # analyser
 cirta text --clean < brouillon.txt > propre.txt
+
+# Le contrôle avant diffusion : ré-inspecte, sort en 1 s'il reste un constat confirmé
+cirta verify rapport.clean.docx                 # CONFORME / ÉCHEC, constats restants listés
+cirta verify --fail-on probable --json sortie/   # plus strict, lisible par une machine
 cirta text --clean --normalize-spaces < brouillon.txt   # remplace aussi les espaces insécables et fines
 
 # La garde binaire refuse un document ; --force-text passe outre si vous savez

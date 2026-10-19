@@ -220,6 +220,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Hidden rows and columns': 'Lignes et colonnes masquées',
   'Cells in white type': 'Cellules en blanc sur blanc',
   'Tracking pixel': 'Pixel de suivi',
+  'Tracking parameters in a link': 'Paramètres de suivi dans un lien',
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
@@ -933,6 +934,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
   }),
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+  'burn-unavailable': () => ({
+    en: 'Burning redactions needs the PDF renderer, which is not available here: nothing was cleaned, rather than a copy that still holds the covered text.',
+    fr: 'Brûler les caviardages demande le moteur de rendu PDF, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui garderait le texte recouvert.',
+  }),
 };
 
 /**

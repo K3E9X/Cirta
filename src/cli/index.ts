@@ -80,6 +80,7 @@ ${bold(t().usage)}
   cirta inspect <path...>            ${t().usageInspect}
   cirta redact  <path...> [options]  ${t().usageRedact}
   cirta text [--clean]               ${t().usageText}
+  cirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
 
 ${t().paths}
 
@@ -94,6 +95,13 @@ ${bold(t().options)}
       --normalize-spaces ${t().optNormalizeSpaces}
       --strip-active    ${t().optStripActive}
       --strip-remote-resources ${t().optStripRemote}
+      --remove-notes    ${t().optRemoveNotes}
+      --remove-hidden-slides ${t().optRemoveHiddenSlides}
+      --remove-hidden-sheets ${t().optRemoveHiddenSheets}
+      --remove-attachments ${t().optRemoveAttachments}
+      --flatten-annotations ${t().optFlattenAnnotations}
+      --strip-tracking-params ${t().optStripTracking}
+      --burn-redactions ${t().optBurnRedactions}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -139,6 +147,13 @@ interface Args {
   normalizeSpaces: boolean;
   stripActive: boolean;
   stripRemote: boolean;
+  removeNotes: boolean;
+  removeHiddenSlides: boolean;
+  removeHiddenSheets: boolean;
+  removeAttachments: boolean;
+  flattenAnnotations: boolean;
+  stripTracking: boolean;
+  burnRedactions: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -160,6 +175,13 @@ function parseArgs(argv: string[]): Args {
     normalizeSpaces: false,
     stripActive: false,
     stripRemote: false,
+    removeNotes: false,
+    removeHiddenSlides: false,
+    removeHiddenSheets: false,
+    removeAttachments: false,
+    flattenAnnotations: false,
+    stripTracking: false,
+    burnRedactions: false,
     skip: [],
     sarif: false,
   };
@@ -196,6 +218,27 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--strip-remote-resources':
         args.stripRemote = true;
+        break;
+      case '--remove-notes':
+        args.removeNotes = true;
+        break;
+      case '--remove-hidden-slides':
+        args.removeHiddenSlides = true;
+        break;
+      case '--remove-hidden-sheets':
+        args.removeHiddenSheets = true;
+        break;
+      case '--remove-attachments':
+        args.removeAttachments = true;
+        break;
+      case '--flatten-annotations':
+        args.flattenAnnotations = true;
+        break;
+      case '--strip-tracking-params':
+        args.stripTracking = true;
+        break;
+      case '--burn-redactions':
+        args.burnRedactions = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -545,6 +588,50 @@ function exitCode(
   return meetsThreshold(results, level) ? 1 : 0;
 }
 
+const LEVELS = ['informational', 'probable', 'confirmed'] as const;
+
+/**
+ * [F-2.4] The gate before a file goes out. Inspected again; a file passes
+ * when nothing at or above the level is left — confirmed by default, so that
+ * an ordinary cleaned file passes and a forgotten author does not. A file that
+ * cannot be read fails: a gate that lets through what it could not look at is
+ * not one.
+ */
+async function runVerify(args: Args): Promise<number> {
+  const level = (args.failOn ?? 'confirmed').toLowerCase() as (typeof LEVELS)[number];
+  if (!LEVELS.includes(level)) {
+    console.error(red(t().unknownLevel(args.failOn ?? '')));
+    return 2;
+  }
+  const floor = LEVELS.indexOf(level);
+  const report: Array<{ file: string; pass: boolean; level: string; findings: Finding[]; error?: string }> = [];
+  for (const file of args.files) {
+    try {
+      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine() });
+      const left = result.findings.filter((f) => LEVELS.indexOf(f.confidence) >= floor);
+      report.push({ file, pass: left.length === 0, level, findings: left });
+    } catch (error) {
+      report.push({ file, pass: false, level, findings: [], error: errorText(error, lang()) });
+    }
+  }
+  if (args.json) {
+    console.log(terminalJson(report));
+  } else {
+    for (const entry of report) {
+      const name = bold(terminalSafe(entry.file));
+      if (entry.error) console.log(`${red(t().verifyFail)}  ${name}  ${red(terminalSafe(entry.error))}`);
+      else if (entry.pass) console.log(`${green(t().verifyPass)}  ${name}  ${dim(t().verifyNothing(translateConfidence(level)))}`);
+      else {
+        console.log(`${red(t().verifyFail)}  ${name}  ${t().verifyLeft(entry.findings.length, translateConfidence(level))}`);
+        printFindings(safeFindings(entry.findings));
+      }
+    }
+  }
+  return report.every((entry) => entry.pass) ? 0 : 1;
+}
+
+const translateConfidence = (level: (typeof LEVELS)[number]) => t().confidenceName[level];
+
 async function runInspect(args: Args): Promise<number> {
   const results: Array<{ file: string; result?: InspectResult; error?: string }> = [];
   let failures = 0;
@@ -616,7 +703,10 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote },
+        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
+          removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
+          removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
+          burnRedactions: args.burnRedactions },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
@@ -777,6 +867,14 @@ async function main(): Promise<number> {
       return runRedact(args);
     case 'text':
       return runText(args);
+    case 'verify':
+      if (!args.files.length) {
+        console.error(red(t().needFiles('verify')));
+        return 2;
+      }
+      args.files = await expandPaths(args.files, args.skip);
+      if (!args.files.length) return 1;
+      return runVerify(args);
     default:
       console.error(red(t().unknownCommand(String(args.command))));
       console.log(help());

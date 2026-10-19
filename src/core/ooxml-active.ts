@@ -19,6 +19,7 @@ import { strFromU8, strToU8 } from 'fflate';
 import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { readVbaProject, summariseVba } from './vba.js';
+import { cleanUrl, trackingFinding } from './tracking.js';
 
 type Parts = Record<string, Uint8Array>;
 
@@ -111,6 +112,10 @@ export function activeOfficeFindings(parts: Parts): Finding[] {
   const rels = relationships(parts);
   for (const rel of rels) {
     if (!rel.external) continue;
+    if (rel.type === 'hyperlink') {
+      const tracked = trackingFinding(rel.target, rel.rels);
+      if (tracked) findings.push(tracked);
+    }
     if (rel.type === 'attachedTemplate') {
       push('Remote template loaded on opening', isRemoteTarget(rel.target) ? 'confirmed' : 'probable', rel.rels, rel.target);
     } else if (rel.type !== 'hyperlink' && REMOTE.test(rel.target)) {
@@ -215,4 +220,24 @@ export function stripActiveOffice(parts: Parts, removePart: (parts: Parts, path:
     }
   }
   return removed;
+}
+
+/** [F-2.4] Tracking parameters out of every external hyperlink. Returns how many links changed. */
+export function stripTrackingOffice(parts: Parts): number {
+  let changed = 0;
+  for (const [path, raw] of Object.entries(parts)) {
+    if (!path.endsWith('.rels')) continue;
+    const xml = strFromU8(raw);
+    const out = xml.replace(/<Relationship\b[^>]*\/?>/g, (element) => {
+      if (!/\sTargetMode="External"/.test(element) || !/\/hyperlink"/.test(element)) return element;
+      return element.replace(/\sTarget="([^"]*)"/, (whole, target: string) => {
+        const cleaned = cleanUrl(target.replace(/&amp;/g, '&'));
+        if (cleaned === undefined) return whole;
+        changed++;
+        return ` Target="${cleaned.replace(/&/g, '&amp;')}"`;
+      });
+    });
+    if (out !== xml) parts[path] = strToU8(out);
+  }
+  return changed;
 }

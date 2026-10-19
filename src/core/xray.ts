@@ -51,7 +51,7 @@ export interface XrayViewport {
 
 export interface XrayPage {
   view: number[];
-  getViewport(options: { scale: number }): XrayViewport;
+  getViewport(options: { scale: number; rotation?: number }): XrayViewport;
   getTextContent(): Promise<{ items: unknown[] }>;
   render(options: { canvas: unknown; canvasContext: unknown; viewport: XrayViewport }): { promise: Promise<void> };
   cleanup(): void;
@@ -152,6 +152,8 @@ export interface XrayResult {
    * probable and the report says why.
    */
   doubtful: number[];
+  /** [F-2.4] Pages where text sits under a shape — what burning redactions acts on. */
+  coveredPages: number[];
 }
 
 const LABEL = HIDDEN_LABEL;
@@ -586,8 +588,10 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
   let pagesChecked = 0;
 
   const doubtful: number[] = [];
+  const covered = new Set<number>();
 
   const report = (page: number, run: Run) => {
+    if (run.how === 'covered' && run.text.trim()) covered.add(page);
     const k = `${page}\u0000${run.how}\u0000${run.text}`;
     if (seen.has(k) || !run.text) return false;
     seen.add(k);
@@ -658,5 +662,44 @@ export async function xrayPdf(data: Uint8Array, engine: XrayEngine): Promise<Xra
   const offPage = await offPageText(data, engine, views, deadline);
   for (const [n, runs] of offPage.entries()) for (const run of runs ?? []) report(n, run);
 
-  return { findings, regions, pagesChecked, pagesTotal, doubtful };
+  return { findings, regions, pagesChecked, pagesTotal, doubtful, coveredPages: [...covered].sort((a, b) => a - b) };
+}
+
+export interface RenderedPage {
+  width: number;
+  height: number;
+  rgba: Uint8ClampedArray;
+  /** The page's visible box in PDF units, [x0, y0, x1, y1]. */
+  view: number[];
+}
+
+/**
+ * [F-2.4] Pages drawn as pictures, at up to 200 dpi, unrotated: the page's
+ * own /Rotate still applies to the picture once it replaces the page.
+ */
+export async function renderPages(data: Uint8Array, engine: XrayEngine, pages: number[]): Promise<Map<number, RenderedPage>> {
+  const out = new Map<number, RenderedPage>();
+  const task = openDocument(engine, data);
+  const doc = await task.promise.catch(async (error: unknown) => {
+    await task.destroy().catch(() => undefined);
+    throw error;
+  });
+  try {
+    for (const n of pages) {
+      if (n < 1 || n > doc.numPages) continue;
+      const page = await doc.getPage(n);
+      const base = page.getViewport({ scale: 1, rotation: 0 });
+      const scale = Math.min(200 / 72, Math.sqrt((MAX_PIXELS * 4) / Math.max(1, base.width * base.height)));
+      const viewport = page.getViewport({ scale, rotation: 0 });
+      const canvas = engine.createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      const context = canvas.getContext('2d');
+      if (!context) continue;
+      await page.render({ canvas, canvasContext: context, viewport }).promise;
+      out.set(n, { width: canvas.width, height: canvas.height, rgba: context.getImageData(0, 0, canvas.width, canvas.height).data, view: page.view });
+      page.cleanup();
+    }
+  } finally {
+    await task.destroy();
+  }
+  return out;
 }

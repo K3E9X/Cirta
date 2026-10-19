@@ -19,7 +19,9 @@ export type ErrorCode =
   /** A plain archive: reported, never rewritten. */
   | 'archive-not-rewritable'
   /** An empty file. */
-  | 'empty-file';
+  | 'empty-file'
+  /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */
+  | 'burn-unavailable';
 
 export class UnsupportedFormatError extends Error {
   readonly code: ErrorCode;
