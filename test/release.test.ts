@@ -75,3 +75,15 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
   });
 });
 
+
+describe('[F-P2 2.8] the workflows are valid YAML', () => {
+  // A one-line `run:` is a plain scalar: a ": " or " #" in it ends the value or
+  // starts a comment, and GitHub rejects the whole workflow. The release one did.
+  it.each(['.github/workflows/ci.yml', '.github/workflows/release.yml', '.github/workflows/pages.yml'])('%s', (file) => {
+    const plain = readFileSync(file, 'utf8')
+      .split('\n')
+      .map((line) => /^\s*(?:- )?run: (.*)$/.exec(line)?.[1])
+      .filter((value): value is string => value !== undefined && !/^["'|>]/.test(value));
+    for (const value of plain) expect(value).not.toMatch(/: | #/);
+  });
+});

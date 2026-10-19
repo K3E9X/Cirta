@@ -90,7 +90,9 @@ jobs:
         with:
           path: binaries
           merge-multiple: true
-      - run: gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "What changed: CHANGELOG.md. Each binary is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+      - run: >-
+          gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME"
+          --notes "What changed: CHANGELOG.md. Each binary is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
 
