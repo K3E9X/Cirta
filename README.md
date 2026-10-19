@@ -816,6 +816,35 @@ cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attach
 cirta verify contrat.clean.pdf
 ```
 
+### For pipelines and agents
+
+**`cirta sanitize-for-llm <file>`** puts Cirta in front of a RAG, an automatic summary or a CV screener.
+It prints the text of the document **as a person reading it sees it** — hidden runs, text under a
+shape, comments, `<noscript>` and `<template>`, speaker notes, hidden slides, sheets and rows, tracked
+deletions and invisible characters left out — and lists, on stderr, the instructions to an AI it found
+hidden. `--json` gives `{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved}`;
+`--fail-on-instructions` exits 1 when one was found, so a pipeline can stop on the file instead of
+feeding the rest to a model. A PDF needs the renderer (it tells what is covered); without it, or when
+not every page could be rendered in time, no text is produced rather than text that may hold what is
+hidden.
+
+```
+cirta sanitize-for-llm cv.docx > cv.txt              # the text, on stdout
+cirta sanitize-for-llm --json --fail-on-instructions inbox/*.pdf
+```
+
+**`cirta mcp`** runs a Model Context Protocol server on stdio, so an agent can check a document before
+reading it. Its tools are `inspect_file`, `redact_file` (writes `<name>.clean.<ext>` beside the
+original, never overwriting unless asked), `sanitize_for_llm` and `scan_text`. It reads and writes
+local files and opens no connection.
+
+```
+claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp      # Claude Code
+```
+```json
+{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp"] } } }
+```
+
 ## Web interface
 
 Open the [published page](https://k3e9x.github.io/Cirta/), drop a file, read the report, download the

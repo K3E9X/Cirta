@@ -38,6 +38,9 @@ import { nodeXrayEngine } from './xray-engine.js';
 import { terminalJson, terminalSafe } from './terminal.js';
 import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
+import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
+import { runMcp } from './mcp.js';
+import { formatHint } from './hint.js';
 
 /**
  * Terminal capabilities differ enough between platforms that both colour and
@@ -81,6 +84,8 @@ ${bold(t().usage)}
   cirta redact  <path...> [options]  ${t().usageRedact}
   cirta text [--clean]               ${t().usageText}
   cirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
+  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  ${t().usageSanitize}
+  cirta mcp                          ${t().usageMcp}
 
 ${t().paths}
 
@@ -154,6 +159,7 @@ interface Args {
   flattenAnnotations: boolean;
   stripTracking: boolean;
   burnRedactions: boolean;
+  failOnInstructions: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -182,6 +188,7 @@ function parseArgs(argv: string[]): Args {
     flattenAnnotations: false,
     stripTracking: false,
     burnRedactions: false,
+    failOnInstructions: false,
     skip: [],
     sarif: false,
   };
@@ -239,6 +246,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--burn-redactions':
         args.burnRedactions = true;
+        break;
+      case '--fail-on-instructions':
+        args.failOnInstructions = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -343,15 +353,6 @@ const SKIP_DIRECTORIES = new Set([
  * Text formats whose bytes are ambiguous: a Markdown file without front matter
  * is indistinguishable from plain text, so the extension breaks the tie.
  */
-function formatHint(path: string, forceText = false): string | undefined {
-  if (forceText) return 'text';
-  const ext = extname(path).toLowerCase();
-  if (ext === '.md' || ext === '.markdown' || ext === '.mdx') return 'markdown';
-  if (ext === '.svg') return 'svg';
-  if (ext === '.html' || ext === '.htm') return 'html';
-  if (ext === '.eml') return 'eml';
-  return undefined;
-}
 
 /**
  * Dotfiles carrying secrets. `extname('.env')` is the empty string — a leading
@@ -586,6 +587,40 @@ function exitCode(
     return 2;
   }
   return meetsThreshold(results, level) ? 1 : 0;
+}
+
+/**
+ * [F-2.5] The text a reader sees, for a model: on stdout, ready for a pipe.
+ * What was hidden is said on stderr; --json carries all of it; a file that
+ * holds an instruction to a model can stop the pipeline.
+ */
+async function runSanitize(args: Args): Promise<number> {
+  const report: Array<SanitizedText & { file: string; error?: string }> = [];
+  let failed = false;
+  for (const file of args.files) {
+    try {
+      const result = await sanitizeForLlm(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine() });
+      report.push({ file, ...result });
+      if (!args.json) {
+        if (args.files.length > 1) process.stdout.write(`==> ${file} <==\n`);
+        process.stdout.write(process.stdout.isTTY ? result.text.split('\n').map(terminalSafe).join('\n') : result.text);
+        process.stdout.write('\n');
+        if (result.hiddenRemoved) console.error(dim(t().sanitizeHidden(result.hiddenRemoved)));
+        if (result.invisibleRemoved) console.error(dim(t().removedTypes(result.invisibleRemoved).trim()));
+        for (const instruction of result.hiddenInstructions) {
+          console.error(red(t().sanitizeInstruction(terminalSafe(translateLocation(instruction.location, lang())), terminalSafe(instruction.text))));
+        }
+      }
+    } catch (error) {
+      failed = true;
+      const message = errorText(error, lang());
+      report.push({ file, format: 'text', text: '', hiddenInstructions: [], hiddenRemoved: 0, invisibleRemoved: 0, error: message });
+      if (!args.json) console.error(`${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
+    }
+  }
+  if (args.json) console.log(terminalJson(report));
+  if (failed) return 1;
+  return args.failOnInstructions && report.some((r) => r.hiddenInstructions.length) ? 1 : 0;
 }
 
 const LEVELS = ['informational', 'probable', 'confirmed'] as const;
@@ -867,6 +902,16 @@ async function main(): Promise<number> {
       return runRedact(args);
     case 'text':
       return runText(args);
+    case 'sanitize-for-llm':
+      if (!args.files.length) {
+        console.error(red(t().needFiles('sanitize-for-llm')));
+        return 2;
+      }
+      args.files = await expandPaths(args.files, args.skip);
+      if (!args.files.length) return 1;
+      return runSanitize(args);
+    case 'mcp':
+      return runMcp();
     case 'verify':
       if (!args.files.length) {
         console.error(red(t().needFiles('verify')));

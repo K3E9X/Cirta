@@ -36,7 +36,7 @@ const BLOCKS = /^\/?(?:p|div|br|li|tr|td|th|h[1-6]|table|ul|ol|blockquote|sectio
  * together lose it. One pass with indexOf: every "<" is consumed with the tag
  * it opens, so a body full of unclosed brackets is still read once.
  */
-function htmlLines(html: string): string {
+export function htmlLines(html: string): string {
   let out = '';
   let i = 0;
   const lower = html.toLowerCase();

@@ -19,7 +19,7 @@ type Parts = Record<string, Uint8Array>;
 const MAX_CELLS = 20;
 const MAX_MASHUP = 8 * 1024 * 1024;
 
-const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1]?.replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+export const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1]?.replace(/&amp;/g, '&').replace(/&quot;/g, '"');
 
 const PASSWORD = /\b(Password|Pwd)\s*=\s*("[^"]*"|[^;]*)/i;
 const USER = /\b(?:User ID|UID|User)\s*=\s*("[^"]*"|[^;]*)/i;
@@ -98,16 +98,16 @@ function powerQuery(parts: Parts): Finding[] {
 }
 
 /** Sheet names by worksheet part, through the workbook's relationships; in order if those are missing. */
-function sheets(parts: Parts): Array<{ name: string; path: string }> {
+export function sheets(parts: Parts): Array<{ name: string; path: string; hidden: boolean }> {
   const workbook = parts['xl/workbook.xml'] ? strFromU8(parts['xl/workbook.xml']) : '';
   const rels = parts['xl/_rels/workbook.xml.rels'] ? strFromU8(parts['xl/_rels/workbook.xml.rels']) : '';
-  const out: Array<{ name: string; path: string }> = [];
+  const out: Array<{ name: string; path: string; hidden: boolean }> = [];
   for (const [index, m] of [...workbook.matchAll(/<sheet\b[^>]*>/g)].entries()) {
     const name = attr(m[0], 'name') ?? `sheet${index + 1}`;
     const id = attr(m[0], 'r:id');
     const target = id ? new RegExp(`<Relationship\\b[^>]*Id="${id}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] : undefined;
     const path = target ? (target.startsWith('/') ? target.slice(1) : `xl/${target}`) : `xl/worksheets/sheet${index + 1}.xml`;
-    if (parts[path]) out.push({ name, path });
+    if (parts[path]) out.push({ name, path, hidden: /\sstate="(hidden|veryHidden)"/.test(m[0]) });
   }
   return out;
 }
@@ -138,9 +138,11 @@ function hiddenRowsAndColumns(parts: Parts): Finding[] {
 
 const WHITE = /^(?:FF)?FFFFFF$/i;
 
-function whiteCells(parts: Parts): Finding[] {
+/** Cell formats whose font is white on an unfilled background. */
+export function whiteStyles(parts: Parts): Set<number> {
   const styles = parts['xl/styles.xml'] ? strFromU8(parts['xl/styles.xml']) : '';
-  if (!styles) return [];
+  const white = new Set<number>();
+  if (!styles) return white;
   const fonts = elements(elements(styles, 'fonts')[0]?.inner ?? '', 'font').map((f) => {
     const rgb = /<color\b[^>]*\srgb="([0-9A-Fa-f]{6,8})"/.exec(f.inner)?.[1];
     return rgb !== undefined && WHITE.test(rgb);
@@ -150,18 +152,26 @@ function whiteCells(parts: Parts): Finding[] {
     return /patternType="solid"/.test(f.inner) && rgb !== undefined && !WHITE.test(rgb);
   });
   const xfs = elements(styles, 'cellXfs')[0]?.inner ?? '';
-  const white = new Set<number>();
   [...xfs.matchAll(/<xf\b[^>]*>/g)].forEach((m, index) => {
     const font = Number(attr(m[0], 'fontId') ?? 0);
     const fill = Number(attr(m[0], 'fillId') ?? 0);
     // White on a coloured fill is ordinary; only white on the sheet's white is not.
     if (fonts[font] && !fills[fill]) white.add(index);
   });
-  if (!white.size) return [];
+  return white;
+}
 
-  const shared = parts['xl/sharedStrings.xml']
+/** The workbook's shared strings, by index. */
+export function sharedStrings(parts: Parts): string[] {
+  return parts['xl/sharedStrings.xml']
     ? elements(strFromU8(parts['xl/sharedStrings.xml']), 'si').map((si) => [...si.inner.matchAll(/<t\b[^>]*>([^<]*)<\/t>/g)].map((m) => m[1]).join(''))
     : [];
+}
+
+function whiteCells(parts: Parts): Finding[] {
+  const white = whiteStyles(parts);
+  if (!white.size) return [];
+  const shared = sharedStrings(parts);
   const findings: Finding[] = [];
   for (const { name, path } of sheets(parts)) {
     const xml = strFromU8(parts[path]!);

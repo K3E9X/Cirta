@@ -21,7 +21,9 @@ export type ErrorCode =
   /** An empty file. */
   | 'empty-file'
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */
-  | 'burn-unavailable';
+  | 'burn-unavailable'
+  /** [F-2.5] What a reader of a PDF sees cannot be told without the renderer. */
+  | 'renderer-unavailable';
 
 export class UnsupportedFormatError extends Error {
   readonly code: ErrorCode;

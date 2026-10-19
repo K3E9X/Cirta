@@ -41,6 +41,8 @@ export interface XrayTextItem {
   str?: string;
   transform?: number[];
   width?: number;
+  /** PDF.js marks the item that ends a line. */
+  hasEOL?: boolean;
 }
 
 export interface XrayViewport {
@@ -336,6 +338,8 @@ interface Run {
   how: HiddenHow;
   text: string;
   box: Box;
+  /** [F-2.5] Which item and which characters of it, for text handed on without them. */
+  source?: { item: number; from: number; to: number };
 }
 
 /**
@@ -370,7 +374,7 @@ function hiddenRuns(items: XrayTextItem[], viewport: XrayViewport, pdfjs: XrayPd
   const runs: Run[] = [];
   const background = pageColour(r);
 
-  for (const item of items.slice(0, MAX_ITEMS_PER_PAGE)) {
+  for (const [index, item] of items.slice(0, MAX_ITEMS_PER_PAGE).entries()) {
     const str = item.str ?? '';
     const width = (item.width ?? 0) * scale;
     if (!str.trim() || !item.transform || width <= 0) continue;
@@ -414,6 +418,7 @@ function hiddenRuns(items: XrayTextItem[], viewport: XrayViewport, pdfjs: XrayPd
         how: cells.some((c) => c.faint) ? 'faint' : same >= cells.length / 2 ? 'invisible' : 'covered',
         text: letters.join('').trim(),
         box: cellBox(m, width, n, from, to),
+        source: { item: index, from, to },
       });
     };
 
@@ -437,11 +442,11 @@ function pointSize(transform: number[]): number {
 
 function tinyRuns(items: XrayTextItem[]): Run[] {
   const runs: Run[] = [];
-  for (const item of items.slice(0, MAX_ITEMS_PER_PAGE)) {
+  for (const [index, item] of items.slice(0, MAX_ITEMS_PER_PAGE).entries()) {
     const str = (item.str ?? '').trim();
     if (str.replace(/\s/g, '').length < 2 || !item.transform) continue;
     const size = pointSize(item.transform);
-    if (size > 0 && size < TINY_PT) runs.push({ how: 'tiny', text: str, box: [0, 0, 0, 0] });
+    if (size > 0 && size < TINY_PT) runs.push({ how: 'tiny', text: str, box: [0, 0, 0, 0], source: { item: index, from: 0, to: [...(item.str ?? '')].length } });
   }
   return runs;
 }
@@ -702,4 +707,71 @@ export async function renderPages(data: Uint8Array, engine: XrayEngine, pages: n
     await task.destroy();
   }
   return out;
+}
+
+export interface VisibleText {
+  /** Each page's text as a reader sees it: what is covered, invisible, too faint or too small is left out. */
+  pages: string[];
+  /** What was left out, page by page. */
+  hidden: Array<{ page: number; how: HiddenHow; text: string }>;
+  pagesChecked: number;
+  pagesTotal: number;
+}
+
+/**
+ * [F-2.5] The text of a PDF as a person reading it sees it. Each page is
+ * rendered; the characters the x-ray finds without ink — under a shape, in
+ * the page colour, too faint — and the text too small to read are left out.
+ * Text outside the page box is already absent from PDF.js's extraction.
+ */
+export async function visiblePdfText(data: Uint8Array, engine: XrayEngine): Promise<VisibleText> {
+  const deadline = Date.now() + DEADLINE_MS * 2;
+  const task = openDocument(engine, data);
+  const doc = await task.promise.catch(async (error: unknown) => {
+    await task.destroy().catch(() => undefined);
+    throw error;
+  });
+  const pages: string[] = [];
+  const hidden: VisibleText['hidden'] = [];
+  let pagesChecked = 0;
+  try {
+    for (let n = 1; n <= Math.min(doc.numPages, MAX_PAGES); n++) {
+      if (Date.now() > deadline) break;
+      const page = await doc.getPage(n);
+      const items = (await page.getTextContent()).items.map(asItem).filter((i): i is XrayTextItem => !!i);
+      const runs = tinyRuns(items);
+      if (items.some((i) => (i.str ?? '').trim())) {
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(2, Math.sqrt(MAX_PIXELS / Math.max(1, base.width * base.height)));
+        const viewport = page.getViewport({ scale });
+        const canvas = engine.createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const context = canvas.getContext('2d');
+        if (context) {
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
+          const raster: Raster = { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+          runs.push(...hiddenRuns(items, viewport, engine.pdfjs, raster, scale));
+        }
+      }
+      // Characters to drop, per item.
+      const drop = new Map<number, Array<[number, number]>>();
+      for (const run of runs) {
+        if (!run.source) continue;
+        hidden.push({ page: n, how: run.how, text: run.text });
+        drop.set(run.source.item, [...(drop.get(run.source.item) ?? []), [run.source.from, run.source.to]]);
+      }
+      let text = '';
+      items.forEach((item, index) => {
+        const chars = [...(item.str ?? '')];
+        const ranges = drop.get(index) ?? [];
+        text += chars.filter((_, i) => !ranges.some(([from, to]) => i >= from && i < to)).join('');
+        text += item.hasEOL ? '\n' : '';
+      });
+      pages.push(text.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim());
+      page.cleanup();
+      pagesChecked = n;
+    }
+  } finally {
+    await task.destroy();
+  }
+  return { pages, hidden, pagesChecked, pagesTotal: doc.numPages };
 }
