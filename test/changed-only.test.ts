@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { changedFiles } from '../src/cli/changed.js';
 import { runCli } from './helpers/cli.js';
 import { makeDocx } from './fixtures.js';
 
@@ -66,6 +67,19 @@ describe('[F-P2 2.6] --changed-only', () => {
     const sarif = runCli(['inspect', '--sarif', '--changed-only', '--base', 'HEAD'], undefined, { cwd: dir });
     expect(sarif.status).toBe(0);
     expect(JSON.parse(sarif.stdout.toString()).runs[0].results).toEqual([]);
+  });
+
+  it('names the files the same however the folder is spelled', () => {
+    // On Windows the runner's temporary folder is C:\Users\RUNNER~1\… while git
+    // answers C:/Users/runneradmin/…: two spellings of one folder. A symbolic
+    // link (a junction on Windows) gives the same situation everywhere.
+    const dir = repository();
+    const link = join(mkdtempSync(join(tmpdir(), 'cirta-link-')), 'depot');
+    symlinkSync(dir, link, 'junction');
+    expect(changedFiles('main', [], link).sort()).toEqual(['docs/lettre.docx', 'propre.txt']);
+    expect(changedFiles('main', ['docs'], join(link, 'docs'))).toEqual([]);
+    expect(changedFiles('main', ['.'], join(link, 'docs'))).toEqual(['lettre.docx']);
+    expect(changedFiles(undefined, [], join(link, 'docs'))).toEqual(['../brouillon.txt']);
   });
 
   it('refuses outside a repository, and an unknown base, saying why', () => {

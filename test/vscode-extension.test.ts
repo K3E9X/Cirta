@@ -51,11 +51,13 @@ function fakeVscode(language: string) {
   const messages: string[] = [];
   class Uri {
     constructor(readonly scheme: string, readonly path: string) {}
+    // As VS Code's: forward slashes on every system (C:\a\b.txt is /C:/a/b.txt).
     static file(path: string) {
-      return new Uri('file', path);
+      const slashed = path.replace(/\\/g, '/');
+      return new Uri('file', slashed.startsWith('/') ? slashed : `/${slashed}`);
     }
     get fsPath() {
-      return this.path;
+      return /^\/[A-Za-z]:\//.test(this.path) ? this.path.slice(1) : this.path;
     }
     with(change: { path: string }) {
       return new Uri(this.scheme, change.path);
@@ -99,8 +101,8 @@ function fakeVscode(language: string) {
     workspace: {
       textDocuments: [],
       fs: {
-        readFile: async (uri: Uri) => new Uint8Array(readFileSync(uri.path)),
-        writeFile: async (uri: Uri, data: Uint8Array) => writeFileSync(uri.path, data),
+        readFile: async (uri: Uri) => new Uint8Array(readFileSync(uri.fsPath)),
+        writeFile: async (uri: Uri, data: Uint8Array) => writeFileSync(uri.fsPath, data),
       },
       getConfiguration: () => ({ get: (_key: string, fallback: unknown) => fallback }),
       onDidOpenTextDocument: on('open'),
@@ -167,7 +169,9 @@ describe('[F-P2 2.6] VS Code: the bundled extension', () => {
   it('inspects a Word file from the Explorer, then writes a cleaned copy beside it', async () => {
     const vscode = load('fr');
     const path = join(work, 'rapport.docx');
-    writeFileSync(path, makeDocx());
+    // Kept, to compare with: the fixture's ZIP dates follow the clock.
+    const original = makeDocx();
+    writeFileSync(path, original);
     const uri = vscode.api.Uri.file(path);
     await vscode.commands.get('cirta.inspect')!(uri);
     const found = vscode.collections.get(uri.toString()) as Array<{ message: string }>;
@@ -181,6 +185,6 @@ describe('[F-P2 2.6] VS Code: the bundled extension', () => {
     expect(after.findings.some((f) => /Lotfi Zakaria/.test(f.value))).toBe(false);
     expect(vscode.messages.at(-1)).toMatch(/^Cirta : \d+ retirés? → rapport\.clean\.docx$/);
     // The original is untouched.
-    expect(readFileSync(path)).toEqual(Buffer.from(makeDocx()));
+    expect(new Uint8Array(readFileSync(path))).toEqual(original);
   });
 });
