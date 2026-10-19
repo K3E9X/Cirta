@@ -30,15 +30,22 @@
     <!--
       Set before first paint, so the hero's chips start hidden instead of
       showing for a frame and then vanishing when the reading line begins. It
-      is the only inline script, it reads one media query and touches one
-      attribute, and it makes no request of any kind. Skipped when the reader
-      has asked for reduced motion, which leaves every chip visible from the
-      start.
+      is the only inline script, it reads one media query and one stored
+      choice, touches two attributes, and makes no request of any kind. The
+      motion class is skipped when the reader has asked for reduced motion,
+      which leaves every chip visible from the start. [F-P3 2.7] The theme the
+      reader chose, if any, is applied here too, so that a page set to light
+      does not flash dark on a dark system; storage can be refused, and the
+      page then follows the system.
     -->
     <script>
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
         document.documentElement.classList.add('motion');
       }
+      try {
+        var theme = localStorage.getItem('cirta.theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+      } catch (refused) {}
     </script>
   </head>
   <body>
@@ -66,6 +73,7 @@
           <a href="#cli"><span data-lang="fr">Ligne de commande</span><span data-lang="en">Command line</span></a>
         </nav>
         <div class="nav-end">
+          <button id="theme-toggle" class="lang-toggle" type="button"><span class="theme-prefix"><span data-lang="fr">Thème : </span><span data-lang="en">Theme: </span></span>auto</button>
           <button id="lang-toggle" class="lang-toggle" type="button">English</button>
         </div>
       </div>

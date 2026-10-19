@@ -25,6 +25,10 @@ const FR = {
   /* --------------------------------------------------------------- chrome */
   langLabel: 'English',
   langTitle: 'Switch to English',
+  // [F-P3 2.7] The theme switch says what is in force; a press moves to the next one.
+  themePrefix: 'Thème : ',
+  themeLabel: { auto: 'auto', light: 'clair', dark: 'sombre' },
+  themeTitle: 'Changer de thème — auto suit le réglage du système',
   docTitle: 'Cirta — nettoyage des métadonnées de documents',
   docDescription:
     'Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères ' +
@@ -272,6 +276,9 @@ type Strings = {
 const EN: Strings = {
   langLabel: 'Français',
   langTitle: 'Passer en français',
+  themePrefix: 'Theme: ',
+  themeLabel: { auto: 'auto', light: 'light', dark: 'dark' },
+  themeTitle: 'Change the theme — auto follows the system setting',
   docTitle: 'Cirta — strip metadata from your documents',
   docDescription:
     'Inspects and strips provenance metadata from PDF, PPTX and DOCX, and the invisible Unicode ' +
