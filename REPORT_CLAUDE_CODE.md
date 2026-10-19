@@ -23,6 +23,7 @@ Chaque PR ne montre que son lot.
 | n°13 | `feat/p2-library` | `feat/p2-cleaning` | F-P2 2.5 API de bibliothèque, rapport JSON versionné et son schéma |
 | n°14 | `feat/p2-profiles` | `feat/p2-library` | F-P2 2.3 profils `--profile` |
 | n°15 | `feat/p2-formats` | `feat/p2-profiles` | F-P2 2.2 RTF, EPUB, Visio, WebP/GIF/TIFF/HEIC/AVIF, LaTeX, iCalendar, vCard |
+| n°16 | `feat/p2-ui` | `feat/p2-formats` | F-P2 2.7 dossier et lot, export HTML/Markdown, hors ligne, vérifiabilité du site |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1354,6 +1355,82 @@ cirta redact scan.tif                      # refusé : image-not-rewritable
 
 ---
 
+## F-P2 2.7 — Interface : lot, exports, hors ligne, vérifiabilité
+
+**Statut : fait.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Dossier entier, nettoyage par lot, ZIP + manifeste | `5c75087` | `src/shared/batch.ts`, `src/shared/files.ts` (nouveaux ; la liste d'extensions et de répertoires ignorés quitte `src/cli/index.ts`) ; `src/web/main.ts`, `i18n.ts`, `index.html`, `style.css`, `env.d.ts`, `vite.config.ts` ; test `test/batch.test.ts` |
+| Rapport HTML / Markdown | `998afa2` | `src/shared/report-export.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` (`--report`) ; page ; test `test/report-export.test.ts` |
+| Hors ligne (PWA) | `017f7cb` | `src/shared/site.ts` (nouveau) ; `vite.config.ts` (manifeste, service worker, `manifest-src 'self'`), page ; `scripts/check-site.mjs` (nouveau, dans `verify`) ; tests `test/site.test.ts`, `test/no-network.test.ts` |
+| Vérifiabilité du site | `6e623d8` | `src/shared/site.ts`, `vite.config.ts` (`SHA256SUMS`, liste dans la page, commit), page (encadré « Vérifier ce site »), `.github/workflows/pages.yml` (`actions/attest-build-provenance@v2`, `attestations: write`, contrôle du site avant l'attestation), `scripts/check-site.mjs` ; test `test/site.test.ts` |
+| Documentation | `e2013f3` | `README.md`, `README.fr.md`, `SECURITY.md`, `SECURITY.fr.md` |
+
+Ce qui change :
+- **Dossier et lot.**
+  - La zone de dépôt accepte un dossier, déposé ou choisi par « ou un dossier entier ». Elle garde les fichiers que la ligne de commande prendrait, avec la même liste partagée (`src/shared/files.ts`), et dit combien elle en a laissés.
+  - « Tout nettoyer » passe chaque fichier avec les options avancées et télécharge un ZIP : chemins conservés (sans racine, sans lecteur, sans `..`), membres datés de 1980, `cirta-manifest.json`.
+  - Un fichier refusé reste hors de l'archive. Il est nommé avec son code dans le manifeste (champ `refused`, ajout compatible avec `cirta.manifest/1`) et avec la raison sur la page.
+- **Exports.**
+  - Page HTML autonome avec `default-src 'none'` (styles en ligne seulement), chaque valeur échappée.
+  - Markdown où chaque valeur est du code en ligne, barres verticales échappées : une valeur ne peut ni casser le tableau ni charger d'image.
+  - Disponible sur la page et en CLI : `inspect --report fichier.html|.md` ; toute autre extension sort en code 2.
+- **Hors ligne.**
+  - Manifeste d'application et service worker générés par la compilation.
+  - Le service worker garde la liste exacte des fichiers écrits ; son cache est nommé d'après leur contenu.
+  - Il ne répond qu'aux GET à l'intérieur du dossier du site : pas une autre origine, pas un autre projet du même hôte github.io.
+  - `worker-src 'self'` et `manifest-src 'self'` sont dans la politique ; le pied de page le dit, puis « Disponible hors ligne dans ce navigateur ».
+- **Vérifiabilité.**
+  - `SHA256SUMS` (format `sha256sum --check`), et la même liste dans l'encadré « Vérifier ce site », avec version et commit. Un fichier peut y être haché localement.
+  - L'encadré dit que cette liste ne prouve rien seule. La preuve est l'attestation de provenance signée par le déploiement pour chaque fichier publié, `SHA256SUMS` compris (`gh attestation verify SHA256SUMS -R K3E9X/Cirta`).
+  - `scripts/check-site.mjs` confronte le site compilé à tout cela.
+
+Tests :
+- `test/batch.test.ts` (3) :
+  - `cleans every file into one ZIP, keeping the folder’s paths, with a manifest that names each refusal`
+  - `gives the same archive twice for the same files, and does not let a name climb out of the folder`
+  - `takes from a folder the files the command line would, and skips what is never the user’s own`
+- `test/report-export.test.ts` (3) :
+  - `as a standalone HTML page that cannot run anything, values escaped`
+  - `as Markdown whose values are code, so a table cell can neither break the table nor load a picture`
+  - `from the command line, with --report, in the reader’s language`
+- `test/site.test.ts` (6) :
+  - `keeps the site’s own files on install, and drops its earlier caches but no one else’s`
+  - `answers from the cache, and never touches a request to another site or anything but a GET`
+  - `describes the app for installation, scoped to the site`
+  - `lists every file as sha256sum writes it, in one order`
+  - `writes the same list into the page, escaped, and says which file a hash is`
+  - `the deployment attests every file it publishes`
+- `test/no-network.test.ts` : `[F-P2 2.7] the service worker fetches only inside the site, and only what its cache lacks`.
+- `scripts/check-site.mjs`, ajouté à `npm run verify` et au workflow Pages :
+  - les directives de la politique ;
+  - la liste du service worker : chaque fichier compilé, rien d'autre, aucun autre site ;
+  - le manifeste et son icône ;
+  - `SHA256SUMS` complet et juste ;
+  - la liste de la page identique.
+
+Vérification manuelle (Chromium, site compilé servi localement) :
+- **Dossier.** Six fichiers, dont un `node_modules/x/index.js` et un `.exe`. Quatre cartes, titrées par leur chemin ; « 2 fichiers du dossier ignorés ».
+- **« Tout nettoyer ».** Le ZIP contient `dossier/lettre.docx`, `dossier/notes.txt`, `dossier/photos/plage.jpg` et `cirta-manifest.json`. Le `.doc` est refusé, nommé dans le manifeste (`legacy-not-rewritable`) et sur la page.
+- **Export HTML** d'un Markdown dont l'auteur vaut `<img src=x onerror=alert(1)> ![p](https://suivi.example/p.gif)` : rouvert, aucune requête, aucune alerte. En Markdown, la valeur est du code.
+- **Hors ligne.** Service worker prêt, réseau coupé et serveur arrêté : la page se recharge et inspecte un fichier, zéro requête.
+- **Encadré « Vérifier ce site ».** 8 empreintes. Le JS principal y est reconnu ; un fichier quelconque « ne correspond à aucun fichier de cette compilation ».
+- `sha256sum -c SHA256SUMS` passe sur `dist-web`. Deux compilations successives du même commit donnent le même `SHA256SUMS`.
+
+```
+cirta inspect --report rapport.html dossier/
+cirta inspect --lang fr --report rapport.md contrat.docx
+```
+
+Écarts :
+- **L'attestation n'est pas vérifiable avant le premier déploiement depuis `main`** : `gh attestation verify` ne trouvera rien tant que le workflow Pages n'aura pas tourné avec cette version. Testé ici : la présence de l'étape et ses permissions, pas la signature elle-même.
+- **Glisser-déposer d'un dossier** (`webkitGetAsEntry`) : Playwright ne sait pas fabriquer un dépôt de dossier. Le sélecteur de dossier est testé ; le parcours par `readEntries` ne l'est que par relecture.
+- **Icône d'application** : SVG seul (`sizes: any`). Certains navigateurs demandent une icône PNG pour proposer l'installation ; le fonctionnement hors ligne n'en dépend pas.
+- **Reproductibilité** : constatée sur deux compilations de la même machine. Je ne l'annonce pas entre machines ou versions de Node.
+
+---
+
 ## Bilan final
 
 **Fait :**
@@ -1362,9 +1439,9 @@ cirta redact scan.tif                      # refusé : image-not-rewritable
 
 Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
 
-- F-P2, en cours : 2.1, 2.4, 2.5, 2.3 et 2.2 (PR n°31 à n°35).
+- F-P2, en cours : 2.1, 2.4, 2.5, 2.3, 2.2 et 2.7 (PR n°31 à n°36).
 
-**Pas encore fait :** F-P2 2.7, 2.8 et 2.6, puis F-P3.
+**Pas encore fait :** F-P2 2.8 et 2.6, puis F-P3.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1378,7 +1455,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après C1–C11 (PR n°23) | 39 | 703 |
 | Après tout F-P1 (PR n°30) | 64 | **848** |
 | Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
-| Après F-P2 2.2 (PR n°35) | 78 | **919** |
+| Après F-P2 2.2 (PR n°35) | 78 | 919 |
+| Après F-P2 2.7 (PR n°36) | 81 | **936** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
