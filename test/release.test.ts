@@ -44,6 +44,27 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     const changelog = readFileSync('CHANGELOG.md', 'utf8');
     expect(changelog).toMatch(/^## \[Unreleased\]$/m);
     expect(changelog).toMatch(/^## \[0\.1\.0\]$/m);
+    // The version being released has its own section, dated, and every heading its link.
+    expect(changelog).toMatch(new RegExp(`^## \\[${pkg.version.replace(/\./g, '\\.')}\\] — \\d{4}-\\d{2}-\\d{2}$`, 'm'));
+    for (const [, heading] of changelog.matchAll(/^## \[([^\]]+)\]/gm)) expect(changelog).toMatch(new RegExp(`^\\[${heading!.replace(/\./g, '\\.')}\\]: https://github\\.com/K3E9X/Cirta/`, 'm'));
+  });
+
+  // [Release 0.2.0] The licence the package declares, with its holder, and the real release passes its own check.
+  it('carries the MIT licence with its holder, and the release as it stands passes its check', () => {
+    const licence = readFileSync('LICENSE', 'utf8');
+    expect(pkg.license).toBe('MIT');
+    expect(licence).toMatch(/^MIT License\n\nCopyright \(c\) \d{4} K3E9X\n/);
+    expect(licence).toMatch(/THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND/);
+    const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', shell: process.platform === 'win32' }))[0].files.map((f: { path: string }) => f.path);
+    expect(releaseProblems({ tag: `v${pkg.version}`, pkg, changelog: readFileSync('CHANGELOG.md', 'utf8'), licence, packed })).toEqual([]);
+  }, 60_000);
+
+  // [Release 0.2.0] Every place that names Cirta's version names package.json's.
+  it('states one version everywhere: the editor extension, the MCP server, the SARIF report', () => {
+    expect(JSON.parse(readFileSync('integrations/vscode/package.json', 'utf8')).version).toBe(pkg.version);
+    expect(readFileSync('src/cli/mcp.ts', 'utf8')).not.toMatch(/'\d+\.\d+\.\d+'/);
+    const sarif = JSON.parse(runCli(['inspect', '--sarif', 'examples/library.mjs']).stdout.toString());
+    expect(sarif.runs[0].tool.driver.version).toBe(pkg.version);
   });
 
   it('publishes from a version tag only, after the checks, with npm provenance', () => {
@@ -51,6 +72,8 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(workflow).toMatch(/on:\n  push:\n    tags: \['v\*'\]/);
     const npm = workflow.slice(workflow.indexOf('\n  npm:'));
     expect(npm).toMatch(/needs: check/);
+    // [Release 0.2.0] Only once npm publishing is set up: the repository variable says so.
+    expect(npm.slice(0, npm.indexOf('steps:'))).toMatch(/if: vars\.PUBLISH_NPM == 'true'/);
     expect(npm).toMatch(/id-token: write/);
     expect(npm.indexOf('check-release.mjs')).toBeGreaterThan(0);
     expect(npm.indexOf('npm publish --provenance')).toBeGreaterThan(npm.indexOf('check-release.mjs'));
@@ -70,7 +93,11 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(binaries).toMatch(/os: \[ubuntu-latest, windows-latest, macos-latest\]/);
     expect(binaries.indexOf('node scripts/build-sea.mjs')).toBeLessThan(binaries.indexOf('attest-build-provenance'));
     expect(binaries).toMatch(/subject-path: 'build\/sea\/cirta-\*'/);
-    expect(workflow.slice(workflow.indexOf('\n  github-release:'))).toMatch(/needs: \[npm, binaries, extensions, single-file\][\s\S]*contents: write/);
+    // [Release 0.2.0] The GitHub release does not wait on npm, which may not be set up.
+    const release = workflow.slice(workflow.indexOf('\n  github-release:'));
+    expect(release).toMatch(/needs: \[binaries, extensions, single-file\][\s\S]*contents: write/);
+    // A release made by hand from GitHub's page, which pushes the tag, gets the files too.
+    expect(release).toMatch(/gh release view[\s\S]*gh release upload[\s\S]*--clobber[\s\S]*gh release create/);
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
     expect(ci.slice(ci.indexOf('\n  sea:'))).toMatch(/windows-latest, macos-latest[\s\S]*node scripts\/build-sea\.mjs/);
   });

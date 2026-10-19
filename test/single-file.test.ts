@@ -65,6 +65,6 @@ describe('[F-P3 2.5] the single-file build', () => {
     const release = readFileSync('.github/workflows/release.yml', 'utf8');
     const job = release.slice(release.indexOf('\n  single-file:'), release.indexOf('\n  github-release:'));
     expect(job).toMatch(/build-single\.mjs[\s\S]*attest-build-provenance@v2[\s\S]*subject-path: 'build\/single\/\*'/);
-    expect(release).toMatch(/needs: \[npm, binaries, extensions, single-file\]/);
+    expect(release).toMatch(/needs: \[binaries, extensions, single-file\]/);
   });
 });
