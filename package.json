@@ -18,13 +18,38 @@
     "./package.json": "./package.json"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/K3E9X/Cirta.git"
+  },
+  "homepage": "https://k3e9x.github.io/Cirta/",
+  "bugs": {
+    "url": "https://github.com/K3E9X/Cirta/issues"
+  },
+  "keywords": [
+    "metadata",
+    "redaction",
+    "privacy",
+    "pdf",
+    "docx",
+    "exif",
+    "c2pa",
+    "invisible-characters",
+    "dlp",
+    "cli"
+  ],
   "bin": {
     "cirta": "./dist/cli/index.js"
   },
   "files": [
     "dist",
-    "schema"
+    "schema",
+    "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=22.13"
   },
