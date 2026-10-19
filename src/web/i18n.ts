@@ -51,6 +51,12 @@ const FR = {
   noneFlagged: 'aucun ne porte de données identifiantes confirmées',
   failureCount: (n: number) => `${n} illisible${n > 1 ? 's' : ''}`,
   exportReport: 'Exporter le rapport (JSON)',
+  chooseFolder: 'ou un dossier entier',
+  folderSkipped: (n: number) => `${n} fichier${n > 1 ? 's' : ''} du dossier ignoré${n > 1 ? 's' : ''} : format non pris en charge, ou dans un répertoire d’outil (.git, node_modules…)`,
+  cleanAll: (n: number) => `Tout nettoyer (${n}) — un ZIP et son manifeste`,
+  cleaningAll: (done: number, total: number) => `Nettoyage ${done}/${total}…`,
+  cleanedAll: (n: number, refused: number) => `${n} fichier${n > 1 ? 's' : ''} nettoyé${n > 1 ? 's' : ''}${refused ? `, ${refused} refusé${refused > 1 ? 's' : ''} et laissé${refused > 1 ? 's' : ''} hors de l’archive` : ''}. Le manifeste (cirta-manifest.json) donne pour chacun les empreintes SHA-256 avant et après et ce qui reste, sans aucune valeur.`,
+  cleanAllOptions: 'Avec les options avancées ci-dessous ; un fichier impossible à nettoyer est nommé, pas glissé tel quel dans l’archive.',
 
   /* ---------------------------------------------------------------- table */
   columns: ['Niveau', 'Type', 'Champ', 'Valeur', 'Emplacement'],
@@ -283,6 +289,12 @@ const EN: Strings = {
   noneFlagged: 'none carries confirmed identifying data',
   failureCount: (n) => `${n} unreadable`,
   exportReport: 'Export the report (JSON)',
+  chooseFolder: 'or a whole folder',
+  folderSkipped: (n) => `${n} file${n > 1 ? 's' : ''} in the folder skipped: format not supported, or inside a tool directory (.git, node_modules…)`,
+  cleanAll: (n) => `Clean all (${n}) — one ZIP and its manifest`,
+  cleaningAll: (done, total) => `Cleaning ${done}/${total}…`,
+  cleanedAll: (n, refused) => `${n} file${n > 1 ? 's' : ''} cleaned${refused ? `, ${refused} refused and left out of the archive` : ''}. The manifest (cirta-manifest.json) gives each one's SHA-256 before and after and what is left, without any value.`,
+  cleanAllOptions: 'With the advanced options below; a file that cannot be cleaned is named, not slipped into the archive as it was.',
 
   columns: ['Level', 'Kind', 'Field', 'Value', 'Location'],
   confidence: { confirmed: 'confirmed', probable: 'probable', informational: 'informational' },

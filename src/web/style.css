@@ -728,6 +728,32 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+/* [F-P2 2.7] The last batch clean's account, one line per refusal. */
+.summary > .note,
+.summary > .error {
+  flex-basis: 100%;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.dropzone-folder {
+  margin-top: 0.6rem;
+  padding: 0.2rem 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.dropzone-folder:hover,
+.dropzone-folder:focus-visible {
+  color: var(--ink);
+}
+
 .card {
   border: 1px solid var(--line);
   border-radius: var(--r);

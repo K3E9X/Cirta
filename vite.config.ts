@@ -84,6 +84,8 @@ export default defineConfig({
   publicDir: '../../assets',
   base: process.env['CIRTA_BASE'] ?? '/Cirta/',
   plugins: [contentSecurityPolicy(), thirdPartyLicences()],
+  // [F-P2 2.7] The version a batch manifest records.
+  define: { __CIRTA_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version) },
   // ES modules, so the worker can load PDF.js as its own chunk instead of
   // making every file wait for it.
   worker: { format: 'es' },

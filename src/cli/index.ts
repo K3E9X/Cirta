@@ -47,6 +47,7 @@ import { isProfile, PROFILES } from '../shared/profiles.js';
 import { REPORT_SCHEMA } from '../core/report-schema.js';
 import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
+import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/files.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -353,66 +354,6 @@ function printFindings(findings: Finding[]): void {
   }
 }
 
-const SUPPORTED_EXTENSIONS = new Set([
-  '.pdf',
-  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm', '.vsdx', '.vsdm',
-  '.odt', '.ods', '.odp',
-  // [F-2.2] Legacy Office, inspected only.
-  '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot',
-  '.svg', '.html', '.htm',
-  '.md', '.markdown', '.mdx',
-  '.jpg', '.jpeg', '.png',
-  // [F-P2 2.2] WebP and GIF cleaned; TIFF, HEIC and AVIF inspected.
-  '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif', '.avif',
-  '.zip', '.epub',
-  // Plain text and source files. An invisible character in a .py or a .json
-  // travels exactly as far as one in a .docx, and a bidi override in source is
-  // the Trojan Source case — the reason those controls are called out at all.
-  '.txt', '.text', '.log', '.csv', '.tsv',
-  // Mail exports. The header block is the most talkative metadata this tool
-  // reads, and a saved draft is exactly where it survives.
-  '.eml', '.mbox', '.msg',
-  '.json', '.yaml', '.yml', '.toml', '.ini',
-  // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
-  '.ipynb',
-  // [F-P2 2.2]
-  '.rtf', '.tex', '.ltx', '.sty', '.cls', '.bib', '.ics', '.ifb', '.vcf', '.vcard',
-  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
-  '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
-  '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',
-  '.css', '.scss', '.xml', '.rst', '.adoc',
-]);
-
-/**
- * Directories that are never the user's own content.
- *
- * Without this, `cirta inspect .` on an ordinary project is mostly noise: on
- * this repository the walk returned 125 files, 118 of them inside
- * node_modules. A report nobody can read through is a report nobody reads.
- */
-const SKIP_DIRECTORIES = new Set([
-  '.git', '.hg', '.svn',
-  'node_modules', 'bower_components', 'vendor',
-  '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache', '.ruff_cache',
-  'dist', 'build', 'out', 'target', '.next', '.nuxt', '.svelte-kit',
-  '.cache', '.gradle', '.terraform', 'coverage', '.idea', '.vscode',
-]);
-
-/**
- * Text formats whose bytes are ambiguous: a Markdown file without front matter
- * is indistinguishable from plain text, so the extension breaks the tie.
- */
-
-/**
- * Dotfiles carrying secrets. `extname('.env')` is the empty string — a leading
- * dot is not an extension to Node — so these can only be matched by name.
- */
-const SUPPORTED_NAMES = new Set(['.env', '.env.local', '.env.production', '.npmrc', '.netrc']);
-
-const isSupportedFile = (name: string) =>
-  SUPPORTED_NAMES.has(name.toLowerCase()) ||
-  SUPPORTED_EXTENSIONS.has(extname(name).toLowerCase());
-
 /** Walk a tree, pruning the directories rather than filtering their files out. */
 async function walkDirectory(root: string, skip: Set<string>): Promise<string[]> {
   const found: string[] = [];
@@ -422,7 +363,7 @@ async function walkDirectory(root: string, skip: Set<string>): Promise<string[]>
     if (entry.isDirectory()) {
       // Pruning rather than filtering: descending into node_modules to throw
       // the results away still costs the descent.
-      if (skip.has(entry.name) || entry.name.startsWith('.')) continue;
+      if (!isWalkedDirectory(entry.name, skip)) continue;
       found.push(...(await walkDirectory(path, skip)));
     } else if (entry.isFile() && isSupportedFile(entry.name)) {
       found.push(path);
