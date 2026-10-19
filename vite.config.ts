@@ -141,7 +141,7 @@ function writeIntegrity(outDir: string): void {
 function commit(): string {
   if (process.env['GITHUB_SHA']) return process.env['GITHUB_SHA'];
   try {
-    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+    return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch {
     return 'unknown';
   }

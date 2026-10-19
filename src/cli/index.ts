@@ -49,6 +49,7 @@ import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
 import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/files.js';
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
+import { changedFiles, ChangedFilesError } from './changed.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -121,6 +122,8 @@ ${bold(t().options)}
       --clear-outputs   ${t().optClearOutputs}
       --manifest <file> ${t().optManifest}
       --report <file>   ${t().optReport}
+      --changed-only    ${t().optChangedOnly}
+      --base <ref>      ${t().optBase}
       --profile <name>  ${t().optProfile}
       --reencode-images ${t().optReencodeImages}
       --lang <fr|en>    ${t().optLang}
@@ -176,6 +179,9 @@ interface Args {
   manifest?: string;
   /** [F-P2 2.7] The report as a page or a Markdown file. */
   report?: string;
+  /** [F-P2 2.6] Staged files, or those changed since `base`. */
+  changedOnly: boolean;
+  base?: string;
   profile?: string;
   reencodeImages: boolean;
   removeHiddenSlides: boolean;
@@ -203,6 +209,7 @@ function parseArgs(argv: string[]): Args {
     clean: false,
     help: false,
     version: false,
+    changedOnly: false,
     forceText: false,
     removeHidden: false,
     acceptChanges: false,
@@ -273,6 +280,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--report':
         args.report = argv[++i];
+        break;
+      case '--changed-only':
+        args.changedOnly = true;
+        break;
+      case '--base':
+        args.base = argv[++i];
         break;
       case '--clear-outputs':
         args.clearOutputs = true;
@@ -952,6 +965,25 @@ async function main(): Promise<number> {
       console.error(red(terminalSafe(errorText(error, lang()))));
       return 2;
     }
+  }
+
+  // [F-P2 2.6] What a commit or a pull request touches, in place of the paths' whole content.
+  if (args.changedOnly && (args.command === 'inspect' || args.command === 'verify')) {
+    try {
+      args.files = changedFiles(args.base, args.files);
+    } catch (error) {
+      if (!(error instanceof ChangedFilesError)) throw error;
+      console.error(red(terminalSafe(error.reason === 'not-a-repository' ? t().changedNotRepo : t().changedUnknownBase(error.detail))));
+      return 2;
+    }
+    if (!args.files.length) {
+      // Nothing to judge is a pass, and machine output stays machine-readable.
+      if (args.sarif) console.log(terminalJson(toSarif([])));
+      else if (args.json) console.log('[]');
+      else console.error(dim(t().changedNone));
+      return 0;
+    }
+    args.skip = [];
   }
 
   switch (args.command) {
