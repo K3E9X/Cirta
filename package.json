@@ -55,6 +55,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "build:web": "vite build",
     "dev:web": "vite",
     "cli": "node --experimental-strip-types src/cli/index.ts",
@@ -73,6 +74,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
     "ajv": "^8.20.0",
     "esbuild": "^0.25.12",
     "postject": "^1.0.0-alpha.6",

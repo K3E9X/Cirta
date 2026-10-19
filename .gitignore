@@ -6,3 +6,5 @@ dist-web/
 fuzz-findings/
 # [F-P2 2.8] Single-file binaries, written by scripts/build-sea.mjs.
 build/
+integrations/vscode/dist/
+integrations/vscode/*.vsix

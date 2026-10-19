@@ -1156,6 +1156,68 @@ Sans `--fail-on`, une analyse signale et réussit quand même : analyser n'est p
 est un contrôle désactivé en une semaine. Des copies prêtes à l'emploi sont dans
 [`examples/`](examples/) — un workflow GitHub Actions et un hook pre-commit.
 
+### Seulement ce qui a changé : un commit, une pull request
+
+`--changed-only` inspecte les fichiers que git dit modifiés, parmi les chemins
+donnés : ceux indexés (ce que le prochain commit enregistre), ou avec
+`--base <ref>` ce qui a changé depuis cette référence (`<ref>...HEAD`, comme
+une pull request le montre). Les fichiers supprimés sont écartés ; rien de
+changé donne un résultat vide et le code 0, dans toutes les sorties (`[]` en
+JSON, une exécution vide en SARIF). Hors d'un dépôt, ou avec une référence que
+git ne connaît pas, il le dit et sort avec 2.
+
+```bash
+cirta inspect --changed-only --fail-on confirmed           # les fichiers indexés
+cirta inspect docs --changed-only --base origin/main --sarif
+```
+
+**pre-commit.** Le dépôt est un dépôt de hooks [pre-commit](https://pre-commit.com) :
+le commit est refusé tant qu'un fichier indexé porte une donnée identifiante
+confirmée. Le hook lance le `cirta` du `PATH` (npm, ou un binaire publié), d'où
+`language: system` :
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/K3E9X/Cirta
+    rev: main            # une étiquette de version quand il y en aura une
+    hooks:
+      - id: cirta
+```
+
+**Action GitHub.** `uses: K3E9X/Cirta@main` inspecte les fichiers qu'une pull
+request modifie, dans le runner ; chaque constat devient une annotation sur les
+fichiers de la pull request, et le contrôle échoue au niveau `fail-on` (par
+défaut `confirmed`). Le SARIF peut aussi partir vers le code scanning
+(`upload-sarif: 'true'` ; sur un dépôt privé il faut GitHub Advanced Security,
+pas pour les annotations). Entrées : `base`, `paths`, `fail-on`,
+`upload-sarif`, `sarif-file`. Un workflow complet :
+[`examples/github-action.yml`](examples/github-action.yml) — il lui faut
+`fetch-depth: 0` pour savoir ce que la pull request a changé.
+
+### Dans l'éditeur, dans le navigateur
+
+**VS Code** ([`integrations/vscode/`](integrations/vscode/)). Un fichier texte
+est inspecté à l'ouverture et à l'enregistrement, et chaque caractère invisible
+est souligné à sa ligne et sa colonne ; le reste de ce que Cirta trouve va dans
+le panneau Problèmes. Depuis le menu contextuel de l'Explorateur ou la palette,
+n'importe quel fichier — un `.docx`, un PDF — peut être inspecté, ou écrit en
+`nom.clean.ext` à côté, l'original intact. En français ou en anglais selon la
+langue de l'éditeur. La bibliothèque est embarquée et tourne dans l'hôte
+d'extensions ; le moteur de rendu des pages PDF ne l'est pas, donc le contrôle
+qui rend les pages n'y tourne pas. Le `.vsix` se construit avec
+`node scripts/build-vscode.mjs --package` ; chaque publication le joint. Il
+n'est pas sur la Marketplace.
+
+**Extension de navigateur** (Chrome et Firefox, Manifest V3). Le bouton de la
+barre d'outils ouvre la même page que le site, portée par l'extension : elle
+fonctionne sans le site, ne demande **aucune permission** ni aucun hôte, et sa
+politique interdit toute connexion (`connect-src 'none'`) à ses pages et à
+leurs workers. Ce qui n'a de sens que sur le web est retiré : le service worker,
+l'encadré « Vérifier ce site ». `node scripts/build-browser-extension.mjs` écrit
+`build/browser-extension/` (à charger non empaquetée) et un `.zip` ; chaque
+publication le joint. Elle n'est pas dans les boutiques des navigateurs.
+
 ## Comme bibliothèque
 
 ```bash

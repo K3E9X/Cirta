@@ -25,6 +25,7 @@ Chaque PR ne montre que son lot.
 | n°15 | `feat/p2-formats` | `feat/p2-profiles` | F-P2 2.2 RTF, EPUB, Visio, WebP/GIF/TIFF/HEIC/AVIF, LaTeX, iCalendar, vCard |
 | n°16 | `feat/p2-ui` | `feat/p2-formats` | F-P2 2.7 dossier et lot, export HTML/Markdown, hors ligne, vérifiabilité du site |
 | n°17 | `feat/p2-release` | `feat/p2-ui` | F-P2 2.8 budget de performance, publication npm avec provenance, binaires, CHANGELOG |
+| n°18 | `feat/p2-integrations` | `feat/p2-release` | F-P2 2.6 `--changed-only`, hook pre-commit, Action GitHub, extensions VS Code et navigateur |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1444,6 +1445,8 @@ cirta inspect --lang fr --report rapport.md contrat.docx
 | Publication npm avec provenance | `99a20f7` | `.github/workflows/release.yml`, `scripts/check-release.mjs`, `scripts/check-release.d.mts`, `scripts/try-package.mjs` (nouveaux) ; `package.json` ; test `test/release.test.ts` |
 | Binaires autonomes (Node SEA), attestés | `c6cbe0b` | `scripts/build-sea.mjs` (nouveau) ; `src/cli/version.ts`, `src/cli/index.ts`, `src/cli/i18n.ts` (`--version`) ; `release.yml` (jobs `binaries`, `github-release`), `ci.yml` (job `sea`) ; `package.json` (`esbuild`, `postject`) ; `.gitignore` |
 | Documentation | `dc16fab` | `README.md`, `README.fr.md` |
+| Correctif : `release.yml` n'était pas du YAML valide (trouvé pendant 2.6) | `5e9981f` | `.github/workflows/release.yml` ; test `test/release.test.ts` |
+| Correctif : les fichiers texte gardent LF sous Windows (CI Windows rouge sur `test/release.test.ts`) | `51e42fa`, `7d31a96` | `.gitattributes` (nouveau) ; test `test/release.test.ts` |
 
 Ce qui change :
 - **Budget de performance.**
@@ -1476,6 +1479,11 @@ Tests :
   - `publishes from a version tag only, after the checks, with npm provenance`
   - `says which version it is, as a binary must`
   - `releases single-file binaries for three systems, each built, run and attested, and builds them in CI too`
+- `test/release.test.ts`, ajouté par le correctif `5e9981f` : `the workflows are valid YAML` (un cas par workflow : `ci.yml`, `release.yml`, `pages.yml`). Il échoue sur la version d'avant le correctif.
+- `test/release.test.ts`, ajouté par les correctifs `51e42fa` et `7d31a96` : `on every system, by .gitattributes`.
+  - Cause du rouge : Git pour Windows extrait en CRLF. Vite-node ne retire la ligne `#!` que si elle finit par LF, donc l'import de `scripts/check-release.mjs` échouait en erreur de syntaxe.
+  - Une fois l'import réparé (`*.mjs` en LF), les tests qui lisent `release.yml` ligne à ligne échouaient à leur tour : CRLF défait `\n` et `$`. D'où `* text=auto eol=lf` pour tous les fichiers texte.
+  - Reproduit ici en convertissant le fichier en CRLF. Un clone avec `core.autocrlf=true` ne contient plus aucun fichier en CRLF, et `release`, `perf-budget` et `site` y passent.
 
 Vérification manuelle :
 - `node scripts/perf.mjs` (Linux, Node 22) :
@@ -1504,6 +1512,95 @@ Vérification manuelle :
 - **Les binaires laissent de côté le rendu PDF et le canvas** : radiographie, `--burn-redactions` et `--reencode-images` indisponibles dans le binaire, et annoncés comme tels.
 - **Budgets mesurés sur une seule machine de développement**, multipliés par quatre. Le premier passage en CI dira s'ils sont bien calibrés pour le runner.
 
+## F-P2 2.6 — Intégrations
+
+**Statut : fait. Les deux extensions ne sont publiées ni sur la Marketplace VS Code ni dans les boutiques des navigateurs : il faut les comptes du propriétaire. L'extension VS Code n'a pas tourné dans un vrai VS Code (téléchargement refusé par le proxy de cet environnement).**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| `--changed-only`, `--base <ref>` | `28fc05c` | `src/cli/changed.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` ; `test/helpers/cli.ts` (option `cwd`) ; `vite.config.ts` (stderr de git) ; test `test/changed-only.test.ts` |
+| Hook pre-commit | `a59f98c` | `.pre-commit-hooks.yaml` (nouveau) ; `package.json` (`prepare`) ; test `test/pre-commit.test.ts` |
+| Action GitHub, annotations SARIF, exemple | `0fb53de` | `action.yml`, `scripts/sarif-annotations.mjs`, `scripts/sarif-annotations.d.mts`, `examples/github-action.yml` (nouveaux) ; `ci.yml` (job `action`) ; test `test/github-action.test.ts` |
+| Extension VS Code | `3c52857` | `integrations/vscode/` (nouveau : `package.json`, `src/extension.ts`, `src/diagnostics.ts`, `README.md`, `.vscodeignore`) ; `scripts/build-vscode.mjs` (nouveau) ; `tsconfig.web.json` ; `package.json` (`@types/vscode`) ; `.gitignore` ; test `test/vscode-extension.test.ts` |
+| Extension de navigateur ; les deux extensions en CI et à la publication | `546f7bd` | `scripts/build-browser-extension.mjs`, `scripts/build-browser-extension.d.mts` (nouveaux) ; `src/web/index.html` (marqueurs `<!--cirta:site-only-->`), `src/web/main.ts` ; `ci.yml` (job `extensions`), `release.yml` (job `extensions`) ; tests `test/browser-extension.test.ts`, `test/release.test.ts` |
+| Documentation | `b243b85` | `README.md`, `README.fr.md`, `CHANGELOG.md` ; test `test/changed-only.test.ts` (sorties vides promises par le README) |
+| Correctif Windows (CI) : `--changed-only` et le test VS Code | `d162d0a` | `src/cli/changed.ts` ; tests `test/changed-only.test.ts`, `test/vscode-extension.test.ts` |
+
+Ce qui change :
+- **`--changed-only`.**
+  - Sans `--base` : les fichiers indexés (`git diff --cached`), ce que le prochain commit enregistre. Avec `--base <ref>` : `git diff <ref>...HEAD`, ce qu'une pull request montre.
+  - `--diff-filter=ACMR` : les fichiers supprimés sont écartés. Le résultat est filtré par les chemins donnés et par la même règle qu'un parcours de dossier (`src/shared/files.ts`).
+  - Rien de changé : `[]` en JSON, une exécution SARIF vide, sinon un message ; code 0.
+  - Hors d'un dépôt ou avec une référence inconnue : message traduit, code 2.
+- **pre-commit.** `.pre-commit-hooks.yaml`, id `cirta`, `entry: cirta verify`, `language: system`. Les fichiers retenus suivent la liste des extensions prises en charge.
+- **Action GitHub** (`action.yml`, composite).
+  - Node 22, `npm ci` dans le dossier de l'action, puis `inspect --changed-only --base … --sarif --fail-on …`.
+  - `scripts/sarif-annotations.mjs` transforme le SARIF en commandes `::error file=…,line=…::` (échappées : une valeur ne peut pas terminer la commande) et en résumé d'exécution.
+  - Envoi optionnel au code scanning (`upload-sarif`), puis le verdict.
+  - Job CI `action` : l'action du dépôt lancée sur ses propres pull requests, limitée à `examples/`.
+- **Extension VS Code.**
+  - Un fichier texte est inspecté à l'ouverture et à l'enregistrement. Chaque caractère invisible est souligné à sa ligne et sa colonne (unités UTF-16, comme l'éditeur), 200 au plus par caractère ; le reste est placé au début du fichier.
+  - Commandes « Cirta: Inspect this file » et « Cirta: Write a cleaned copy » (menu contextuel de l'Explorateur, palette). La copie s'écrit en `nom.clean.ext`, l'original n'est pas touché.
+  - Les messages suivent la langue de l'éditeur (FR/EN), avec les traductions de `src/shared/french.ts`.
+  - La bibliothèque est embarquée par esbuild ; `vscode` reste externe. Le moteur de rendu PDF n'est pas embarqué : le contrôle par rendu des pages ne tourne pas, et la bibliothèque le signale.
+- **Extension de navigateur** (Manifest V3, Chrome et Firefox).
+  - Le site est reconstruit avec des chemins relatifs (`CIRTA_BASE=./`). Le bouton de la barre d'outils ouvre `index.html` depuis l'extension.
+  - Le script en ligne passe dans `motion.js`, car une page d'extension refuse les scripts en ligne.
+  - Retirés : le service worker, le manifeste web, `SHA256SUMS` et l'encadré « Vérifier ce site » (dont les empreintes décrivent le site publié).
+  - Aucune permission, aucun hôte, aucun script de contenu. Politique : `script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; connect-src 'none'; …`, appliquée à toutes les pages et à leurs workers.
+  - `background` déclare `service_worker` (Chrome) et `scripts` (Firefox), un seul fichier pour les deux.
+  - Icônes PNG rasterisées depuis `logo.svg` à la construction. Archive `.zip` déterministe.
+- **CI et publication.** Job CI `extensions` : `.vsix` empaqueté, extension de navigateur construite, `web-ext lint`. À la publication, les deux sont attestés et joints à la release.
+
+Tests :
+- `test/changed-only.test.ts` (5) :
+  - `takes the staged files, as a pre-commit hook sees them`
+  - `takes what changed since --base, as a pull request does, renamed and deleted files aside`
+  - `fails a verify on what changed only, and says so when nothing did`
+  - `names the files the same however the folder is spelled` (ajouté par le correctif `d162d0a`)
+  - `refuses outside a repository, and an unknown base, saying why`
+- `test/pre-commit.test.ts` (2) : `runs the installed cirta verify; installed from git, the package builds itself` ; `takes the files a folder walk takes, and no others`.
+- `test/github-action.test.ts` (3) :
+  - `inspects what the pull request changes, writes SARIF, annotates, then gives the verdict`
+  - `writes one annotation per result, escaped so a value cannot end the command`
+  - `run against a pull request’s branch, finds what it changed and only that`
+- `test/vscode-extension.test.ts` (5). Le module est chargé tel que VS Code le charge, mais face à un substitut de l'API `vscode` :
+  - `underlines each invisible character where it is, and puts the rest at the start of the file`
+  - `places a document property at the start, in the editor’s language`
+  - `registers the commands its manifest declares, and nothing else`
+  - `inspects a text file when it is opened`
+  - `inspects a Word file from the Explorer, then writes a cleaned copy beside it`
+- `test/browser-extension.test.ts` (6) :
+  - `asks for no permission and forbids every connection`
+  - `carries the site’s page with its inline script moved to a file and the web-only parts left out`
+  - `refuses a page it cannot make an extension page`
+  - `the page without the « Check this site » box still starts`
+  - `both extensions are built in CI, and attested and attached at release`
+  - `the VS Code extension has the library’s version`
+
+Vérification manuelle :
+- **pre-commit 4.7**, `pre-commit try-repo` sur ce dépôt : un fichier propre passe ; un fichier avec une espace sans chasse fait échouer le commit, le constat affiché.
+- **VS Code** : `node scripts/build-vscode.mjs --package` produit `cirta-vscode-0.1.0.vsix` (`@vscode/vsce` 3.6.0, 375 ko).
+- **Extension de navigateur dans Chromium** (Playwright, `--load-extension`, `--headless=new`) :
+  - le service worker de fond démarre ; la page s'ouvre depuis `chrome-extension://…/index.html` et `motion.js` s'exécute ;
+  - un `.docx` est déposé : l'auteur et U+200B sont trouvés ; la copie nettoyée se télécharge (`ext-rapport.clean.docx`) sans l'auteur ;
+  - un PDF à texte invisible : « Une consigne cachée destinée à une IA », pages rendues dans l'extension (worker PDF.js et décodeurs wasm) ;
+  - un `fetch('https://example.com/')` lancé depuis la page est refusé par `connect-src 'none'` ; aucune requête hors de l'extension ; aucune erreur dans la console.
+- **`web-ext lint` 8.3.0** (Mozilla) : 0 erreur, 5 avertissements. Le premier : `background.service_worker` est ignoré par Firefox, qui lit `scripts`. Les quatre autres viennent de PDF.js : un chemin `Function` qu'il n'emprunte pas quand l'évaluation est interdite, et un `import()` dynamique.
+
+Écarts :
+- **Extension VS Code testée hors de VS Code.** Le téléchargement de VS Code est refusé par le proxy de cet environnement. Le bundle est chargé et activé face à un substitut de l'API, ses commandes lancées sur de vrais fichiers ; le `.vsix` est produit par `vsce`. Le premier essai dans un vrai VS Code reste à faire.
+- **Pas de publication dans les boutiques** (Marketplace VS Code, Chrome Web Store, addons.mozilla.org) : il faut les comptes du propriétaire. Les paquets sont joints à chaque release, attestés.
+- **Firefox non lancé** : seul le linter de Mozilla a lu l'extension. Elle a tourné dans Chromium.
+- **Pas de `LICENSE`** (voir F-P2 2.8) : `vsce` est lancé avec `--skip-license` tant que le fichier manque ; il est copié dans l'extension dès qu'il existe.
+- **Défauts Windows trouvés par la CI, corrigés (`d162d0a`)** :
+  - `--changed-only` comparait les chemins absolus de git avec ceux du dossier courant. Sur les runners Windows, ce sont deux écritures du même dossier (`C:\Users\RUNNER~1` et `C:/Users/runneradmin`), et chaque fichier revenait en `../../…/nom`. Le calcul se fait désormais en chemins relatifs au dépôt, à partir de `git rev-parse --show-prefix`. Un test reproduit le défaut sous Linux avec un lien symbolique.
+  - Le substitut de `Uri` du test VS Code gardait les barres obliques inverses, là où `Uri.file` de VS Code met des `/`. L'extension elle-même était juste.
+  - Le même test comparait l'original à un second `makeDocx()`, dont les dates ZIP suivent l'horloge. Il échouait quand une seconde passait entre les deux appels, et ici aussi sous charge. Il compare désormais avec les octets écrits.
+- **Correctifs hors lot, sur la branche de 2.8 (PR n°37), chacun avec un test** :
+  - `release.yml` n'était pas du YAML valide ; trouvé en y ajoutant le job `extensions` (`5e9981f`).
+  - La CI Windows était rouge sur `test/release.test.ts` : fins de ligne CRLF (`51e42fa`, `7d31a96`).
+
 ---
 
 ## Bilan final
@@ -1514,9 +1611,9 @@ Vérification manuelle :
 
 Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
 
-- F-P2, en cours : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7 et 2.8 (PR n°31 à n°37).
+- toutes les sous-sections F-P2 : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8 et 2.6 (PR n°31 à n°38).
 
-**Pas encore fait :** F-P2 2.6, puis F-P3.
+**Pas encore fait :** F-P3.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1532,7 +1629,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
 | Après F-P2 2.2 (PR n°35) | 78 | 919 |
 | Après F-P2 2.7 (PR n°36) | 81 | 936 |
-| Après F-P2 2.8 (PR n°37) | 83 | **946** |
+| Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f`, `51e42fa`, `7d31a96`) | 83 | 950 |
+| Après F-P2 2.6 (PR n°38) | 88 | **971** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 

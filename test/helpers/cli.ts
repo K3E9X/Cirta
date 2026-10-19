@@ -15,9 +15,10 @@ export interface CliRun {
   stderr: Buffer;
 }
 
-export function runCli(args: string[], input?: Uint8Array): CliRun {
-  const result = spawnSync(process.execPath, ['node_modules/vite-node/vite-node.mjs', 'src/cli/index.ts', ...args], {
-    cwd: ROOT,
+/** `cwd` runs it from another folder — a git repository, for --changed-only. */
+export function runCli(args: string[], input?: Uint8Array, { cwd = ROOT }: { cwd?: string } = {}): CliRun {
+  const result = spawnSync(process.execPath, [`${ROOT}/node_modules/vite-node/vite-node.mjs`, '--root', ROOT, `${ROOT}/src/cli/index.ts`, ...args], {
+    cwd,
     input,
     env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
     maxBuffer: 32 * 1024 * 1024,

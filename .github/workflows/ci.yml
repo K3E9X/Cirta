@@ -69,3 +69,33 @@ jobs:
       - run: npm ci
       - run: node scripts/build-sea.mjs
 
+  # [F-P2 2.6] The editor and browser extensions, built and packaged; the
+  # browser one also through Mozilla's linter, which fails on an error.
+  extensions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-vscode.mjs --package
+      - run: node scripts/build-browser-extension.mjs
+      - run: npx --yes web-ext@8.3.0 lint --source-dir build/browser-extension
+
+  # [F-P2 2.6] The repository's own GitHub Action, run on its pull requests as a
+  # user's workflow would run it — limited to examples/, since the test sources
+  # carry invisible characters on purpose.
+  action:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          paths: examples
+          fail-on: confirmed
+

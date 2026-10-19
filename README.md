@@ -1088,6 +1088,65 @@ as failing, and a check that exits non-zero for every document with a title is
 a check somebody disables within a week. Ready-made copies are in
 [`examples/`](examples/) — a GitHub Actions workflow and a pre-commit hook.
 
+### Only what changed: a commit, a pull request
+
+`--changed-only` inspects the files git says changed, among the paths given:
+the staged ones (what the next commit records), or with `--base <ref>` what
+changed since that ref (`<ref>...HEAD`, as a pull request shows it). Deleted
+files are left out; nothing changed is an empty result and exit 0, in every
+output (`[]` in JSON, an empty run in SARIF). Outside a repository, or with a
+ref git does not know, it says so and exits 2.
+
+```bash
+cirta inspect --changed-only --fail-on confirmed           # the staged files
+cirta inspect docs --changed-only --base origin/main --sarif
+```
+
+**pre-commit.** The repository is a [pre-commit](https://pre-commit.com) hook
+repository: the commit is refused while a staged file carries confirmed
+identifying data. The hook runs the `cirta` on the `PATH` (npm, or a release
+binary), so it is declared `language: system`:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/K3E9X/Cirta
+    rev: main            # a release tag once there is one
+    hooks:
+      - id: cirta
+```
+
+**GitHub Action.** `uses: K3E9X/Cirta@main` inspects the files a pull request
+changes, in the runner; each finding becomes an annotation on the pull
+request's files, and the check fails at `fail-on` (default `confirmed`). The
+SARIF can also go to code scanning (`upload-sarif: 'true'`; on a private
+repository that needs GitHub Advanced Security, the annotations do not).
+Inputs: `base`, `paths`, `fail-on`, `upload-sarif`, `sarif-file`. A complete
+workflow: [`examples/github-action.yml`](examples/github-action.yml) — it needs
+`fetch-depth: 0`, to tell what the pull request changed.
+
+### In the editor, in the browser
+
+**VS Code** ([`integrations/vscode/`](integrations/vscode/)). A text file is
+inspected when it is opened and saved, and each invisible character is
+underlined at its own line and column; the rest of what Cirta finds goes to the
+Problems panel. From the Explorer's context menu or the palette, any file — a
+`.docx`, a PDF — can be inspected, or written as `name.clean.ext` beside it,
+the original untouched. French or English after the editor's language. The
+library is bundled in and runs in the extension host; the PDF page renderer is
+not, so the check that renders pages does not run there. Build the `.vsix`
+with `node scripts/build-vscode.mjs --package`; each release attaches it. It is
+not on the Marketplace.
+
+**Browser extension** (Chrome and Firefox, Manifest V3). The toolbar button
+opens the same page as the site, carried by the extension: it works without
+the site, asks for **no permission** and no host, and its policy forbids every
+connection (`connect-src 'none'`) on its pages and their workers. What only
+makes sense on the web is left out: the service worker, the « Check this site »
+box. `node scripts/build-browser-extension.mjs` writes
+`build/browser-extension/` (load it unpacked) and a `.zip`; each release
+attaches it. It is not in the browser stores.
+
 ## As a library
 
 ```bash

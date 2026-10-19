@@ -1379,6 +1379,8 @@ else addEventListener('load', warmWorker, { once: true });
  * SHA-256 computed here and looked up in the list the build wrote into the page.
  */
 function setupVerify(): void {
+  // Not in the browser extension, whose build leaves the box out (scripts/build-browser-extension.mjs).
+  if (!document.querySelector('#verify-site')) return;
   must<HTMLElement>('#site-version').textContent = __CIRTA_VERSION__;
   const link = must<HTMLAnchorElement>('#site-commit');
   link.href = `https://github.com/K3E9X/Cirta/commit/${encodeURIComponent(__CIRTA_COMMIT__)}`;

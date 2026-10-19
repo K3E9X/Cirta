@@ -70,7 +70,7 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(binaries).toMatch(/os: \[ubuntu-latest, windows-latest, macos-latest\]/);
     expect(binaries.indexOf('node scripts/build-sea.mjs')).toBeLessThan(binaries.indexOf('attest-build-provenance'));
     expect(binaries).toMatch(/subject-path: 'build\/sea\/cirta-\*'/);
-    expect(workflow.slice(workflow.indexOf('\n  github-release:'))).toMatch(/needs: \[npm, binaries\][\s\S]*contents: write/);
+    expect(workflow.slice(workflow.indexOf('\n  github-release:'))).toMatch(/needs: \[npm, binaries, extensions\][\s\S]*contents: write/);
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
     expect(ci.slice(ci.indexOf('\n  sea:'))).toMatch(/windows-latest, macos-latest[\s\S]*node scripts\/build-sea\.mjs/);
   });
