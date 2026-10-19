@@ -48,6 +48,7 @@ import { REPORT_SCHEMA } from '../core/report-schema.js';
 import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
 import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/files.js';
+import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -119,6 +120,7 @@ ${bold(t().options)}
       --burn-redactions ${t().optBurnRedactions}
       --clear-outputs   ${t().optClearOutputs}
       --manifest <file> ${t().optManifest}
+      --report <file>   ${t().optReport}
       --profile <name>  ${t().optProfile}
       --reencode-images ${t().optReencodeImages}
       --lang <fr|en>    ${t().optLang}
@@ -169,6 +171,8 @@ interface Args {
   removeNotes: boolean;
   clearOutputs: boolean;
   manifest?: string;
+  /** [F-P2 2.7] The report as a page or a Markdown file. */
+  report?: string;
   profile?: string;
   reencodeImages: boolean;
   removeHiddenSlides: boolean;
@@ -258,6 +262,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--manifest':
         args.manifest = argv[++i];
+        break;
+      case '--report':
+        args.report = argv[++i];
         break;
       case '--clear-outputs':
         args.clearOutputs = true;
@@ -684,9 +691,17 @@ async function runInspect(args: Args): Promise<number> {
       failures++;
       const message = errorText(error, lang());
       const code = (error as { code?: unknown } | null)?.code;
-      if (args.json || args.sarif) results.push({ file, error: message, ...(typeof code === 'string' ? { code } : {}) });
+      if (args.json || args.sarif || args.report) results.push({ file, error: message, ...(typeof code === 'string' ? { code } : {}) });
       else console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
+  }
+
+  // [F-P2 2.7] Written beside whatever the terminal shows; a pipeline's stdout stays clean.
+  if (args.report) {
+    const page = /\.html?$/i.test(args.report);
+    const written = (page ? reportHtml : reportMarkdown)(results, lang(), { version: version() });
+    await writeFile(args.report, written);
+    if (!args.json && !args.sarif) console.log(`\n${dim(t().reportWritten(terminalSafe(args.report), results.length))}`);
   }
 
   // SARIF is what a pipeline reads, so it is emitted alone on stdout with
@@ -909,6 +924,11 @@ async function main(): Promise<number> {
     const chosen = PROFILES[args.profile];
     for (const [key, value] of Object.entries(chosen.options)) if (value) (args as unknown as Record<string, boolean>)[key] = true;
     args.failOn ??= chosen.failOn;
+  }
+
+  if (args.report !== undefined && !/\.(?:html?|md|markdown)$/i.test(args.report)) {
+    console.error(red(terminalSafe(t().reportFormat(args.report))));
+    return 2;
   }
 
   // [F-2.3] The organisation's rules, read once; a file that does not read stops the run.

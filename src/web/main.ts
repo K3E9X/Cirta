@@ -28,6 +28,7 @@ import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.j
 import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
 import { PROFILES, type ProfileName } from '../shared/profiles.js';
 import { cleanBatch } from '../shared/batch.js';
+import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { isSupportedFile, isWalkedDirectory } from '../shared/files.js';
 import {
   preview,
@@ -789,7 +790,16 @@ function renderSummary(anchor: HTMLElement): void {
     download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
   });
 
-  node.append(text, button);
+  // [F-P2 2.7] The same report as a page or as Markdown, in the page's language.
+  const reportEntries = () => done.map((entry) => ({ file: entry.path, result: entry.result, error: entry.error }));
+  const html = el('button', 'button button-small', t().exportHtml);
+  html.title = t().exportTitle;
+  html.addEventListener('click', () => download(new TextEncoder().encode(reportHtml(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.html', 'text/html'));
+  const markdown = el('button', 'button button-small', t().exportMarkdown);
+  markdown.title = t().exportTitle;
+  markdown.addEventListener('click', () => download(new TextEncoder().encode(reportMarkdown(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.md', 'text/markdown'));
+
+  node.append(text, button, html, markdown);
   // [F-P2 2.7] Every file of the session through one clean, into one ZIP with its manifest.
   const cleanable = done.filter((entry) => entry.result && sources.has(entry));
   if (cleanable.length >= 2) {
