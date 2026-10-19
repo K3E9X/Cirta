@@ -43,6 +43,10 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | **Visio (`.vsdx`)** | The package properties, as for Word; the comment authors and the account behind each (`ResolutionID`); **linked data** (`visio/data/connections.xml`: the workbook or database the diagram was drawn from, a password in the connection string shown masked); each shape's hyperlink; the text of the shapes; the pictures |
 | **LaTeX** | `%` comments and `comment` environments — outside verbatim material: `\%`, `\verb`, `verbatim`, `lstlisting`, `minted`, the argument of `\url` and `\href` —, `\author`, `\thanks`, `\email`, `\affiliation`, the PDF author set by `\hypersetup` or `\pdfinfo`, and **absolute paths** in `\input`, `\include`, `\includegraphics`, `\bibliography`… with the account name they hold |
 | **iCalendar (`.ics`) / vCard (`.vcf`)** | The program that wrote it (`PRODID`), **vendor properties** (`X-MS-OLK-SENDER`, `X-WR-CALNAME`, `X-ABUID`…), an event identifier that names its host (`…@poste-jdupont.local`), creation and edit dates, the organiser and the attendees, the links of the description — **a meeting link carrying its passcode** among them —, `GEO`; a card's revision date, identifier, note, and **the Exif of its photo** |
+| **MP4 / QuickTime / M4A** | The movie, track and media header dates; `udta`'s QuickTime atoms (`©xyz` — **the place where it was filmed** —, `©mak`, `©mod`, `©too`, `©ART`…), 3GPP boxes (`loci`, `auth`…) and iTunes tags; **the keys a phone writes** under `moov/meta` (`com.apple.quicktime.location.ISO6709`, `.make`, `.model`, `.software`, `.creationdate`, Android's equivalents); XMP; cover pictures, read for their own Exif; the compressor named in the sample description |
+| **MP3** | ID3v2 (2.2, 2.3, 2.4): artist, composer, lyricist, file owner, "encoded by", titles, dates, comments, user-defined text, **the e-mail address a rating was made under** (`POPM`), private frames, unique identifiers, links, embedded files, **the cover picture and its own Exif**; ID3v1 and APEv2 at the end; the encoder in the LAME/Xing header |
+| **WAV** | `LIST INFO` (artist, engineer, technician, commissioned by, title, comment, date, software); the **Broadcast extension** (`bext`: description, originator — the recorder —, its reference, the recording date and time, the coding history); a field recorder's **iXML** (project, scene, tape, note, **the place and its position**); XMP; an ID3 tag in an `id3` chunk; a radio `cart`; the text of cue labels |
+| **TAR / gzip / 7z** (inspection only) | TAR: **the owner account and group** of the members, their dates, the extended attributes a pax header carries — macOS's `com.apple.quarantine` and **the address a file was downloaded from** (`kMDItemWhereFroms`, Linux's `user.xdg.origin.url`), the same in AppleDouble `._` members —, links to an absolute path or out of the archive. gzip: the original file name, its date, the system. 7z: the dates, links; its LZMA or LZMA2 header and content are decoded here. In all three, **each member's name is checked and its content inspected** as it would be on its own |
 | ZIP | Recursive traversal: every member goes through the normal detection path, and members no parser claims are scanned for credentials and provider identifiers. A nested archive is read once, its members located as `nested.zip → photo.jpg`, and a finding appears once |
 | Text | Invisible characters (zero-width, variation selectors, tag characters, bidi controls, exotic spaces), with steganographic payloads decoded — tag characters and variation selectors are reported as one line per family, with the total and what they read, and variation selectors are decoded in the common scheme (`U+FE00+b`, `U+E0100+b−16`) and in the variant that writes `U+E0100+b`; **plus a generic net over the Unicode `Cf` category**, so the list does not fall behind the standard |
 | **Email** | The RFC 5322 header block: `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, and **any unknown `X-` header** — that is where a pipeline signs itself. Tool headers are removed on cleaning; `From`, `Subject`, `Date` and `Message-ID` stay, they are the message. A `.eml` — or any file opening with such a header block — is read as a mail, whatever its body: each MIME part decoded (quoted-printable, base64, its charset) and read by its type, plain text by the text pass and HTML by the HTML pass, **links included**: a lookalike domain in an `href`, and link text showing one address on a link to another. Attachments are inspected like the members of an archive |
@@ -754,6 +758,10 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | LaTeX | The text of each comment, **the `%` kept** — at a line end it swallows the newline, and taking it out would add a space —; the body of `comment` environments; invisible characters. Compiled before and after, the typeset text is the same to the character | `\author`, `\thanks`, the PDF author and the paths: the document's own, named as still there |
 | iCalendar | Vendor properties (`X-…`), `CREATED` and `LAST-MODIFIED` — whole content lines, every other line as it was, CRLF and folding included | `PRODID`, `UID`, `DTSTAMP` (RFC 5545 requires them, and an update to the invitation needs the `UID`), the organiser and the attendees |
 | vCard | `PRODID`, `REV`, `UID`, vendor properties; the photo's metadata, the photo folded again at 75 octets | The name, numbers, addresses, the note: the card's content |
+| MP4 / QuickTime / M4A | `udta`, `meta` and the XMP `uuid` become **`free` boxes of the same size**, zero-filled, and the header dates are set to zero ("unknown"): **no byte of the media moves**, every chunk offset stays right, the copy is the same length | The picture, the sound, the tracks; the compressor's name, part of the track description (informational); and what an encoder wrote **inside the video stream** — x264 puts its version and settings in an SEI message of the first frame: picture data, neither read nor touched |
+| MP3 | Every ID3v2 tag in front, APEv2 and ID3v1 behind | **The audio frames, byte for byte**, and the encoder's LAME/Xing header — part of the stream, a player reads it for gapless playback (informational) |
+| WAV | `LIST INFO`, `LIST adtl`, `bext`, `iXML`, `_PMX`, `id3`, `cart`; the RIFF size written again. **An RF64 file** (past 4 GB, sizes in 64 bits) **is refused** (`media-not-rewritable`) | The format, **the samples**, the cue points (positions, not words) |
+| TAR / gzip / 7z | **Nothing** — refused (`archive-inspect-only`): rebuilding one means choosing owners, dates and modes for each file, which Cirta will not decide for you | Extract it, clean the files, and archive them again — or as a ZIP, which Cirta cleans |
 | ZIP | **Each member** it supports, with the same options, an archive inside it in turn; repacked in its order, every member dated 1980-01-01. **One member it cannot clean — a program, a legacy Office file, an encrypted PDF — and the archive is refused**, naming each | The members' order and names |
 | DOC / XLS / PPT / MSG | **Nothing** — refused, with the reason and what to do: save it as `.docx`/`.xlsx`/`.pptx` (a message as `.eml`) and clean that copy | Rebuilding a compound file (its sector table, its directory, and for Word the offsets that point between streams) is not something this tool can verify it did without damage |
 | Jupyter notebook | The notebook's metadata but for the kernel and language (Jupyter needs them to run it), cell metadata but for what changes how a cell shows (`tags`, `collapsed`, `jupyter`…), the metadata of every picture in the outputs and attachments; with `--clear-outputs`, the outputs and execution counts | The outputs, by default: they are what the author computed, and what they still say — a path, an account — is named as still there |
@@ -1344,7 +1352,8 @@ memory is already spent. The declared size is the archive's claim and a forged f
 a guard, not a proof. **A member that inflates more than a thousand times its stored size** — past
 16 MB — is refused the same way, before it is inflated: deflate tops out near 1032:1, so only a run of
 identical bytes gets there, which is a bomb, not a document. The fuzzer found the case: a mutated
-length turned 300 bytes into 335 MB of zeros, under the total budget.
+length turned 300 bytes into 335 MB of zeros, under the total budget. A gzip is inflated as a stream
+under the same two rules, and a 7z's folders are refused past the total budget before they are decoded.
 
 **An encrypted PDF is reported, not cleaned.** Its strings and streams are ciphertext: read without
 its key, an /Info dictionary is random bytes, and a rewrite keeps the ciphertext while dropping what
@@ -1466,7 +1475,8 @@ FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
 
 The parsers added later — compound files (legacy Office, Outlook), OLE property sets, PowerPoint
 records, MIME mail, Exif IFDs, the rules file, the personal-data scan, notebooks, RTF, EPUB, Visio,
-LaTeX, iCalendar, vCard, WebP, GIF, TIFF and HEIF — are fuzzed by
+LaTeX, iCalendar, vCard, WebP, GIF, TIFF and HEIF, MP4, MP3, WAV, TAR, gzip, 7z and the LZMA
+and LZMA2 decoder — are fuzzed by
 `test/fuzz-parsers.test.ts`, inside `npm test`, from seeds the test helpers build; one mutator aims
 offsets back at earlier positions, which is how offset-chained formats loop.
 
@@ -1528,7 +1538,11 @@ gone from the cleaned copy, which LibreOffice (poppler for the PDF, when install
 `CIRTA_PYTHON` names a Python that has it. Then LibreOffice's own RTF (reopened with its text), its
 EPUB (every XML part checked by `xmllint`), a Visio drawing (reopened with its shape text), a GIF and a
 TIFF written by ImageMagick (the GIF decoded again, the TIFF refused), and a LaTeX source compiled by
-`pdflatex` before and after the clean, the typeset text compared. A missing tool is reported as `skip`, never as a pass.
+`pdflatex` before and after the clean, the typeset text compared. Then ffmpeg's own MP4, QuickTime,
+M4A, MP3 (with a cover carrying a position) and WAV (with `bext`), each read, cleaned and decoded again
+by ffmpeg — the WAV to the same samples —; GNU tar's archive with extended attributes and its `.tgz`;
+and 7-Zip's own archives — by default, LZMA, stored, BZip2, with a password, with an encrypted header —,
+each read as far as it can be and what is not read named. A missing tool is reported as `skip`, never as a pass.
 
 ```bash
 node scripts/real-files.mjs

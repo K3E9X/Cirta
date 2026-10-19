@@ -45,6 +45,53 @@ const FIELD_LABEL: Record<string, string> = {
   'Hyperlink base': 'Base des liens hypertexte',
   'Last backup': 'Dernière sauvegarde',
   'Private chunk': 'Bloc privé',
+  // [F-P3 2.2] Vidéo et audio.
+  'Encoded by': 'Encodé par',
+  Composer: 'Compositeur',
+  'Album artist': 'Artiste de l’album',
+  Album: 'Album',
+  'File owner': 'Propriétaire du fichier',
+  'Store account': 'Compte de la boutique',
+  'Place name': 'Nom du lieu',
+  'Capture identifier': 'Identifiant de prise de vue',
+  'Media metadata field': 'Champ de métadonnées du média',
+  'Embedded picture': 'Image intégrée',
+  Lyricist: 'Parolier',
+  'Original artist': 'Artiste original',
+  'Recording date': 'Date d’enregistrement',
+  'Encoding time': 'Date d’encodage',
+  'Tagging time': 'Date d’étiquetage',
+  Lyrics: 'Paroles',
+  'User-defined text': 'Texte personnalisé',
+  'Listener’s e-mail address': 'Adresse e-mail de l’auditeur',
+  'Private data': 'Données privées',
+  'Unique file identifier': 'Identifiant unique du fichier',
+  'Linked address': 'Adresse liée',
+  'Audio tag field': 'Champ d’étiquette audio',
+  'Recording code (ISRC)': 'Code d’enregistrement (ISRC)',
+  Engineer: 'Ingénieur du son',
+  Technician: 'Technicien',
+  'Commissioned by': 'Commandé par',
+  Source: 'Source',
+  Originator: 'Origine de l’enregistrement',
+  'Originator reference': 'Référence de l’enregistrement',
+  'Coding history': 'Historique de codage',
+  'Cue label': 'Libellé de repère',
+  Project: 'Projet',
+  Scene: 'Scène',
+  Tape: 'Bande',
+  Client: 'Client',
+  'iXML metadata': 'Métadonnées iXML',
+  'Owner account': 'Compte propriétaire',
+  'Owner group': 'Groupe propriétaire',
+  'Member dates': 'Dates des fichiers',
+  'Download address': 'Adresse de téléchargement',
+  'Quarantine attribute (macOS)': 'Attribut de quarantaine (macOS)',
+  'Extended attributes': 'Attributs étendus',
+  'Link to an absolute path': 'Lien vers un chemin absolu',
+  'Link out of the archive': 'Lien qui sort de l’archive',
+  'Original file name': 'Nom de fichier d’origine',
+  'Operating system': 'Système d’exploitation',
   'LaTeX comment': 'Commentaire LaTeX',
   Organizer: 'Organisateur',
   Attendees: 'Participants',
@@ -586,6 +633,9 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
     (m) => `${m[1]} caractère(s) (${m[2]} distinct(s))${m[3] ? ` — se lit ${m[3]}` : ''}`,
   ],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
+  // [F-P3 2.2] Lyrics by their length; a private ID3 frame by its owner and size.
+  [/^(\d+) characters$/, (m) => `${m[1]} caractères`],
+  [/^(.+), (\d+) bytes$/, (m) => `${m[1]}, ${m[2]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [
     // Any number of scripts, not just two: a document can mix Latin with both
@@ -783,6 +833,21 @@ export const translateLocation = (location: string, lang: Lang): string => {
 
   const container = /^(JPEG segments|PNG chunks)(.*)$/.exec(location);
   if (container) return `${container[1] === 'JPEG segments' ? 'segments JPEG' : 'blocs PNG'}${container[2]}`;
+  // [F-P3 2.2]
+  const media = /^MP4 boxes(.*)$/.exec(location);
+  if (media) return `boîtes MP4${media[1]}`;
+  const tag = /^(ID3v2|ID3v1|APEv2) tag(.*)$/.exec(location);
+  if (tag) return `étiquette ${tag[1]}${tag[2]}`;
+  if (location === 'MPEG audio (encoder header)') return 'audio MPEG (en-tête de l’encodeur)';
+  const riff = /^WAV chunks(.*)$/.exec(location);
+  if (riff) return `blocs WAV${riff[1]}`;
+  const tarHeaders = /^TAR headers(?: \((.+)\))?$/.exec(location);
+  if (tarHeaders) {
+    const field = tarHeaders[1] === 'link' ? 'lien' : tarHeaders[1] === 'pax comment' ? 'commentaire pax' : tarHeaders[1];
+    return `en-têtes TAR${field ? ` (${field})` : ''}`;
+  }
+  if (location === 'gzip header') return 'en-tête gzip';
+  if (location === '7z header') return 'en-tête 7z';
   const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
   if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
@@ -1020,8 +1085,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV; TAR, gzip and 7z, inspection only.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A, MP3 et WAV ; TAR, gzip et 7z, en inspection seule.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
@@ -1079,6 +1144,17 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
       fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
     };
   },
+  'archive-inspect-only': (detail) => {
+    const name = detail === 'gz' ? 'gzip' : detail === '7z' ? '7z' : 'TAR';
+    return {
+      en: `A ${name} archive is inspected but not rewritten: rebuilding it means choosing owners, dates and modes for each file, which Cirta will not decide for you. Extract it, clean the files, and archive them again — or as a ZIP, which Cirta cleans.`,
+      fr: `Une archive ${name} est inspectée mais pas réécrite : la reconstruire voudrait dire choisir propriétaires, dates et droits de chaque fichier, ce que Cirta ne décidera pas à votre place. Extrayez-la, nettoyez les fichiers et archivez-les de nouveau — ou en ZIP, que Cirta nettoie.`,
+    };
+  },
+  'media-not-rewritable': () => ({
+    en: 'An RF64 sound (a WAV past 4 GB, its sizes in 64 bits) is inspected but not rewritten: Cirta would rather refuse than write sizes it has not checked. Export it as a WAV under 4 GB, or cut it, and clean that copy.',
+    fr: 'Un son RF64 (un WAV de plus de 4 Go, aux tailles sur 64 bits) est inspecté mais pas réécrit : Cirta préfère refuser plutôt qu’écrire des tailles qu’il n’a pas vérifiées. Exportez-le en WAV de moins de 4 Go, ou découpez-le, puis nettoyez cette copie.',
+  }),
   'image-not-rewritable': (detail) => ({
     en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Cirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
     fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Cirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,

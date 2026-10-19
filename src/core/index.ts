@@ -90,6 +90,10 @@ import { isRtf, inspectRtf, redactRtf } from './rtf.js';
 import { isEpub, inspectEpub, redactEpub } from './epub.js';
 import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
 import { calendarFormat, inspectCalendar, redactCalendar } from './calendar.js';
+import { detectMovieKind, inspectMovie, stripMovie } from './media-mp4.js';
+import { isMp3, inspectMp3, stripMp3, isWav, isRf64, inspectWav, stripWav } from './media-audio.js';
+import { is7z, read7z, sevenZipFindings } from './sevenzip.js';
+import { contentMembers, gunzipGuarded, gzipContentName, gzipFindings, gzipHeader, isGzip, isTar, readTar, tarFindings } from './tar.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -97,7 +101,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV; TAR, gzip and 7z, inspection only.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -171,6 +175,37 @@ async function inspectArchive(data: Uint8Array, options: InspectOptions): Promis
 }
 
 /**
+ * [F-P3 2.2] The members of an archive Cirta reads but does not rewrite (TAR,
+ * gzip, 7z): each name checked, each content inspected as it would be on
+ * its own — one level deeper, so an archive inside an archive inside an
+ * archive stops at the nesting limit — and what no parser claims scanned for
+ * credentials.
+ */
+async function inspectMembers(members: Array<{ path: string; data: Uint8Array }>, options: InspectOptions): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const inspect = member(options);
+  const seen = new Set<string>();
+  for (const item of members) {
+    findings.push(...fileNameFindings(item.path, item.path));
+    if (!inspect) continue;
+    try {
+      for (const finding of (await inspect(item.data, item.path)).findings) {
+        const located = { ...finding, location: `${item.path}${ARCHIVE_SEPARATOR}${finding.location}` };
+        const key = `${located.label}\u0000${located.location}\u0000${located.value}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        findings.push(located);
+      }
+    } catch (error) {
+      if (error instanceof ArchiveTooLargeError) throw error;
+      findings.push(...inspectPlainMember({ path: item.path, data: item.data }));
+    }
+  }
+  findings.push(...pathFindings(members.map((m) => m.path)));
+  return findings;
+}
+
+/**
  * `hint` is a file name, an extension or a format name. `'text'` additionally
  * means "decode these bytes as text whatever the guard thinks", which is how
  * the CLI's `--force-text` reaches this far down.
@@ -204,6 +239,14 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isCfb(data)) return undefined;
   const image = detectImageKind(data);
   if (image) return image;
+  // [F-P3 2.2] After the pictures: HEIC and AVIF open with the same ftyp box.
+  const movie = detectMovieKind(data);
+  if (movie) return movie;
+  if (isMp3(data)) return 'mp3';
+  if (isWav(data)) return 'wav';
+  if (isGzip(data)) return 'gz';
+  if (is7z(data)) return '7z';
+  if (isTar(data)) return 'tar';
   if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
   try {
@@ -348,6 +391,49 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
     };
   }
 
+  // [F-P3 2.2] Video and audio.
+  const movie = detectMovieKind(data);
+  if (movie) {
+    const found = inspectMovie(data);
+    return { format: movie, findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
+  }
+  if (isWav(data)) {
+    const found = inspectWav(data);
+    return { format: 'wav', findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
+  }
+  if (isMp3(data)) {
+    const found = inspectMp3(data);
+    return { format: 'mp3', findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
+  }
+
+  // [F-P3 2.2] Archives read, never rewritten.
+  if (isGzip(data)) {
+    const header = gzipHeader(data);
+    const content = gunzipGuarded(data, header.name ?? 'archive');
+    const name = gzipContentName(header, content, hint);
+    const findings = [...gzipFindings(header), ...(await inspectMembers([{ path: name, data: content }], options))];
+    return { format: 'gz', findings: findings.sort(byConfidence), notes: [{ code: 'scope:archive-inspect-only' }] };
+  }
+  if (is7z(data)) {
+    const archive = read7z(data);
+    const notes: Note[] = [{ code: 'scope:archive-inspect-only' }];
+    if (archive.headerEncrypted) notes.push({ code: 'limit:archive-encrypted' });
+    const unread = new Map<string, string[]>();
+    for (const entry of archive.entries) if (entry.unread) unread.set(entry.unread, [...(unread.get(entry.unread) ?? []), entry.path]);
+    if (unread.size) notes.push({ code: 'limit:archive-unread', detail: [...unread].map(([coder, names]) => `${coder}: ${names.join(', ')}`).join('; ') });
+    const read = archive.entries.filter((e) => e.data && e.data.length > 0) as Array<{ path: string; data: Uint8Array }>;
+    const findings = [...sevenZipFindings(archive), ...(await inspectMembers(read, options))];
+    for (const entry of archive.entries) if (!read.includes(entry as { path: string; data: Uint8Array })) findings.push(...fileNameFindings(entry.path, entry.path));
+    return { format: '7z', findings: findings.sort(byConfidence), notes };
+  }
+  if (isTar(data)) {
+    const members = readTar(data);
+    const findings = [...tarFindings(members), ...(await inspectMembers(contentMembers(members), options))];
+    // A member whose content is not read still has a name to check.
+    for (const m of members) if (!contentMembers([m]).length) findings.push(...fileNameFindings(m.path, m.path));
+    return { format: 'tar', findings: findings.sort(byConfidence), notes: [{ code: 'scope:archive-inspect-only' }] };
+  }
+
   if (isRtf(data)) return inspectRtf(data, { ...options, inspectMember: member(options) });
 
   // [C4] Before the markup sniff: a mail whose body is HTML is a mail first.
@@ -435,7 +521,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 /** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
-const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable', 'media-not-rewritable', 'archive-inspect-only']);
 
 /**
  * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
@@ -561,6 +647,22 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
       hint,
       options,
     );
+  }
+
+  // [F-P3 2.2] Cleaned in place: the metadata boxes become free space, the media does not move.
+  const movie = detectMovieKind(data);
+  if (movie) return noteSurvivors({ format: movie, data: stripMovie(data), removed: inspectMovie(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  if (isMp3(data)) return noteSurvivors({ format: 'mp3', data: stripMp3(data), removed: inspectMp3(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  if (isWav(data)) {
+    // [F-P3 2.2] Its sizes live in a ds64 chunk this does not rewrite: read, not rewritten.
+    if (isRf64(data)) throw new UnsupportedFormatError('An RF64 sound (a WAV past 4 GB) is inspected but not rewritten.', 'media-not-rewritable', 'rf64');
+    return noteSurvivors({ format: 'wav', data: stripWav(data), removed: inspectWav(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  }
+
+  // [F-P3 2.2] Read, never rewritten: see tar.ts.
+  if (isGzip(data) || isTar(data) || is7z(data)) {
+    const kind = isGzip(data) ? 'gz' : is7z(data) ? '7z' : 'tar';
+    throw new UnsupportedFormatError(`A ${kind === 'gz' ? 'gzip' : kind === '7z' ? '7z' : 'TAR'} archive is inspected but not rewritten. Extract it, clean the files, and archive them again.`, 'archive-inspect-only', kind);
   }
 
   if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);

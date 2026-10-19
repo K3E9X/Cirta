@@ -18,6 +18,9 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - RTF, EPUB and Visio `.vsdx`: inspected and cleaned.
   - WebP and GIF: inspected and cleaned.
   - TIFF, HEIC and AVIF: inspected; cleaning is refused.
+  - MP4, QuickTime and M4A: the place, the device, the software, the dates; cleaned in place, no byte of the media moved.
+  - MP3 (ID3v2, ID3v1, APEv2) and WAV (INFO, bext, iXML, XMP, id3): read and removed, the audio kept byte for byte; RF64 inspected only.
+  - TAR, gzip and 7z: inspected only — owners, dates, the download address macOS and Linux keep, links, each member read; 7z's LZMA and LZMA2 decoded.
   - LaTeX: comments removed, the `%` kept.
   - iCalendar and vCard.
 - **Active content and attack vectors.**

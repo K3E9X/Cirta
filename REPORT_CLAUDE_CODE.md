@@ -27,6 +27,7 @@ Chaque PR ne montre que son lot.
 | n°17 | `feat/p2-release` | `feat/p2-ui` | F-P2 2.8 budget de performance, publication npm avec provenance, binaires, CHANGELOG |
 | n°18 | `feat/p2-integrations` | `feat/p2-release` | F-P2 2.6 `--changed-only`, hook pre-commit, Action GitHub, extensions VS Code et navigateur |
 | n°19 | `feat/p3-embed` | `feat/p2-integrations` | F-P3 2.5 build en un seul fichier, `cirta serve` (ICAP, HTTP), image Docker |
+| n°20 | `feat/p3-media` | `feat/p3-embed` | F-P3 2.2 vidéo et audio (MP4/MOV/M4A, MP3, WAV), TAR, gzip, 7z |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1612,6 +1613,7 @@ Vérification manuelle :
 | `cirta serve` : ICAP et API HTTP | `cf0010f` | `src/cli/serve.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` (`stringsFor`) ; tests `test/serve.test.ts`, `test/no-network.test.ts` |
 | Image Docker, essai en CI | `e83ad8d` | `Dockerfile`, `.dockerignore`, `scripts/smoke-serve.mjs`, `scripts/smoke-serve.d.mts` (nouveaux) ; `ci.yml` (job `docker`) ; test `test/docker.test.ts` |
 | Documentation | `e3cc64d` | `README.md`, `README.fr.md`, `SECURITY.md`, `SECURITY.fr.md`, `CHANGELOG.md` ; test `test/serve.test.ts` (ce que les pages affirment) |
+| Correctif Windows (CI) : deux tests | `f4d119c` | `test/single-file.test.ts` (module importé par un Node à part : le chemin `RUNNER~1` encodé `%7E` n'était pas résolu par vitest), `test/serve.test.ts` (Windows n'a pas de signaux : l'arrêt propre sur SIGTERM n'y est pas attendu) |
 
 Ce qui change :
 - **Un seul fichier.**
@@ -1687,6 +1689,134 @@ Vérification manuelle :
 - **Taille de l'image** : « minimale » au sens de rien d'inutile (ni npm, ni sources, ni dépendances de développement), pas au sens de petite. Node pèse 123 Mo, PDF.js 35 Mo, le moteur de rendu 30 Mo. Une image sans moteur de rendu perdrait la recherche de texte caché par rendu des pages PDF.
 - **Passerelle mail** : servie par ICAP (REQMOD) ou par `POST /inspect` avec un `.eml`. Aucun milter, aucune intégration propre à un produit de messagerie n'a été essayé.
 
+## F-P3 2.2 — Vidéo et audio ; TAR, gzip et 7z en inspection seule
+
+**Statut : fait. Vidéo et audio sont inspectés et nettoyés. TAR, gzip et 7z sont inspectés seulement, comme le demande le brief. Le RF64 est inspecté et refusé au nettoyage.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| MP4, QuickTime, M4A | `6358902` | `src/core/media-mp4.ts` (nouveau) ; `src/core/index.ts`, `types.ts`, `notes.ts` (`scope:media`) ; `src/shared/files.ts`, `src/shared/french.ts` ; `src/web/index.html`, `src/web/main.ts` ; `scripts/real-files.mjs` ; tests `test/media-mp4.test.ts`, `test/helpers/media.ts`, `test/i18n-fr.test.ts`, `test/fuzz-parsers.test.ts` |
+| MP3 (ID3v2, ID3v1, APEv2) | `f8982a4` | `src/core/media-audio.ts` (nouveau) ; mêmes fichiers transverses ; test `test/media-mp3.test.ts` |
+| WAV (INFO, bext, iXML, XMP, id3, cart, cue) | `eda51fd` | `src/core/media-audio.ts` ; `src/core/errors.ts` (`media-not-rewritable`) ; test `test/media-wav.test.ts` |
+| TAR et gzip | `5eca856` | `src/core/tar.ts` (nouveau) ; `src/core/errors.ts` (`archive-inspect-only`), `notes.ts` (`scope:archive-inspect-only`) ; tests `test/archives-tar-gz.test.ts`, `test/helpers/tar.ts` |
+| 7z et son décodeur LZMA/LZMA2 | `40e2b86` | `src/core/lzma.ts`, `src/core/sevenzip.ts` (nouveaux) ; `notes.ts` (`limit:archive-unread`, `limit:archive-encrypted`) ; tests `test/sevenzip.test.ts`, `test/helpers/sevenzip.ts`, `test/vectors/lzma.txt` |
+| Page : TAR, gzip et 7z annoncés non réécrits avant tout clic | `8f2a777` | `src/web/main.ts` |
+| Le hook pre-commit prend les nouvelles extensions | `5b333bf` | `.pre-commit-hooks.yaml` |
+| Documentation | `077ff3c` | `README.md`, `README.fr.md`, `SECURITY.md`, `SECURITY.fr.md`, `CHANGELOG.md` |
+
+Ce qui change :
+- **MP4 / QuickTime / M4A.**
+  - Lu :
+    - les dates de `mvhd`, `tkhd`, `mdhd` ;
+    - dans `udta`, les atomes QuickTime (`©xyz` lieu ISO 6709, `©mak`, `©mod`, `©swr`, `©too`, `©ART`, `©day`…), les boîtes 3GPP (`loci` en virgule fixe 16.16, `auth`, `titl`, `dscp`…) et les étiquettes iTunes (`ilst`, freeform `----`, pochette `covr` lue pour son Exif) ;
+    - les clés `mdta` de `moov/meta`, au nom normalisé (`com.apple.quicktime.`, `com.android.`, suffixe de langue) : lieu, appareil, logiciel, date, auteur, nom du lieu, identifiant de prise de vue ; les clés techniques recopiées par ffmpeg (`major_brand`…) sont ignorées ;
+    - le XMP (`uuid` BE7ACFCB… ou `XMP_`) ;
+    - le compresseur nommé dans `stsd` (informatif).
+  - HEIC et AVIF, qui s'ouvrent pareil (`ftyp`), restent des images.
+  - **Nettoyage sur place** :
+    - `udta`, `meta` et l'`uuid` XMP deviennent des boîtes `free` de même taille, remplies de zéros ;
+    - les dates des en-têtes passent à zéro (« inconnue ») ;
+    - la longueur ne change pas et aucun décalage `stco`/`co64` ne bouge.
+- **MP3.**
+  - ID3v2 2.2/2.3/2.4 : désynchronisation, en-tête étendu, indicateur de longueur, trames compressées ou chiffrées ignorées.
+    - Trames texte : artiste, compositeur, parolier, propriétaire, « encodé par », dates…
+    - `COMM`, avec les chiffres de normalisation d'iTunes en informatif ; `TXXX`.
+    - `POPM` : l'adresse e-mail de celui qui a noté, en *confirmed*.
+    - `PRIV`, `UFID`, `WXXX`, `GEOB`, `USLT`.
+    - `APIC` : la pochette, lue pour son propre Exif.
+  - ID3v1 : en Latin-1, ou en UTF-8 quand un outil l'y a mis (ffmpeg). APEv2.
+  - L'encodeur de l'en-tête LAME/Xing : informatif, et gardé, car il fait partie du flux.
+  - Détection : une étiquette ID3 suivie d'une trame, ou deux trames MPEG valides de suite.
+  - Nettoyage : seules les trames restent, octet pour octet.
+- **WAV.**
+  - Lu :
+    - `LIST INFO`, `LIST adtl` (texte des repères) ;
+    - `bext` : description, origine, référence, date et heure, historique de codage ;
+    - `iXML` : projet, scène, bande, note, nom du lieu, position ;
+    - `_PMX` (XMP), `id3 `, `cart`, `DISP`.
+  - Nettoyage : ces blocs partent, `fmt `, `data` et `cue ` restent, la taille RIFF est réécrite.
+  - **RF64** : lu, refusé au nettoyage (`media-not-rewritable`).
+- **TAR.**
+  - Formats ustar, GNU et pax : sommes de contrôle vérifiées, tailles en base 256, noms longs GNU.
+  - Lu :
+    - les comptes et groupes propriétaires (les groupes génériques comme `staff` ou `wheel` sont tus), l'intervalle de dates ;
+    - `com.apple.quarantine` ; les adresses de `kMDItemWhereFroms` et de `user.xdg.origin.url`/`referrer.url`, y compris dans les fichiers AppleDouble `._` ; les autres attributs étendus, en informatif ;
+    - les liens vers un chemin absolu, ou qui sortent de l'archive ;
+    - chaque nom vérifié (`fileNameFindings` sur le chemin complet) et chaque contenu inspecté un niveau plus bas.
+- **gzip.**
+  - Lu : nom d'origine, date, système, commentaire.
+  - Le contenu est décompressé en flux sous les limites d'archive : budget total, et ratio de 1 000 au-delà de 16 Mo comme pour ZIP.
+  - Il est ensuite lu comme un fichier de l'archive (un TAR à son tour). Un contenu sans nom s'appelle `archive.tar` ou `archive`.
+- **7z.**
+  - Décodeur LZMA/LZMA2 écrit d'après l'algorithme du LZMA SDK.
+  - Lecture du 7z :
+    - CRC de l'en-tête de démarrage et de l'en-tête suivant ;
+    - en-tête encodé ;
+    - `PackInfo`, `UnPackInfo`, `SubStreamsInfo` ;
+    - noms, dates, attributs (mode Unix : liens symboliques), commentaire.
+  - Contenu : décodé pour Copy, LZMA et LZMA2, **chaque CRC fourni vérifié**.
+  - Les autres codeurs (BCJ, BZip2, PPMd, Deflate) et AES sont nommés dans `limit:archive-unread`, avec les fichiers concernés. Un en-tête chiffré donne `limit:archive-encrypted`.
+- **TAR, gzip, 7z** sont refusés au nettoyage (`archive-inspect-only`), et la page le dit avant tout clic.
+
+Tests :
+- `test/media-mp4.test.ts` (4) :
+  - `reads where, with what and when: the phone’s keys, the udta atoms, the movie header, the XMP`
+  - `cleans in place: the boxes become free space of the same size, the dates are zeroed, the media is untouched`
+  - `tells MP4, QuickTime and M4A apart from HEIC and AVIF, which open the same way`
+  - `says nothing about a file that carries nothing, and keeps a movie with no metadata as it is`
+- `test/media-mp3.test.ts` (4) :
+  - `reads ID3v2, ID3v1 and APEv2: names, the listener’s address, dates, comments, the cover picture’s EXIF`
+  - `reads 2.4 (sizes in syncsafe integers, UTF-8) and 2.2 (three-letter frames)`
+  - `cleans: every tag goes, the audio frames stay byte for byte, the encoder header with them`
+  - `knows an MP3 without tags by two frames in a row, and nothing by one stray sync`
+- `test/media-wav.test.ts` (3) :
+  - `reads INFO, bext, iXML, XMP, the id3 chunk and the cue labels`
+  - `cleans: the format and the samples, nothing else, the RIFF size written again`
+  - `reads an RF64 file, and refuses to rewrite it rather than get its 64-bit sizes wrong`
+- `test/archives-tar-gz.test.ts` (5) :
+  - `reads the owners, the dates, the macOS attributes, the links, and each member as itself`
+  - `is refused on cleaning, saying what to do`
+  - `reads the header — the original name, its date, the system — and the content, a TAR in turn`
+  - `reads a single gzipped document, and refuses to clean it`
+  - `refuses a gzip that inflates past the archive limit rather than read it in part`
+- `test/sevenzip.test.ts` (5) :
+  - `decode xz-utils’ own output to the text it was made from`
+  - `refuse a stream that is cut short or claims more than it holds`
+  - `reads names, dates and each file, stored or in LZMA2, the header plain or encoded`
+  - `names what it does not read: a coder it does not decode, encrypted content`
+  - `refuses a damaged archive rather than read it wrong, and refuses to clean`
+- `test/fuzz-parsers.test.ts` (+1) : `[F-P3 2.2] video and audio, inspected and cleaned`. Il couvre MP3, WAV (RF64 compris), TAR, gzip, 7z (stocké, LZMA2, en-tête encodé, AES), le décodeur LZMA et LZMA2 sur les flux de référence mutés, et MP4.
+- `test/i18n-fr.test.ts` : le corpus français gagne une vidéo, un MP3, deux WAV, un TAR, deux gzip et deux 7z.
+
+Vérification manuelle :
+- **ffmpeg 6** :
+  - MP4, MOV (`use_metadata_tags`) et M4A avec artiste, titre, commentaire et lieu : tout est lu. `loci` donne 48,85840, 2,29449 ; les clés `location` et `location-eng` sont dédupliquées.
+  - Nettoyés : même taille ; `ffmpeg -f null` ne signale aucune erreur ; `ffprobe` et `exiftool` ne trouvent ni artiste ni lieu.
+  - Reste le compresseur `Lavc60.31.102 libx264` (informatif), ainsi que la chaîne `x264 - core 164 r3108` dans le message SEI du flux vidéo : des données d'image, dites dans le README.
+- **MP3** (libmp3lame, ID3v2.3 et ID3v1, pochette JPEG dotée d'un GPS par exiftool) :
+  - lus : artiste (ID3v2 et ID3v1), position de la pochette, titre ID3v1 en UTF-8 ;
+  - nettoyé : aucune étiquette selon ffprobe, décodage sans erreur.
+- **WAV** (`-write_bext 1`) : origine, historique de codage, artiste et date lus. Nettoyé : les échantillons décodés ont le même MD5 avant et après.
+- **TAR et gzip** :
+  - GNU tar 1.35 (`--format=posix --xattrs`, attribut `user.xdg.origin.url` posé par `setfattr`) : propriétaire `marie (uid 1001)`, groupe `compta (gid 1002)`, adresse de téléchargement, lien `/home/marie/secret.txt`, fichiers lus ;
+  - bsdtar (libarchive) : l'adresse est lue aussi ;
+  - `.tgz` et `.docx.gz` : lus à travers gzip.
+- **LZMA** : un corpus de 89 Ko (texte, bruit, copies à des distances au-delà de 128 o et de 64 Ko, zéros), compressé en LZMA et LZMA2 par xz-utils via Python, est décodé à l'identique en 15 à 17 ms.
+- **7-Zip 23.01** :
+  - par défaut (LZMA2, en-tête LZMA), `-m0=lzma` et `-mx0` : décodés ; l'auteur du `.docx` et l'espace sans chasse du texte sont trouvés ; le lien est annoncé ;
+  - `-m0=bzip2` : note `BZip2: …` ;
+  - `-pSecret` : note `AES: …`, avec les noms lus ;
+  - `-mhe=on` : note d'en-tête chiffré.
+- **Fuzzing** : 3 graines × 4 000 mutations par cible, sans erreur.
+- **Page (Chromium)** : un MP4, un MP3, un WAV, un `.tgz` et un 7z déposés ensemble. Les constats s'affichent en français et le TAR/7z s'annonce « inspectée mais pas réécrite ». Le MP4 nettoyé dans la page se télécharge sans l'artiste.
+
+Écarts :
+- **TAR, gzip et 7z ne sont pas nettoyés**, conformément au brief (« en inspection seule »). La raison est écrite, avec quoi faire à la place.
+- **Codeurs 7z non décodés** : les filtres BCJ/BCJ2/ARM/ARM64 (appliqués par 7-Zip aux exécutables), BZip2, PPMd, Deflate et AES. Les fichiers concernés sont nommés, avec leurs noms et dates.
+- **Vecteur de test LZMA** : `test/vectors/lzma.txt` contient deux flux de 381 et 383 octets en base64, de provenance documentée (xz-utils via Python, graine 11). C'est un fichier texte, hors de `test/fixtures`. Le texte attendu est vérifié par son SHA-256 ; le chemin LZMA compressé, lui, n'est pas reconstructible sans encodeur.
+- **Les flux eux-mêmes ne sont pas analysés** : ni l'image ni le son. Une chaîne écrite dans le flux vidéo par l'encodeur (le SEI de x264) reste, et le README le dit.
+- **Formats vidéo et audio non couverts** : FLAC, Ogg, Matroska/WebM, AIFF, AVI ne sont pas dans le lot.
+
 ---
 
 ## Bilan final
@@ -1699,9 +1829,9 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 
 - toutes les sous-sections F-P2 : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8 et 2.6 (PR n°31 à n°38).
 
-- F-P3, en cours : 2.5 (PR n°39).
+- F-P3, en cours : 2.5 et 2.2 (PR n°39 et n°40).
 
-**Pas encore fait :** F-P3 2.2, 2.7, 2.6.
+**Pas encore fait :** F-P3 2.7, 2.6.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1719,7 +1849,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.7 (PR n°36) | 81 | 936 |
 | Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f`, `51e42fa`, `7d31a96`) | 83 | 950 |
 | Après F-P2 2.6 (PR n°38) | 88 | 971 |
-| Après F-P3 2.5 (PR n°39) | 91 | **992** |
+| Après F-P3 2.5 (PR n°39) | 91 | 992 |
+| Après F-P3 2.2 (PR n°40) | 96 | **1019** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 

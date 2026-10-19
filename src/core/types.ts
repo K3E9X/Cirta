@@ -49,6 +49,18 @@ export type Format =
   /** [F-P2 2.2] An iCalendar file and a vCard. */
   | 'ics'
   | 'vcf'
+  /** [F-P3 2.2] Video and audio: MP4, QuickTime and M4A cleaned in place. */
+  | 'mp4'
+  | 'mov'
+  | 'm4a'
+  /** [F-P3 2.2] MPEG audio with its ID3, ID3v1 and APEv2 tags. */
+  | 'mp3'
+  /** [F-P3 2.2] RIFF/WAVE, and RF64 inspected only. */
+  | 'wav'
+  /** [F-P3 2.2] Archives inspected only: TAR, gzip, 7z. */
+  | 'tar'
+  | 'gz'
+  | '7z'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -178,10 +190,18 @@ export type NoteCode =
   | 'scope:markup-metadata-only'
   /** Only image container metadata was examined; the pixels were not. */
   | 'scope:image-metadata-only'
+  /** [F-P3 2.2] Video and audio: the container's metadata, not the picture or the sound. */
+  | 'scope:media'
+  /** [F-P3 2.2] A TAR, gzip or 7z archive: read, never rewritten. */
+  | 'scope:archive-inspect-only'
   /** An archive was walked; the report aggregates its members. */
   | 'scope:archive'
   /** Archive traversal stopped at a built-in limit. */
   | 'limit:archive-truncated'
+  /** [F-P3 2.2] Members of a 7z behind a coder not decoded here, or encrypted. Detail: "<coder>: <names>", several joined by "; ". */
+  | 'limit:archive-unread'
+  /** [F-P3 2.2] A 7z whose header is encrypted: not even the names can be read. */
+  | 'limit:archive-encrypted'
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
   | 'removed:c2pa'
   /** Reported items that are document content, not metadata, and were left alone. */

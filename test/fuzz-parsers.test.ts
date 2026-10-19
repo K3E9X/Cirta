@@ -15,7 +15,12 @@ import { jpegWith, tiff } from './helpers/tiff.js';
 import { mutations, ITERATIONS, SEED } from './helpers/mutate.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { vsdx } from './helpers/visio.js';
-import { zipSync } from 'fflate';
+import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
+import { tar } from './helpers/tar.js';
+import { sevenZip } from './helpers/sevenzip.js';
+import { decodeLzma, decodeLzma2, LzmaError } from '../src/core/lzma.js';
+import { readFileSync } from 'node:fs';
+import { gzipSync, zipSync } from 'fflate';
 
 /*
  * [F-2.8] The parsers added since the fuzzer was written, fuzzed the same
@@ -164,4 +169,41 @@ describe('[F-2.8] fuzzing the new parsers', () => {
     await fuzz('vcf', [strToU8('BEGIN:VCARD\r\nFN:J\r\nREV:1\r\nPHOTO;ENCODING=b:/9j/4QAMRXhpZgAASUkqAP/Z\r\nEND:VCARD\r\n')], both('a.vcf'));
     await fuzz('pictures', [await webpWithMetadata(), await gifWithMetadata(), tiffWithMetadata(), heifWithMetadata('heic'), heifWithMetadata('avif')], both('a'));
   }, TIMEOUT * 6);
+
+  it('[F-P3 2.2] video and audio, inspected and cleaned', async () => {
+    const both = (name: string) => async (input: Uint8Array) => {
+      await inspectFile(input, name);
+      await redactFile(input, name);
+    };
+    const phone = { 'com.apple.quicktime.location.ISO6709': '+48.8584+002.2945/', 'com.apple.quicktime.model': 'iPhone' };
+    const mp3 = bytes(id3v2(3, [['TPE1', id3Text('M')], ['COMM', bytes([1], 'fra', [0xff, 0xfe, 0, 0], [0x41, 0])], ['APIC', bytes([0], 'image/jpeg', [0], [3], [0], [0xff, 0xd8, 0xff, 0xd9])]]), lameFrame(), mpegFrame(), apev2({ Artist: 'M' }), id3v1('T', 'A', 'B', '2024', 'C'));
+    await fuzz('mp3', [mp3, bytes(id3v2(4, [['TPE1', id3Text('M', 3)]]), mpegFrame(), mpegFrame()), bytes(id3v2(2, [['TP1', id3Text('M')]]), mpegFrame())], both('a.mp3'));
+    const full = { info: { IART: 'M', ISFT: 'A' }, bext: { description: 'D', originator: 'O', reference: 'R', date: '2024-03-01', time: '10:12:00', history: 'A=PCM' }, ixml: '<BWFXML><NOTE>N</NOTE><LOCATION_GPS>1, 2</LOCATION_GPS></BWFXML>', xmpCreator: 'J', id3Artist: 'M', cueLabel: 'Q' };
+    await fuzz('wav', [wav(full), wav({ ...full, rf64: true })], async (input) => {
+      await inspectFile(input, 'a.wav');
+      await redactFile(input, 'a.wav').catch((error: { code?: string }) => {
+        if (error.code !== 'media-not-rewritable') throw error;
+      });
+    });
+    const inspectOnly = (name: string) => async (input: Uint8Array) => {
+      await inspectFile(input, name);
+    };
+    const archive = tar([{ name: 'd/a.txt', data: 'a', uname: 'm', uid: 1, mtime: 1, pax: { 'SCHILY.xattr.com.apple.quarantine': '0083;1;S;X', comment: 'c' } }, { name: `d/${'x'.repeat(120)}`, data: 'b' }, { name: 'd/l', type: '2', link: '/x' }]);
+    await fuzz('tar', [archive], inspectOnly('a.tar'));
+    await fuzz('gz', [gzipSync(archive, { filename: 'a.tar', mtime: new Date(0) })], inspectOnly('a.tar.gz'));
+    const files = [{ name: 'd', directory: true, mtime: 1 }, { name: 'd/a.txt', data: strToU8('a\u200bb'), mtime: 2 }, { name: 'd/b.txt', data: strToU8('bb'), mtime: 3 }];
+    await fuzz('7z', [sevenZip(files), sevenZip(files, { coder: 'lzma2' }), sevenZip(files, { coder: 'lzma2', encodeHeader: true }), sevenZip(files, { coder: 'aes' })], inspectOnly('a.7z'));
+    // The decoder alone, on xz-utils' own streams mutated: a refusal, never a crash or a hang.
+    const [, lzma1, lzma2] = readFileSync(new URL('./vectors/lzma.txt', import.meta.url), 'utf8').trim().split('\n');
+    const decoder = (decode: (input: Uint8Array) => unknown) => async (input: Uint8Array) => {
+      try {
+        decode(input);
+      } catch (error) {
+        if (!(error instanceof LzmaError)) throw error;
+      }
+    };
+    await fuzz('lzma', [new Uint8Array(Buffer.from(lzma1!, 'base64'))], decoder((input) => decodeLzma(new Uint8Array([0x5d, 0, 0, 1, 0]), input, 1534)));
+    await fuzz('lzma2', [new Uint8Array(Buffer.from(lzma2!, 'base64'))], decoder((input) => decodeLzma2(input, 1534)));
+    await fuzz('mp4', [movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf', apple: phone, xmpCreator: 'M' }), movie({ brand: 'qt  ' }), movie({ brand: 'M4A ' })], both('a.mp4'));
+  }, TIMEOUT * 4);
 });

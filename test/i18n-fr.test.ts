@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { strToU8, zipSync } from 'fflate';
+import { gzipSync, strToU8, zipSync } from 'fflate';
 import { inspectFile, redactFile, type Finding, type Note } from '../src/core/index.js';
 import { errorText, noteText, translateLabel, translateLocation, translateValue } from '../src/shared/french.js';
 import { makeDocx, makeJpeg, makePdf, makePng, makePptx, makeRichPptx, makeXlsx, tagEncode, variationEncode } from './fixtures.js';
@@ -12,6 +12,9 @@ import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.j
 import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
+import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
+import { tar, whereFroms } from './helpers/tar.js';
+import { sevenZip } from './helpers/sevenzip.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -162,6 +165,41 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['scan.tif', tiffWithMetadata()],
     ['photo.heic', heifWithMetadata('heic')],
     ['photo.avif', heifWithMetadata('avif')],
+    // [F-P3 2.2]
+    [
+      'entretien.wav',
+      wav({
+        info: { IART: 'M', IENG: 'P', ITCH: 'T', ICMS: 'C', ISRC: 'S', ISFT: 'A', IXYZ: 'x' },
+        bext: { description: 'D', originator: 'O', reference: 'R', date: '2024-03-01', time: '10:12:00', history: 'A=PCM' },
+        ixml: '<BWFXML><PROJECT>P</PROJECT><SCENE>S</SCENE><TAPE>T</TAPE><LOCATION><LOCATION_NAME>L</LOCATION_NAME></LOCATION></BWFXML>',
+        cueLabel: 'Q',
+      }),
+    ],
+    ['long.wav', wav({ info: { IART: 'M' }, rf64: true })],
+    [
+      'dossier.tar',
+      tar([
+        { name: 'd/a.txt', data: 'a\u200bb', uname: 'marie', gname: 'compta', uid: 501, gid: 20, mtime: 1709287200, pax: { 'SCHILY.xattr.com.apple.quarantine': '0083;65e1;Safari;X', 'SCHILY.xattr.user.xdg.origin.url': 'https://a.example/x', 'SCHILY.xattr.com.apple.FinderInfo': 'v', comment: 'c' } },
+        { name: 'd/l', type: '2', link: '/home/marie/x', uid: 501, uname: 'marie' },
+        { name: 'd/m', type: '2', link: '../../x', uid: 501, uname: 'marie' },
+        { name: 'd/._a.txt', data: whereFroms('https://b.example/y'), uname: 'marie', uid: 501 },
+      ]),
+    ],
+    ['dossier.tar.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501, mtime: 1709287200 }]), { filename: 'dossier.tar', mtime: new Date(1709287200000) })],
+    ['dossier.7z', sevenZip([{ name: 'd', directory: true, mtime: 1709200800 }, { name: 'd/a.txt', data: enc('a\u200bb'), mtime: 1709287200 }], { coder: 'lzma2', encodeHeader: true })],
+    ['chiffre.7z', sevenZip([{ name: 'd/a.txt', data: enc('a'), mtime: 1709287200 }], { coder: 'aes' })],
+    ['rapport.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501 }]))],
+    [
+      'memo.mp3',
+      bytes(
+        id3v2(3, [['TPE1', id3Text('Marie')], ['TOLY', id3Text('Paul')], ['TOPE', id3Text('Luc')], ['TDEN', id3Text('2024')], ['TDTG', id3Text('2024')], ['USLT', bytes([0], 'fra', [0], 'la la')], ['TXXX', bytes([0], 'P', [0], 'x')], ['POPM', bytes('a@b.fr', [0], [1], [0, 0, 0, 1])], ['PRIV', bytes('o', [0], [1])], ['UFID', bytes('o', [0], 'id')], ['WXXX', bytes([0], [0], 'https://a.example')], ['TSRC', id3Text('FR1234')], ['TMOO', id3Text('calme')]]),
+        lameFrame(),
+        mpegFrame(),
+        apev2({ Custom: 'x' }),
+        id3v1('T', 'A', 'B', '2024', 'C'),
+      ),
+    ],
+    ['video.mp4', movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf60', apple: { 'com.apple.quicktime.model': 'iPhone', 'com.apple.quicktime.location.name': 'Lyon', 'com.apple.quicktime.content.identifier': 'A1B2', 'com.example.private': 'x' }, xmpCreator: 'Marie' })],
     [
       'article.tex',
       enc(

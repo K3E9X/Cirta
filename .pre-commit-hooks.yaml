@@ -14,5 +14,5 @@
   description: Refuses the commit while a staged file carries confirmed identifying metadata, hidden text, active content or invisible characters.
   entry: cirta verify
   language: system
-  files: (?i)(\.(adoc|avif|bib|c|cjs|cls|cpp|cs|css|csv|doc|docm|docx|dot|dotm|eml|epub|gif|go|h|heic|heif|hpp|htm|html|ics|ifb|ini|ipynb|java|jpeg|jpg|js|json|jsx|kt|log|ltx|markdown|mbox|md|mdx|mjs|msg|odp|ods|odt|pdf|php|png|pot|potm|ppt|pptm|pptx|py|rb|rs|rst|rtf|scss|sh|sql|sty|svg|swift|tex|text|tif|tiff|toml|ts|tsv|tsx|txt|vcard|vcf|vsdm|vsdx|webp|xls|xlsm|xlsx|xlt|xml|yaml|yml|zip)|(^|/)\.(env|env\.local|env\.production|npmrc|netrc))$
+  files: (?i)(\.(3g2|3gp|7z|adoc|avif|bib|c|cjs|cls|cpp|cs|css|csv|doc|docm|docx|dot|dotm|eml|epub|gif|go|gz|h|heic|heif|hpp|htm|html|ics|ifb|ini|ipynb|java|jpeg|jpg|js|json|jsx|kt|log|ltx|m4a|m4v|markdown|mbox|md|mdx|mjs|mov|mp3|mp4|msg|odp|ods|odt|pdf|php|png|pot|potm|ppt|pptm|pptx|py|rb|rs|rst|rtf|scss|sh|sql|sty|svg|swift|tar|tex|text|tgz|tif|tiff|toml|ts|tsv|tsx|txt|vcard|vcf|vsdm|vsdx|wav|webp|xls|xlsm|xlsx|xlt|xml|yaml|yml|zip)|(^|/)\.(env|env\.local|env\.production|npmrc|netrc))$
   require_serial: false
