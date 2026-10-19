@@ -836,6 +836,7 @@ report says what it changed — or why it did not.
 | `--clear-outputs` | Empties every cell's outputs and resets its execution count | Jupyter notebook |
 | `--profile <name>` | Sets the options and the `--fail-on` threshold in one word. `minimal`: metadata only, the document reads as before; fails on confirmed. `balanced`: also what the file does or fetches — `--strip-active`, `--strip-remote-resources`, `--strip-tracking-params`; fails on confirmed. `strict`: every option above; fails on probable — it needs the renderer and the image codec. Options given explicitly are added; an explicit `--fail-on` wins. The page offers the same three under "Advanced options" | All |
 | `--reencode-images` | Rebuilds the picture from its decoded pixels: data after the end, private segments and chunks, comments and thumbnails go; the EXIF orientation is applied to the pixels and the ICC profile kept. Needs the native canvas (the page uses the browser's); without it the clean is refused. A lossless PNG keeps every pixel value, so a message in their low bits survives | JPEG, PNG |
+| `--report <file>` | Writes the report as an HTML page (`.html`) or Markdown (`.md`), in the reader's language, **values included**; any other extension is refused | `inspect` |
 | `--manifest <file>` | Writes a chain-of-custody manifest: SHA-256 and size before and after, the findings before and after **by label and location, never by value**, the options, Cirta's version and the time | All |
 
 ```
@@ -943,13 +944,52 @@ CLI's `Summary` line — with a JSON export of the report. That export has exact
 compare without translation. Analysis runs in a *worker*: a large PDF does not freeze the tab, and a
 worker is another thread of the same page, not another machine.
 
+**A whole folder.** Drop a folder, or choose one with "or a whole folder": the page takes the files the
+command line would take from it — the same extensions, the same tool directories skipped
+(`node_modules`, `.git`…) — and says how many it left out. **Clean all** runs every file through the
+cleaner with the advanced options and downloads one ZIP: the folder's paths kept, every member dated
+1980-01-01, and `cirta-manifest.json` — each file's SHA-256 and findings before and after, by label and
+never by value. **A file that cannot be cleaned is left out of the archive** and named, in the manifest
+with its refusal code and on the page with the reason.
+
+**The report as a page or Markdown**, next to JSON, in the page's language — and on the command line
+with `inspect --report rapport.html` or `rapport.md`. Every value comes from someone else's document,
+so neither form lets one act: the HTML page escapes each value and declares `default-src 'none'`
+(no script, no request, no frame, even if an escape were missed); in Markdown each value is inline
+code with its pipes escaped, so it can neither add a column nor load a picture when the report is
+viewed. Unlike the manifest, the report carries the values.
+
+**Offline, and installable.** Once opened, the page keeps working without a network: a service worker
+keeps the files the build published — its list is written by the build, its cache named after their
+content — and answers only requests inside the site's own folder (not another origin, not another
+project on the same host, not a POST). Documents are read from the disk, so it never sees one. The
+policy allows a worker only from the site (`worker-src 'self'`) and the footer says so.
+
+**Check this site.** The build writes `SHA256SUMS` — every published file, as `sha256sum --check`
+reads it — and the same list into the page's « Check this site » box, with the build's version and
+commit; a downloaded file can be hashed there, locally. That list comes from the page and proves
+nothing alone. The proof is outside it: the deployment signs a provenance attestation for every file
+it publishes (`actions/attest-build-provenance`), checked with:
+
+```bash
+curl -sO https://k3e9x.github.io/Cirta/SHA256SUMS
+gh attestation verify SHA256SUMS -R K3E9X/Cirta
+curl -s https://k3e9x.github.io/Cirta/sw.js | sha256sum   # compare with SHA256SUMS
+```
+
+`scripts/check-site.mjs`, part of `npm run verify`, checks the built site against these promises: the
+policy's directives, the worker's list (every built file, nothing else, no other site), the manifest,
+and every hash in `SHA256SUMS` and in the page.
+
 "No network requests" is enforced, not promised. The built page carries a Content-Security-Policy
 with `connect-src 'none'`, so the browser refuses any fetch, XHR, WebSocket or beacon from it. A
 worker does not inherit a page's policy, and the worker runs PDF.js, which has network code of its
 own that Cirta never calls; so before loading anything the worker removes `fetch`, `XMLHttpRequest`,
 `WebSocket`, `EventSource` and `WebTransport` from its own scope. The PDF renderer is a separate
 chunk the worker requests as soon as it starts, while the page is idle — disconnect after that and
-everything still works.
+everything still works. The service worker is the one piece that fetches, and only the site's own
+files, the ones the browser loads anyway — `test/no-network.test.ts` names that single call and the
+guard before it.
 
 The tabs follow ARIA practice: one stop in the tab order, arrow keys (and <kbd>Home</kbd>/<kbd>End</kbd>)
 move between them.

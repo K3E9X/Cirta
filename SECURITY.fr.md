@@ -24,8 +24,9 @@ Tout ce qui suit en découle.
 et nulle part ailleurs : le cœur ne fait aucune requête réseau, la Content-Security-Policy de la page
 interdit toute connexion (`connect-src 'none'`), et le worker d'analyse retire `fetch`,
 `XMLHttpRequest`, `WebSocket`, `EventSource` et `WebTransport` de sa propre portée avant de charger
-PDF.js — un worker n'hérite pas de la politique de la page. `test/no-network.test.ts` vérifie les
-trois.
+PDF.js — un worker n'hérite pas de la politique de la page. Le service worker de la page ne demande
+que les fichiers du site, dans son dossier, jamais un document. `test/no-network.test.ts` vérifie le
+tout.
 
 **Contre qui.** L'auteur du fichier : un expéditeur qui veut faire planter ou bloquer l'analyseur,
 atteindre le système de fichiers ou le réseau, exécuter du code, ou faire mentir le rapport.
