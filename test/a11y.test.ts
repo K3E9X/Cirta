@@ -52,6 +52,26 @@ describe('[F-P3 2.7] landmarks', () => {
   });
 });
 
+describe('[F-P3 2.7] results are announced', () => {
+  it('one status region, outside both panels, so a hidden tab does not silence it', () => {
+    expect([...html.matchAll(/\srole="status"/g)]).toHaveLength(1);
+    const region = openingTag('announce');
+    expect(region).toMatch(/role="status"/);
+    expect(region).toMatch(/class="visually-hidden"/);
+    const at = html.indexOf('id="announce"');
+    expect(at).toBeLessThan(html.indexOf('id="panel-files"'));
+    expect(at).toBeGreaterThan(html.indexOf('<div class="tool">'));
+  });
+
+  it('a file read, a text analysed, a text cleaned and a paste each say what came of it', () => {
+    const calls = [...main.matchAll(/\bannounce\(/g)].length;
+    // The definition and four callers.
+    expect(calls).toBeGreaterThanOrEqual(5);
+    const summary = main.slice(main.indexOf('function renderSummary'), main.indexOf('function renderSummary') + 2000);
+    expect(summary).toMatch(/announce\(parts\.join/);
+  });
+});
+
 describe('[F-P3 2.7] the audit runs in CI', () => {
   const script = readFileSync(new URL('../scripts/a11y.mjs', import.meta.url), 'utf8');
   const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');

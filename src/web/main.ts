@@ -774,6 +774,18 @@ const sources = new WeakMap<SessionEntry, File>();
 /** What the last batch clean said, shown again when the summary is redrawn. */
 let batchStatus: { text: string; error?: boolean } | undefined;
 
+/**
+ * [F-P3 2.7] Says a result out loud, through the page's one status region.
+ * Emptied first, so the same sentence twice — two clean texts in a row — is
+ * announced twice rather than taken for no change.
+ */
+function announce(text: string): void {
+  const region = document.querySelector<HTMLElement>('#announce');
+  if (!region) return;
+  region.textContent = '';
+  requestAnimationFrame(() => (region.textContent = text));
+}
+
 /** Tally and export, refreshed after each file resolves. */
 function renderSummary(anchor: HTMLElement): void {
   const done = session.filter((entry) => entry.result || entry.error);
@@ -796,6 +808,7 @@ function renderSummary(anchor: HTMLElement): void {
   if (failures) parts.push(t().failureCount(failures));
 
   const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
+  announce(parts.join(' · '));
   const button = el('button', 'button button-small', t().exportReport);
   button.addEventListener('click', () => {
     const json = JSON.stringify(done.map(({ file, path, result, error }) => ({ file: path === file ? file : path, result, error })), null, 2);
@@ -1192,6 +1205,7 @@ function setupText(): void {
     }
     const findings = inspectClipboardHtml(html);
     const node = card(t().clipboardTitle, undefined, findings.length ? t().itemCount(findings.length) : undefined);
+    announce(`${t().clipboardTitle} — ${findings.length ? t().itemCount(findings.length) : t().clipboardClean}`);
     if (findings.length) {
       node.append(findingsTable(findings));
       node.append(el('p', 'note', t().clipboardNote));
@@ -1207,11 +1221,9 @@ function setupText(): void {
     // enregistré nommait l'assistant, collé ici il ne montrait que ses
     // caractères bizarres.
     const findings = inspectPlainText(input.value);
-    const node = card(
-      t().scanTitle,
-      undefined,
-      findings.length ? t().itemCount(findings.length) : t().textFound,
-    );
+    const badge = findings.length ? t().itemCount(findings.length) : t().textFound;
+    const node = card(t().scanTitle, undefined, badge);
+    announce(`${t().scanTitle} — ${badge}`);
     node.append(provenanceBanner(findings));
     if (findings.length === 0) {
       node.append(el('p', 'empty', t().textNothing));
@@ -1237,15 +1249,13 @@ function setupText(): void {
     // The count covers everything the clean took out, not only characters: a
     // header reading "nothing to remove" above "Markdown removed" contradicted
     // the card it sat on.
-    const node = card(
-      t().cleanTitle,
-      undefined,
-      result.removed.length
-        ? t().removedCount(result.removed.length)
-        : result.markdownRemoved || result.headersRemoved.length || result.spacesReplaced || result.recomposed
-          ? t().formattingRemoved
-          : t().nothingToRemove,
-    );
+    const badge = result.removed.length
+      ? t().removedCount(result.removed.length)
+      : result.markdownRemoved || result.headersRemoved.length || result.spacesReplaced || result.recomposed
+        ? t().formattingRemoved
+        : t().nothingToRemove;
+    const node = card(t().cleanTitle, undefined, badge);
+    announce(`${t().cleanTitle} — ${badge}`);
     if (result.removed.length === 0) {
       node.append(el('p', 'empty', t().textNoInvisible));
     } else {

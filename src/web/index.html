@@ -199,6 +199,13 @@
             </p>
 
             <div class="tool">
+              <!--
+                [F-P3 2.7] What a screen reader hears when a result lands: the
+                cards appear silently below, and without this a blind reader had
+                to go looking for them. Outside both panels, since a region in a
+                hidden tab is not read. Filled by main.ts in the page's language.
+              -->
+              <p id="announce" class="visually-hidden" role="status"></p>
               <nav class="tabs" role="tablist">
                 <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
                   <span data-lang="fr">Documents</span><span data-lang="en">Documents</span>

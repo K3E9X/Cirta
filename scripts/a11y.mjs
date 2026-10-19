@@ -21,6 +21,8 @@
  *     arrow keys;
  *   - a stored theme is applied under the page's own CSP, before the script
  *     bundle runs, and the switch cycles auto → light → dark → auto;
+ *   - a file read, a text analysed and a text cleaned are each announced
+ *     through the page's status region;
  *   - at 320px wide nothing scrolls sideways.
  *
  * What it cannot check is listed in REPORT_CLAUDE_CODE.md under F-P3 2.7: a
@@ -141,6 +143,29 @@ console.log('keyboard');
   await page.locator('#tab-files').focus();
   await page.keyboard.press('ArrowRight');
   check('the arrow keys move between the tabs', await page.evaluate(() => document.activeElement?.id === 'tab-text' && !document.querySelector('#panel-text')?.hidden));
+  await context.close();
+}
+
+console.log('announcements');
+{
+  const context = await browser.newContext({ locale: 'en-US' });
+  const page = await context.newPage();
+  await page.goto(url);
+  await page.locator('#file-input').setInputFiles(SAMPLES);
+  await page.waitForFunction((count) => document.querySelectorAll('#file-results .card:not(.is-busy)').length >= count, SAMPLES.length, { timeout: 60_000 });
+  await page.waitForTimeout(200);
+  const files = await page.evaluate(() => [document.querySelector('#announce')?.textContent, document.querySelector('#file-summary .summary-text')?.textContent]);
+  check('the status region says what the files came to, as the summary does', Boolean(files[0]) && files[0] === files[1], files.join(' | '));
+  await page.locator('#tab-text').click();
+  await page.locator('#text-input').fill('Hello\u200b world');
+  await page.locator('#text-scan').click();
+  await page.waitForTimeout(200);
+  const scan = await page.locator('#announce').textContent();
+  check('…and what an analysis of the text found', /^Analysis — 1 /.test(scan ?? ''), scan ?? '');
+  await page.locator('#text-clean').click();
+  await page.waitForTimeout(200);
+  const clean = await page.locator('#announce').textContent();
+  check('…and what a clean removed', /^Cleaning — /.test(clean ?? ''), clean ?? '');
   await context.close();
 }
 
