@@ -52,6 +52,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - A « Check this site » box, `SHA256SUMS`, and a provenance attestation for every published file.
 - **Interface.** French and English throughout, in the terminal and on the page.
 - **Performance budget.** Every format, at 50 MB, held to a time and a peak memory on every push.
+- **Distribution.**
+  - Single-file binaries for Linux, macOS and Windows, built and run in CI, attested at release.
+  - npm publication with provenance from a version tag, after the release checks.
+  - `cirta --version`.
 
 ### Changed
 
