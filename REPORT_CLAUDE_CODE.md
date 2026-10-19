@@ -26,6 +26,7 @@ Chaque PR ne montre que son lot.
 | n°16 | `feat/p2-ui` | `feat/p2-formats` | F-P2 2.7 dossier et lot, export HTML/Markdown, hors ligne, vérifiabilité du site |
 | n°17 | `feat/p2-release` | `feat/p2-ui` | F-P2 2.8 budget de performance, publication npm avec provenance, binaires, CHANGELOG |
 | n°18 | `feat/p2-integrations` | `feat/p2-release` | F-P2 2.6 `--changed-only`, hook pre-commit, Action GitHub, extensions VS Code et navigateur |
+| n°19 | `feat/p3-embed` | `feat/p2-integrations` | F-P3 2.5 build en un seul fichier, `cirta serve` (ICAP, HTTP), image Docker |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1601,6 +1602,91 @@ Vérification manuelle :
   - `release.yml` n'était pas du YAML valide ; trouvé en y ajoutant le job `extensions` (`5e9981f`).
   - La CI Windows était rouge sur `test/release.test.ts` : fins de ligne CRLF (`51e42fa`, `7d31a96`).
 
+## F-P3 2.5 — Embarquer Cirta : un seul fichier, un service, une image Docker
+
+**Statut : fait, sauf le build WebAssembly, refusé volontairement (voir Écarts). L'image n'est pas publiée dans un registre.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| La bibliothèque en un seul fichier (module ES et script classique) | `fe742f6` | `scripts/build-single.mjs`, `scripts/build-single.d.mts` (nouveaux) ; `release.yml` (job `single-file`) ; tests `test/single-file.test.ts`, `test/release.test.ts`, `test/browser-extension.test.ts` |
+| `cirta serve` : ICAP et API HTTP | `cf0010f` | `src/cli/serve.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` (`stringsFor`) ; tests `test/serve.test.ts`, `test/no-network.test.ts` |
+| Image Docker, essai en CI | `e83ad8d` | `Dockerfile`, `.dockerignore`, `scripts/smoke-serve.mjs`, `scripts/smoke-serve.d.mts` (nouveaux) ; `ci.yml` (job `docker`) ; test `test/docker.test.ts` |
+| Documentation | `e3cc64d` | `README.md`, `README.fr.md`, `SECURITY.md`, `SECURITY.fr.md`, `CHANGELOG.md` ; test `test/serve.test.ts` (ce que les pages affirment) |
+
+Ce qui change :
+- **Un seul fichier.**
+  - `scripts/build-single.mjs` produit `build/single/cirta.mjs` (module ES) et `cirta.global.js` (script classique, `window.Cirta`).
+  - Esbuild, plateforme neutre : toutes les dépendances dedans, aucun `import`, rien de Node. Environ 1,3 Mo, non minifié.
+  - Chaque publication les atteste et les joint.
+- **`cirta serve`.**
+  - ICAP (RFC 3507) :
+    - `RESPMOD /respmod` (téléchargements) et `REQMOD /reqmod` (envois ; chaque partie d'un `multipart/form-data` inspectée à part) ;
+    - `OPTIONS`, aperçu (*preview*) avec `100 Continue`, connexions persistantes ;
+    - `Content-Encoding` `gzip`/`deflate`/`br` défait avant l'inspection.
+  - HTTP : `GET /health`, `POST /inspect` (rapport JSON versionné ; `422` refus, `413` trop gros), `POST /clean` seulement avec `--allow-clean`.
+  - **Inspection seule par défaut** : tout passe (`204`, ou le message renvoyé tel quel). Les constats vont dans `X-Cirta-Verdict` et `X-Cirta-Findings`, et dans une ligne JSON par fichier sur stdout.
+  - Cette ligne donne nom, format, taille, SHA-256, décomptes par niveau et libellés ; jamais de valeur ni d'URL.
+  - `--block-on <niveau>` remplace le fichier par une page `403` qui liste les libellés.
+  - Ce qu'il ne lit pas (format inconnu, au-delà de `--max-size`, encodage inconnu, bombe de décompression) passe, journalisé `skipped`. Sans `Allow: 204`, un corps trop gros reçoit `500`, et la règle de contournement du client décide.
+  - `127.0.0.1` par défaut ; `--http`/`--icap <port|off>`, `--host`, `--max-size`. Arrêt propre sur SIGTERM et SIGINT (PID 1 d'un conteneur).
+  - Il écoute et ne se connecte jamais : le test réseau vérifie que `serve.ts` ne prend que `createServer` à `node:http` et `node:net`.
+- **Docker.**
+  - Étage de construction : `npm pack`.
+  - Étage d'installation : `npm install --global --omit=dev`, puis npm, yarn et corepack retirés.
+  - Image finale `FROM scratch` avec une seule couche (même Alpine, même Node) : environ 240 Mo décompressée, 81 Mo compressée.
+  - Utilisateur `node`, `EXPOSE 1344 8080`, `HEALTHCHECK` sur `/health`, `ENTRYPOINT ["cirta"]`, `CMD ["serve", "--host", "0.0.0.0"]`.
+  - Job CI `docker` : construction, lancement `--read-only --cap-drop ALL --security-opt no-new-privileges`, puis `scripts/smoke-serve.mjs`.
+
+Tests :
+- `test/single-file.test.ts` (4) :
+  - `imports nothing: every dependency is inside, and nothing of Node is needed`
+  - `as a module, from a folder with no node_modules, inspects and cleans a document`
+  - `as a classic script, in a context with only what a browser offers`
+  - `is attested and attached to each release`
+- `test/serve.test.ts` (12) :
+  - `answers OPTIONS for each service, and 404 for one it does not offer`
+  - `inspects a download and lets it through untouched (204), saying what it found in headers and the log, never a value`
+  - `sends the message back unchanged when the client does not allow 204`
+  - `blocks with --block-on, naming what it found but not the values`
+  - `takes a preview, asks for the rest with 100 Continue, then judges the whole`
+  - `reads a download compressed with %s as the browser would` (gzip, deflate, br)
+  - `lets through what it will not read whole, and says so: a body past --max-size, a body that inflates past it`
+  - `inspects each file of an upload (REQMOD, multipart), and keeps the connection for the next request`
+  - `serves an HTTP API: health, inspect, and clean only when allowed`
+  - `listens on the loopback only unless told otherwise, says where, and stops cleanly on SIGTERM`
+- `test/no-network.test.ts` (+1) : `[F-P3 2.5] cirta serve listens and never connects: servers only, nothing that opens a connection`.
+- `test/docker.test.ts` (4) :
+  - `runs cirta serve as an unprivileged user, inspection only, on every interface of its container`
+  - `is built and smoke-tested in CI`
+  - `passes against a service that works`
+  - `fails against nothing, and says what`
+
+Vérification manuelle :
+- **Un seul fichier.** `cirta.mjs` importé par Bun 1.4.2 et par Node : U+200B trouvé. Les deux fichiers chargés dans Chromium : même résultat.
+- **`c-icap-client`** (paquet `c-icap`), service lancé avec `--block-on confirmed --lang fr` :
+  - un `.docx` en RESPMOD reçoit `200`, `X-Cirta-Verdict: block` et un `HTTP/1.1 403` dont la page liste « Auteur, espace sans chasse » ;
+  - un texte propre reçoit `204` ;
+  - le `.docx` en REQMOD est bloqué.
+- **Squid 6.14** branché sur le service (`respmod_precache` et `reqmod_precache`), `curl` à travers le proxy :
+  - avec `--block-on confirmed` : téléchargement du `.docx` en `403`, texte propre en `200`, envoi `multipart` du `.docx` en `403`. Le journal de Squid porte `icap=block` / `icap=pass`, repris de l'en-tête.
+  - en inspection seule : `200`, fichier identique à l'origine au bit près ; Squid journalise `findings=confirmed=2, probable=0, informational=0`.
+  - SIGTERM : sortie 0, « Arrêté. ».
+- **Image Docker** construite ici (avec, en local seulement, le certificat du proxy de cet environnement pour npm), lancée en lecture seule, sans capacités :
+  - `scripts/smoke-serve.mjs` passe ;
+  - `id` répond `uid=1000(node)`, pas de npm dans l'image ;
+  - santé `healthy` ; `docker stop` donne une sortie 0.
+
+Écarts :
+- **Pas de build WebAssembly.** La bibliothèque s'appuie sur un `TextDecoder` complet (latin1, windows-125x, pages de code OLE, UTF-16), sur Web Crypto (`crypto.subtle`) et sur `structuredClone`.
+  - Un moteur JavaScript compilé en WebAssembly (QuickJS via Javy) n'a rien de tout cela.
+  - Les polyfills nécessaires seraient une seconde implémentation des encodages et de SHA-256, avec des divergences que rien ne testerait : « refuser plutôt qu'abîmer ».
+  - Par ailleurs, Javy n'est distribué que par les releases GitHub, inaccessibles depuis cet environnement.
+  - Pour un hôte non JavaScript : les binaires autonomes (F-P2 2.8) ou `cirta serve`.
+- **Image non publiée** (ghcr.io ou autre) : non testable ici, donc non annoncée. Le README dit de la construire avec `docker build`.
+- **Pas d'authentification** sur le service. Il se place derrière le proxy ou la passerelle qui l'appelle, sur la boucle locale par défaut ; `SECURITY.md` le dit.
+- **Taille de l'image** : « minimale » au sens de rien d'inutile (ni npm, ni sources, ni dépendances de développement), pas au sens de petite. Node pèse 123 Mo, PDF.js 35 Mo, le moteur de rendu 30 Mo. Une image sans moteur de rendu perdrait la recherche de texte caché par rendu des pages PDF.
+- **Passerelle mail** : servie par ICAP (REQMOD) ou par `POST /inspect` avec un `.eml`. Aucun milter, aucune intégration propre à un produit de messagerie n'a été essayé.
+
 ---
 
 ## Bilan final
@@ -1613,7 +1699,9 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 
 - toutes les sous-sections F-P2 : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8 et 2.6 (PR n°31 à n°38).
 
-**Pas encore fait :** F-P3.
+- F-P3, en cours : 2.5 (PR n°39).
+
+**Pas encore fait :** F-P3 2.2, 2.7, 2.6.
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1630,7 +1718,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.2 (PR n°35) | 78 | 919 |
 | Après F-P2 2.7 (PR n°36) | 81 | 936 |
 | Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f`, `51e42fa`, `7d31a96`) | 83 | 950 |
-| Après F-P2 2.6 (PR n°38) | 88 | **971** |
+| Après F-P2 2.6 (PR n°38) | 88 | 971 |
+| Après F-P3 2.5 (PR n°39) | 91 | **992** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 

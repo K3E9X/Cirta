@@ -36,6 +36,8 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - `cirta sanitize-for-llm`.
   - A local MCP server (`cirta mcp`).
   - SARIF output.
+- **As a service.** `cirta serve`: ICAP (RESPMOD, REQMOD) for a proxy or a mail gateway, and an HTTP API; inspection only unless `--block-on` or `--allow-clean`. A Docker image of it.
+- **One file.** The library as a single ES module and a classic script, for the tools that embed it.
 - **Integrations.**
   - `--changed-only` and `--base <ref>`: only the files a commit or a pull request changes.
   - A pre-commit hook (`.pre-commit-hooks.yaml`).

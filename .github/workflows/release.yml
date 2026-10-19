@@ -111,8 +111,33 @@ jobs:
           name: extensions
           path: build/extensions/*
 
+  # [F-P3 2.5] The library as one file (an ES module and a classic script),
+  # for the tools that embed it; attested and attached like the rest.
+  single-file:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-single.mjs
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'build/single/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: single-file
+          path: build/single/*
+
   github-release:
-    needs: [npm, binaries, extensions]
+    needs: [npm, binaries, extensions, single-file]
     runs-on: ubuntu-latest
     permissions:
       contents: write

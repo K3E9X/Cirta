@@ -1175,6 +1175,74 @@ both the command line's output and the library's results against. Version 1 is a
 finding kinds and note codes can appear in it, so a reader must accept values it does not know; a field
 removed or renamed would make it version 2.
 
+### One file, for the tools that embed it
+
+`node scripts/build-single.mjs` writes the library as one file with every dependency inside and nothing
+of Node's: `build/single/cirta.mjs`, an ES module, and `build/single/cirta.global.js`, a classic script
+that defines `Cirta`. Each release attaches both, attested. The tests load the module from a folder with
+no `node_modules` and the script in a context holding only what a browser provides (`TextDecoder`, Web
+Crypto, `structuredClone`); it has also been tried by hand in Bun and in Chromium. About 1.3 MB, not
+minified, so it can be read. What it leaves out is what the library leaves out: the PDF page renderer,
+which the host plugs in through `InspectOptions.xray`.
+
+There is no WebAssembly build. The library needs a full `TextDecoder` (Windows code pages, UTF-16) and
+Web Crypto; a JavaScript engine compiled to WebAssembly, such as QuickJS, has neither, and replacing them
+would mean a second implementation of each that nothing here would test. From a language that is not
+JavaScript, use the [single-file binaries](#releases-binaries-and-the-performance-budget) or the service
+below.
+
+## As a service: ICAP, HTTP, Docker
+
+`cirta serve` puts the same inspection in front of a web proxy, a mail gateway or an upload service.
+
+```bash
+cirta serve                                  # ICAP on 127.0.0.1:1344, HTTP on 127.0.0.1:8080, inspection only
+cirta serve --block-on confirmed             # refuse a file carrying confirmed identifying data
+cirta serve --host 0.0.0.0 --http off        # ICAP only, on every interface
+```
+
+- **ICAP** (RFC 3507), for Squid, a mail gateway, anything that speaks it: `icap://host:1344/respmod` for
+  what is downloaded, `icap://host:1344/reqmod` for what is sent (each file of a multipart upload is
+  inspected on its own). Previews and `100 Continue` are handled; a compressed body (`gzip`, `deflate`,
+  `br`) is inspected as the application will read it.
+- **HTTP**: `GET /health`; `POST /inspect?name=file.docx` with the file as the body, answered with the
+  versioned JSON report (`422` for a file it refuses, `413` past `--max-size`); `POST /clean`, only when
+  started with `--allow-clean`, answered with the cleaned file.
+
+**Inspection only, by default.** Every file goes through untouched — ICAP `204`, or the message sent back
+as it came — and what it carries is reported twice: in `X-Cirta-Verdict` and `X-Cirta-Findings` headers,
+which a proxy can log, and as one JSON line per file on standard output. That line holds the name, the
+format, the size, the SHA-256, the count per level and the labels; **never a value, never the URL**. With
+`--block-on <level>`, a file carrying a finding at that level is replaced by a `403` page that lists its
+findings by label. What it cannot read — a format it does not know, a body past `--max-size` (50 MB by
+default), an encoding it cannot undo — goes through and is logged as `skipped`.
+
+It listens on the loopback unless `--host` says otherwise, and it opens no connection to anything
+(`test/no-network.test.ts` checks that `serve.ts` takes nothing but `createServer` from Node's network
+modules). Tried by hand behind Squid 6.14 and with `c-icap-client`: a Word file carrying its author
+blocked on download and on upload, a clean file let through, Squid's log carrying `X-Cirta-Verdict`.
+
+```squid
+icap_enable on
+icap_service cirta_resp respmod_precache icap://127.0.0.1:1344/respmod bypass=on
+adaptation_access cirta_resp allow all
+icap_service cirta_req reqmod_precache icap://127.0.0.1:1344/reqmod bypass=on
+adaptation_access cirta_req allow all
+```
+
+**Docker.** The [`Dockerfile`](Dockerfile) builds a small image of the service: the npm package and its
+runtime dependencies on Alpine, without npm, run as the unprivileged `node` user, inspection only.
+About 240 MB unpacked, 81 MB compressed — Node is half of it, PDF.js and the page renderer most of the
+rest. CI builds it, runs it read-only with every capability dropped, and runs
+[`scripts/smoke-serve.mjs`](scripts/smoke-serve.mjs) against it.
+
+```bash
+docker build -t cirta .
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 cirta
+docker run … cirta serve --host 0.0.0.0 --block-on confirmed     # with other options
+```
+
 ## Processing detail
 
 **PDF** — `/Info` dictionary keys are deleted rather than emptied, so no trace remains of which

@@ -1247,6 +1247,77 @@ et les résultats de la bibliothèque. La version 1 est additive : de nouveaux f
 codes de note peuvent y apparaître, un lecteur doit donc accepter des valeurs qu'il ne connaît pas ; un
 champ retiré ou renommé en ferait la version 2.
 
+### Un seul fichier, pour les outils qui l'embarquent
+
+`node scripts/build-single.mjs` écrit la bibliothèque en un seul fichier, toutes ses dépendances dedans et
+rien de Node : `build/single/cirta.mjs`, un module ES, et `build/single/cirta.global.js`, un script classique
+qui définit `Cirta`. Chaque publication joint les deux, attestés. Les tests chargent le module depuis un
+dossier sans `node_modules`, et le script dans un contexte qui n'a que ce qu'offre un navigateur
+(`TextDecoder`, Web Crypto, `structuredClone`) ; il a aussi été essayé à la main dans Bun et dans Chromium.
+Environ 1,3 Mo, non minifié, pour qu'on puisse le lire. Ce qu'il laisse de côté est ce que la bibliothèque
+laisse de côté : le moteur de rendu des pages PDF, que l'hôte branche par `InspectOptions.xray`.
+
+Il n'y a pas de version WebAssembly. La bibliothèque a besoin d'un `TextDecoder` complet (pages de code
+Windows, UTF-16) et de Web Crypto ; un moteur JavaScript compilé en WebAssembly, comme QuickJS, n'a ni l'un
+ni l'autre, et les remplacer voudrait dire une seconde implémentation de chacun, que rien ici ne testerait.
+Depuis un autre langage que JavaScript : les [binaires autonomes](#publications-binaires-et-budget-de-performance)
+ou le service ci-dessous.
+
+## Comme service : ICAP, HTTP, Docker
+
+`cirta serve` place la même inspection devant un proxy web, une passerelle mail ou un service d'envoi de
+fichiers.
+
+```bash
+cirta serve                                  # ICAP sur 127.0.0.1:1344, HTTP sur 127.0.0.1:8080, inspection seule
+cirta serve --block-on confirmed             # refuser un fichier qui porte une donnée identifiante confirmée
+cirta serve --host 0.0.0.0 --http off        # ICAP seul, sur toutes les interfaces
+```
+
+- **ICAP** (RFC 3507), pour Squid, une passerelle mail, tout ce qui le parle : `icap://hôte:1344/respmod`
+  pour ce qui est téléchargé, `icap://hôte:1344/reqmod` pour ce qui est envoyé (chaque fichier d'un envoi
+  multipart est inspecté à part). Les aperçus (*preview*) et `100 Continue` sont pris en charge ; un corps
+  compressé (`gzip`, `deflate`, `br`) est inspecté tel que l'application le lira.
+- **HTTP** : `GET /health` ; `POST /inspect?name=fichier.docx`, le fichier en corps, qui répond le rapport
+  JSON versionné (`422` pour un fichier refusé, `413` au-delà de `--max-size`) ; `POST /clean`, seulement si
+  le service est lancé avec `--allow-clean`, qui répond le fichier nettoyé.
+
+**Inspection seule, par défaut.** Tout fichier passe intact — `204` ICAP, ou le message renvoyé tel quel —
+et ce qu'il porte est dit deux fois : dans les en-têtes `X-Cirta-Verdict` et `X-Cirta-Findings`, qu'un proxy
+peut journaliser, et en une ligne JSON par fichier sur la sortie standard. Cette ligne donne le nom, le
+format, la taille, le SHA-256, le nombre de constats par niveau et leurs libellés ; **jamais une valeur,
+jamais l'URL**. Avec `--block-on <niveau>`, un fichier qui porte un constat à ce niveau est remplacé par une
+page `403` qui liste ses constats par libellé. Ce qu'il ne sait pas lire — un format inconnu, un corps
+au-delà de `--max-size` (50 Mo par défaut), un encodage qu'il ne sait pas défaire — passe et est journalisé
+`skipped`.
+
+Il écoute sur la boucle locale sauf si `--host` dit autre chose, et n'ouvre aucune connexion vers quoi que
+ce soit (`test/no-network.test.ts` vérifie que `serve.ts` ne prend que `createServer` aux modules réseau de
+Node). Essayé à la main derrière Squid 6.14 et avec `c-icap-client` : un fichier Word qui porte son auteur
+bloqué au téléchargement comme à l'envoi, un fichier propre qui passe, le journal de Squid qui porte
+`X-Cirta-Verdict`.
+
+```squid
+icap_enable on
+icap_service cirta_resp respmod_precache icap://127.0.0.1:1344/respmod bypass=on
+adaptation_access cirta_resp allow all
+icap_service cirta_req reqmod_precache icap://127.0.0.1:1344/reqmod bypass=on
+adaptation_access cirta_req allow all
+```
+
+**Docker.** Le [`Dockerfile`](Dockerfile) construit une petite image du service : le paquet npm et ses
+dépendances d'exécution sur Alpine, sans npm, lancé par l'utilisateur non privilégié `node`, en inspection
+seule. Environ 240 Mo décompressée, 81 Mo compressée — Node en fait la moitié, PDF.js et le moteur de rendu
+l'essentiel du reste. La CI la construit, la lance en lecture seule sans aucune capacité, et passe
+[`scripts/smoke-serve.mjs`](scripts/smoke-serve.mjs) contre elle.
+
+```bash
+docker build -t cirta .
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 cirta
+docker run … cirta serve --host 0.0.0.0 --block-on confirmed     # avec d'autres options
+```
+
 ## Détail du traitement
 
 **PDF** — les clés du dictionnaire `/Info` sont supprimées plutôt que vidées, pour ne pas laisser

@@ -1,0 +1,13 @@
+node_modules
+.git
+.github
+dist
+dist-web
+build
+test
+integrations
+examples
+assets
+*.md
+!CHANGELOG.md
+!README.md
