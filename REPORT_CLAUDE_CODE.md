@@ -1446,6 +1446,7 @@ cirta inspect --lang fr --report rapport.md contrat.docx
 | Binaires autonomes (Node SEA), attestés | `c6cbe0b` | `scripts/build-sea.mjs` (nouveau) ; `src/cli/version.ts`, `src/cli/index.ts`, `src/cli/i18n.ts` (`--version`) ; `release.yml` (jobs `binaries`, `github-release`), `ci.yml` (job `sea`) ; `package.json` (`esbuild`, `postject`) ; `.gitignore` |
 | Documentation | `dc16fab` | `README.md`, `README.fr.md` |
 | Correctif : `release.yml` n'était pas du YAML valide (trouvé pendant 2.6) | `5e9981f` | `.github/workflows/release.yml` ; test `test/release.test.ts` |
+| Correctif : les scripts `.mjs` gardent LF sous Windows (CI Windows rouge sur `test/release.test.ts`) | `51e42fa` | `.gitattributes` (nouveau) ; test `test/release.test.ts` |
 
 Ce qui change :
 - **Budget de performance.**
@@ -1479,6 +1480,7 @@ Tests :
   - `says which version it is, as a binary must`
   - `releases single-file binaries for three systems, each built, run and attested, and builds them in CI too`
 - `test/release.test.ts`, ajouté par le correctif `5e9981f` : `the workflows are valid YAML` (un cas par workflow : `ci.yml`, `release.yml`, `pages.yml`). Il échoue sur la version d'avant le correctif.
+- `test/release.test.ts`, ajouté par le correctif `51e42fa` : `on every system, by .gitattributes`. Cause du rouge : Git pour Windows extrait en CRLF, et vite-node ne retire la ligne `#!` que si elle finit par LF ; l'import de `scripts/check-release.mjs` échouait en erreur de syntaxe. Reproduit ici en convertissant le fichier en CRLF ; un clone avec `core.autocrlf=true` garde désormais les `.mjs` en LF.
 
 Vérification manuelle :
 - `node scripts/perf.mjs` (Linux, Node 22) :
@@ -1513,12 +1515,12 @@ Vérification manuelle :
 
 | Élément | Commit | Fichiers |
 |---|---|---|
-| `--changed-only`, `--base <ref>` | `8da613c` | `src/cli/changed.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` ; `test/helpers/cli.ts` (option `cwd`) ; `vite.config.ts` (stderr de git) ; test `test/changed-only.test.ts` |
-| Hook pre-commit | `82ccf17` | `.pre-commit-hooks.yaml` (nouveau) ; `package.json` (`prepare`) ; test `test/pre-commit.test.ts` |
-| Action GitHub, annotations SARIF, exemple | `bca2742` | `action.yml`, `scripts/sarif-annotations.mjs`, `scripts/sarif-annotations.d.mts`, `examples/github-action.yml` (nouveaux) ; `ci.yml` (job `action`) ; test `test/github-action.test.ts` |
-| Extension VS Code | `a0ef0a3` | `integrations/vscode/` (nouveau : `package.json`, `src/extension.ts`, `src/diagnostics.ts`, `README.md`, `.vscodeignore`) ; `scripts/build-vscode.mjs` (nouveau) ; `tsconfig.web.json` ; `package.json` (`@types/vscode`) ; `.gitignore` ; test `test/vscode-extension.test.ts` |
-| Extension de navigateur ; les deux extensions en CI et à la publication | `2a71219` | `scripts/build-browser-extension.mjs`, `scripts/build-browser-extension.d.mts` (nouveaux) ; `src/web/index.html` (marqueurs `<!--cirta:site-only-->`), `src/web/main.ts` ; `ci.yml` (job `extensions`), `release.yml` (job `extensions`) ; tests `test/browser-extension.test.ts`, `test/release.test.ts` |
-| Documentation | `ca05ada` | `README.md`, `README.fr.md`, `CHANGELOG.md` ; test `test/changed-only.test.ts` (sorties vides promises par le README) |
+| `--changed-only`, `--base <ref>` | `60c5ef9` | `src/cli/changed.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts` ; `test/helpers/cli.ts` (option `cwd`) ; `vite.config.ts` (stderr de git) ; test `test/changed-only.test.ts` |
+| Hook pre-commit | `501f679` | `.pre-commit-hooks.yaml` (nouveau) ; `package.json` (`prepare`) ; test `test/pre-commit.test.ts` |
+| Action GitHub, annotations SARIF, exemple | `d305c81` | `action.yml`, `scripts/sarif-annotations.mjs`, `scripts/sarif-annotations.d.mts`, `examples/github-action.yml` (nouveaux) ; `ci.yml` (job `action`) ; test `test/github-action.test.ts` |
+| Extension VS Code | `0f7109a` | `integrations/vscode/` (nouveau : `package.json`, `src/extension.ts`, `src/diagnostics.ts`, `README.md`, `.vscodeignore`) ; `scripts/build-vscode.mjs` (nouveau) ; `tsconfig.web.json` ; `package.json` (`@types/vscode`) ; `.gitignore` ; test `test/vscode-extension.test.ts` |
+| Extension de navigateur ; les deux extensions en CI et à la publication | `5a1cb7b` | `scripts/build-browser-extension.mjs`, `scripts/build-browser-extension.d.mts` (nouveaux) ; `src/web/index.html` (marqueurs `<!--cirta:site-only-->`), `src/web/main.ts` ; `ci.yml` (job `extensions`), `release.yml` (job `extensions`) ; tests `test/browser-extension.test.ts`, `test/release.test.ts` |
+| Documentation | `d602732` | `README.md`, `README.fr.md`, `CHANGELOG.md` ; test `test/changed-only.test.ts` (sorties vides promises par le README) |
 
 Ce qui change :
 - **`--changed-only`.**
@@ -1586,7 +1588,9 @@ Vérification manuelle :
 - **Pas de publication dans les boutiques** (Marketplace VS Code, Chrome Web Store, addons.mozilla.org) : il faut les comptes du propriétaire. Les paquets sont joints à chaque release, attestés.
 - **Firefox non lancé** : seul le linter de Mozilla a lu l'extension. Elle a tourné dans Chromium.
 - **Pas de `LICENSE`** (voir F-P2 2.8) : `vsce` est lancé avec `--skip-license` tant que le fichier manque ; il est copié dans l'extension dès qu'il existe.
-- **Correctif hors lot** : en ajoutant le job `extensions` à `release.yml`, j'ai trouvé que ce workflow (F-P2 2.8) n'était pas du YAML valide. Corrigé sur la branche de 2.8 (`5e9981f`, PR n°37), avec un test.
+- **Correctifs hors lot, sur la branche de 2.8 (PR n°37), chacun avec un test** :
+  - `release.yml` n'était pas du YAML valide ; trouvé en y ajoutant le job `extensions` (`5e9981f`).
+  - La CI Windows était rouge sur `test/release.test.ts` : fins de ligne CRLF (`51e42fa`).
 
 ---
 
@@ -1616,8 +1620,8 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.1, 2.4, 2.5, 2.3 (PR n°34) | 72 | 884 |
 | Après F-P2 2.2 (PR n°35) | 78 | 919 |
 | Après F-P2 2.7 (PR n°36) | 81 | 936 |
-| Après F-P2 2.8 (PR n°37, avec le correctif `5e9981f`) | 83 | 949 |
-| Après F-P2 2.6 (PR n°38) | 88 | **969** |
+| Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f` et `51e42fa`) | 83 | 950 |
+| Après F-P2 2.6 (PR n°38) | 88 | **970** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
