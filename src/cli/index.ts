@@ -838,7 +838,7 @@ async function runInspect(args: Args): Promise<number> {
   // SARIF is what a pipeline reads, so it is emitted alone on stdout with
   // nothing else mixed in — a stray banner makes the file unparseable.
   if (args.sarif) {
-    console.log(terminalJson(toSarif(results)));
+    console.log(terminalJson(toSarif(results, version())));
     return exitCode(args, results, failures);
   }
   if (args.json) {
@@ -1180,7 +1180,7 @@ async function main(): Promise<number> {
     }
     if (!args.files.length) {
       // Nothing to judge is a pass, and machine output stays machine-readable.
-      if (args.sarif) console.log(terminalJson(toSarif([])));
+      if (args.sarif) console.log(terminalJson(toSarif([], version())));
       else if (args.json) console.log('[]');
       else console.error(dim(t().changedNone));
       return 0;

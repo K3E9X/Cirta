@@ -1,8 +1,8 @@
 name: Release
 
-# [F-P2 2.8] A tag v1.2.3 publishes 1.2.3: to npm with a provenance statement,
-# and as single-file binaries and the editor and browser extensions on the
-# GitHub release, each attested. Nothing
+# [F-P2 2.8] A tag v1.2.3 publishes 1.2.3: to npm with a provenance statement
+# (when PUBLISH_NPM is set), and as single-file binaries and the editor,
+# browser and Thunderbird extensions on the GitHub release, each attested. Nothing
 # goes out unless the version, the changelog, the licence and the package's
 # contents pass scripts/check-release.mjs, after the full verification.
 
@@ -28,8 +28,12 @@ jobs:
       # The package as a user gets it: packed, installed into an empty folder, used.
       - run: node scripts/try-package.mjs
 
+  # [Release 0.2.0] Only once npm publishing is set up — trusted publishing or
+  # the NPM_TOKEN secret — and the repository variable PUBLISH_NPM says so;
+  # otherwise skipped, and the GitHub release goes out without it.
   npm:
     needs: check
+    if: vars.PUBLISH_NPM == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -138,7 +142,7 @@ jobs:
           path: build/single/*
 
   github-release:
-    needs: [npm, binaries, extensions, single-file]
+    needs: [binaries, extensions, single-file]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -147,9 +151,15 @@ jobs:
         with:
           path: binaries
           merge-multiple: true
-      - run: >-
-          gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME"
-          --notes "What changed: CHANGELOG.md. Each file is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+      # A release made by hand from GitHub's page pushes the tag itself: then the
+      # files are added to it rather than a second release attempted.
+      - run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+              --notes "What changed: CHANGELOG.md. Each file is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
 

@@ -1479,9 +1479,11 @@ runs first. Then `scripts/check-release.mjs` refuses, listing every reason, in a
 - the package misses an entry point, its types or the schema, or carries sources or tests.
 
 `scripts/try-package.mjs` then installs the packed package into an empty folder and uses the command, the
-library and its types from there. Only then does `npm publish --provenance` run, the provenance statement
-signed with the workflow's identity. **Not yet published:** the check refuses today, for want of a
-`LICENSE` file naming the copyright holder.
+library and its types from there. The GitHub release follows, with the binaries, the library as one
+file and the extensions, each attested. `npm publish --provenance` runs only when the repository
+variable `PUBLISH_NPM` is `true`, once npm's trusted publishing or an `NPM_TOKEN` secret is set up; the
+provenance statement is signed with the workflow's identity. **0.2.0 is not on npm**: install from the
+release or from a clone.
 
 **Single-file binaries.** `node scripts/build-sea.mjs` makes the command line one executable that needs
 no Node installation (a Node single executable application), then runs it. It carries everything but the
@@ -1652,6 +1654,6 @@ Work cited in this README:
 
 ## Licence
 
-MIT. The site also ships PDF.js (Apache-2.0) with its Foxit fonts and its JBIG2 and OpenJPEG decoders
+MIT, [`LICENSE`](LICENSE). The site also ships PDF.js (Apache-2.0) with its Foxit fonts and its JBIG2 and OpenJPEG decoders
 (BSD-style licences), pdf-lib and fflate (MIT); their notices are published beside it as
 [`third-party-licenses.txt`](https://k3e9x.github.io/Cirta/third-party-licenses.txt).

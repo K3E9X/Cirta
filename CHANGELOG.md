@@ -10,8 +10,14 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-19
+
+Released on GitHub — single-file binaries, the library as one file, the editor, browser and Thunderbird
+extensions, each attested — and not published to npm.
+
 ### Added
 
+- **Licence.** The MIT licence's text, with its holder, in `LICENSE`.
 - **Formats.**
   - Legacy Office (`.doc`, `.xls`, `.ppt`) and Outlook `.msg`: inspected; cleaning is refused, with what to do instead.
   - Jupyter notebooks: inspected and cleaned, `--clear-outputs`.
@@ -98,4 +104,6 @@ The first version: metadata of PDF, Office Open XML, OpenDocument, SVG, HTML, Ma
 invisible characters in text and documents; C2PA manifests; the command line and the site. Never
 published to npm.
 
-[Unreleased]: https://github.com/K3E9X/Cirta/compare/b23fca9...HEAD
+[Unreleased]: https://github.com/K3E9X/Cirta/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/K3E9X/Cirta/compare/b23fca9...v0.2.0
+[0.1.0]: https://github.com/K3E9X/Cirta/tree/b23fca9

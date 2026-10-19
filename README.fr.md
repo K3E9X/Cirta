@@ -1554,9 +1554,11 @@ dans chacun de ces cas :
 - le paquet manque d'un point d'entrée, de ses types ou du schéma, ou emporte des sources ou des tests.
 
 `scripts/try-package.mjs` installe ensuite le paquet empaqueté dans un dossier vide et s'en sert : la
-commande, la bibliothèque, ses types. Alors seulement `npm publish --provenance` s'exécute,
-l'attestation de provenance signée avec l'identité du workflow. **Pas encore publié :** le contrôle refuse
-aujourd'hui, faute d'un fichier `LICENSE` nommant le titulaire des droits.
+commande, la bibliothèque, ses types. La publication GitHub suit, avec les binaires, la bibliothèque en
+un seul fichier et les extensions, chacun attesté. `npm publish --provenance` ne s'exécute que si la
+variable de dépôt `PUBLISH_NPM` vaut `true`, une fois la publication de confiance npm ou un secret
+`NPM_TOKEN` en place ; l'attestation de provenance est signée avec l'identité du workflow. **La 0.2.0
+n'est pas sur npm** : on l'installe depuis la publication GitHub ou depuis un clone.
 
 **Binaires autonomes.** `node scripts/build-sea.mjs` fait de la ligne de commande un seul exécutable,
 sans installation de Node (une *single executable application* de Node), puis le lance. Il contient
@@ -1746,6 +1748,6 @@ Travaux cités dans ce README :
 
 ## Licence
 
-MIT. Le site embarque aussi PDF.js (Apache-2.0) avec ses polices Foxit et ses décodeurs JBIG2 et
+MIT, [`LICENSE`](LICENSE). Le site embarque aussi PDF.js (Apache-2.0) avec ses polices Foxit et ses décodeurs JBIG2 et
 OpenJPEG (licences de type BSD), pdf-lib et fflate (MIT) ; leurs mentions sont publiées à côté, dans
 [`third-party-licenses.txt`](https://k3e9x.github.io/Cirta/third-party-licenses.txt).
