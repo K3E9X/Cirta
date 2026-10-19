@@ -1228,7 +1228,33 @@ pas pour les annotations). Entrées : `base`, `paths`, `fail-on`,
 [`examples/github-action.yml`](examples/github-action.yml) — il lui faut
 `fetch-depth: 0` pour savoir ce que la pull request a changé.
 
-### Dans l'éditeur, dans le navigateur
+### Un dossier surveillé : `cirta watch`
+
+Pour une boîte d'envoi, un dossier de dépôt partagé, la sortie d'un scanner : chaque fichier qui arrive
+est inspecté à son arrivée.
+
+```bash
+cirta watch ./envoi                      # inspection seule : les fichiers ne sont pas modifiés
+cirta watch ./envoi --json               # une ligne de JSON par fichier, le même rapport qu'inspect --json
+cirta watch ./envoi --clean -o ./pret    # une copie nettoyée de chaque fichier dans ./pret, sous son chemin
+```
+
+- Le dossier est regardé de nouveau chaque seconde (`--interval <secondes>`) plutôt qu'à travers les
+  événements du système de fichiers, qui n'arrivent pas d'un partage réseau ni d'un volume monté dans
+  un conteneur. Un fichier est lu quand sa taille et sa date sont les mêmes à deux passages de suite :
+  une copie en cours n'est pas lue à moitié écrite ; modifié ensuite, il est relu.
+- **Jamais sur place.** `--clean` demande `--output`, un dossier à part (exclu de la surveillance s'il est
+  dedans), et `--in-place` est refusé : l'original est peut-être le fichier même qu'on s'apprête à
+  envoyer. Un fichier que Cirta ne réécrit pas — un gzip, un TIFF — est nommé avec la raison et n'est pas
+  copié.
+- Laissés de côté : les téléchargements en cours (`.part`, `.crdownload`…), les fichiers de verrou et
+  d'échange (`~$…`, `.swp`), les fichiers cachés mais pas `.env` et ses semblables, et les dossiers que
+  la ligne de commande saute (`node_modules`, `.git`…). `--new-only` ignore ce qui était là au
+  démarrage. Les options de nettoyage de `redact` s'appliquent.
+- Les fichiers sont traités un à un ; un échec est signalé et la surveillance continue.
+  <kbd>Ctrl</kbd>+<kbd>C</kbd> ou SIGTERM l'arrête.
+
+### Dans l'éditeur, le navigateur, la messagerie
 
 **VS Code** ([`integrations/vscode/`](integrations/vscode/)). Un fichier texte
 est inspecté à l'ouverture et à l'enregistrement, et chaque caractère invisible
@@ -1250,6 +1276,25 @@ leurs workers. Ce qui n'a de sens que sur le web est retiré : le service worker
 l'encadré « Vérifier ce site ». `node scripts/build-browser-extension.mjs` écrit
 `build/browser-extension/` (à charger non empaquetée) et un `.zip` ; chaque
 publication le joint. Elle n'est pas dans les boutiques des navigateurs.
+
+**Thunderbird** (128 ou plus récent, [`integrations/thunderbird/`](integrations/thunderbird/)). À
+l'envoi d'un message, chaque pièce jointe est d'abord lue. Si l'une porte un constat confirmé — un
+auteur, un compte, un chemin sur le disque de l'expéditeur —, l'envoi est retenu et le panneau du bouton
+Cirta de la fenêtre de rédaction s'ouvre : chaque pièce jointe avec ce qu'elle porte, dans la langue de
+Thunderbird. **Nettoyer** remplace la pièce jointe dans le message par la copie que la bibliothèque a
+écrite et relue ; **Envoyer tel quel** laisse partir ce message tel quel, tant que ses pièces jointes ne
+changent pas. Un format que Cirta lit sans le réécrire n'est jamais proposé au nettoyage ; un format
+qu'il ne lit pas est dit non lu, pas présenté comme propre ; une pièce jointe de plus de 50 Mo n'est pas
+lue, et le panneau le dit. Une seule permission, `compose`, et une politique qui interdit toute
+connexion. `node scripts/build-thunderbird.mjs` écrit `build/thunderbird/` (à charger depuis le
+« Débogage des modules » de Thunderbird) et un `.xpi` ; chaque publication le joint. Il n'est pas sur
+addons.thunderbird.net.
+
+**Pas exécuté dans Thunderbird.** Thunderbird n'a pas pu être installé là où ceci a été construit.
+L'add-in est testé contre une doublure de la partie de l'API de Thunderbird qu'il utilise, écrite
+d'après sa référence, et l'interface de cette doublure est vérifiée contre les types générés depuis les
+schémas de Thunderbird lui-même (`npx tsc -p integrations/thunderbird/tsconfig.json`) ; son panneau a
+été piloté dans Chromium. Un premier essai dans Thunderbird reste à faire.
 
 ## Comme bibliothèque
 
