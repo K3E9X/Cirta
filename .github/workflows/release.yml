@@ -100,9 +100,10 @@ jobs:
       - run: npm ci
       - run: node scripts/build-vscode.mjs --package
       - run: node scripts/build-browser-extension.mjs
+      - run: node scripts/build-thunderbird.mjs
       - run: |
           mkdir -p build/extensions
-          cp integrations/vscode/cirta-vscode-*.vsix build/cirta-browser-extension-*.zip build/extensions/
+          cp integrations/vscode/cirta-vscode-*.vsix build/cirta-browser-extension-*.zip build/cirta-thunderbird-*.xpi build/extensions/
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: 'build/extensions/*'

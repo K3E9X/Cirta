@@ -1,0 +1,13 @@
+{
+  // [F-P3 2.6] The add-in's use of Thunderbird's API, checked against the
+  // typings generated from Thunderbird's own schemas. Separate from the main
+  // configuration: those typings declare a global `messenger` namespace.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["thunderbird-webext-browser"]
+  },
+  "include": ["api-check.ts"]
+}

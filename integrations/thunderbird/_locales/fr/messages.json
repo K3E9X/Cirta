@@ -1,0 +1,5 @@
+{
+  "name": { "message": "Cirta — pièces jointes vérifiées avant l’envoi" },
+  "description": { "message": "Lit chaque pièce jointe avant que le message parte : auteur, compte, chemins, texte caché. Retient ce qui vous nomme, le nettoie à la demande. Rien n’est envoyé nulle part." },
+  "actionTitle": { "message": "Cirta : ce que disent les pièces jointes" }
+}

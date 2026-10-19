@@ -106,7 +106,8 @@ jobs:
       - run: node scripts/a11y.mjs
 
   # [F-P2 2.6] The editor and browser extensions, built and packaged; the
-  # browser one also through Mozilla's linter, which fails on an error.
+  # browser one also through Mozilla's linter, which fails on an error. And
+  # [F-P3 2.6] the Thunderbird add-in.
   extensions:
     runs-on: ubuntu-latest
     steps:
@@ -119,6 +120,12 @@ jobs:
       - run: node scripts/build-vscode.mjs --package
       - run: node scripts/build-browser-extension.mjs
       - run: npx --yes web-ext@8.3.0 lint --source-dir build/browser-extension
+      # [F-P3 2.6] The Thunderbird add-in: built, its calls checked against
+      # Thunderbird's API typings, and linted (the linter knows Firefox's
+      # permissions, not Thunderbird's « compose », which it warns about).
+      - run: node scripts/build-thunderbird.mjs
+      - run: npx tsc -p integrations/thunderbird/tsconfig.json
+      - run: npx --yes web-ext@8.3.0 lint --source-dir build/thunderbird
 
   # [F-P2 2.6] The repository's own GitHub Action, run on its pull requests as a
   # user's workflow would run it — limited to examples/, since the test sources

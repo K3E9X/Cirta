@@ -74,6 +74,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/thunderbird-webext-browser": "127.0.0",
     "@types/vscode": "^1.90.0",
     "ajv": "^8.20.0",
     "esbuild": "^0.25.12",
