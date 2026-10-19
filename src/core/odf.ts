@@ -30,6 +30,7 @@ import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { scanContent } from './archive.js';
 import { inspectImage, stripImageMetadata } from './image.js';
+import { hiddenInOdf } from './hidden-odf.js';
 
 type Parts = Record<string, Uint8Array>;
 
@@ -288,6 +289,8 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   }
 
   findings.push(...inspectBodyText(parts));
+  // [P0-2] Text the document carries and does not show.
+  findings.push(...hiddenInOdf(parts));
   findings.push(...structuralOdf(parts, meta));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });

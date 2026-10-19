@@ -35,6 +35,7 @@ import { isCfb, readCfb } from './cfb.js';
 import { objectFindings } from './legacy-office.js';
 import { ANONYMOUS } from './comments.js';
 import { ARCHIVE_SEPARATOR } from './archive.js';
+import { contrastLevel, hex, toFindings, TINY_PT, type Hidden, type HiddenHow, type Rgb } from './hidden-text.js';
 
 export const isRtf = (data: Uint8Array) => data.length > 5 && String.fromCharCode(...data.subarray(0, 5)) === '{\\rtf';
 
@@ -453,9 +454,146 @@ export async function inspectRtf(data: Uint8Array, options: InspectOptions = {})
     }
   }
   for (const nobody of NOBODY) authors.delete(nobody);
+  // [P0-2] Text the document carries and does not show.
+  findings.push(...toFindings(hiddenRuns(tree, decoder), 'document'));
   if (authors.size) findings.push({ kind: 'identity', confidence: 'confirmed', location: 'tracked changes / comments', label: 'Comment and revision authors', value: [...authors].join(', ') });
 
   return { format: 'rtf', findings: [...findings, ...fingerprint(findings)].sort(byConfidence), notes: [{ code: 'scope:rtf' }] };
+}
+
+/**
+ * [P0-2] Text set as hidden (\\v), coloured as its background (\\cf against the
+ * \\highlight or \\cb behind it, else the page's white), or below two points
+ * (\\fs in half-points). The character state follows the groups: a group
+ * starts with its parent's, \\plain resets it.
+ */
+interface CharState {
+  v: boolean;
+  cf: number;
+  fs: number;
+  bg: number;
+}
+
+const HIDDEN_SKIPPED = new Set([...['fonttbl', 'colortbl', 'stylesheet', 'listtable', 'listoverridetable', 'info', 'pict', 'objdata', 'objclass', 'fldinst', 'xe', 'tc'], 'themedata', 'colorschememapping', 'datastore', 'latentstyles']);
+const WHITE: Rgb = [255, 255, 255];
+
+function colourTable(tree: Tree): Array<Rgb | undefined> {
+  const table = tree.groups.find((g) => g.word === 'colortbl');
+  if (!table) return [];
+  const body = tree.src.slice(table.start, table.end).replace(/^\{\\colortbl ?/, '').replace(/\}$/, '');
+  return body.split(';').slice(0, -1).map((entry) => {
+    const part = (name: string) => Number(new RegExp(`\\\\${name}(\\d{1,3})`).exec(entry)?.[1] ?? NaN);
+    const rgb: Rgb = [part('red'), part('green'), part('blue')];
+    return rgb.every((v) => Number.isFinite(v)) ? rgb : undefined;
+  });
+}
+
+function hiddenRuns(tree: Tree, decoder: TextDecoder): Hidden[] {
+  const root = tree.groups[0];
+  if (!root) return [];
+  const { src } = tree;
+  const colours = colourTable(tree);
+  const skipAt = new Map<number, number>();
+  for (const g of tree.groups) if (g !== root && (g.starred || HIDDEN_SKIPPED.has(g.word))) skipAt.set(g.start, g.end);
+
+  const found: Hidden[] = [];
+  let run: { how: HiddenHow; why: string; bytes: number[]; text: string } | undefined;
+  const close = () => {
+    if (run) {
+      const text = (run.text + decoder.decode(new Uint8Array(run.bytes))).replace(/\s+/g, ' ').trim();
+      if (text) found.push({ how: run.how, why: run.why, text });
+    }
+    run = undefined;
+  };
+  const reasonOf = (state: CharState): { how: HiddenHow; why: string } | undefined => {
+    if (state.v) return { how: 'vanish', why: '\\v' };
+    const colour = state.cf ? colours[state.cf] : undefined;
+    if (colour) {
+      const background = (state.bg && colours[state.bg]) || WHITE;
+      const level = contrastLevel(colour, background);
+      if (level === 'hidden') return { how: 'invisible', why: `\\cf${state.cf} ${hex(colour)} on ${hex(background)}` };
+      if (level === 'faint') return { how: 'faint', why: `\\cf${state.cf} ${hex(colour)} on ${hex(background)}` };
+    }
+    if (state.fs < TINY_PT * 2) return { how: 'tiny', why: `\\fs${state.fs}` };
+    return undefined;
+  };
+  const emit = (state: CharState, byte?: number, char?: string) => {
+    const reason = reasonOf(state);
+    const blank = char !== undefined ? !char.trim() : byte === 0x20;
+    if (!reason) {
+      if (!blank) close();
+      return;
+    }
+    if (run && run.how !== reason.how) close();
+    run ??= { ...reason, bytes: [], text: '' };
+    if (char !== undefined) {
+      run.text += decoder.decode(new Uint8Array(run.bytes)) + char;
+      run.bytes = [];
+    } else if (byte !== undefined) run.bytes.push(byte);
+  };
+
+  const fresh = (): CharState => ({ v: false, cf: 0, fs: 24, bg: 0 });
+  const stack: CharState[] = [fresh()];
+  let skip = 0;
+  let fallback = 1;
+  let i = root.start + 1;
+  while (i < root.end - 1) {
+    const c = src[i]!;
+    const state = stack.at(-1)!;
+    if (c === '{') {
+      const end = skipAt.get(i);
+      if (end !== undefined) {
+        i = end;
+        continue;
+      }
+      stack.push({ ...state });
+      i++;
+      continue;
+    }
+    if (c === '}') {
+      if (stack.length > 1) stack.pop();
+      i++;
+      continue;
+    }
+    if (c === '\\') {
+      if (src[i + 1] === "'") {
+        if (!(skip && skip--)) emit(state, parseInt(src.slice(i + 2, i + 4), 16) || 0);
+        i += 4;
+        continue;
+      }
+      CONTROL.lastIndex = i + 1;
+      const m = CONTROL.exec(src);
+      if (!m) {
+        const symbol = src[i + 1];
+        if (symbol === '~') emit(state, 0xa0);
+        else if (symbol === '\\' || symbol === '{' || symbol === '}') emit(state, symbol.charCodeAt(0));
+        i += 2;
+        continue;
+      }
+      i += 1 + m[0].length;
+      const word = m[1]!;
+      const n = m[2] === undefined ? undefined : Number(m[2]);
+      if (word === 'bin' && n) i += Math.max(0, n);
+      else if (word === 'plain') Object.assign(state, { v: false, cf: 0, fs: 24, bg: 0 });
+      else if (word === 'v') state.v = n !== 0;
+      else if (word === 'cf') state.cf = n ?? 0;
+      else if (word === 'fs') state.fs = n ?? 24;
+      else if (word === 'highlight' || word === 'cb' || word === 'chcbpat') state.bg = n ?? 0;
+      else if (word === 'uc' && n !== undefined) fallback = n;
+      else if (word === 'u' && n !== undefined) {
+        emit(state, undefined, String.fromCharCode(n < 0 ? n + 65536 : n));
+        skip = fallback;
+      } else if (word === 'par' || word === 'line' || word === 'tab' || word === 'cell' || word === 'row' || word === 'sect' || word === 'page') emit(state, 0x20);
+      continue;
+    }
+    if (c !== '\r' && c !== '\n') {
+      if (skip) skip--;
+      else emit(state, c.charCodeAt(0));
+    }
+    i++;
+  }
+  close();
+  return found;
 }
 
 /** Groups that hold no running text: tables, properties, pictures, field codes. */
