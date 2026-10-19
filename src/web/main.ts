@@ -232,6 +232,10 @@ const MIME: Record<Format, string> = {
   tiff: 'image/tiff',
   heic: 'image/heic',
   avif: 'image/avif',
+  // [F-P3 2.2]
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  m4a: 'audio/mp4',
   zip: 'application/zip',
   doc: 'application/msword',
   xls: 'application/vnd.ms-excel',

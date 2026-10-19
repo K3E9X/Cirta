@@ -533,6 +533,29 @@ try {
     if (/ENOENT/.test(String(error))) console.log('  skip  ImageMagick is not installed: GIF and TIFF not checked');
     else check('im.gif / im.tif: written by ImageMagick, inspected and cleaned', false, String(error).slice(0, 200));
   }
+  // [F-P3 2.2] ffmpeg's own MP4, QuickTime and M4A, an artist, a title and a place written into
+  // each: read, cleaned, the copy the same size and decoded by ffmpeg without an error.
+  try {
+    await run('ffmpeg', ['-version']);
+    const tags = ['-metadata', 'artist=Marie Martin', '-metadata', 'title=Réunion budget', '-metadata', 'location=+48.8584+002.2945/'];
+    await run('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=64x64:rate=10', '-f', 'lavfi', '-i', 'sine=duration=1', '-shortest', ...tags, '-c:v', 'libx264', '-c:a', 'aac', join(dir, 'ff.mp4')]);
+    await run('ffmpeg', ['-v', 'error', '-y', '-i', join(dir, 'ff.mp4'), '-c', 'copy', ...tags, '-movflags', '+use_metadata_tags', '-f', 'mov', join(dir, 'ff.mov')]);
+    await run('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=1', ...tags, '-c:a', 'aac', join(dir, 'ff.m4a')]);
+    for (const name of ['ff.mp4', 'ff.mov', 'ff.m4a']) {
+      const input = new Uint8Array(await readFile(join(dir, name)));
+      const found = (await inspectFile(input, name)).findings;
+      check(`${name}: the artist and the place are read`, found.some((f) => f.label === 'Artist' && f.value === 'Marie Martin') && found.some((f) => f.label === 'GPS position' && f.value.startsWith('48.858')));
+      const cleaned = await redactFile(input, name);
+      const out = join(dir, name.replace('.', '.clean.'));
+      await writeFile(out, cleaned.data);
+      const { stderr } = await run('ffmpeg', ['-v', 'error', '-i', out, '-f', 'null', '-']);
+      const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'compact', out]);
+      check(`${name}: the cleaned copy, same size, decodes in ffmpeg, without the artist or the place`, cleaned.data.length === input.length && stderr.trim() === '' && !/Marie|48\.858/.test(stdout) && !Buffer.from(cleaned.data).includes(Buffer.from('Marie')), (stderr + stdout).trim().slice(0, 200));
+    }
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg is not installed: MP4, QuickTime and M4A not checked');
+    else check('ff.mp4 / ff.mov / ff.m4a: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
+  }
   // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
   // text the same to the character (pdflatex and pdftotext, where they are installed).
   try {

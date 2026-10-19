@@ -15,6 +15,8 @@ export const SUPPORTED_EXTENSIONS: ReadonlySet<string> = new Set([
   '.jpg', '.jpeg', '.png',
   // [F-P2 2.2] WebP and GIF cleaned; TIFF, HEIC and AVIF inspected.
   '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif', '.avif',
+  // [F-P3 2.2] Video and audio.
+  '.mp4', '.m4v', '.mov', '.m4a', '.3gp', '.3g2',
   '.zip', '.epub',
   // Plain text and source files. An invisible character in a .py or a .json
   // travels exactly as far as one in a .docx, and a bidi override in source is

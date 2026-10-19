@@ -12,6 +12,7 @@ import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.j
 import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
+import { movie } from './helpers/media.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -162,6 +163,8 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['scan.tif', tiffWithMetadata()],
     ['photo.heic', heifWithMetadata('heic')],
     ['photo.avif', heifWithMetadata('avif')],
+    // [F-P3 2.2]
+    ['video.mp4', movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf60', apple: { 'com.apple.quicktime.model': 'iPhone', 'com.apple.quicktime.location.name': 'Lyon', 'com.apple.quicktime.content.identifier': 'A1B2', 'com.example.private': 'x' }, xmpCreator: 'Marie' })],
     [
       'article.tex',
       enc(

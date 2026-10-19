@@ -49,6 +49,10 @@ export type Format =
   /** [F-P2 2.2] An iCalendar file and a vCard. */
   | 'ics'
   | 'vcf'
+  /** [F-P3 2.2] Video and audio: MP4, QuickTime and M4A cleaned in place. */
+  | 'mp4'
+  | 'mov'
+  | 'm4a'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -178,6 +182,8 @@ export type NoteCode =
   | 'scope:markup-metadata-only'
   /** Only image container metadata was examined; the pixels were not. */
   | 'scope:image-metadata-only'
+  /** [F-P3 2.2] Video and audio: the container's metadata, not the picture or the sound. */
+  | 'scope:media'
   /** An archive was walked; the report aggregates its members. */
   | 'scope:archive'
   /** Archive traversal stopped at a built-in limit. */

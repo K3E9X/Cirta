@@ -45,6 +45,17 @@ const FIELD_LABEL: Record<string, string> = {
   'Hyperlink base': 'Base des liens hypertexte',
   'Last backup': 'Dernière sauvegarde',
   'Private chunk': 'Bloc privé',
+  // [F-P3 2.2] Vidéo et audio.
+  'Encoded by': 'Encodé par',
+  Composer: 'Compositeur',
+  'Album artist': 'Artiste de l’album',
+  Album: 'Album',
+  'File owner': 'Propriétaire du fichier',
+  'Store account': 'Compte de la boutique',
+  'Place name': 'Nom du lieu',
+  'Capture identifier': 'Identifiant de prise de vue',
+  'Media metadata field': 'Champ de métadonnées du média',
+  'Embedded picture': 'Image intégrée',
   'LaTeX comment': 'Commentaire LaTeX',
   Organizer: 'Organisateur',
   Attendees: 'Participants',
@@ -783,6 +794,9 @@ export const translateLocation = (location: string, lang: Lang): string => {
 
   const container = /^(JPEG segments|PNG chunks)(.*)$/.exec(location);
   if (container) return `${container[1] === 'JPEG segments' ? 'segments JPEG' : 'blocs PNG'}${container[2]}`;
+  // [F-P3 2.2]
+  const media = /^MP4 boxes(.*)$/.exec(location);
+  if (media) return `boîtes MP4${media[1]}`;
   const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
   if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
@@ -1020,8 +1034,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime and M4A.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime et M4A.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,

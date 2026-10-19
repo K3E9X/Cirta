@@ -15,6 +15,7 @@ import { jpegWith, tiff } from './helpers/tiff.js';
 import { mutations, ITERATIONS, SEED } from './helpers/mutate.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { vsdx } from './helpers/visio.js';
+import { movie } from './helpers/media.js';
 import { zipSync } from 'fflate';
 
 /*
@@ -164,4 +165,13 @@ describe('[F-2.8] fuzzing the new parsers', () => {
     await fuzz('vcf', [strToU8('BEGIN:VCARD\r\nFN:J\r\nREV:1\r\nPHOTO;ENCODING=b:/9j/4QAMRXhpZgAASUkqAP/Z\r\nEND:VCARD\r\n')], both('a.vcf'));
     await fuzz('pictures', [await webpWithMetadata(), await gifWithMetadata(), tiffWithMetadata(), heifWithMetadata('heic'), heifWithMetadata('avif')], both('a'));
   }, TIMEOUT * 6);
+
+  it('[F-P3 2.2] video and audio, inspected and cleaned', async () => {
+    const both = (name: string) => async (input: Uint8Array) => {
+      await inspectFile(input, name);
+      await redactFile(input, name);
+    };
+    const phone = { 'com.apple.quicktime.location.ISO6709': '+48.8584+002.2945/', 'com.apple.quicktime.model': 'iPhone' };
+    await fuzz('mp4', [movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf', apple: phone, xmpCreator: 'M' }), movie({ brand: 'qt  ' }), movie({ brand: 'M4A ' })], both('a.mp4'));
+  }, TIMEOUT * 4);
 });

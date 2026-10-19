@@ -41,6 +41,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
     'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
+  'scope:media': () =>
+    'Video or audio: the container’s metadata — dates, place, device, software, tags, embedded pictures. The picture and the sound themselves are not analysed: a watermark carried in them would not show up here. Cleaning removes the metadata and leaves the picture and the sound byte for byte as they were.',
   'scope:image-metadata-only': () =>
     'Image container metadata only. The pixels are not analysed: an invisible watermark encoded in the image data itself would not show up here, and is not removed.',
   'removed:c2pa': (detail) =>
@@ -131,6 +133,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
     "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
+  'scope:media': () =>
+    'Vidéo ou audio : les métadonnées du conteneur — dates, lieu, appareil, logiciel, étiquettes, images intégrées. L’image et le son eux-mêmes ne sont pas analysés : un filigrane qu’ils porteraient n’apparaîtrait pas ici. Le nettoyage retire les métadonnées et laisse l’image et le son octet pour octet tels qu’ils étaient.',
   'scope:image-metadata-only': () =>
     "Métadonnées du conteneur uniquement. Les pixels ne sont pas analysés : un filigrane invisible encodé dans l'image elle-même n'apparaîtrait pas ici et n'est pas retiré.",
   'removed:c2pa': (detail) =>
