@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { releaseProblems, REQUIRED_FILES } from '../scripts/check-release.mjs';
+import { runCli } from './helpers/cli.js';
 
 /*
  * [F-P2 2.8] A release is checked before anything is published: the tag, the
@@ -53,6 +54,24 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(npm.indexOf('check-release.mjs')).toBeGreaterThan(0);
     expect(npm.indexOf('npm publish --provenance')).toBeGreaterThan(npm.indexOf('check-release.mjs'));
     expect(workflow.slice(0, workflow.indexOf('\n  npm:'))).toMatch(/npm run verify[\s\S]*check-release\.mjs/);
+  });
+
+  it('says which version it is, as a binary must', () => {
+    const run = runCli(['--version']);
+    expect(run.status).toBe(0);
+    expect(run.stdout.toString().trim()).toBe(`cirta ${pkg.version}`);
+  });
+
+  it('releases single-file binaries for three systems, each built, run and attested, and builds them in CI too', () => {
+    const workflow = readFileSync('.github/workflows/release.yml', 'utf8');
+    const binaries = workflow.slice(workflow.indexOf('\n  binaries:'), workflow.indexOf('\n  github-release:'));
+    expect(binaries).toMatch(/needs: check/);
+    expect(binaries).toMatch(/os: \[ubuntu-latest, windows-latest, macos-latest\]/);
+    expect(binaries.indexOf('node scripts/build-sea.mjs')).toBeLessThan(binaries.indexOf('attest-build-provenance'));
+    expect(binaries).toMatch(/subject-path: 'build\/sea\/cirta-\*'/);
+    expect(workflow.slice(workflow.indexOf('\n  github-release:'))).toMatch(/needs: \[npm, binaries\][\s\S]*contents: write/);
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    expect(ci.slice(ci.indexOf('\n  sea:'))).toMatch(/windows-latest, macos-latest[\s\S]*node scripts\/build-sea\.mjs/);
   });
 });
 

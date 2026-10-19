@@ -4,3 +4,5 @@ dist-web/
 *.tsbuildinfo
 .DS_Store
 fuzz-findings/
+# [F-P2 2.8] Single-file binaries, written by scripts/build-sea.mjs.
+build/

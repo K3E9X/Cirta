@@ -49,3 +49,48 @@ jobs:
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  binaries:
+    needs: check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Builds the binary, then runs it: --version, an inspection, a clean.
+      - run: node scripts/build-sea.mjs
+      # No Apple or Microsoft code signature (the project holds no certificate):
+      # a provenance statement signed by GitHub through Sigstore instead, which
+      # `gh attestation verify <binary> -R K3E9X/Cirta` checks.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'build/sea/cirta-*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.os }}
+          path: build/sea/cirta-*
+
+  github-release:
+    needs: [npm, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "What changed: CHANGELOG.md. Each binary is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
