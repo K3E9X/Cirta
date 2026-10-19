@@ -139,7 +139,9 @@ describe('[F-P3 2.6] cirta watch from the command line', () => {
     child.stderr.on('data', (data) => (stderr += data));
     await expect.poll(() => /Watching/.test(stderr), { timeout: 30_000 }).toBe(true);
     expect(stderr).toMatch(/inspection only/i);
-    await writeFile(join(dir, 'letter.docx'), makeDocx());
+    // makeDocx() stamps the current time into the ZIP: the bytes written are the ones to compare with.
+    const written = makeDocx();
+    await writeFile(join(dir, 'letter.docx'), written);
     await expect.poll(() => stdout.split('\n').filter(Boolean).length, { timeout: 30_000 }).toBe(1);
     const line = JSON.parse(stdout.split('\n')[0]!);
     expect(line.schema).toMatch(/report/);
@@ -150,7 +152,7 @@ describe('[F-P3 2.6] cirta watch from the command line', () => {
       expect(code).toBe(0);
       expect(stderr).toMatch(/Stopped\./);
     }
-    expect(await readFile(join(dir, 'letter.docx'))).toEqual(Buffer.from(makeDocx()));
+    expect(await readFile(join(dir, 'letter.docx'))).toEqual(Buffer.from(written));
   }, 60_000);
 
   it('with --clean, writes a cleaned copy to the output folder, and names a file it refuses', async () => {
