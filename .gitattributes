@@ -1,0 +1,4 @@
+# Scripts with a #! line keep LF on every system. Checked out with CRLF (Git
+# for Windows' default), the #! line is no longer stripped when vitest loads
+# the script for a test, and the import fails with a syntax error.
+*.mjs text eol=lf

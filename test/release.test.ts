@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { releaseProblems, REQUIRED_FILES } from '../scripts/check-release.mjs';
@@ -85,5 +86,15 @@ describe('[F-P2 2.8] the workflows are valid YAML', () => {
       .map((line) => /^\s*(?:- )?run: (.*)$/.exec(line)?.[1])
       .filter((value): value is string => value !== undefined && !/^["'|>]/.test(value));
     for (const value of plain) expect(value).not.toMatch(/: | #/);
+  });
+});
+
+describe('[F-P2 2.8] scripts keep LF line endings', () => {
+  // A test imports scripts/*.mjs, whose #! line vite-node strips only when it
+  // ends in LF; Windows checkouts convert to CRLF unless told otherwise.
+  it('on every system, by .gitattributes', () => {
+    expect(readFileSync('.gitattributes', 'utf8')).toMatch(/^\*\.mjs text eol=lf$/m);
+    const attribute = execFileSync('git', ['check-attr', 'eol', 'scripts/check-release.mjs'], { encoding: 'utf8' });
+    expect(attribute.trim()).toBe('scripts/check-release.mjs: eol: lf');
   });
 });
