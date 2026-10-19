@@ -1,0 +1,81 @@
+# [F-P2 2.6] Cirta as a GitHub Action: the files a pull request changes,
+# inspected in the runner — nothing leaves it —, each finding annotated on the
+# pull request, and the job failed at the level asked for. The SARIF it writes
+# can also go to code scanning (upload-sarif: true), which on a private
+# repository needs GitHub Advanced Security; the annotations do not.
+# A complete workflow: examples/github-action.yml.
+name: Cirta
+description: Inspect the documents a pull request changes for metadata, hidden text, active content and invisible characters, locally in the runner.
+author: K3E9X
+branding:
+  icon: shield
+  color: gray-dark
+
+inputs:
+  base:
+    description: The git ref to compare with. Default, on a pull request, its base branch (origin/<base>); needs the checkout's history (fetch-depth 0).
+    required: false
+    default: ''
+  paths:
+    description: Paths to limit the inspection to, space-separated. Default, the whole repository.
+    required: false
+    default: ''
+  fail-on:
+    description: Fail the job when a finding at this level or above is present (confirmed, probable, informational, none).
+    required: false
+    default: confirmed
+  upload-sarif:
+    description: Also send the SARIF to code scanning ('true' or 'false').
+    required: false
+    default: 'false'
+  sarif-file:
+    description: Where to write the SARIF.
+    required: false
+    default: cirta.sarif
+
+outputs:
+  sarif-file:
+    description: The SARIF written.
+    value: ${{ inputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    # npm ci builds the package (prepare), from the action's own checkout.
+    - name: Install Cirta
+      shell: bash
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --no-audit --no-fund --loglevel=error
+
+    - name: Inspect what the change touches
+      id: inspect
+      shell: bash
+      env:
+        BASE: ${{ inputs.base != '' && inputs.base || format('origin/{0}', github.base_ref) }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        PATHS: ${{ inputs.paths }}
+        SARIF: ${{ inputs.sarif-file }}
+      run: |
+        set +e
+        # PATHS is split on spaces on purpose: several paths may be given.
+        # shellcheck disable=SC2086
+        node "$GITHUB_ACTION_PATH/dist/cli/index.js" inspect --changed-only --base "$BASE" --sarif --fail-on "$FAIL_ON" $PATHS > "$SARIF"
+        code=$?
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        # A refusal (code 2) writes no SARIF; the annotations step has nothing to read then.
+        if [ "$code" != 2 ]; then node "$GITHUB_ACTION_PATH/scripts/sarif-annotations.mjs" "$SARIF"; fi
+        exit 0
+
+    - name: Send the SARIF to code scanning
+      if: inputs.upload-sarif == 'true' && steps.inspect.outputs.code != '2'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: cirta
+
+    - name: Verdict
+      shell: bash
+      run: exit ${{ steps.inspect.outputs.code }}

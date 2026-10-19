@@ -1,48 +1,27 @@
-# Scan a repository's documents and source on every pull request.
-#
-# Copy to .github/workflows/cirta.yml. The findings appear in the Security tab
-# and inline on the pull request, next to the compiler warnings — which is the
-# point: a check nobody has to remember to run is a check that gets run.
-#
-# A bidirectional control in source is the Trojan Source case (CVE-2021-42574),
-# and it is invisible in every code review. This is where it should surface.
+# [F-P2 2.6] Copy to .github/workflows/cirta.yml: every pull request has the
+# documents it changes inspected — metadata, hidden text, active content,
+# invisible characters —, each finding annotated on the pull request, and the
+# check fails while a confirmed one is left. Everything runs in the runner.
 name: Cirta
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
-  security-events: write # required to upload SARIF
+  # Only for upload-sarif: true (code scanning).
+  security-events: write
 
 jobs:
-  scan:
+  cirta:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-
-      - name: Build Cirta
-        run: npm ci && npm run build
-
-      # --sarif writes the log and nothing else to stdout, so it is safe to
-      # redirect. The step must not fail here or the upload never happens;
-      # the gate below decides whether the build goes red.
-      - name: Scan
-        run: node dist/cli/index.js inspect . --sarif > cirta.sarif
-        continue-on-error: true
-
-      - uses: github/codeql-action/upload-sarif@v3
+          # The history back to the base branch, to tell what the pull request changed.
+          fetch-depth: 0
+      - uses: K3E9X/Cirta@main
         with:
-          sarif_file: cirta.sarif
-
-      # Choose the level that suits the repository. `confirmed` is verbatim
-      # identifying data — a name, a company, a local path, a credential —
-      # which is the shape worth stopping a merge for.
-      - name: Fail on confirmed findings
-        run: node dist/cli/index.js inspect . --fail-on confirmed
+          fail-on: confirmed
+          # paths: docs contrats
+          # upload-sarif: 'true'

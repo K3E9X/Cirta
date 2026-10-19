@@ -69,3 +69,18 @@ jobs:
       - run: npm ci
       - run: node scripts/build-sea.mjs
 
+  # [F-P2 2.6] The repository's own GitHub Action, run on its pull requests as a
+  # user's workflow would run it — limited to examples/, since the test sources
+  # carry invisible characters on purpose.
+  action:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          paths: examples
+          fail-on: confirmed
+
