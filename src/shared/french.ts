@@ -56,6 +56,19 @@ const FIELD_LABEL: Record<string, string> = {
   'Capture identifier': 'Identifiant de prise de vue',
   'Media metadata field': 'Champ de métadonnées du média',
   'Embedded picture': 'Image intégrée',
+  Lyricist: 'Parolier',
+  'Original artist': 'Artiste original',
+  'Recording date': 'Date d’enregistrement',
+  'Encoding time': 'Date d’encodage',
+  'Tagging time': 'Date d’étiquetage',
+  Lyrics: 'Paroles',
+  'User-defined text': 'Texte personnalisé',
+  'Listener’s e-mail address': 'Adresse e-mail de l’auditeur',
+  'Private data': 'Données privées',
+  'Unique file identifier': 'Identifiant unique du fichier',
+  'Linked address': 'Adresse liée',
+  'Audio tag field': 'Champ d’étiquette audio',
+  'Recording code (ISRC)': 'Code d’enregistrement (ISRC)',
   'LaTeX comment': 'Commentaire LaTeX',
   Organizer: 'Organisateur',
   Attendees: 'Participants',
@@ -597,6 +610,9 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
     (m) => `${m[1]} caractère(s) (${m[2]} distinct(s))${m[3] ? ` — se lit ${m[3]}` : ''}`,
   ],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
+  // [F-P3 2.2] Lyrics by their length; a private ID3 frame by its owner and size.
+  [/^(\d+) characters$/, (m) => `${m[1]} caractères`],
+  [/^(.+), (\d+) bytes$/, (m) => `${m[1]}, ${m[2]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [
     // Any number of scripts, not just two: a document can mix Latin with both
@@ -797,6 +813,9 @@ export const translateLocation = (location: string, lang: Lang): string => {
   // [F-P3 2.2]
   const media = /^MP4 boxes(.*)$/.exec(location);
   if (media) return `boîtes MP4${media[1]}`;
+  const tag = /^(ID3v2|ID3v1|APEv2) tag(.*)$/.exec(location);
+  if (tag) return `étiquette ${tag[1]}${tag[2]}`;
+  if (location === 'MPEG audio (encoder header)') return 'audio MPEG (en-tête de l’encodeur)';
   const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
   if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
@@ -1034,8 +1053,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime and M4A.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime et M4A.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A and MP3.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A et MP3.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,

@@ -91,6 +91,7 @@ import { isEpub, inspectEpub, redactEpub } from './epub.js';
 import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
 import { calendarFormat, inspectCalendar, redactCalendar } from './calendar.js';
 import { detectMovieKind, inspectMovie, stripMovie } from './media-mp4.js';
+import { isMp3, inspectMp3, stripMp3 } from './media-audio.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -98,7 +99,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime and M4A.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A and MP3.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -208,6 +209,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   // [F-P3 2.2] After the pictures: HEIC and AVIF open with the same ftyp box.
   const movie = detectMovieKind(data);
   if (movie) return movie;
+  if (isMp3(data)) return 'mp3';
   if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
   try {
@@ -357,6 +359,10 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
   if (movie) {
     const found = inspectMovie(data);
     return { format: movie, findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
+  }
+  if (isMp3(data)) {
+    const found = inspectMp3(data);
+    return { format: 'mp3', findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
   }
 
   if (isRtf(data)) return inspectRtf(data, { ...options, inspectMember: member(options) });
@@ -577,6 +583,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   // [F-P3 2.2] Cleaned in place: the metadata boxes become free space, the media does not move.
   const movie = detectMovieKind(data);
   if (movie) return noteSurvivors({ format: movie, data: stripMovie(data), removed: inspectMovie(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  if (isMp3(data)) return noteSurvivors({ format: 'mp3', data: stripMp3(data), removed: inspectMp3(data), notes: [{ code: 'scope:media' }] }, hint, options);
 
   if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);
 

@@ -74,3 +74,67 @@ export function movie(options: MovieOptions = {}): Uint8Array {
 }
 
 export { bytes, u32be, u32le, u16be, latin1 };
+
+/* ------------------------------------------------------------- MP3 / ID3 -- */
+
+const syncsafe = (n: number) => [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f];
+
+/** One MPEG-1 Layer III frame, 128 kbit/s, 44.1 kHz, no padding: 417 bytes. `fill` marks it. */
+export const mpegFrame = (fill = 0x55, payload?: Uint8Array) => {
+  const frame = new Uint8Array(417).fill(fill);
+  frame.set([0xff, 0xfb, 0x90, 0x00]);
+  if (payload) frame.set(payload, 4 + 32);
+  return frame;
+};
+
+/** A first frame carrying a Xing/Info header and a LAME version string, as LAME writes it. */
+export const lameFrame = () => mpegFrame(0, bytes('Info', [0, 0, 0, 0x0f], new Uint8Array(112), 'LAME3.100'));
+
+export type Id3Frame = [id: string, body: Uint8Array];
+
+/** An ID3 text frame body: encoding 0 (Latin-1), 1 (UTF-16 with BOM) or 3 (UTF-8). */
+export function id3Text(text: string, encoding: 0 | 1 | 3 = 0): Uint8Array {
+  if (encoding === 1) {
+    const units = [0xff, 0xfe];
+    for (const c of text) {
+      const code = c.charCodeAt(0);
+      units.push(code & 0xff, code >> 8);
+    }
+    return bytes([1], units, [0, 0]);
+  }
+  return bytes([encoding], encoding === 0 ? latin1(text) : text, [0]);
+}
+
+/** An ID3v2 tag, version 2, 3 or 4. */
+export function id3v2(version: 2 | 3 | 4, frames: Id3Frame[]): Uint8Array {
+  const body = bytes(
+    ...frames.map(([id, data]) =>
+      version === 2
+        ? bytes(id, [(data.length >> 16) & 0xff, (data.length >> 8) & 0xff, data.length & 0xff], data)
+        : bytes(id, version === 4 ? syncsafe(data.length) : u32be(data.length), [0, 0], data),
+    ),
+    new Uint8Array(16), // padding
+  );
+  return bytes('ID3', [version, 0, 0], syncsafe(body.length), body);
+}
+
+/** An ID3v1 tag: the last 128 bytes. */
+export function id3v1(title: string, artist: string, album: string, year: string, comment: string): Uint8Array {
+  const field = (text: string, size: number) => {
+    const out = new Uint8Array(size);
+    out.set(latin1(text).subarray(0, size));
+    return out;
+  };
+  return bytes('TAG', field(title, 30), field(artist, 30), field(album, 30), field(year, 4), field(comment, 30), [12]);
+}
+
+/** An APEv2 tag with its footer (and header), as foobar2000 and Monkey's Audio write it. */
+export function apev2(items: Record<string, string>): Uint8Array {
+  const entries = Object.entries(items).map(([key, value]) => {
+    const v = enc.encode(value);
+    return bytes(u32le(v.length), u32le(0), key, [0], v);
+  });
+  const body = bytes(...entries);
+  const footer = (header: boolean) => bytes('APETAGEX', u32le(2000), u32le(body.length + 32), u32le(entries.length), u32le(header ? 0xa0000000 : 0x80000000), new Uint8Array(8));
+  return bytes(footer(true), body, footer(false));
+}

@@ -236,6 +236,7 @@ const MIME: Record<Format, string> = {
   mp4: 'video/mp4',
   mov: 'video/quicktime',
   m4a: 'audio/mp4',
+  mp3: 'audio/mpeg',
   zip: 'application/zip',
   doc: 'application/msword',
   xls: 'application/vnd.ms-excel',

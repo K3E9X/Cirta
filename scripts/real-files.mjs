@@ -556,6 +556,25 @@ try {
     if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg is not installed: MP4, QuickTime and M4A not checked');
     else check('ff.mp4 / ff.mov / ff.m4a: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
   }
+  // [F-P3 2.2] ffmpeg's MP3 (libmp3lame), ID3v2.3 and ID3v1 tags, a cover whose own EXIF holds
+  // a position: all of it read, the copy without a tag and decoded by ffmpeg without an error.
+  try {
+    await run('ffmpeg', ['-version']);
+    await run('convert', ['-size', '32x32', 'xc:orange', join(dir, 'cover.jpg')]);
+    await run('exiftool', ['-q', '-overwrite_original', '-GPSLatitude=45.764', '-GPSLatitudeRef=N', '-GPSLongitude=4.8357', '-GPSLongitudeRef=E', join(dir, 'cover.jpg')]);
+    await run('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=1', '-i', join(dir, 'cover.jpg'), '-map', '0', '-map', '1', '-c:a', 'libmp3lame', '-c:v', 'copy', '-id3v2_version', '3', '-write_id3v1', '1', '-metadata', 'artist=Marie Martin', '-metadata', 'title=Mémo', join(dir, 'ff.mp3')]);
+    const input = new Uint8Array(await readFile(join(dir, 'ff.mp3')));
+    const found = (await inspectFile(input, 'ff.mp3')).findings;
+    check('ff.mp3: the artist (ID3v2 and ID3v1) and the cover’s position are read', found.filter((f) => f.label === 'Artist' && f.value === 'Marie Martin').length >= 2 && found.some((f) => f.label === 'GPS position' && /APIC/.test(f.location)));
+    const cleaned = await redactFile(input, 'ff.mp3');
+    await writeFile(join(dir, 'ff.clean.mp3'), cleaned.data);
+    const { stderr } = await run('ffmpeg', ['-v', 'error', '-i', join(dir, 'ff.clean.mp3'), '-f', 'null', '-']);
+    const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'compact', join(dir, 'ff.clean.mp3')]);
+    check('ff.mp3: the cleaned copy decodes in ffmpeg and carries no tag', stderr.trim() === '' && stdout.trim() === 'format|' && !Buffer.from(cleaned.data).includes(Buffer.from('Marie')), (stderr + stdout).trim().slice(0, 200));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg, ImageMagick or exiftool is not installed: MP3 not checked');
+    else check('ff.mp3: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
+  }
   // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
   // text the same to the character (pdflatex and pdftotext, where they are installed).
   try {

@@ -12,7 +12,7 @@ import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.j
 import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
-import { movie } from './helpers/media.js';
+import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie } from './helpers/media.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -164,6 +164,16 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['photo.heic', heifWithMetadata('heic')],
     ['photo.avif', heifWithMetadata('avif')],
     // [F-P3 2.2]
+    [
+      'memo.mp3',
+      bytes(
+        id3v2(3, [['TPE1', id3Text('Marie')], ['TOLY', id3Text('Paul')], ['TOPE', id3Text('Luc')], ['TDEN', id3Text('2024')], ['TDTG', id3Text('2024')], ['USLT', bytes([0], 'fra', [0], 'la la')], ['TXXX', bytes([0], 'P', [0], 'x')], ['POPM', bytes('a@b.fr', [0], [1], [0, 0, 0, 1])], ['PRIV', bytes('o', [0], [1])], ['UFID', bytes('o', [0], 'id')], ['WXXX', bytes([0], [0], 'https://a.example')], ['TSRC', id3Text('FR1234')], ['TMOO', id3Text('calme')]]),
+        lameFrame(),
+        mpegFrame(),
+        apev2({ Custom: 'x' }),
+        id3v1('T', 'A', 'B', '2024', 'C'),
+      ),
+    ],
     ['video.mp4', movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf60', apple: { 'com.apple.quicktime.model': 'iPhone', 'com.apple.quicktime.location.name': 'Lyon', 'com.apple.quicktime.content.identifier': 'A1B2', 'com.example.private': 'x' }, xmpCreator: 'Marie' })],
     [
       'article.tex',
