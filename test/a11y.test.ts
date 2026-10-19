@@ -51,3 +51,16 @@ describe('[F-P3 2.7] landmarks', () => {
     expect([...html.matchAll(/\saria-label="[^"]*"/g)].map((m) => m[0])).toEqual([]);
   });
 });
+
+describe('[F-P3 2.7] the audit runs in CI', () => {
+  const script = readFileSync(new URL('../scripts/a11y.mjs', import.meta.url), 'utf8');
+  const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+
+  it('at the versions the script names, after building the site', () => {
+    const pinned = /npm install --no-save (playwright@\S+ axe-core@\S+)/.exec(script)?.[1];
+    expect(pinned).toMatch(/^playwright@\d+\.\d+\.\d+ axe-core@\d+\.\d+\.\d+$/);
+    const job = ci.slice(ci.indexOf('\n  a11y:'), ci.indexOf('\n  # ', ci.indexOf('\n  a11y:')));
+    expect(job).toContain(`npm install --no-save ${pinned}`);
+    expect(job.indexOf('npm run build:web')).toBeLessThan(job.indexOf('node scripts/a11y.mjs'));
+  });
+});

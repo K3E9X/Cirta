@@ -88,6 +88,23 @@ jobs:
       - if: always()
         run: docker logs cirta
 
+  # [F-P3 2.7] The accessibility audit of the built site: axe-core in Chromium,
+  # both languages, every theme, a keyboard walk and a 320px screen. The two
+  # packages are installed for this job only, at the versions the script names.
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.56.1 axe-core@4.10.3
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build:web
+      - run: node scripts/a11y.mjs
+
   # [F-P2 2.6] The editor and browser extensions, built and packaged; the
   # browser one also through Mozilla's linter, which fails on an error.
   extensions:
