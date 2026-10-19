@@ -1,0 +1,18 @@
+# [F-P2 2.6] Cirta as a pre-commit hook (https://pre-commit.com): the commit is
+# refused while a staged file carries confirmed identifying data — an author, an
+# account name in a path, a macro, invisible characters. pre-commit hands the
+# hook the staged files, unstaged changes put aside, so what is judged is what
+# the commit would record. Same files as a folder walk (src/shared/files.ts).
+#
+# The hook runs the `cirta` it finds: installed from npm, a release binary on
+# the PATH, or a devDependency run through npx (see the README). Not
+# `language: node`: pre-commit installs such a hook with `npm install -g` from
+# git, which on npm 10 installs the dependencies outside the clone it then
+# builds, so the build cannot find them.
+- id: cirta
+  name: cirta — what documents say about their making
+  description: Refuses the commit while a staged file carries confirmed identifying metadata, hidden text, active content or invisible characters.
+  entry: cirta verify
+  language: system
+  files: (?i)(\.(adoc|avif|bib|c|cjs|cls|cpp|cs|css|csv|doc|docm|docx|dot|dotm|eml|epub|gif|go|h|heic|heif|hpp|htm|html|ics|ifb|ini|ipynb|java|jpeg|jpg|js|json|jsx|kt|log|ltx|markdown|mbox|md|mdx|mjs|msg|odp|ods|odt|pdf|php|png|pot|potm|ppt|pptm|pptx|py|rb|rs|rst|rtf|scss|sh|sql|sty|svg|swift|tex|text|tif|tiff|toml|ts|tsv|tsx|txt|vcard|vcf|vsdm|vsdx|webp|xls|xlsm|xlsx|xlt|xml|yaml|yml|zip)|(^|/)\.(env|env\.local|env\.production|npmrc|netrc))$
+  require_serial: false
