@@ -65,6 +65,7 @@ const FR = {
     environment: 'environnement',
     'invisible-character': 'invisible',
     'deceptive-link': 'lien trompeur',
+    'active-content': 'contenu actif',
   },
 
   /* ----------------------------------------------------------- provenance */
@@ -217,6 +218,10 @@ const FR = {
       ? 'Un lecteur ne les voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — les lira comme des instructions. Elles sont citées plus bas.'
       : 'Un lecteur ne la voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — la lira comme une instruction. Elle est citée plus bas.',
   removeCommentsOption: (n: number) => (n > 1 ? `Retirer les ${n} commentaires` : 'Retirer le commentaire'),
+  stripActiveOption: (n: number) =>
+    n > 1 ? `Retirer les ${n} éléments actifs (scripts, actions, fichiers intégrés)` : 'Retirer l’élément actif (script, action, fichier intégré)',
+  stripRemoteOption: (n: number) =>
+    n > 1 ? `Retirer les ${n} ressources chargées depuis le réseau (pixels de suivi compris)` : 'Retirer la ressource chargée depuis le réseau',
   acceptChangesOption: (n: number) =>
     n > 1 ? `Accepter les ${n} modifications suivies (le texte supprimé quitte le fichier)` : 'Accepter la modification suivie (le texte supprimé quitte le fichier)',
   removeHiddenOption: (n: number) =>
@@ -272,6 +277,7 @@ const EN: Strings = {
     environment: 'environment',
     'invisible-character': 'invisible',
     'deceptive-link': 'deceptive link',
+    'active-content': 'active content',
   },
 
   provDeclared: 'Made by a generative model — the file declares it',
@@ -415,6 +421,10 @@ const EN: Strings = {
       ? 'A reader does not see them. An assistant given this file — to summarise it, screen it, reply to it — will read them as instructions. They are quoted below.'
       : 'A reader does not see it. An assistant given this file — to summarise it, screen it, reply to it — will read it as an instruction. It is quoted below.',
   removeCommentsOption: (n) => (n > 1 ? `Remove the ${n} comments` : 'Remove the comment'),
+  stripActiveOption: (n) =>
+    n > 1 ? `Remove the ${n} active elements (scripts, actions, embedded files)` : 'Remove the active element (script, action, embedded file)',
+  stripRemoteOption: (n) =>
+    n > 1 ? `Remove the ${n} resources loaded from the network (tracking pixels included)` : 'Remove the resource loaded from the network',
   acceptChangesOption: (n) =>
     n > 1 ? `Accept the ${n} tracked changes (deleted text leaves the file)` : 'Accept the tracked change (deleted text leaves the file)',
   removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),

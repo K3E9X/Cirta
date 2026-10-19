@@ -48,7 +48,12 @@ export type FindingKind =
    * "invisible" contradicted this union's own definition and showed up in the
    * report as a row labelled "invisible" next to a domain a reader can see.
    */
-  | 'deceptive-link';
+  | 'deceptive-link'
+  /**
+   * [F-2.1] Something the file does rather than says: a script, an action
+   * run on opening, a macro, a remote template, a file carried inside.
+   */
+  | 'active-content';
 
 /**
  * How much a finding actually tells someone who receives the file.
@@ -149,6 +154,10 @@ export type NoteCode =
   | 'removed:tracked-changes'
   /** Comments were removed, on request. */
   | 'removed:comments'
+  /** [F-2.1] Scripts, actions, macros or embedded files were removed, on request. */
+  | 'removed:active-content'
+  /** [F-2.1] Resources loaded from the network were removed, on request. */
+  | 'removed:remote-resources'
   /** [C8] Accented letters were recomposed (NFC) because the two forms were mixed. */
   | 'changed:nfc'
   /** [C8] Typographic spaces were left as written. */
@@ -179,6 +188,12 @@ export interface InspectOptions {
   acceptChanges?: boolean;
   /** Cleaning only: remove every comment from Word, Excel and PowerPoint documents. Off by default. */
   removeComments?: boolean;
+  /** [F-2.1] Cleaning only: remove scripts, actions, macros and embedded files. Off by default. */
+  stripActive?: boolean;
+  /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
+  stripRemote?: boolean;
+  /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */
+  inspectMember?: (data: Uint8Array, name: string) => Promise<InspectResult>;
 }
 
 export interface InspectResult {

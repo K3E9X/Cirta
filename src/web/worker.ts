@@ -54,6 +54,8 @@ export interface CleanChoices {
   removeHidden?: boolean;
   acceptChanges?: boolean;
   removeComments?: boolean;
+  stripActive?: boolean;
+  stripRemote?: boolean;
 }
 
 export type WorkerResponse =
@@ -82,6 +84,8 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       removeHidden: clean.removeHidden === true,
       acceptChanges: clean.acceptChanges === true,
       removeComments: clean.removeComments === true,
+      stripActive: clean.stripActive === true,
+      stripRemote: clean.stripRemote === true,
     });
     // The buffer is transferred rather than copied: a redacted file can be tens
     // of megabytes and structured cloning it twice is pure waste.

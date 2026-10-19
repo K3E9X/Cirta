@@ -92,6 +92,8 @@ ${bold(t().options)}
       --accept-changes  ${t().optAcceptChanges}
       --remove-comments ${t().optRemoveComments}
       --normalize-spaces ${t().optNormalizeSpaces}
+      --strip-active    ${t().optStripActive}
+      --strip-remote-resources ${t().optStripRemote}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -135,6 +137,8 @@ interface Args {
   acceptChanges: boolean;
   removeComments: boolean;
   normalizeSpaces: boolean;
+  stripActive: boolean;
+  stripRemote: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -154,6 +158,8 @@ function parseArgs(argv: string[]): Args {
     acceptChanges: false,
     removeComments: false,
     normalizeSpaces: false,
+    stripActive: false,
+    stripRemote: false,
     skip: [],
     sarif: false,
   };
@@ -184,6 +190,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--normalize-spaces':
         args.normalizeSpaces = true;
+        break;
+      case '--strip-active':
+        args.stripActive = true;
+        break;
+      case '--strip-remote-resources':
+        args.stripRemote = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -249,7 +261,7 @@ function printFindings(findings: Finding[]): void {
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
-  '.pptx', '.docx', '.xlsx',
+  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm',
   '.odt', '.ods', '.odp',
   '.svg', '.html', '.htm',
   '.md', '.markdown', '.mdx',
@@ -604,7 +616,7 @@ async function runRedact(args: Args): Promise<number> {
       const result = await redactFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments },
+        { xray: await nodeXrayEngine(), removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote },
       );
       const destination = args.inPlace ? file : (args.output ?? defaultOutputPath(file));
       // Overwriting the input is the one case where a failed write costs the
@@ -627,6 +639,11 @@ async function runRedact(args: Args): Promise<number> {
         if (!args.acceptChanges && tracked) console.log(`  ${dim(t().acceptChangesHint)}`);
         const comments = (result.kept ?? []).some((f) => f.label === 'Comment text');
         if (!args.removeComments && comments) console.log(`  ${dim(t().removeCommentsHint)}`);
+        // [F-2.1] Scripts, actions, macros and embedded files left in place.
+        const active = (result.kept ?? []).some((f) => f.kind === 'active-content' && f.confidence !== 'informational');
+        if (!args.stripActive && active) console.log(`  ${dim(t().stripActiveHint)}`);
+        const remote = (result.kept ?? []).some((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening');
+        if (!args.stripRemote && remote && ['html', 'markdown'].includes(result.format)) console.log(`  ${dim(t().stripRemoteHint)}`);
       }
     } catch (error) {
       failures++;

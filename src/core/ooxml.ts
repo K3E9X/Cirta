@@ -25,6 +25,8 @@ import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
 import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked-changes.js';
 import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
+import { activeOfficeFindings, stripActiveOffice } from './ooxml-active.js';
+import { workbookActiveFindings } from './xlsx-active.js';
 import {
   getElementText,
   setElementText,
@@ -592,6 +594,10 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     findings.push(...inspectImage(parts[path]!, path));
   }
 
+  // [F-2.1] Macros, remote templates, fields that run or fetch, objects, controls.
+  findings.push(...activeOfficeFindings(parts));
+  findings.push(...workbookActiveFindings(parts));
+
   const hidden = findHiddenSlides(parts);
   if (hidden.length) {
     findings.push({
@@ -667,6 +673,8 @@ export interface RedactOoxmlOptions {
   acceptChanges?: boolean;
   /** Remove every comment — text, authors, threads — from Word, Excel and PowerPoint. Default false. */
   removeComments?: boolean;
+  /** [F-2.1] Remove macros, remote templates and fields that run or fetch. Default false. */
+  stripActive?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -794,6 +802,7 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     removeHidden = false,
     acceptChanges = false,
     removeComments = false,
+    stripActive = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -877,6 +886,11 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
   if (removeComments) {
     const removed = removeAllComments(parts);
     if (removed) notes.push({ code: 'removed:comments', detail: String(removed) });
+  }
+
+  if (stripActive) {
+    const removed = stripActiveOffice(parts, removePart);
+    if (removed) notes.push({ code: 'removed:active-content', detail: String(removed) });
   }
 
   if (removeHidden && (format === 'docx' || format === 'pptx')) {

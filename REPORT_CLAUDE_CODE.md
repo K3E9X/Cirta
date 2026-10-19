@@ -11,6 +11,7 @@ Chaque PR ne montre que son lot.
 | n°1 | `fix/test-campaign-2026-10` | `main` | C1, C2, C3 (P0) |
 | n°2 | `fix/test-campaign-2026-10-p1` | `fix/test-campaign-2026-10` | C4, C5, C6, C7 (P1) |
 | n°3 | `fix/test-campaign-2026-10-p2` | `fix/test-campaign-2026-10-p1` | C8, C9, C10, C11 (P2, P3) |
+| n°4 | `feat/active-content` | `fix/test-campaign-2026-10-p2` | F-2.1 contenu actif (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -445,6 +446,103 @@ cirta inspect --lang fr p6_truncated.pdf d2_deck.pptx absent.pdf z1_bundle.zip
 - Les identifiants techniques restent tels quels en FR (`w:color`, `tEXt:Author`, `display: none`, l'attribut « hidden »). Ce sont des noms de format, pas des mots.
 - Un détail d'analyseur qu'aucune famille ne couvre est rendu « message de la bibliothèque : « … » ». Il est gardé et marqué, plutôt que perdu.
 
+## F-2.1 [F-P1] — Contenu actif et vecteurs d'attaque
+
+**Statut : fait pour les quatre puces F-P1.** Les puces F-P2 de 2.1 (paramètres de tracking, redirecteurs, liens `javascript:`/`data:`, noms de fichiers piégés) ne sont pas faites.
+
+| Puce | Commit | Fichiers |
+|---|---|---|
+| PDF actif | `09abd4e` | `src/core/pdf-active.ts` (nouveau), `pdf.ts`, `index.ts`, `types.ts`, `notes.ts`, CLI, web, `french.ts` |
+| OOXML actif | `a075c20` | `src/core/cfb.ts`, `src/core/vba.ts`, `src/core/ooxml-active.ts` (nouveaux), `ooxml.ts`, CLI, web |
+| XLSX | `2090e90` | `src/core/xlsx-active.ts` (nouveau), `ooxml.ts` |
+| Balises web | `c766e84` | `src/core/beacons.ts` (nouveau), `markup.ts`, `mail.ts`, `index.ts`, CLI, web |
+
+Ce qui change :
+- **Nouveau type de constat `active-content`** (« contenu actif »). Nouvelles notes : `removed:active-content` et `removed:remote-resources`.
+- **PDF** :
+  - `/OpenAction` ;
+  - déclencheurs `/AA` du document, des pages, des annotations et des champs, en suivant les chaînes `/Next` ;
+  - JavaScript de niveau document, avec un extrait du code ;
+  - `/Launch`, `/SubmitForm`, `/ImportData`, `/GoToR`/`/GoToE`, avec leur cible ;
+  - médias enrichis et XFA ;
+  - liste des `/URI`, en informatif ;
+  - chaque fichier intégré (nom, taille, MIME), inspecté récursivement via le dispatcher, sur trois niveaux au plus.
+- **`--strip-active` sur un PDF** retire tout cela, sauf les liens web simples, puis supprime les objets devenus inaccessibles depuis le trailer, pour qu'aucun script ne reste dans les octets.
+- **Office** :
+  - **macros** : lecteur CFB borné, décompresseur MS-OVBA validé sur l'exemple de la spec. Sont rapportés les modules, les procédures auto-exécutées, les appels système et les URL du code, sans jamais l'exécuter ;
+  - modèle distant (`attachedTemplate` externe) ;
+  - champs `DDE`/`DDEAUTO` (Word, avec les instructions recollées entre runs ; `ddeLink` Excel) ;
+  - `INCLUDEPICTURE`/`INCLUDETEXT` distants ;
+  - objets OLE avec leur ProgID (`Package` en confirmé) ;
+  - ActiveX avec sa classid ;
+  - ressources externes chargées à l'ouverture.
+- **`--strip-active` sur Office** retire le projet VBA, le modèle distant et l'instruction des champs DDE et INCLUDE distants (le dernier résultat du champ reste en texte). Objets OLE et ActiveX restent, nommés : les retirer abîmerait la mise en page.
+- **XLSX** :
+  - connexions de données, avec serveur, URL ou fichier source ; un mot de passe dans la chaîne est un constat confirmé, affiché masqué ;
+  - tables de requête ;
+  - sources Power Query, décodées de la partie DataMashup : base64, puis zip, puis `Formulas/*.m` ;
+  - lignes et colonnes masquées ;
+  - cellules en blanc sur fond non rempli, citées.
+  - Le cache des tableaux croisés et les feuilles masquées existaient déjà.
+- **Balises web** (HTML, Markdown, courrier) : images, styles, scripts, cadres et fonds CSS distants ; une image 1×1 est un « Pixel de suivi » confirmé. `--strip-remote-resources` les retire du HTML et du Markdown : les images locales restent, une image Markdown reste comme sa description. Côté Office, les images et cadres externes sont couverts par la puce OOXML.
+- **Interface** : cases « Retirer les N éléments actifs » et « Retirer les N ressources chargées depuis le réseau », et indices CLI quand c'est resté. `.docm`, `.xlsm`, `.pptm`, `.dotm` et `.potm` sont acceptés.
+
+Tests :
+- `test/pdf-active.test.ts` (9) :
+  - `reports the script run on opening, with its code`
+  - `reports document-level and event-triggered scripts`
+  - `reports what launches, submits or opens elsewhere, with its target`
+  - `lists the web addresses the document links to`
+  - `reports rich media and an XFA form`
+  - `reports each embedded file and inspects it`
+  - `removes all of it with stripActive, keeps plain links, and says so`
+  - `leaves it in place without the option, and names it as still there`
+  - `[F-2.1] --strip-active from the command line > is offered when active content stays, and removes it when given` (vérifie que `app.alert` n'est plus dans les octets)
+- `test/vba.test.ts` (4) :
+  - `decompresses the MS-OVBA worked example`
+  - `reads streams by path, in storages`
+  - `survives a FAT that loops and a directory that points at itself`
+  - `reads module names and source from a project`
+- `test/ooxml-active.test.ts` (6) :
+  - `reads the macros: modules, what runs on its own, what reaches the system, the addresses`
+  - `reports a template fetched from a server on opening`
+  - `reports DDE fields and pictures included from elsewhere`
+  - `reports embedded objects with their ProgID, ActiveX controls, and resources loaded from the network`
+  - `removes macros, the remote template and the fields with --strip-active; leaves objects and controls, named`
+  - `says nothing about an ordinary document`
+- `test/xlsx-active.test.ts` (3) :
+  - `reports each data connection with its server, and a password stored in clear`
+  - `reports query tables and the sources Power Query reads`
+  - `reports hidden rows and columns, and cells in white type with what they say`
+- `test/beacons.test.ts` (4) :
+  - `lists what an HTML page fetches when opened, and calls a one-pixel image a tracking pixel`
+  - `ignores local pictures`
+  - `reads Markdown images and the HTML in a mail`
+  - `removes them from HTML and Markdown with stripRemote, keeping local ones and the text`
+- `test/i18n-fr.test.ts` : le corpus FR contient désormais un PDF actif, un `.docm`, un classeur connecté et des balises web.
+- Helpers sans binaire :
+  - `test/helpers/cfb.ts` : écrivain de fichiers composés et de projets VBA ;
+  - `test/helpers/active-pdf.ts`, `active-office.ts`, `active-xlsx.ts`.
+- Real-files :
+  - `active.docx: the DDE field is reported`
+  - `… the remote template is reported`
+  - `… reopens in LibreOffice with active content stripped`
+  - `… no DDE or remote INCLUDE instruction is left`
+
+Vérification manuelle :
+```
+cirta inspect p3_annot_attach.pdf    # « Credential left in file: AWS access key id — attachment notes_internes.txt → file contents »
+cirta redact facture.pdf --strip-active -o f.pdf   # note « Removed N active elements… » ; f.pdf sans app.alert
+cirta inspect rapport.docm           # Macros (VBA project), Macro that runs on its own — ThisDocument: Document_Open, …
+cirta inspect --lang fr page.html    # « Pixel de suivi — https://… »
+```
+
+Écarts :
+- Les objets OLE et contrôles ActiveX sont signalés mais jamais retirés, ce qui applique « refuser plutôt qu'abîmer ».
+- Dans un `.eml`, les ressources distantes sont signalées mais pas retirées, puisque les parties encodées ne sont pas réécrites (comportement C4). Elles sont nommées comme survivantes.
+- Les objets intégrés Office (`embeddings/*.docx`, `.xlsx`) ne sont pas inspectés récursivement : seuls les fichiers intégrés PDF le sont. Le ProgID et la taille sont rapportés.
+- Le contenu d'un objet OLE `Package` (`\x01Ole10Native`) n'est pas extrait.
+
 ---
 
 ## État de vérification
@@ -461,11 +559,17 @@ Branche `fix/test-campaign-2026-10-p2` (PR n°3) :
 - `npm run verify` : exit 0. 39 fichiers de test, **703 tests** (623 avant). Smoke OK. Fuzz 400 itérations : 3 592 entrées, aucun crash ni blocage. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
 
+Branche `feat/active-content` (PR n°4) :
+- `npm run verify` : exit 0. 44 fichiers de test, **735 tests** (703 avant). Fuzz sans crash. Build web OK.
+- `node scripts/real-files.mjs` : `all real-file checks passed`, dont l'aller-retour LibreOffice `active.docx`.
+
 Nouvelles options CLI (`cirta --help`) :
 ```
       --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
       --remove-comments redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads
       --normalize-spaces text --clean: also replace no-break and narrow spaces with ordinary ones
+      --strip-active    redact: remove scripts, actions, macros, remote templates and embedded files
+      --strip-remote-resources redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)
 ```
 
 ## Dettes et risques notés en cours de route
@@ -473,3 +577,4 @@ Nouvelles options CLI (`cirta --help`) :
 - Le récapitulatif multi-fichiers du CLI (`Summary … files`) était en dur en anglais : traité dans C11.1.
 - La ligne `fuzz: N rejection kind(s) escaped as a raw Error` concerne les cibles qui appellent pdf-lib et fflate directement. Elle existait avant ; l'entrée publique `inspectFile` et désormais `redactFile` convertissent ces erreurs en refus codés.
 - La vue en cartes (C11.6) n'est vérifiée qu'à la main dans Chromium : la suite n'a pas de test de rendu.
+- Test instable trouvé sur la CI de la PR n°2, puis corrigé : le helper AES-256 R6 de C1 comptait les tours de l'algorithme 2.B à partir de zéro, alors que PDF.js et qpdf comptent les tours effectués. Un fichier généré sur trente environ ne s'ouvrait pas. La correction (commit sur `fix/test-campaign-2026-10`, fusionnée dans les branches suivantes) donne 0 échec sur 200 fichiers avec PDF.js et 0 sur 50 avec pypdf.
