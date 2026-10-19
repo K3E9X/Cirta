@@ -21,6 +21,7 @@ import { scanText, isArrangementFinding } from './text.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
 import { XMP_FIELDS, xmpValue } from './xmp.js';
+import { quietly } from './quiet.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -31,14 +32,19 @@ const INFO_FIELDS = [
   { key: 'Producer', label: 'Producing application', kind: 'provenance' as const, confidence: 'informational' as const },
   { key: 'CreationDate', label: 'Created', kind: 'timestamp' as const, confidence: 'probable' as const },
   { key: 'ModDate', label: 'Modified', kind: 'timestamp' as const, confidence: 'probable' as const },
+  // [C9] Standard since PDF 1.3 (ISO 32000-1 §14.3.3): whether the document
+  // was trapped for print. Not a custom key, and it says nothing about anyone.
+  { key: 'Trapped', label: 'Trapping', kind: 'provenance' as const, confidence: 'informational' as const },
 ];
 
 async function load(data: Uint8Array): Promise<PDFDocument> {
-  return PDFDocument.load(data, {
-    updateMetadata: false,
-    ignoreEncryption: true,
-    throwOnInvalidObject: false,
-  });
+  return quietly(() =>
+    PDFDocument.load(data, {
+      updateMetadata: false,
+      ignoreEncryption: true,
+      throwOnInvalidObject: false,
+    }),
+  );
 }
 
 /** Read the XMP packet, inflating it when the stream is Flate-encoded. */
@@ -931,7 +937,7 @@ export async function assertReadablePdf(bytes: Uint8Array): Promise<void> {
   };
   let doc: PDFDocument;
   try {
-    doc = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true, throwOnInvalidObject: true });
+    doc = await quietly(() => PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true, throwOnInvalidObject: true }));
   } catch (error) {
     return refuse(error instanceof Error ? error.message : String(error));
   }
@@ -1093,6 +1099,6 @@ export async function redactPdf(data: Uint8Array, options: RedactPdfOptions = {}
   // Loading with `updateMetadata: false` is what keeps pdf-lib from stamping a
   // fresh ModDate and its own Producer string onto the document; save() itself
   // takes no such option.
-  const out = await doc.save();
+  const out = await quietly(() => doc.save());
   return { format: 'pdf', data: out, removed: before.findings, notes };
 }

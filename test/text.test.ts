@@ -315,10 +315,13 @@ describe('channels that are not a strange codepoint', () => {
     it('flags a document holding both spellings of the same letter', () => {
       // "é" as one codepoint and as e+U+0301 render identically, so the choice
       // between them is a free bit per accented letter and shows up nowhere.
-      const mixed = 'Réviser'.normalize('NFC') + ' et ' + 'corrigé'.normalize('NFD');
+      const mixed = 'Réviser'.normalize('NFC') + ' et ' + 'corrigé élément décédé'.normalize('NFD');
       const finding = label(mixed);
-      expect(finding?.confidence).toBe('confirmed');
+      // [C9] Probable, not confirmed: a tool mixing forms is likelier than a
+      // person hiding bits. And a single decomposed letter is informational.
+      expect(finding?.confidence).toBe('probable');
       expect(finding?.value).toMatch(/decomposed and \d+ composed/);
+      expect(label('Réviser'.normalize('NFC') + ' et ' + 'corrigé'.normalize('NFD'))?.confidence).toBe('informational');
     });
 
     it('does not cry about text that is uniformly decomposed', () => {

@@ -67,7 +67,7 @@ import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
 import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
-import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS } from './archive.js';
+import { walkArchive, inspectPlainMember, pathFindings, ARCHIVE_LIMITS, ARCHIVE_SEPARATOR } from './archive.js';
 import { byConfidence } from './types.js';
 
 import { UnsupportedFormatError } from './errors.js';
@@ -108,13 +108,20 @@ async function inspectArchive(data: Uint8Array, options: InspectOptions): Promis
   const findings: Finding[] = [];
   const notes: Note[] = [{ code: 'scope:archive' }];
 
+  const seen = new Set<string>();
   for (const member of members) {
+    // A nested archive's members are already in the list, under its path.
+    if (member.expanded) continue;
     try {
       // The engine goes in, the pictures do not: a page number alone would not
       // say which member of the archive they came from.
       const inner = await inspectFile(member.data, member.path, { xray: options.xray });
       for (const finding of inner.findings) {
-        findings.push({ ...finding, location: `${member.path} → ${finding.location}` });
+        const located = { ...finding, location: `${member.path}${ARCHIVE_SEPARATOR}${finding.location}` };
+        const key = `${located.label}\u0000${located.location}\u0000${located.value}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        findings.push(located);
       }
     } catch {
       // No parser claims it; fall back to the content scan.
@@ -193,8 +200,12 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
  * find.
  */
 export async function inspectFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<InspectResult> {
+  return asRefusal(() => dispatch(data, hint, options));
+}
+
+async function asRefusal<T>(work: () => Promise<T>): Promise<T> {
   try {
-    return await dispatch(data, hint, options);
+    return await work();
   } catch (error) {
     if (
       error instanceof UnsupportedFormatError ||
@@ -211,7 +222,16 @@ export async function inspectFile(data: Uint8Array, hint?: string, options: Insp
   }
 }
 
+/**
+ * [C10.6] Nothing to look at is not the same as nothing found: an empty
+ * ".pdf" reported as text with "no metadata" said something untrue about it.
+ */
+function refuseEmpty(data: Uint8Array): void {
+  if (data.length === 0) throw new UnsupportedFormatError('Empty file.', 'empty-file');
+}
+
 async function dispatch(data: Uint8Array, hint: string | undefined, options: InspectOptions): Promise<InspectResult> {
+  refuseEmpty(data);
   if (isPdf(data)) return inspectPdf(data, options);
   if (isZip(data)) {
     const parts = unzipGuarded(data);
@@ -313,7 +333,17 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
   };
 }
 
+/**
+ * Clean a file. [C11.1] A parser's complaint becomes a coded refusal here
+ * too, as it does for inspection: a truncated PDF reached the reader as
+ * "Failed to parse PDF document", in English, with no code to translate.
+ */
 export async function redactFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
+  return asRefusal(() => redact(data, hint, options));
+}
+
+async function redact(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<RedactResult> {
+  refuseEmpty(data);
   if (isPdf(data)) {
     const result = await redactPdf(data);
     await assertReadablePdf(result.data!);
@@ -367,7 +397,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
     // Typographic spaces are preserved, as they are in every document body:
     // a file on disk is authored content, not a paste being tidied up, and
     // flattening the no-break space in "Objet : le rapport" is a regression.
-    const result = cleanText(text, { normalizeSpaces: false });
+    const result = cleanText(text, { normalizeSpaces: false, normalize: 'when-flagged' });
     // Mail headers that name a tool go too. They are metadata by every
     // definition this tool uses, and on a generated draft they are the single
     // most explicit mark in the file — X-Mailer naming the desktop client that
@@ -378,6 +408,9 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
     if (result.kept.length) {
       notes.push({ code: 'kept:content', detail: result.kept.map((f) => f.label).join(', ') });
     }
+    // [C8] What changed in the words, and what was deliberately left.
+    if (result.recomposed) notes.push({ code: 'changed:nfc', detail: String(result.recomposed) });
+    if (result.spacesKept) notes.push({ code: 'kept:typographic-spaces', detail: String(result.spacesKept) });
     return noteSurvivors(
       {
         format,

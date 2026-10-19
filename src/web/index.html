@@ -187,10 +187,10 @@
 
             <div class="tool">
               <nav class="tabs" role="tablist">
-                <button role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
+                <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="true">
                   <span data-lang="fr">Documents</span><span data-lang="en">Documents</span>
                 </button>
-                <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false">
+                <button type="button" role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false">
                   <span data-lang="fr">Texte</span><span data-lang="en">Text</span>
                 </button>
               </nav>
@@ -212,12 +212,16 @@
                 </label>
                 <textarea id="text-input" rows="9" spellcheck="false"></textarea>
                 <div class="actions">
-                  <button id="text-scan" class="button">
+                  <button type="button" id="text-scan" class="button">
                     <span data-lang="fr">Analyser</span><span data-lang="en">Analyse</span>
                   </button>
-                  <button id="text-clean" class="button button-primary">
+                  <button type="button" id="text-clean" class="button button-primary">
                     <span data-lang="fr">Nettoyer</span><span data-lang="en">Clean</span>
                   </button>
+                  <label class="foot-option">
+                    <input type="checkbox" id="text-normalize-spaces" />
+                    <span data-lang="fr">Remplacer aussi les espaces insécables et fines</span><span data-lang="en">Also replace no-break and narrow spaces</span>
+                  </label>
                 </div>
                 <!-- What the last paste carried besides its text; kept across Analyse and Clean. -->
                 <div id="clipboard-results" class="results"></div>

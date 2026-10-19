@@ -91,6 +91,7 @@ ${bold(t().options)}
       --remove-hidden   ${t().optRemoveHidden}
       --accept-changes  ${t().optAcceptChanges}
       --remove-comments ${t().optRemoveComments}
+      --normalize-spaces ${t().optNormalizeSpaces}
       --lang <fr|en>    ${t().optLang}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
@@ -133,6 +134,7 @@ interface Args {
   removeHidden: boolean;
   acceptChanges: boolean;
   removeComments: boolean;
+  normalizeSpaces: boolean;
   skip: string[];
   lang?: string;
   sarif: boolean;
@@ -151,6 +153,7 @@ function parseArgs(argv: string[]): Args {
     removeHidden: false,
     acceptChanges: false,
     removeComments: false,
+    normalizeSpaces: false,
     skip: [],
     sarif: false,
   };
@@ -178,6 +181,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--remove-comments':
         args.removeComments = true;
+        break;
+      case '--normalize-spaces':
+        args.normalizeSpaces = true;
         break;
       case '--force-text':
         args.forceText = true;
@@ -575,12 +581,11 @@ async function runInspect(args: Args): Promise<number> {
     const flagged = results.filter((r) =>
       r.result?.findings.some((f) => f.confidence === 'confirmed'),
     ).length;
+    // [C11.1] The verdict line, in the reader's language like the rest.
     console.log(
-      `\n${bold('Summary')}  ${args.files.length} file${args.files.length > 1 ? 's' : ''}, ` +
-        (flagged
-          ? red(`${flagged} carrying confirmed identifying data`)
-          : green('none carrying confirmed identifying data')) +
-        (failures ? `, ${red(`${failures} unreadable`)}` : ''),
+      `\n${bold(t().summaryTitle)}  ${t().summaryFiles(args.files.length)}, ` +
+        (flagged ? red(t().summaryFlagged(flagged)) : green(t().summaryClean)) +
+        (failures ? `, ${red(t().summaryUnreadable(failures))}` : ''),
     );
   }
 
@@ -654,36 +659,35 @@ async function runText(args: Args): Promise<number> {
   if (args.clean) {
     // The same clean the page runs. They used to differ: the page removed mail
     // headers that named a tool and the CLI kept them.
-    const result = cleanPlainText(input);
+    const result = cleanPlainText(input, { normalizeSpaces: args.normalizeSpaces });
     // The cleaned text is the data, and is written as it is — except to a
     // terminal, where its controls would be obeyed rather than shown.
     process.stdout.write(process.stdout.isTTY ? result.text.split('\n').map(terminalSafe).join('\n') : result.text);
-    if (process.stderr.isTTY) {
-      const count = result.removed.length;
-      const anything = count || result.headersRemoved.length || result.markdownRemoved;
-      if (count) console.error(dim(t().removedTypes(count)));
-      else if (!anything) console.error(dim(t().nothingRemoved));
-      if (result.headersRemoved.length) console.error(dim(t().headersRemoved(result.headersRemoved.join(', '))));
-      if (result.markdownRemoved) console.error(dim(t().markdownRemoved(result.markdownRemoved)));
-      if (result.markdownKept) console.error(dim(t().markdownKept));
-      // Lookalike letters are part of a word, so cleaning leaves them; saying so
-      // on stderr keeps the count above from reading as "the text is now clean".
-      for (const finding of result.kept) {
+    // [C8] The report goes to stderr whether or not it is a terminal: piping
+    // the text into a file is the usual case, and a clean that changed
+    // something without saying so — Markdown taken out, letters recomposed —
+    // is what this report exists to prevent.
+    const count = result.removed.length;
+    const anything = count || result.headersRemoved.length || result.markdownRemoved || result.spacesReplaced || result.recomposed;
+    if (count) console.error(dim(t().removedTypes(count)));
+    else if (!anything) console.error(dim(t().nothingRemoved));
+    if (result.headersRemoved.length) console.error(dim(t().headersRemoved(result.headersRemoved.join(', '))));
+    if (result.markdownRemoved) console.error(dim(t().markdownRemoved(result.markdownRemoved)));
+    if (result.markdownKept) console.error(dim(t().markdownKept));
+    if (result.recomposed) console.error(dim(t().recomposed(result.recomposed)));
+    if (result.spacesReplaced) console.error(dim(t().spacesReplaced(result.spacesReplaced)));
+    if (result.spacesKept) console.error(dim(t().spacesKept(result.spacesKept)));
+    // What the clean left: lookalike letters, a secret, the lines an assistant
+    // addressed to you. Without it the count above reads as "the text is clean".
+    if (result.survivors.length) {
+      console.error(yellow(t().stillInCleaned));
+      for (const finding of result.survivors) {
         console.error(
           yellow(
-            t().leftInPlace(terminalSafe(translateLabel(finding.label, lang())), terminalSafe(translateValue(finding, lang()))),
-          ),
-        );
-      }
-      // Lines an assistant addressed to you, and placeholders still to fill:
-      // words, so they are pointed at rather than removed.
-      for (const finding of result.toReview) {
-        console.error(
-          yellow(
-            t().toReview(
+            t().survivor(
               terminalSafe(translateLabel(finding.label, lang())),
               terminalSafe(translateLocation(finding.location, lang())),
-              terminalSafe(finding.value),
+              terminalSafe(translateValue(finding, lang())),
             ),
           ),
         );

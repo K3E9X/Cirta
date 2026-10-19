@@ -361,6 +361,26 @@ export interface TextScan {
  * variation-selector byte encodings. Returns printable payloads only, so that
  * incidental emoji modifiers do not produce noise.
  */
+const isTag = (cp: number) => cp >= 0xe0000 && cp <= 0xe007f;
+const isSelector = (cp: number) => (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef);
+
+const SMUGGLERS = [
+  { has: isTag, label: 'Tag characters', location: 'U+E0000–U+E007F', decodedAs: 'tag characters' },
+  { has: isSelector, label: 'Variation selectors', location: 'U+FE00–U+FE0F, U+E0100–U+E01EF', decodedAs: 'variation selectors' },
+];
+
+/** Text a payload may be: printable, in any script, with ordinary whitespace. */
+const READABLE = /^[\P{C}\t\n\r]+$/u;
+
+function utf8(bytes: number[]): string | undefined {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes));
+    return READABLE.test(text) && /[\p{L}\p{N}]/u.test(text) ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function decodePayloads(codepoints: number[]): string[] {
   const out: string[] = [];
 
@@ -372,19 +392,17 @@ function decodePayloads(codepoints: number[]): string[] {
     if (/^[\x20-\x7e\s]+$/.test(text)) out.push(`tag characters → "${text}"`);
   }
 
-  // Variation-selector encoding: byte b → U+FE00+b (b<16) or U+E0100+(b-16).
-  const vsBytes: number[] = [];
-  for (const cp of codepoints) {
-    if (cp >= 0xfe00 && cp <= 0xfe0f) vsBytes.push(cp - 0xfe00);
-    else if (cp >= 0xe0100 && cp <= 0xe01ef) vsBytes.push(cp - 0xe0100 + 16);
-  }
-  if (vsBytes.length >= 3) {
-    try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(vsBytes));
-      if (/^[\x20-\x7e\s]+$/.test(text)) out.push(`variation selectors → "${text}"`);
-    } catch {
-      // Not valid UTF-8; the selectors are presentational rather than a payload.
-    }
+  // Variation-selector encoding: byte b → U+FE00+b (b<16) or U+E0100+(b-16),
+  // the common scheme. [C11.4] Some encoders skip the offset and write
+  // U+E0100+b, which only reaches bytes up to 239 but covers ASCII; when the
+  // first reading is not text, the second is tried. Neither is reported unless
+  // it decodes to readable UTF-8: otherwise the selectors are presentational.
+  const selectors = codepoints.filter(isSelector);
+  if (selectors.length >= 3) {
+    const common = selectors.map((cp) => (cp <= 0xfe0f ? cp - 0xfe00 : cp - 0xe0100 + 16));
+    const offsetless = selectors.map((cp) => (cp <= 0xfe0f ? cp - 0xfe00 : cp - 0xe0100));
+    const text = utf8(common) ?? utf8(offsetless);
+    if (text) out.push(`variation selectors → "${text}"`);
   }
 
   out.push(...decodeZeroWidth(codepoints));
@@ -531,6 +549,9 @@ function findConfusables(input: string): Finding[] {
  * A file where the same document holds both forms is a file where something
  * chose, letter by letter, which one to use.
  */
+const MIN_DECOMPOSED = 3;
+const MIN_DECOMPOSED_SHARE = 0.05;
+
 function findNormalizationChannel(input: string): Finding[] {
   let decomposed = 0;
   let composed = 0;
@@ -542,13 +563,19 @@ function findNormalizationChannel(input: string): Finding[] {
   if (decomposed === 0) return [];
 
   const mixed = composed > 0;
+  // [C9] One decomposed letter among composed ones is what a name typed on a
+  // Mac and pasted into a Windows document looks like. It takes several, and
+  // a share of the accented letters that a copy-paste does not explain, before
+  // the mix reads as a choice; and even then a tool is a likelier author than
+  // a person hiding bits, so it is probable, not confirmed.
+  const channel = mixed && decomposed >= MIN_DECOMPOSED && decomposed / (decomposed + composed) >= MIN_DECOMPOSED_SHARE;
   return [
     {
       kind: 'invisible-character',
-      // Mixed forms have no innocent explanation. Uniformly decomposed text
-      // does — so it is reported at a level that says "worth knowing", not
-      // "someone did this to you".
-      confidence: mixed ? 'confirmed' : 'informational',
+      // Uniformly decomposed text has an innocent explanation — macOS — so it
+      // is reported at a level that says "worth knowing", not "someone did
+      // this to you".
+      confidence: channel ? 'probable' : 'informational',
       location: 'Unicode normalisation',
       label: mixed
         ? 'Same letters written two different ways'
@@ -576,11 +603,29 @@ const HYPHEN_TWINS = new Map<number, string>([
   [0x2212, 'MINUS SIGN'],
 ]);
 
+const MINUS = 0x2212;
+const OPERAND = /[\p{L}\p{N})\]]/u;
+
+/**
+ * [C9] U+2212 is the minus sign mathematics is written with: "x − y",
+ * "−5 °C". There it is the right character, not a lookalike. It is a
+ * lookalike when it sits where a hyphen would, inside a word — "e−mail".
+ */
+function isArithmeticMinus(chars: string[], i: number): boolean {
+  const next = chars[i + 1] === ' ' ? chars[i + 2] : chars[i + 1];
+  if (next !== undefined && /\p{N}/u.test(next)) return true;
+  const spaced = chars[i - 1] === ' ' && chars[i + 1] === ' ';
+  return spaced && OPERAND.test(chars[i - 2] ?? '') && /[\p{L}\p{N}(]/u.test(chars[i + 2] ?? '');
+}
+
 function findHyphenTwins(input: string): Finding[] {
   const counts = new Map<number, number>();
-  for (const char of input) {
+  const chars = [...input];
+  for (const [i, char] of chars.entries()) {
     const cp = char.codePointAt(0)!;
-    if (HYPHEN_TWINS.has(cp)) counts.set(cp, (counts.get(cp) ?? 0) + 1);
+    if (!HYPHEN_TWINS.has(cp)) continue;
+    if (cp === MINUS && isArithmeticMinus(chars, i)) continue;
+    counts.set(cp, (counts.get(cp) ?? 0) + 1);
   }
   if (counts.size === 0) return [];
   const parts = [...counts].map(
@@ -768,6 +813,25 @@ export function scanText(input: string): TextScan {
   }
 
   const findings: Finding[] = [];
+  const decoded = decodePayloads(carriers);
+  // [C11.2] Tag characters and variation selectors spell things one
+  // codepoint per byte; reported one line per distinct codepoint, a single
+  // smuggled sentence came out as fifteen rows. One row per family, with the
+  // total and what it reads.
+  for (const smuggler of SMUGGLERS) {
+    const members = [...counts].filter(([cp]) => smuggler.has(cp));
+    if (!members.length) continue;
+    const total = members.reduce((sum, [, n]) => sum + n, 0);
+    const payload = decoded.find((line) => line.startsWith(`${smuggler.decodedAs} → `));
+    findings.push({
+      kind: 'invisible-character',
+      confidence: 'confirmed',
+      location: smuggler.location,
+      label: smuggler.label,
+      value: `${total} character${total > 1 ? 's' : ''} (${members.length} distinct)${payload ? ` — read ${payload.slice(smuggler.decodedAs.length + 3)}` : ''}`,
+    });
+    for (const [cp] of members) counts.delete(cp);
+  }
   for (const [cp, count] of [...counts].sort((a, b) => b[1] - a[1])) {
     const name = EXOTIC_SPACES.get(cp) ?? describe(cp);
     findings.push({
@@ -804,14 +868,18 @@ export function scanText(input: string): TextScan {
   findings.push(...findWhitespaceChannels(input));
   findings.push(...findControlCharacters(input));
 
-  return { findings, decoded: decodePayloads(carriers) };
+  return { findings, decoded };
 }
 
 export interface CleanTextOptions {
   /** Replace exotic whitespace with U+0020. Default true. */
   normalizeSpaces?: boolean;
-  /** Apply Unicode NFC normalization. Default true. */
-  normalize?: boolean;
+  /**
+   * Apply Unicode NFC normalization. Default true. `'when-flagged'` applies
+   * it only when the mix of forms was reported above informational: text that
+   * is uniformly decomposed, as macOS writes it, is left as it is.
+   */
+  normalize?: boolean | 'when-flagged';
 }
 
 export interface CleanTextResult {
@@ -824,6 +892,12 @@ export interface CleanTextResult {
    */
   kept: Finding[];
   decoded: string[];
+  /** [C8] Typographic spaces left as written, because nobody asked to replace them. */
+  spacesKept: number;
+  /** [C8] Typographic spaces replaced with U+0020, on request. */
+  spacesReplaced: number;
+  /** [C8] Accented letters recomposed by NFC. */
+  recomposed: number;
 }
 
 /**
@@ -870,6 +944,7 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
 
   const codepoints = [...input].map((c) => c.codePointAt(0)!);
   const kept: string[] = [];
+  let spaces = 0;
 
   for (let i = 0; i < codepoints.length; i++) {
     const cp = codepoints[i]!;
@@ -877,21 +952,40 @@ export function cleanText(input: string, options: CleanTextOptions = {}): CleanT
       if (isFunctional(cp, codepoints[i - 1], codepoints[i + 1])) kept.push(String.fromCodePoint(cp));
       continue;
     }
-    if (normalizeSpaces && EXOTIC_SPACES.has(cp)) {
-      kept.push(' ');
+    if (EXOTIC_SPACES.has(cp)) {
+      spaces++;
+      kept.push(normalizeSpaces ? ' ' : String.fromCodePoint(cp));
       continue;
     }
     kept.push(String.fromCodePoint(cp));
   }
 
   let text = kept.join('');
-  if (normalize) text = text.normalize('NFC');
+  const normalisation = scan.findings.find((finding) => finding.location === 'Unicode normalisation');
+  const recompose =
+    normalize === 'when-flagged' ? normalisation !== undefined && normalisation.confidence !== 'informational' : normalize;
+  let recomposed = 0;
+  if (recompose && normalisation) {
+    for (const grapheme of text.match(/\P{M}\p{M}+/gu) ?? []) {
+      if (grapheme.normalize('NFC').length < grapheme.length) recomposed++;
+    }
+  }
+  if (recompose) text = text.normalize('NFC');
+
+  // What was found and not changed is not "removed": the spaces when they
+  // stay, the decomposed letters when they are not recomposed.
+  const untouched = (finding: Finding) =>
+    (!normalizeSpaces && EXOTIC_SPACES.has(parseInt(finding.location.slice(2), 16)) && finding.location.startsWith('U+')) ||
+    (!recompose && finding.location === 'Unicode normalisation');
 
   return {
     text,
-    removed: scan.findings.filter((finding) => !isKeptFinding(finding)),
+    removed: scan.findings.filter((finding) => !isKeptFinding(finding) && !untouched(finding)),
     kept: scan.findings.filter(isKeptFinding),
     decoded: scan.decoded,
+    spacesKept: normalizeSpaces ? 0 : spaces,
+    spacesReplaced: normalizeSpaces ? spaces : 0,
+    recomposed,
   };
 }
 

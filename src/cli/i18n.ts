@@ -38,6 +38,7 @@ const FR = {
   optAcceptChanges: 'redact : accepte toutes les modifications suivies d’un DOCX (le texte supprimé quitte le fichier)',
   acceptChangesHint: 'Les modifications suivies sont restées, texte supprimé compris. Relancez avec --accept-changes pour les accepter.',
   optRemoveComments: 'redact : retire tous les commentaires (Word, Excel, PowerPoint) — texte, auteurs, fils',
+  optNormalizeSpaces: 'text --clean : remplace aussi les espaces insécables et fines par des espaces ordinaires',
   removeCommentsHint: 'Le texte des commentaires est resté (leurs auteurs sont anonymisés). Relancez avec --remove-comments pour les retirer.',
   aimedAlert: (n: number) =>
     n > 1
@@ -92,11 +93,20 @@ const FR = {
   fieldsRemoved: (n: number) => `${n} champ${n === 1 ? '' : 's'} retiré${n === 1 ? '' : 's'}`,
   originalKept: (path: string) => `original conservé sous ${path}`,
   nothingRemoved: '\ncirta : rien à retirer',
-  leftInPlace: (label: string, value: string) => `cirta : laissé en place — ${label} : ${value}`,
+  spacesKept: (n: number) =>
+    `cirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} conservée${n > 1 ? 's' : ''} (insécable, fine…) — --normalize-spaces les remplace par des espaces ordinaires`,
+  spacesReplaced: (n: number) => `cirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} remplacée${n > 1 ? 's' : ''} par une espace ordinaire`,
+  recomposed: (n: number) => `cirta : ${n} lettre${n > 1 ? 's' : ''} accentuée${n > 1 ? 's' : ''} recomposée${n > 1 ? 's' : ''} (NFC), les deux formes étant mêlées`,
+  stillInCleaned: 'cirta : toujours dans le texte nettoyé —',
+  summaryTitle: 'Bilan',
+  summaryFiles: (n: number) => `${n} fichier${n > 1 ? 's' : ''}`,
+  summaryFlagged: (n: number) => `${n} porte${n > 1 ? 'nt' : ''} des données d’identification confirmées`,
+  summaryClean: 'aucun ne porte de données d’identification confirmées',
+  summaryUnreadable: (n: number) => `${n} illisible${n > 1 ? 's' : ''}`,
+  survivor: (label: string, where: string, value: string) => `  ${label} (${where}) : ${value}`,
   headersRemoved: (names: string) => `cirta : en-têtes d’outil retirés — ${names}`,
   markdownRemoved: (symbols: string) => `cirta : Markdown retiré — ${symbols}`,
   markdownKept: 'cirta : Markdown laissé en place — le texte se lit comme un document Markdown, pas comme un e-mail',
-  toReview: (label: string, where: string, value: string) => `cirta : à revoir, ${where} — ${label} : ${value}`,
 
   producedBy: 'Produit par',
   provDeclared: 'un modèle génératif — le fichier le déclare',
@@ -220,6 +230,7 @@ const EN: Strings = {
   optAcceptChanges: 'redact: accept every tracked change in a DOCX (deleted text leaves the file)',
   acceptChangesHint: 'Tracked changes were left in, deleted text included. Run again with --accept-changes to accept them.',
   optRemoveComments: 'redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads',
+  optNormalizeSpaces: 'text --clean: also replace no-break and narrow spaces with ordinary ones',
   removeCommentsHint: 'Comment text was left in (its authors are anonymised). Run again with --remove-comments to remove them.',
   aimedAlert: (n: number) =>
     n > 1
@@ -273,11 +284,20 @@ const EN: Strings = {
   fieldsRemoved: (n) => `${n} field${n === 1 ? '' : 's'} removed`,
   originalKept: (path) => `original kept as ${path}`,
   nothingRemoved: '\ncirta: nothing to remove',
-  leftInPlace: (label, value) => `cirta: left in place — ${label}: ${value}`,
+  spacesKept: (n) =>
+    `cirta: ${n} typographic space${n > 1 ? 's' : ''} kept (no-break, narrow…) — --normalize-spaces replaces them with ordinary spaces`,
+  spacesReplaced: (n) => `cirta: ${n} typographic space${n > 1 ? 's' : ''} replaced with an ordinary space`,
+  recomposed: (n) => `cirta: ${n} accented letter${n > 1 ? 's' : ''} recomposed (NFC), both forms being mixed`,
+  stillInCleaned: 'cirta: still in the cleaned text —',
+  summaryTitle: 'Summary',
+  summaryFiles: (n) => `${n} file${n > 1 ? 's' : ''}`,
+  summaryFlagged: (n) => `${n} carrying confirmed identifying data`,
+  summaryClean: 'none carrying confirmed identifying data',
+  summaryUnreadable: (n) => `${n} unreadable`,
+  survivor: (label, where, value) => `  ${label} (${where}): ${value}`,
   headersRemoved: (names) => `cirta: tool headers removed — ${names}`,
   markdownRemoved: (symbols) => `cirta: Markdown removed — ${symbols}`,
   markdownKept: 'cirta: Markdown left in place — the text reads as a Markdown document, not as an email',
-  toReview: (label, where, value) => `cirta: to review, ${where} — ${label}: ${value}`,
 
   producedBy: 'Produced by',
   provDeclared: 'a generative model — the file declares it',

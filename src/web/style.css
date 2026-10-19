@@ -898,6 +898,63 @@ td.location {
   overflow-wrap: anywhere;
 }
 
+/*
+ * [C11.6] Under 600px the table scrolled sideways inside its box: legible,
+ * but a finding's value sat two swipes away from its label. There each row
+ * becomes a card — level and kind on one line, then the label, the value,
+ * and where it was found — and the header row goes, its words now redundant.
+ */
+@media (max-width: 37.5rem) {
+  .table-scroll table {
+    min-width: 0;
+  }
+
+  .table-scroll thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table-scroll tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .table-scroll tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table-scroll tbody td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .table-scroll td.kind {
+    text-align: right;
+  }
+
+  .table-scroll td.label,
+  .table-scroll td.value,
+  .table-scroll td.location {
+    grid-column: 1 / -1;
+  }
+
+  .table-scroll td.label {
+    font-weight: 600;
+  }
+
+  .table-scroll td.value {
+    overflow-wrap: anywhere;
+  }
+}
+
 td.value {
   overflow-wrap: anywhere;
 }

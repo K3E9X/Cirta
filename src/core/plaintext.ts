@@ -33,6 +33,32 @@ import { scanText, cleanText, type CleanTextResult } from './text.js';
 import { findSourceTypes } from './sourcetype.js';
 import { fingerprint, BODY_TEXT } from './fingerprint.js';
 import { hiddenInHtml, htmlInMail } from './hidden-text.js';
+import { looksLikeMail } from './mime.js';
+
+/**
+ * [C9] The body of a pasted mail, or the text itself. The residue checks
+ * look at where a line sits — the first lines, alone — and in a raw message
+ * the first lines are the headers: "Subject:" was found repeated in a body
+ * it had never been written into.
+ */
+function bodyOf(text: string): { body: string; offset: number } {
+  const head = text.slice(0, 64 * 1024);
+  if (!looksLikeMail(new TextEncoder().encode(head))) return { body: text, offset: 0 };
+  const match = /\r?\n\r?\n/.exec(text);
+  if (!match) return { body: text, offset: 0 };
+  const offset = text.slice(0, match.index + match[0].length).split('\n').length - 1;
+  return { body: text.slice(match.index + match[0].length), offset };
+}
+
+/** Residue found in a mail's body, located by the line of the whole text. */
+function residueOf(text: string): Finding[] {
+  const { body, offset } = bodyOf(text);
+  if (!offset) return findResidue(text);
+  return findResidue(body).map((finding) => {
+    const line = /^line (\d+)$/.exec(finding.location);
+    return line ? { ...finding, location: `line ${Number(line[1]) + offset}` } : finding;
+  });
+}
 
 /** Recovered steganographic payloads, promoted from strings to findings. */
 function decodedFindings(decoded: string[]): Finding[] {
@@ -70,7 +96,7 @@ export function inspectPlainText(text: string): Finding[] {
     ...decodedFindings(scan.decoded),
     ...emailHeaders(text),
     ...findSourceTypes(text, 'file contents'),
-    ...findResidue(text),
+    ...residueOf(text),
     ...hiddenInMail(text),
   ];
   // The body is handed to fingerprint() as a source so that a path or a session
@@ -101,6 +127,18 @@ export interface PlainTextClean extends CleanTextResult {
    * placeholders a template expected you to fill. Words, so never removed here.
    */
   toReview: Finding[];
+  /**
+   * [C8] What the cleaned text still carries above informational, measured by
+   * reading it again: a lookalike domain, styled letters, a secret, the lines
+   * an assistant wrote. A clean that only says what it removed reads as "the
+   * text is clean"; this says what it is not.
+   */
+  survivors: Finding[];
+}
+
+export interface PlainTextCleanOptions {
+  /** Replace no-break and other typographic spaces with U+0020. Off by default. */
+  normalizeSpaces?: boolean;
 }
 
 /*
@@ -110,8 +148,11 @@ export interface PlainTextClean extends CleanTextResult {
  * zero-width space inside `**bold**` would otherwise stop the Markdown rule
  * from seeing the markers at all.
  */
-export function cleanPlainText(text: string): PlainTextClean {
-  const characters = cleanText(text);
+export function cleanPlainText(text: string, options: PlainTextCleanOptions = {}): PlainTextClean {
+  // [C8] Only what is confirmed or probable goes. A no-break space before a
+  // colon is French typography, reported as informational, and stays unless
+  // asked; decomposed letters are recomposed only when the forms were mixed.
+  const characters = cleanText(text, { normalizeSpaces: options.normalizeSpaces ?? false, normalize: 'when-flagged' });
   const headers = stripToolHeaders(characters.text);
   const markdown = stripMarkdownResidue(headers.text);
   const toReview = findResidue(markdown.text).filter(
@@ -126,5 +167,6 @@ export function cleanPlainText(text: string): PlainTextClean {
     markdownRemoved: markdown.removed,
     markdownKept: markdown.keptAsDocument,
     toReview,
+    survivors: inspectPlainText(markdown.text).filter((finding) => finding.confidence !== 'informational'),
   };
 }

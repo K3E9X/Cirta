@@ -33,6 +33,7 @@ import { PDFDocument } from 'pdf-lib';
 import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { AIMED_LABEL, CONTRAST, HIDDEN_LABEL, TINY_PT, aimedAtModel, type HiddenHow } from './hidden-text.js';
+import { quietly } from './quiet.js';
 
 /* ---------------------------------------------------------- the engine -- */
 
@@ -96,12 +97,12 @@ export interface XrayEngine {
 
 /** A copy of the PDF with every page box pushed far past anything drawn. */
 async function enlargePages(data: Uint8Array): Promise<Uint8Array | undefined> {
-  const doc = await PDFDocument.load(data, { ignoreEncryption: true, throwOnInvalidObject: false, updateMetadata: false });
+  const doc = await quietly(() => PDFDocument.load(data, { ignoreEncryption: true, throwOnInvalidObject: false, updateMetadata: false }));
   for (const page of doc.getPages()) {
     page.setMediaBox(-100_000, -100_000, 200_000, 200_000);
     page.setCropBox(-100_000, -100_000, 200_000, 200_000);
   }
-  return doc.save({ useObjectStreams: false });
+  return quietly(() => doc.save({ useObjectStreams: false }));
 }
 
 /* ------------------------------------------------------------- limits -- */

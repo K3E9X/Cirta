@@ -35,6 +35,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Revision number': 'Numéro de révision',
   Created: 'Créé le',
   Modified: 'Modifié le',
+  Trapping: 'Recouvrement (trapping)',
   'Creating application': 'Application de création',
   'Producing application': 'Application productrice',
   'Application version': 'Version de l’application',
@@ -61,6 +62,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Link to a local or network path': 'Lien vers un chemin local ou réseau',
   'Hidden slides': 'Diapositives masquées',
   'Speaker notes': 'Notes du présentateur',
+  'Speaker notes text': 'Texte des notes du présentateur',
+  'Text of a hidden slide': 'Texte d’une diapositive masquée',
   'Comment authors': 'Auteurs des commentaires',
   'Defined name pointing outside the workbook': 'Nom défini pointant hors du classeur',
   'Links to other workbooks': 'Liens vers d’autres classeurs',
@@ -94,6 +97,41 @@ const FIELD_LABEL: Record<string, string> = {
   'Spacing after full stops is inconsistent': 'Espacement après les points, irrégulier',
   'Line endings are mixed': 'Fins de ligne mélangées',
   'Control characters in the text': 'Caractères de contrôle dans le texte',
+  // [C11.1] Les noms des caractères, tels que le cœur les nomme.
+  'zero-width space': 'espace sans chasse',
+  'zero-width non-joiner': 'antiliant sans chasse',
+  'zero-width joiner': 'liant sans chasse',
+  'left-to-right mark': 'marque gauche-à-droite',
+  'right-to-left mark': 'marque droite-à-gauche',
+  'word joiner': 'gluon de mots',
+  'zero-width no-break space (BOM)': 'espace insécable sans chasse (BOM)',
+  'soft hyphen': 'trait d’union conditionnel',
+  'combining grapheme joiner': 'gluon de graphèmes combinant',
+  'Arabic letter mark': 'marque de lettre arabe',
+  'Khmer inherent vowel': 'voyelle inhérente khmère',
+  'Mongolian vowel separator': 'séparateur de voyelle mongol',
+  'Mongolian free variation selector': 'sélecteur de variante libre mongol',
+  'bidirectional override': 'forçage bidirectionnel',
+  'bidirectional isolate': 'isolat bidirectionnel',
+  'interlinear annotation anchor': 'ancre d’annotation interlinéaire',
+  'format control': 'caractère de mise en forme',
+  'tag character': 'caractère d’étiquette',
+  'no-break space': 'espace insécable',
+  'Ogham space mark': 'espace oghamique',
+  'en quad': 'cadratin demi (quad)',
+  'em quad': 'cadratin (quad)',
+  'en space': 'espace demi-cadratin',
+  'em space': 'espace cadratin',
+  'three-per-em space': 'espace tiers de cadratin',
+  'four-per-em space': 'espace quart de cadratin',
+  'six-per-em space': 'espace sixième de cadratin',
+  'figure space': 'espace numérique',
+  'punctuation space': 'espace de ponctuation',
+  'thin space': 'espace fine',
+  'hair space': 'espace ultrafine',
+  'narrow no-break space': 'espace fine insécable',
+  'medium mathematical space': 'espace mathématique moyenne',
+  'ideographic space': 'espace idéographique',
   'Hangul filler': 'Remplisseur hangûl',
   'blank braille cell': 'Cellule braille vide',
   'Custom XML data store': 'Magasin de données XML personnalisé',
@@ -152,6 +190,9 @@ const FIELD_LABEL: Record<string, string> = {
   'Text placed outside the page': 'Texte placé hors de la page',
   'Text hidden by the page’s styles': 'Texte masqué par le style de la page',
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
+  'Text a browser does not render': 'Texte qu’un navigateur n’affiche pas',
+  'Tag characters': 'Caractères d’étiquette (tag)',
+  'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Encrypted document': 'Document chiffré',
   'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
@@ -292,6 +333,8 @@ const CONTENT_KIND: Record<string, string> = {
 
 /** Some labels carry the field name, so the prefix is translated rather than the whole. */
 const LABEL_PREFIX: Array<[RegExp, string]> = [
+  [/^variation selector (\d+)$/, 'sélecteur de variante $1'],
+  [/^PNG (\w{4}) chunk$/, 'Bloc PNG $1'],
   [/^Custom property: /, 'Propriété personnalisée : '],
   [/^User-defined property: /, 'Propriété utilisateur : '],
   [/^Custom info key: /, 'Clé /Info personnalisée : '],
@@ -302,6 +345,8 @@ const LABEL_PREFIX: Array<[RegExp, string]> = [
 
 /** Locations built from a number rather than drawn from the table below. */
 const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^attachment (.+)$/, (m) => `pièce jointe ${m[1]}`],
+  [/^part (\d+) \((.+)\)$/, (m) => `partie ${m[1]} (${m[2]})`],
   [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
   [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
@@ -330,6 +375,8 @@ const LOCATION_TEXT: Record<string, string> = {
   'container structure': 'structure du conteneur',
   'file structure': 'structure du fichier',
   'package structure': 'structure du paquet',
+  comments: 'commentaires',
+  'archive member paths': 'chemins des membres de l’archive',
 };
 
 /** Alphabet names, which the core reports in English inside a sentence. */
@@ -424,6 +471,11 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
     (m) => `${m[1]} diapositive(s) masquée(s), toujours présentes dans le fichier`,
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
+  // [C11.2] One line per smuggling family.
+  [
+    /^(\d+) characters? \((\d+) distinct\)(?: — read ([\s\S]*))?$/,
+    (m) => `${m[1]} caractère(s) (${m[2]} distinct(s))${m[3] ? ` — se lit ${m[3]}` : ''}`,
+  ],
   [/^(\d+) bytes$/, (m) => `${m[1]} octets`],
   [/^(\d+) external reference part\(s\)$/, (m) => `${m[1]} partie(s) de référence externe`],
   [
@@ -549,18 +601,53 @@ const REASON_SUFFIX: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
 ];
 
-const translateDetail = (detail: string, lang: Lang): string =>
-  lang === 'en'
-    ? detail
-    : detail
-        .split(', ')
-        .map((part) => CONTENT_KIND[part] ?? translateLabel(part, lang))
-        .join(', ');
+/**
+ * A note's detail is a list of labels joined with ", " — and a label may hold
+ * a comma itself ("Written to you, not to the recipient"). [C11.1] Pieces are
+ * joined back whenever together they name something the tables know.
+ */
+const known = (part: string) => part in CONTENT_KIND || part in FIELD_LABEL;
+
+const translateDetail = (detail: string, lang: Lang): string => {
+  if (lang === 'en') return detail;
+  const pieces = detail.split(', ');
+  const parts: string[] = [];
+  for (let i = 0; i < pieces.length; i++) {
+    let part = pieces[i]!;
+    for (let j = i + 1; j < pieces.length && !known(part); j++) {
+      const joined = pieces.slice(i, j + 1).join(', ');
+      if (known(joined)) {
+        part = joined;
+        i = j;
+        break;
+      }
+    }
+    parts.push(CONTENT_KIND[part] ?? translateLabel(part, lang));
+  }
+  return parts.join(', ');
+};
+
+/** [C11.1] What a leaked credential is, named in French after the prefix. */
+const CREDENTIAL_NAME: Record<string, string> = {
+  'Anthropic API key': 'clé d’API Anthropic',
+  'OpenAI project key': 'clé de projet OpenAI',
+  'OpenAI-style API key': 'clé d’API de type OpenAI',
+  'OpenAI API key': 'clé d’API OpenAI',
+  'Google API key': 'clé d’API Google',
+  'Hugging Face token': 'jeton Hugging Face',
+  'GitHub token': 'jeton GitHub',
+  'AWS access key id': 'identifiant de clé d’accès AWS',
+  'AWS temporary access key id': 'identifiant de clé d’accès AWS temporaire',
+  'Slack token': 'jeton Slack',
+  'Stripe live key': 'clé Stripe de production',
+};
 
 export function translateLabel(label: string, lang: Lang): string {
   if (lang === 'en') return label;
   const mapped = FIELD_LABEL[label];
   if (mapped) return mapped;
+  const credential = /^Credential left in file: (.+)$/.exec(label);
+  if (credential) return `Secret laissé dans le fichier : ${CREDENTIAL_NAME[credential[1]!] ?? credential[1]}`;
   for (const [pattern, prefix] of LABEL_PREFIX) {
     if (pattern.test(label)) return label.replace(pattern, prefix);
   }
@@ -578,8 +665,15 @@ export const translateLocation = (location: string, lang: Lang): string => {
   const derived = /^derived from (.+)$/.exec(location);
   if (derived?.[1]) return `dérivé de ${translateLocation(derived[1], lang)}`;
 
+  // [C11.1] An archive member or a mail part leads, its own location follows:
+  // each step is translated on its own, paths staying as they are.
+  if (location.includes(' → ')) return location.split(' → ').map((step) => translateLocation(step, lang)).join(' → ');
+
   const mapped = LOCATION_TEXT[location];
   if (mapped) return mapped;
+
+  const container = /^(JPEG segments|PNG chunks)(.*)$/.exec(location);
+  if (container) return `${container[1] === 'JPEG segments' ? 'segments JPEG' : 'blocs PNG'}${container[2]}`;
 
   for (const [pattern, render] of LOCATION_PATTERNS) {
     const match = pattern.exec(location);
@@ -674,8 +768,77 @@ const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
 ];
 
+/** [C11.1] How a passage is hidden, after its quoted text. */
+const HIDDEN_WHY: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^placed outside the slide$/, () => 'placé hors de la diapositive'],
+  [/^positioned off-screen$/, () => 'placé hors écran'],
+  [/^hidden attribute$/, () => 'attribut « hidden »'],
+  [/^HTML comment$/, () => 'commentaire HTML'],
+  [/^(alt|title|aria-label) attribute$/, (m) => `attribut « ${m[1]} »`],
+  [/^(w:color|colou?r) (\S+) on (\S+)$/, (m) => `${m[1] === 'w:color' ? 'w:color' : 'couleur'} ${m[2]} sur ${m[3]}`],
+];
+
+const HIDDEN_VALUE_LABELS = new Set([
+  'Hidden instruction aimed at an AI',
+  'Text covered by a shape',
+  'Text that does not show on the page',
+  'Text too faint to read',
+  'Text too small to read',
+  'Text placed outside the page',
+  'Text hidden by the page’s styles',
+  'Text formatted as hidden',
+  'Text a browser does not render',
+]);
+
+/** Unicode's names for the hyphen lookalikes, as the French edition of ISO/IEC 10646 gives them. */
+const HYPHEN_NAME: Record<string, string> = {
+  'NON-BREAKING HYPHEN': 'TRAIT D’UNION INSÉCABLE',
+  HYPHEN: 'TRAIT D’UNION',
+  'FIGURE DASH': 'TIRET NUMÉRIQUE',
+  'MODIFIER LETTER MINUS SIGN': 'LETTRE MODIFICATIVE SIGNE MOINS',
+  'MINUS SIGN': 'SIGNE MOINS',
+};
+
+const TEXT_VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^(.+)… \((\d+) characters\) — rotate this key$/, (m) => `${m[1]}… (${m[2]} caractères) — révoquez cette clé`],
+  [
+    /^(tag characters|variation selectors|zero-width binary|zero-width base-4) → ([\s\S]*)$/,
+    (m) =>
+      `${{ 'tag characters': 'caractères d’étiquette', 'variation selectors': 'sélecteurs de variante', 'zero-width binary': 'binaire sans chasse', 'zero-width base-4': 'base 4 sans chasse' }[m[1]!]} → ${m[2]}`,
+  ],
+  [
+    /^(.+) — invisible, and one bit per position(\. ESC is also how a coloured terminal log is written)?$/,
+    (m) => `${m[1]} — invisibles, et un bit par position${m[2] ? '. ESC est aussi ce qui écrit un journal de terminal en couleur' : ''}`,
+  ],
+];
+
+function translateHyphens(value: string): string | undefined {
+  const match = /^((?:U\+[0-9A-F]{4} [A-Z -]+ ×\d+(?:, )?)+)( — [\s\S]*)$/.exec(value);
+  if (!match) return undefined;
+  const names = match[1]!.replace(/(U\+[0-9A-F]{4}) ([A-Z -]+?) ×/g, (_, cp: string, name: string) => `${cp} ${HYPHEN_NAME[name] ?? name} ×`);
+  return names + match[2]!.replace(' — indistinguishable from "-" on screen', ' — indiscernables du « - » à l’écran');
+}
+
 export function translateValue(finding: Finding, lang: Lang): string {
   if (lang === 'en') return finding.value;
+  if (HIDDEN_VALUE_LABELS.has(finding.label)) {
+    const cut = finding.value.lastIndexOf(' — ');
+    if (cut > 0) {
+      const why = finding.value.slice(cut + 3);
+      for (const [pattern, render] of HIDDEN_WHY) {
+        const match = pattern.exec(why);
+        if (match) return `${finding.value.slice(0, cut)} — ${render(match)}`;
+      }
+    }
+  }
+  if (finding.location === 'hyphen lookalikes') {
+    const hyphens = translateHyphens(finding.value);
+    if (hyphens) return hyphens;
+  }
+  for (const [pattern, render] of TEXT_VALUE_PATTERNS) {
+    const match = pattern.exec(finding.value);
+    if (match) return render(match);
+  }
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
@@ -734,10 +897,41 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
 };
 
+/**
+ * [C11.1] The parsers' own words for a corrupt file, which a refusal carries
+ * as its detail: put in French by family. A message no family covers is kept,
+ * marked as the library's, rather than dropped.
+ */
+const PARSER_DETAIL: Array<[RegExp, string]> = [
+  [/^No PDF header found/i, 'aucun en-tête PDF'],
+  [/^Failed to parse (?:PDF document|invalid PDF object|number|PDF object)/i, 'structure PDF illisible'],
+  [/invalid zip data|unexpected EOF|invalid distance|unknown compression type|invalid length\/literal|invalid block type|invalid code lengths/i, 'archive ZIP corrompue'],
+  [/^Invalid (?:object ref|PDF)/i, 'structure PDF illisible'],
+];
+
+const translateParserDetail = (detail: string): string => {
+  for (const [pattern, french] of PARSER_DETAIL) if (pattern.test(detail)) return french;
+  return `message de la bibliothèque : « ${detail} »`;
+};
+
+/** What the system says when a file cannot be opened, by its error code. */
+const FILE_ERROR: Record<string, (path: string) => { en: string; fr: string }> = {
+  ENOENT: (path) => ({ en: `File not found: ${path}`, fr: `Fichier introuvable : ${path}` }),
+  EACCES: (path) => ({ en: `Permission denied: ${path}`, fr: `Accès refusé : ${path}` }),
+  EPERM: (path) => ({ en: `Permission denied: ${path}`, fr: `Accès refusé : ${path}` }),
+  EISDIR: (path) => ({ en: `This is a folder, not a file: ${path}`, fr: `C’est un dossier, pas un fichier : ${path}` }),
+};
+
 export function errorText(error: unknown, lang: Lang): string {
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && code in ERROR_TEXT) {
-    return ERROR_TEXT[code as ErrorCode]((error as { detail?: string }).detail)[lang];
+    const detail = (error as { detail?: string }).detail;
+    return ERROR_TEXT[code as ErrorCode](
+      lang === 'fr' && code === 'unparseable' && detail ? translateParserDetail(detail) : detail,
+    )[lang];
+  }
+  if (typeof code === 'string' && code in FILE_ERROR) {
+    return FILE_ERROR[code]!(String((error as { path?: unknown }).path ?? ''))[lang];
   }
   return error instanceof Error ? error.message : String(error);
 }
