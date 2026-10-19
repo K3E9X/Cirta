@@ -21,7 +21,7 @@ import { inspectClipboardHtml } from '../core/clipboard.js';
 import { translateLabel, translateValue, translateLocation, noteText, errorText } from '../shared/french.js';
 import { lang, setLang, t } from './i18n.js';
 import { provenance } from '../core/fingerprint.js';
-import { exposure, type Exposure } from '../core/exposure.js';
+import { exposure } from '../core/exposure.js';
 import { stylometry } from '../core/stylometry.js';
 import { AIMED_LABEL } from '../core/hidden-text.js';
 import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
@@ -29,7 +29,6 @@ import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
 import { PROFILES, type ProfileName } from '../shared/profiles.js';
 import {
   preview,
-  type Confidence,
   type Finding,
   type Format,
   type Note,
@@ -224,12 +223,23 @@ const MIME: Record<Format, string> = {
   markdown: 'text/markdown',
   jpeg: 'image/jpeg',
   png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  avif: 'image/avif',
   zip: 'application/zip',
   doc: 'application/msword',
   xls: 'application/vnd.ms-excel',
   ppt: 'application/vnd.ms-powerpoint',
   msg: 'application/vnd.ms-outlook',
   ipynb: 'application/x-ipynb+json',
+  rtf: 'application/rtf',
+  vsdx: 'application/vnd.ms-visio.drawing.main+xml',
+  epub: 'application/epub+zip',
+  latex: 'application/x-tex',
+  ics: 'text/calendar',
+  vcf: 'text/vcard',
   text: 'text/plain',
 };
 
@@ -318,6 +328,8 @@ function beforeAfter(format: Format, before: Uint8Array, redacted: RedactResult)
 
 /** [F-2.2] Formats read and never rewritten. */
 const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
+/** [F-P2 2.2] Pictures read and never rewritten. */
+const FIXED_PICTURES = new Set(['tiff', 'heic', 'avif']);
 
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -819,6 +831,8 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
       if (LEGACY.has(result.format)) {
         // [F-2.2] Inspected, never rewritten: the reason and what to do, before any click.
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
+      } else if (FIXED_PICTURES.has(result.format)) {
+        node.append(el('p', 'note', errorText({ code: 'image-not-rewritable', detail: result.format }, lang())));
       } else {
         const foot = el('div', 'card-foot');
         // [F-2.7] The options this file is offered — its format takes them and

@@ -15,6 +15,8 @@ export type Format =
   | 'pptx'
   | 'docx'
   | 'xlsx'
+  /** [F-P2 2.2] A Visio drawing. */
+  | 'vsdx'
   | 'odt'
   | 'ods'
   | 'odp'
@@ -23,6 +25,12 @@ export type Format =
   | 'markdown'
   | 'jpeg'
   | 'png'
+  /** [F-P2 2.2] More pictures: WebP and GIF cleaned, TIFF, HEIC and AVIF inspected only. */
+  | 'webp'
+  | 'gif'
+  | 'tiff'
+  | 'heic'
+  | 'avif'
   | 'zip'
   | 'eml'
   /** [F-2.2] Legacy Office (OLE2 compound files) and Outlook messages: inspected, not rewritten. */
@@ -32,6 +40,15 @@ export type Format =
   | 'msg'
   /** [F-2.2] A Jupyter notebook. */
   | 'ipynb'
+  /** [F-P2 2.2] Rich Text Format. */
+  | 'rtf'
+  /** [F-P2 2.2] An EPUB book. */
+  | 'epub'
+  /** [F-P2 2.2] A LaTeX source. */
+  | 'latex'
+  /** [F-P2 2.2] An iCalendar file and a vCard. */
+  | 'ics'
+  | 'vcf'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -145,6 +162,12 @@ export type NoteCode =
   | 'scope:outlook'
   /** [F-2.2] A Jupyter notebook: metadata, outputs and the pictures in them. */
   | 'scope:notebook'
+  | 'scope:rtf'
+  | 'scope:epub'
+  | 'scope:latex'
+  | 'scope:ics'
+  | 'scope:vcf'
+  | 'removed:latex-comments'
   /** [F-P2 2.4] The picture was rebuilt from its pixels, on request. */
   | 'reencoded:image'
   /** [F-2.2] A notebook's outputs were removed, on request. */

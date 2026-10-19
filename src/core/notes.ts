@@ -23,6 +23,17 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Outlook message: sender and recipients, the Internet headers it kept, the times it records, the body, and each attachment inspected like an archive member — an attached message in turn. The message is never rewritten; save it as .eml to clean it.',
   'scope:notebook': () =>
     'Notebook: its metadata and each cell\'s, the outputs (local paths, account names, credentials, tracebacks) and the pictures in them. The code itself is read for credentials only. A statistical model watermark in the wording would not show up here.',
+  'scope:ics': () =>
+    'Calendar file: the program that wrote it, vendor properties, the event identifier when it names a host, creation and edit dates, the organiser and the attendees, the links in the description — a meeting passcode among them. PRODID, UID and DTSTAMP stay, as RFC 5545 requires and an update to the invitation needs; the organiser and attendees are what the invitation is for and are kept.',
+  'scope:vcf': () =>
+    'Contact card: the program that wrote it, its revision date and identifier, vendor properties, the note, and the metadata of its photo. The name, numbers and addresses are the card’s content and are not listed one by one.',
+  'scope:latex': () =>
+    'LaTeX source: comments and comment environments, the author, acknowledgement notes and contact details, the PDF author set by \\hypersetup, absolute paths in \\input, \\include and \\includegraphics, and invisible characters. The author, the notes and the paths are the document’s own and are kept; the wording is not analysed.',
+  'removed:latex-comments': (detail) => `Removed the text of ${detail ?? 'every'} comment${detail === '1' ? '' : 's'}; each % stays, so the typeset text does not change.`,
+  'scope:epub': () =>
+    'EPUB book: the package metadata (creator, contributors, publisher, dates, identifier, what calibre and Sigil add), the author in the NCX, each page through the HTML pass, each picture through the picture pass, calibre’s saved reading position and Apple’s purchase record. Cleaning keeps the title, the language and an ISBN, and gives the book an identifier derived from its cleaned content. The wording is not analysed.',
+  'scope:rtf': () =>
+    'RTF document: its info group (author, last saved by, company, dates, editing time), the program that wrote it, custom properties, the template path, revision identifiers, the names behind tracked changes and comments, embedded objects with the files they carry, the metadata of its pictures and the targets of its fields. The wording is not analysed.',
   'reencoded:image': () =>
     'The picture was rebuilt from its decoded pixels: whatever was not pixels is gone, the orientation is applied, the colour profile kept. A lossless PNG keeps every pixel value, so a message hidden in their low bits would survive; a JPEG is quantised again, which disturbs one without guaranteeing it is gone.',
   'removed:outputs': (detail) => `Removed the outputs of ${detail ?? 'every'} cell${detail === '1' ? '' : 's'}, with their execution counts.`,
@@ -102,6 +113,17 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Message Outlook : expéditeur et destinataires, les en-têtes Internet qu'il a gardés, les heures qu'il note, le corps, et chaque pièce jointe inspectée comme un membre d'archive — un message joint à son tour. Le message n'est jamais réécrit ; enregistrez-le en .eml pour le nettoyer.",
   'scope:notebook': () =>
     "Notebook : ses métadonnées et celles de chaque cellule, les sorties (chemins locaux, noms de compte, secrets, traces d'erreur) et les images qu'elles contiennent. Le code lui-même n'est lu que pour les secrets. Un filigrane statistique dans la formulation n'apparaîtrait pas ici.",
+  'scope:ics': () =>
+    "Fichier d'agenda : le programme qui l'a écrit, les propriétés propres aux logiciels, l'identifiant d'évènement quand il nomme une machine, les dates de création et de modification, l'organisateur et les participants, les liens de la description — dont un code de réunion. PRODID, UID et DTSTAMP restent, comme l'exige la RFC 5545 et comme une mise à jour de l'invitation en a besoin ; l'organisateur et les participants sont l'objet de l'invitation et sont gardés.",
+  'scope:vcf': () =>
+    "Fiche contact : le programme qui l'a écrite, sa date de révision et son identifiant, les propriétés propres aux logiciels, la note, et les métadonnées de sa photo. Le nom, les numéros et les adresses sont le contenu de la fiche et ne sont pas listés un à un.",
+  'scope:latex': () =>
+    "Source LaTeX : commentaires et environnements comment, l'auteur, les notes de remerciement et les coordonnées, l'auteur PDF fixé par \\hypersetup, les chemins absolus dans \\input, \\include et \\includegraphics, et les caractères invisibles. L'auteur, les notes et les chemins appartiennent au document et sont gardés ; la formulation n'est pas analysée.",
+  'removed:latex-comments': (detail) => `Texte de ${detail ?? 'tous les'} commentaire${detail === '1' ? '' : 's'} retiré ; chaque % reste, le texte composé ne change donc pas.`,
+  'scope:epub': () =>
+    "Livre EPUB : les métadonnées du paquet (créateur, contributeurs, éditeur, dates, identifiant, ce qu'ajoutent calibre et Sigil), l'auteur dans le NCX, chaque page par la passe HTML, chaque image par la passe image, la position de lecture enregistrée par calibre et la trace d'achat d'Apple. Le nettoyage garde le titre, la langue et un ISBN, et donne au livre un identifiant dérivé de son contenu nettoyé. La formulation n'est pas analysée.",
+  'scope:rtf': () =>
+    "Document RTF : son groupe d'informations (auteur, dernier enregistrement, société, dates, temps d'édition), le programme qui l'a écrit, les propriétés personnalisées, le chemin du modèle, les identifiants de révision, les noms derrière les révisions et les commentaires, les objets intégrés avec les fichiers qu'ils portent, les métadonnées de ses images et les cibles de ses champs. La formulation n'est pas analysée.",
   'reencoded:image': () =>
     "L'image a été reconstruite à partir de ses pixels décodés : tout ce qui n'était pas pixel est parti, l'orientation est appliquée, le profil de couleur conservé. Un PNG sans perte garde chaque valeur de pixel, donc un message caché dans leurs bits de poids faible survivrait ; un JPEG est requantifié, ce qui le perturbe sans garantir qu'il disparaisse.",
   'removed:outputs': (detail) => `Sorties retirées de ${detail ?? 'toutes les'} cellule${detail === '1' ? '' : 's'}, avec leurs compteurs d'exécution.`,

@@ -34,15 +34,15 @@ const labelled = (...labels: string[]) => (findings: Finding[]) => findings.filt
 
 /** For each option: the formats the cleaner applies it to, and how many findings it would act on. */
 const OPTIONS: Record<CleanKey, { formats: Format[]; count: (findings: Finding[]) => number }> = {
-  removeHidden: { formats: ['docx', 'pptx', 'html', 'markdown'], count: (fs) => fs.filter(removableFinding).length },
+  removeHidden: { formats: ['docx', 'pptx', 'html', 'markdown', 'epub'], count: (fs) => fs.filter(removableFinding).length },
   acceptChanges: { formats: ['docx'], count: (fs) => fs.filter((f) => TRACKED_LABELS.has(f.label)).length },
   removeComments: { formats: OFFICE, count: labelled('Comment text') },
   removeNotes: { formats: ['pptx'], count: (fs) => labelled('Speaker notes text')(fs) || labelled('Speaker notes')(fs) },
   removeHiddenSlides: { formats: ['pptx'], count: (fs) => labelled('Text of a hidden slide')(fs) || labelled('Hidden slides')(fs) },
   removeHiddenSheets: { formats: ['xlsx'], count: labelled('Hidden worksheets') },
-  stripActive: { formats: ['pdf', ...OFFICE], count: (fs) => fs.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length },
+  stripActive: { formats: ['pdf', 'rtf', 'vsdx', ...OFFICE], count: (fs) => fs.filter((f) => f.kind === 'active-content' && f.confidence !== 'informational').length },
   stripRemote: { formats: ['html', 'markdown'], count: labelled('Tracking pixel', 'Remote resource loaded on opening') },
-  stripTracking: { formats: ['html', 'markdown', 'pdf', ...OFFICE], count: labelled('Tracking parameters in a link') },
+  stripTracking: { formats: ['html', 'markdown', 'pdf', 'epub', ...OFFICE], count: labelled('Tracking parameters in a link') },
   removeAttachments: { formats: ['pdf'], count: labelled('Embedded file') },
   flattenAnnotations: { formats: ['pdf'], count: labelled('Annotation authors') },
   burnRedactions: { formats: ['pdf'], count: labelled(HIDDEN_LABEL.covered) },

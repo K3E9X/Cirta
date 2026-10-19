@@ -85,14 +85,19 @@ import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
 import { reencodeImage } from './reencode.js';
+import { PICTURE_LOCATION, REWRITABLE_PICTURES } from './picture-formats.js';
+import { isRtf, inspectRtf, redactRtf } from './rtf.js';
+import { isEpub, inspectEpub, redactEpub } from './epub.js';
+import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
+import { calendarFormat, inspectCalendar, redactCalendar } from './calendar.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 
 const UNSUPPORTED =
-  'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), ' +
+  'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -117,7 +122,8 @@ const isMail = (data: Uint8Array, hint?: string) =>
 function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
   return (
     isOdf(parts) ||
-    Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'])
+    isEpub(parts) ||
+    Boolean(parts['word/document.xml'] ?? parts['ppt/presentation.xml'] ?? parts['xl/workbook.xml'] ?? parts['visio/document.xml'])
   );
 }
 
@@ -183,9 +189,11 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
     try {
       const parts = unzipGuarded(data);
       if (isOdf(parts)) return 'odt'; // refined by inspectOdf
+      if (isEpub(parts)) return 'epub';
       if (parts['word/document.xml']) return 'docx';
       if (parts['ppt/presentation.xml']) return 'pptx';
       if (parts['xl/workbook.xml']) return 'xlsx';
+      if (parts['visio/document.xml']) return 'vsdx';
       return 'zip';
     } catch {
       return undefined;
@@ -196,11 +204,16 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isCfb(data)) return undefined;
   const image = detectImageKind(data);
   if (image) return image;
+  if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
   try {
     const text = decodeTextInput(data, decodeOptions(hint));
     // [F-2.2] A notebook is JSON with a shape; a .ipynb that does not parse is text.
     if (parseNotebook(text)) return 'ipynb';
+    // [F-P2 2.2] Content lines, then LaTeX, before the markup sniff: a % comment is not Markdown.
+    const calendar = calendarFormat(text);
+    if (calendar) return calendar;
+    if (looksLikeLatex(text, hint)) return 'latex';
     // Anything that decodes as text but is no known markup is still a file
     // whose invisible characters travel: a .txt, a source file, a CSV. It gets
     // the character-level pass rather than a refusal.
@@ -211,8 +224,10 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
 }
 
 /** Image metadata, plus whatever the fingerprinter derives from it. */
+const imageLocation = (image: Format) => (image === 'jpeg' ? 'JPEG segments' : image === 'png' ? 'PNG chunks' : PICTURE_LOCATION[image as keyof typeof PICTURE_LOCATION]);
+
 function imageFindings(data: Uint8Array, image: Format): Finding[] {
-  const found = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+  const found = inspectImage(data, imageLocation(image));
   return [...found, ...fingerprint(found)].sort(byConfidence);
 }
 
@@ -310,6 +325,7 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return inspectArchive(data, options);
+    if (isEpub(parts)) return inspectEpub(data, options);
     return isOdf(parts) ? inspectOdf(data) : inspectOoxml(data);
   }
   if (isCfb(data)) {
@@ -332,11 +348,15 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
     };
   }
 
+  if (isRtf(data)) return inspectRtf(data, { ...options, inspectMember: member(options) });
+
   // [C4] Before the markup sniff: a mail whose body is HTML is a mail first.
   if (isMail(data, hint)) return inspectEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray }));
 
   const format = detectFormat(data, hint);
   if (format === 'ipynb') return inspectNotebook(parseNotebook(decodeTextInput(data, decodeOptions(hint)))!);
+  if (format === 'latex') return inspectLatex(decodeTextInput(data, decodeOptions(hint)));
+  if (format === 'ics' || format === 'vcf') return inspectCalendar(decodeTextInput(data, decodeOptions(hint)), format);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
     return {
       format,
@@ -415,7 +435,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 /** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
-const MEMBER_REFUSALS = new Set(['unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
 
 /**
  * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
@@ -501,6 +521,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   if (isZip(data)) {
     const parts = unzipGuarded(data);
     if (!isDocumentPackage(parts)) return noteSurvivors(await redactArchive(data, options, 0), hint, options);
+    if (isEpub(parts)) return noteSurvivors(await redactEpub(data, { removeHidden: options.removeHidden, stripTracking: options.stripTracking }), hint, options);
     return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets, stripTracking: options.stripTracking }), hint, options);
   }
 
@@ -516,13 +537,22 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
 
   const image = detectImageKind(data);
   if (image) {
-    const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
+    // [F-P2 2.2] Inspected only: refused rather than handed back with its metadata.
+    if (!REWRITABLE_PICTURES.has(image)) {
+      throw new UnsupportedFormatError(
+        `A ${image.toUpperCase()} picture is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure. Export it as JPEG or PNG and clean that copy.`,
+        'image-not-rewritable',
+        image,
+      );
+    }
+    const before = inspectImage(data, imageLocation(image));
     const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
     if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
     let cleaned: Uint8Array = stripImageMetadata(data) ?? data;
     // [F-P2 2.4] Rebuilt from the pixels, on request; refused rather than skipped without a codec.
     if (options.reencodeImages) {
       if (!options.imageCodec) throw new UnsupportedFormatError('Re-encoding pictures needs an image codec, which is not available here.', 'reencode-unavailable');
+      if (image !== 'jpeg' && image !== 'png') throw new UnsupportedFormatError('Re-encoding is offered for JPEG and PNG pictures.', 'reencode-unavailable', image);
       cleaned = await reencodeImage(data, image, options.imageCodec);
       notes.push({ code: 'reencoded:image' });
     }
@@ -533,11 +563,15 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     );
   }
 
+  if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);
+
   if (isMail(data, hint)) {
     return noteSurvivors(await redactEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray })), hint, options);
   }
 
   const format = detectFormat(data, hint);
+  if (format === 'ics' || format === 'vcf') return noteSurvivors(redactCalendar(decodeTextInput(data, decodeOptions(hint)), format), hint, options);
+  if (format === 'latex') return noteSurvivors(redactLatex(decodeTextInput(data, decodeOptions(hint))), hint, options);
   if (format === 'ipynb') {
     const notebook = parseNotebook(decodeTextInput(data, decodeOptions(hint)))!;
     return noteSurvivors(redactNotebook(notebook, { clearOutputs: options.clearOutputs }), hint, options);

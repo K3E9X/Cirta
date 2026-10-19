@@ -424,6 +424,137 @@ try {
       check('dossier.zip: cleaned and its members reopened', false, String(error).slice(0, 200));
     }
   }
+  // [F-P2 2.2] LibreOffice's own RTF, an author and a company written into its info group:
+  // inspected, cleaned, and the cleaned copy read back as text by LibreOffice.
+  try {
+    await soffice(['--convert-to', 'rtf', '--outdir', dir, join(dir, 'source.docx')], 'rtf');
+    const rtf = (await readFile(join(dir, 'source.rtf'), 'latin1')).replace('{\\info', '{\\info{\\author Marie Martin}{\\*\\company Cabinet Martin}');
+    const original = new Uint8Array(Buffer.from(rtf, 'latin1'));
+    const report = await inspectFile(original, 'source.rtf');
+    check('source.rtf: inspected as rtf', report.format === 'rtf', report.format);
+    check('source.rtf: the author and the generator are named', report.findings.some((f) => f.label === 'Author' && f.value === 'Marie Martin') && report.findings.some((f) => f.label === 'Producing application' && /LibreOffice/.test(f.value)));
+    const cleaned = await redactFile(original, 'source.rtf');
+    const left = (await inspectFile(cleaned.data, 'source.rtf')).findings.filter((f) => f.confidence !== 'informational');
+    check('source.rtf: nothing survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    await writeFile(join(dir, 'clean.rtf'), cleaned.data);
+    const out = join(dir, 'out-rtf');
+    await soffice(['--convert-to', 'txt:Text', '--outdir', out, join(dir, 'clean.rtf')], 'out-rtf');
+    const text = await readFile(join(out, 'clean.txt'), 'utf8');
+    check('source.rtf: the cleaned copy reopens with its text', text.includes('Rapport trimestriel') && text.includes('Objet'), text.slice(0, 120));
+  } catch (error) {
+    check('source.rtf: produced by LibreOffice, cleaned and reopened', false, String(error).slice(0, 200));
+  }
+  // [F-P2 2.2] LibreOffice's own EPUB: cleaned, nothing confirmed left, and every
+  // XML part still well formed (xmllint, where it is installed).
+  try {
+    await soffice(['--convert-to', 'epub', '--outdir', dir, join(dir, 'source.docx')], 'epub');
+    const original = new Uint8Array(await readFile(join(dir, 'source.epub')));
+    const report = await inspectFile(original, 'source.epub');
+    check('source.epub: inspected as epub', report.format === 'epub', report.format);
+    check('source.epub: the generator and the identifier are named', report.findings.some((f) => f.label === 'Producing application' && /LibreOffice/.test(f.value)) && report.findings.some((f) => f.label === 'Book identifier'));
+    const cleaned = await redactFile(original, 'source.epub');
+    const left = (await inspectFile(cleaned.data, 'source.epub')).findings.filter((f) => f.confidence === 'confirmed');
+    check('source.epub: nothing confirmed survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    const members = unzipSync(cleaned.data);
+    check('source.epub: the pages keep their text', Object.entries(members).some(([p, b]) => p.endsWith('.xhtml') && strFromU8(b).includes('Rapport trimestriel')));
+    let xmllint = true;
+    try {
+      await run('xmllint', ['--version']);
+    } catch {
+      xmllint = false;
+      console.log('  skip  source.epub: xmllint is not installed, well-formedness not checked');
+    }
+    if (xmllint) {
+      for (const [path, bytes] of Object.entries(members)) {
+        if (!/\.(?:xhtml|opf|ncx|xml)$/.test(path)) continue;
+        const file = join(dir, `epub-${path.replace(/[/\\]/g, '_')}`);
+        await writeFile(file, bytes);
+        let ok = true;
+        try {
+          await run('xmllint', ['--noout', file]);
+        } catch {
+          ok = false;
+        }
+        check(`source.epub → ${path}: well formed after the clean`, ok);
+      }
+    }
+  } catch (error) {
+    check('source.epub: produced by LibreOffice and cleaned', false, String(error).slice(0, 200));
+  }
+  // [F-P2 2.2] A Visio drawing written the way Visio lays one out, with an author, a comment
+  // author and a picture: cleaned, then opened by LibreOffice's Visio import.
+  try {
+    const V = 'http://schemas.microsoft.com/office/visio/2012/main';
+    const R = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    const REL = 'http://schemas.microsoft.com/visio/2010/relationships';
+    const xml = (body) => strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${body}`);
+    const drawing = zipSync({
+      '[Content_Types].xml': xml('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>'),
+      '_rels/.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/document" Target="visio/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`),
+      'docProps/core.xml': xml('<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>Marie Martin</dc:creator><cp:lastModifiedBy>Marie Martin</cp:lastModifiedBy></cp:coreProperties>'),
+      'visio/document.xml': xml(`<VisioDocument xmlns="${V}"><DocumentSettings/></VisioDocument>`),
+      'visio/_rels/document.xml.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/pages" Target="pages/pages.xml"/><Relationship Id="rId2" Type="${REL}/comments" Target="comments.xml"/></Relationships>`),
+      'visio/comments.xml': xml(`<Comments xmlns="${V}"><AuthorList><AuthorEntry Name="Paul Durand" Initials="PD" ResolutionID="S::pd@example.com::0" ID="0"/></AuthorList><CommentList/></Comments>`),
+      'visio/pages/pages.xml': xml(`<Pages xmlns="${V}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><Page ID="0" NameU="Page-1" Name="Page-1"><PageSheet><Cell N="PageWidth" V="8.5"/><Cell N="PageHeight" V="11"/></PageSheet><Rel r:id="rId1"/></Page></Pages>`),
+      'visio/pages/_rels/pages.xml.rels': xml(`<Relationships xmlns="${R}"><Relationship Id="rId1" Type="${REL}/page" Target="page1.xml"/></Relationships>`),
+      'visio/pages/page1.xml': xml(`<PageContents xmlns="${V}"><Shapes><Shape ID="1" Type="Shape"><Cell N="PinX" V="4"/><Cell N="PinY" V="5"/><Cell N="Width" V="2"/><Cell N="Height" V="1"/><Section N="Geometry" IX="0"><Row T="RelMoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="RelLineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row><Row T="RelLineTo" IX="3"><Cell N="X" V="1"/><Cell N="Y" V="1"/></Row><Row T="RelLineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section><Text>Serveur​ central</Text></Shape></Shapes></PageContents>`),
+    });
+    const report = await inspectFile(drawing, 'plan.vsdx');
+    check('plan.vsdx: inspected as vsdx', report.format === 'vsdx', report.format);
+    const cleaned = await redactFile(drawing, 'plan.vsdx');
+    const left = (await inspectFile(cleaned.data, 'plan.vsdx')).findings.filter((f) => f.confidence === 'confirmed');
+    check('plan.vsdx: nothing confirmed survives the clean', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+    await writeFile(join(dir, 'plan.clean.vsdx'), cleaned.data);
+    const out = join(dir, 'out-vsdx');
+    await soffice(['--convert-to', 'pdf', '--outdir', out, join(dir, 'plan.clean.vsdx')], 'out-vsdx');
+    const { stdout } = await run('pdftotext', [join(out, 'plan.clean.pdf'), '-']).catch(() => ({ stdout: undefined }));
+    if (stdout === undefined) console.log('  skip  plan.vsdx: pdftotext is not installed, the text is not compared');
+    check('plan.vsdx: reopens in LibreOffice with its shape text', stdout === undefined || stdout.includes('Serveur central'), String(stdout).slice(0, 80));
+  } catch (error) {
+    check('plan.vsdx: cleaned and reopened', false, String(error).slice(0, 200));
+  }
+  // [F-P2 2.2] ImageMagick's own GIF and TIFF, a comment written into each: the GIF cleaned
+  // and decoded again by ImageMagick, the TIFF read and refused.
+  try {
+    await run('convert', ['-version']);
+    await run('convert', ['-size', '16x8', 'xc:red', '-set', 'comment', 'Retouche par Marie Martin', join(dir, 'im.gif')]);
+    await run('convert', ['-size', '16x8', 'xc:blue', '-set', 'comment', 'Scan de Marie Martin', '-compress', 'none', join(dir, 'im.tif')]);
+    const gif = new Uint8Array(await readFile(join(dir, 'im.gif')));
+    check('im.gif: the comment is read', (await inspectFile(gif, 'im.gif')).findings.some((f) => f.label === 'Embedded comment' && f.value.includes('Marie Martin')));
+    const cleaned = await redactFile(gif, 'im.gif');
+    await writeFile(join(dir, 'im.clean.gif'), cleaned.data);
+    const { stdout } = await run('identify', [join(dir, 'im.clean.gif')]);
+    check('im.gif: the cleaned copy decodes in ImageMagick, at its size, without the comment', /GIF 16x8/.test(stdout) && !Buffer.from(cleaned.data).includes(Buffer.from('Marie')), stdout.trim());
+    const tif = new Uint8Array(await readFile(join(dir, 'im.tif')));
+    check('im.tif: the description is read', (await inspectFile(tif, 'im.tif')).findings.some((f) => f.value.includes('Marie Martin')));
+    const refused = await redactFile(tif, 'im.tif').then(() => undefined, (error) => error);
+    check('im.tif: refused rather than rewritten', refused?.code === 'image-not-rewritable', String(refused));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  ImageMagick is not installed: GIF and TIFF not checked');
+    else check('im.gif / im.tif: written by ImageMagick, inspected and cleaned', false, String(error).slice(0, 200));
+  }
+  // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
+  // text the same to the character (pdflatex and pdftotext, where they are installed).
+  try {
+    await run('pdflatex', ['--version']);
+    const tex = [
+      '\\documentclass{article}', '\\usepackage[T1]{fontenc}', '\\usepackage{hyperref,verbatim}', '\\hypersetup{pdfauthor={Marie Martin}}',
+      '% relire avec Paul', '\\author{Marie Martin}', '\\begin{document}', 'Le taux est de 12\\,\\% cette annee.% provisoire', 'suite%', 'collee.',
+      '\\url{https://exemple.fr/a%20b} \\verb|50% verbatim|', '\\begin{comment}', 'ancienne version', '\\end{comment}', 'Fin.', '\\end{document}', '',
+    ].join('\n');
+    const cleaned = await redactFile(new TextEncoder().encode(tex), 'a.tex');
+    check('a.tex: the comments are gone', !/relire|provisoire|ancienne/.test(new TextDecoder().decode(cleaned.data)));
+    const texts = [];
+    for (const [name, bytes] of [['before.tex', new TextEncoder().encode(tex)], ['after.tex', cleaned.data]]) {
+      await writeFile(join(dir, name), bytes);
+      await run('pdflatex', ['-interaction=nonstopmode', '-output-directory', dir, join(dir, name)], { cwd: dir });
+      texts.push((await run('pdftotext', [join(dir, name.replace('.tex', '.pdf')), '-'])).stdout.replace(/\d{4}-\d\d-\d\d|[A-Z][a-z]+ \d{1,2}, \d{4}/g, ''));
+    }
+    check('a.tex: the typeset text is the same before and after the clean', texts[0] === texts[1] && texts[0].includes('collee'), texts.join(' | ').slice(0, 200));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  pdflatex is not installed: the LaTeX clean is not compiled');
+    else check('a.tex: compiled before and after the clean', false, String(error).slice(0, 200));
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

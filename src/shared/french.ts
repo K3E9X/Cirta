@@ -42,6 +42,30 @@ const FIELD_LABEL: Record<string, string> = {
   Company: 'Société',
   Manager: 'Responsable',
   Template: 'Modèle',
+  'Hyperlink base': 'Base des liens hypertexte',
+  'Last backup': 'Dernière sauvegarde',
+  'Private chunk': 'Bloc privé',
+  'LaTeX comment': 'Commentaire LaTeX',
+  Organizer: 'Organisateur',
+  Attendees: 'Participants',
+  'Event identifier naming a host': 'Identifiant d’évènement nommant une machine',
+  'Vendor property': 'Propriété propre à un logiciel',
+  'Meeting link carrying its passcode': 'Lien de réunion portant son code',
+  'Contact identifier': 'Identifiant du contact',
+  Note: 'Note',
+  'LaTeX comments': 'Commentaires LaTeX',
+  'Text in a comment environment': 'Texte dans un environnement comment',
+  'Acknowledgement note (\\thanks)': 'Note de remerciement (\\thanks)',
+  'Author contact': 'Coordonnées de l’auteur',
+  'PDF author set by the source': 'Auteur PDF fixé par la source',
+  'Local path in the source': 'Chemin local dans la source',
+  Contributor: 'Contributeur',
+  Publisher: 'Éditeur',
+  'Book identifier': 'Identifiant du livre',
+  'Calibre metadata': 'Métadonnées calibre',
+  'Reading position saved by calibre': 'Position de lecture enregistrée par calibre',
+  'Purchase record (Apple Books)': 'Trace d’achat (Apple Books)',
+  'Encrypted content (DRM)': 'Contenu chiffré (DRM)',
   'Total editing time': 'Temps d’édition total',
   'Custom properties': 'Propriétés personnalisées',
   'Embedded thumbnail': 'Miniature intégrée',
@@ -413,7 +437,17 @@ const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
   [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
+  [/^document body \((.+)\)$/, (m) => `corps du document (${m[1]})`],
+  [/^comment (\d+)$/, (m) => `commentaire ${m[1]}`],
 ];
+
+/** [F-P2 2.2] Where the other picture formats keep their metadata. */
+const PICTURE_LOCATION_FR: Record<string, string> = {
+  'WebP chunks': 'blocs WebP',
+  'GIF blocks': 'blocs GIF',
+  'TIFF directory': 'répertoire TIFF',
+  'HEIF items': 'éléments HEIF',
+};
 
 /** Locations the core states in prose rather than as a path or a field name. */
 const LOCATION_TEXT: Record<string, string> = {
@@ -440,6 +474,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'package structure': 'structure du paquet',
   comments: 'commentaires',
   'archive member paths': 'chemins des membres de l’archive',
+  'file references': 'références de fichiers',
 };
 
 /** Alphabet names, which the core reports in English inside a sentence. */
@@ -535,6 +570,8 @@ const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   ],
   [/^(\d+) slides? with presenter notes$/, (m) => `${m[1]} diapositive(s) avec des notes`],
   [/^(.+) — (\d+) bytes(, .+)?$/, (m) => `${m[1]} — ${m[2]} octets${m[3] ?? ''}`],
+  [/^(object|linked object)(, ProgID .+)?$/, (m) => `${m[1] === 'object' ? 'objet' : 'objet lié'}${m[2] ?? ''}`],
+  [/^(\d+) bytes(, ProgID .+)$/, (m) => `${m[1]} octets${m[2]}`],
   [/^(\d+) modules?: (.+)$/, (m) => `${m[1]} module(s) : ${m[2]}`],
   [
     /^(.+?): (?:(\d+) rows? \(([^)]*)\))?(?:, )?(?:(\d+) columns? \(([^)]*)\))?$/,
@@ -746,6 +783,8 @@ export const translateLocation = (location: string, lang: Lang): string => {
 
   const container = /^(JPEG segments|PNG chunks)(.*)$/.exec(location);
   if (container) return `${container[1] === 'JPEG segments' ? 'segments JPEG' : 'blocs PNG'}${container[2]}`;
+  const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
+  if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
   for (const [pattern, render] of LOCATION_PATTERNS) {
     const match = pattern.exec(location);
@@ -792,6 +831,7 @@ const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
   // [F-P2 2.1] Liens et noms de fichiers piégés.
   [/^(\d+) bytes after the image ends$/, (m) => `${m[1]} octets après la fin de l’image`],
+  [/^(\d+) comments, the first (\d+) quoted$/, (m) => `${m[1]} commentaires, les ${m[2]} premiers cités`],
   [/^data:(\S+) \(a page, opened as one\)$/, (m) => `data:${m[1]} (une page, ouverte comme telle)`],
   [/^shown as “([\s\S]*)”, really ends in (\S+) \((U\+[0-9A-F]+)\)$/, (m) => `affiché « ${m[1]} », se termine en réalité par ${m[2]} (${m[3]})`],
   [/^([\s\S]+) — opens as (\S+), not (\S+)$/, (m) => `${m[1]} — s’ouvre comme ${m[2]}, pas comme ${m[3]}`],
@@ -980,12 +1020,16 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, SVG, HTML, Markdown, JPEG et PNG.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
     fr: `Ce fichier n’a pas pu être lu${detail ? ` : ${detail}` : '.'}`,
+  }),
+  'epub-encrypted': (detail) => ({
+    en: `This book is encrypted (DRM)${detail ? `: ${detail}` : ''}. Its pages cannot be read without the key, so they cannot be cleaned, and it is not rewritten.`,
+    fr: `Ce livre est chiffré (DRM)${detail ? ` : ${detail}` : ''}. Ses pages sont illisibles sans la clé, elles ne peuvent donc pas être nettoyées, et il n’est pas réécrit.`,
   }),
   'encrypted-pdf': () => ({
     en: 'This PDF is encrypted. Cleaning it would need its key; without one the copy would be unreadable, so it is not attempted. Remove the protection in the application that set it, then clean the result.',
@@ -1016,9 +1060,28 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
           fr: `Les fichiers Office anciens (.doc, .xls, .ppt) sont inspectés mais pas réécrits : reconstruire un fichier composite sans l’abîmer n’est pas une chose que cet outil sait vérifier. Enregistrez-le en .${detail === 'xls' ? 'xlsx' : detail === 'ppt' ? 'pptx' : 'docx'} dans Office ou LibreOffice, puis nettoyez cette copie.`,
         },
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
-  'reencode-unavailable': () => ({
-    en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
-    fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
+  'reencode-unavailable': (detail) =>
+    detail
+      ? {
+          en: `Re-encoding is offered for JPEG and PNG pictures, not ${detail.toUpperCase()}: nothing was cleaned, rather than a copy that was not re-encoded. Clean it without re-encoding.`,
+          fr: `Le ré-encodage est proposé pour les images JPEG et PNG, pas ${detail.toUpperCase()} : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été. Nettoyez-la sans ré-encodage.`,
+        }
+      : {
+          en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
+          fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
+        },
+  'archive-too-large': (detail) => {
+    const [limit, value = ''] = (detail ?? '').split(/:(.*)/s);
+    if (limit === 'members') return { en: `This archive declares more than ${value} members; it is refused rather than read in part.`, fr: `Cette archive déclare plus de ${value} membres ; elle est refusée plutôt que lue en partie.` };
+    if (limit === 'bytes') return { en: `This archive declares more than ${value} MB of uncompressed content; it is refused rather than read in part.`, fr: `Cette archive déclare plus de ${value} Mo de contenu décompressé ; elle est refusée plutôt que lue en partie.` };
+    return {
+      en: `The member “${value}” inflates more than 1,000 times its stored size: a compression bomb, not a document. The file is refused.`,
+      fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
+    };
+  },
+  'image-not-rewritable': (detail) => ({
+    en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Cirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
+    fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Cirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,
   }),
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,

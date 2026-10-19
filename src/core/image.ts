@@ -14,16 +14,18 @@ import { findSourceTypes } from './sourcetype.js';
 import { exifFindings, parseExif } from './exif.js';
 import { imageXmpFindings } from './xmp.js';
 import { Unzlib } from 'fflate';
+import { detectPictureKind, inspectPicture, stripPicture, type PictureKind } from './picture-formats.js';
 
 const JPEG_SOI = 0xffd8;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-export type ImageKind = 'jpeg' | 'png';
+/** [F-P2 2.2] WebP, GIF, TIFF, HEIC and AVIF are read by picture-formats.ts. */
+export type ImageKind = 'jpeg' | 'png' | PictureKind;
 
 export function detectImageKind(data: Uint8Array): ImageKind | undefined {
   if (data.length > 2 && ((data[0]! << 8) | data[1]!) === JPEG_SOI) return 'jpeg';
   if (PNG_SIGNATURE.every((byte, i) => data[i] === byte)) return 'png';
-  return undefined;
+  return detectPictureKind(data);
 }
 
 /* ------------------------------------------------------------------ JPEG -- */
@@ -573,6 +575,7 @@ function app1Fields(body: Uint8Array, location: string): Finding[] {
 export function inspectImage(data: Uint8Array, location: string): Finding[] {
   const kind = detectImageKind(data);
   if (!kind) return [];
+  if (kind !== 'jpeg' && kind !== 'png') return inspectPicture(data, kind, location);
   const findings: Finding[] = [];
   // [F-P2 2.4] Bytes past the end of the picture: an archive glued on, a vendor trailer.
   const after = trailing(data, kind === 'jpeg' ? jpegEnd(data) : pngEnd(data));
@@ -660,6 +663,6 @@ export function stripImageMetadata(data: Uint8Array): Uint8Array<ArrayBuffer> | 
   const kind = detectImageKind(data);
   if (kind === 'jpeg') return stripJpeg(data);
   if (kind === 'png') return stripPng(data);
-  return undefined;
+  return kind ? stripPicture(data, kind) : undefined;
 }
 

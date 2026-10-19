@@ -12,6 +12,7 @@ import { parseMail } from './mime.js';
 import { pdfText } from './pdf.js';
 import { msgText } from './msg.js';
 import { notebookText, parseNotebook } from './notebook.js';
+import { rtfText } from './rtf.js';
 
 const MAX = 8 * 1024 * 1024;
 
@@ -52,9 +53,14 @@ export async function bodyText(data: Uint8Array, format: Format): Promise<string
       const notebook = parseNotebook(decodeTextInput(data, { allowBinary: true }));
       return notebook ? notebookText(notebook) : '';
     }
+    case 'rtf':
+      return rtfText(data);
     case 'html':
     case 'markdown':
     case 'svg':
+    case 'latex':
+    case 'ics':
+    case 'vcf':
     case 'text':
       return decodeTextInput(data, { allowBinary: true });
     default:

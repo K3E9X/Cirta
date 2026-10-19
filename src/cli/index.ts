@@ -355,13 +355,15 @@ function printFindings(findings: Finding[]): void {
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.pdf',
-  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm',
+  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm', '.vsdx', '.vsdm',
   '.odt', '.ods', '.odp',
   // [F-2.2] Legacy Office, inspected only.
   '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot',
   '.svg', '.html', '.htm',
   '.md', '.markdown', '.mdx',
   '.jpg', '.jpeg', '.png',
+  // [F-P2 2.2] WebP and GIF cleaned; TIFF, HEIC and AVIF inspected.
+  '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif', '.avif',
   '.zip', '.epub',
   // Plain text and source files. An invisible character in a .py or a .json
   // travels exactly as far as one in a .docx, and a bidi override in source is
@@ -373,6 +375,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.json', '.yaml', '.yml', '.toml', '.ini',
   // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
   '.ipynb',
+  // [F-P2 2.2]
+  '.rtf', '.tex', '.ltx', '.sty', '.cls', '.bib', '.ics', '.ifb', '.vcf', '.vcard',
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
   '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
   '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',

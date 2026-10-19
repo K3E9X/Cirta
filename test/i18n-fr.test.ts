@@ -10,6 +10,8 @@ import { encryptedPdf } from './helpers/encrypted-pdf.js';
 import { incrementalPdf } from './helpers/incremental-pdf.js';
 import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.js';
 import { runCli } from './helpers/cli.js';
+import { vsdx } from './helpers/visio.js';
+import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -26,7 +28,7 @@ import { compObj, legacyOffice, ole10Native, outlookMessage } from './helpers/ol
  */
 
 const ENGLISH =
-  /\b(the|and|of|to|from|with|not|by|is|are|this|that|which|was|were|has|have|its|into|only|still|than|there|their|characters?|bytes|hidden|slides?|files?|keys?|rotate|placed|outside|comments|colou?r|attributes?|written|named|found|removed|kept|text|read|chunks?|attachment|line|header|body|links?|preview|picture|space|hyphen|joiner|mark|selector|isolate|override|control|filler|cell|vowel|separator|anchor|unparseable|invalid|failed|parse|data|unexpected|summary|unreadable|carrying|rows?|columns?|user)\b/i;
+  /\b(the|and|of|to|from|with|not|by|is|are|this|that|which|was|were|has|have|its|into|only|still|than|there|their|characters?|bytes|hidden|slides?|files?|keys?|rotate|placed|outside|comments|colou?r|attributes?|written|named|found|removed|kept|text|read|chunks?|attachment|line|header|body|links?|preview|picture|space|hyphen|joiner|mark|selector|isolate|override|control|filler|cell|vowel|separator|anchor|unparseable|invalid|failed|parse|data|unexpected|summary|unreadable|carrying|rows?|columns?|user|object)\b/i;
 
 const enc = (text: string) => new TextEncoder().encode(text);
 
@@ -124,6 +126,54 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
       'liens.html',
       enc('<!doctype html><html><body><a href="javascript:x()">Ouvrir</a><a href="data:text/html,x">Facture</a><a href="https://www.google.com/url?q=https://e.example/">Banque</a></body></html>'),
     ],
+    [
+      'contrat.rtf',
+      enc(
+        '{\\rtf1\\ansi{\\*\\generator Riched20 10.0}{\\info{\\title Contrat}{\\author Jeanne}{\\operator Marc}{\\*\\company Cabinet}{\\manager Me Martin}{\\category Juridique}{\\keywords bail}{\\doccomm Projet}{\\hlinkbase C:\\\\Users\\\\jd\\\\Docs}' +
+          '{\\creatim\\yr2024\\mo3\\dy5\\hr10\\min20}{\\revtim\\yr2024\\mo3\\dy6\\hr9\\min5}{\\printim\\yr2024\\mo3\\dy6\\hr9\\min6}{\\buptim\\yr2024\\mo3\\dy6\\hr9\\min7}\\version4\\edmins125}' +
+          '{\\*\\template C:\\\\Users\\\\jd\\\\Normal.dotm}{\\*\\rsidtbl \\rsid1\\rsid2}{\\*\\revtbl {Unknown;}{Jeanne;}}{\\*\\userprops {\\propname Client}\\proptype30{\\staticval ACME}}' +
+          '\\pard Texte{\\object\\objemb{\\*\\objclass Excel.Sheet.8}{\\*\\objdata 0105}{\\result x}}{\\object\\objlink{\\*\\objdata 010500000100000006000000457863656c000d000000433a5c615c622e786c7378000000000000}}' +
+          '{\\field{\\*\\fldinst {INCLUDEPICTURE "https://e.example/p.gif"}}{\\fldrslt {}}}\\par}',
+      ),
+    ],
+    [
+      'livre.epub',
+      zipSync({
+        mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+        'META-INF/container.xml': strToU8('<container><rootfiles><rootfile full-path="c.opf"/></rootfiles></container>'),
+        'c.opf': strToU8('<package unique-identifier="u"><metadata><dc:identifier id="u">urn:uuid:7f9b7746-eaa4-4454-9edb-73fa9e2e5d56</dc:identifier><dc:title>Livre</dc:title><dc:creator>Jeanne</dc:creator><dc:contributor>Marc</dc:contributor><dc:contributor opf:role="bkp">calibre (6.5.0)</dc:contributor><dc:publisher>Cabinet</dc:publisher><dc:date>2024-03-05</dc:date><meta property="dcterms:modified">2024-03-06T09:05:00Z</meta><meta name="calibre:timestamp" content="2024-03-05"/></metadata></package>'),
+        'toc.ncx': strToU8('<ncx><docAuthor><text>Jeanne</text></docAuthor></ncx>'),
+        'p.xhtml': strToU8('<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Bon​jour</p></body></html>'),
+        'META-INF/calibre_bookmarks.txt': strToU8('x'),
+        'iTunesMetadata.plist': strToU8('<plist/>'),
+      }),
+    ],
+    [
+      'drm.epub',
+      zipSync({
+        mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+        'META-INF/encryption.xml': strToU8('<encryption><EncryptedData><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/><CipherData><CipherReference URI="p.xhtml"/></CipherData></EncryptedData></encryption>'),
+        'p.xhtml': strToU8('x'),
+      }),
+    ],
+    ['plan.vsdx', vsdx({ creator: 'Jeanne', company: 'Cabinet', pageText: 'Ser\u200bveur', hyperlink: 'file:///C:/Users/jd/a.vsdx', comments: [{ name: 'Marc', initials: 'M' }], connection: 'Data Source=C:\\a.xlsx;Password=x', media: makeJpeg() })],
+    ['photo.webp', await webpWithMetadata()],
+    ['anim.gif', await gifWithMetadata()],
+    ['scan.tif', tiffWithMetadata()],
+    ['photo.heic', heifWithMetadata('heic')],
+    ['photo.avif', heifWithMetadata('avif')],
+    [
+      'article.tex',
+      enc(
+        '\\documentclass{article}\n\\hypersetup{pdfauthor={Jeanne}}\n% note pour Marc\n\\author{Jeanne\\thanks{ANR}}\\email{j@l.fr}\\affiliation{Labo}\n' +
+          '\\begin{document}\n\\input{/home/jd/intro}\n\\begin{comment}\nancien\n\\end{comment}\nBon\u200bjour\n' + '% c\n'.repeat(60) + '\\end{document}\n',
+      ),
+    ],
+    [
+      'invitation.ics',
+      enc('BEGIN:VCALENDAR\r\nPRODID:-//X//EN\r\nX-WR-CALNAME:Agenda\r\nBEGIN:VEVENT\r\nUID:1@poste.local\r\nCREATED:20240301T080000Z\r\nLAST-MODIFIED:20240301T080000Z\r\nORGANIZER;CN=Jeanne:mailto:j@a.fr\r\nATTENDEE;CN=Marc:mailto:m@a.fr\r\nDESCRIPTION:https://a.zoom.us/j/1?pwd=x\r\nGEO:48.8;2.3\r\nCOMMENT:note\r\nSUMMARY:Bon​jour\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n'),
+    ],
+    ['contact.vcf', enc(`BEGIN:VCARD\r\nVERSION:3.0\r\nPRODID:-//X//EN\r\nFN:Jeanne\r\nNOTE:client\r\nREV:2024-03-05\r\nUID:1\r\nX-ABUID:1\r\nPHOTO;ENCODING=b;TYPE=JPEG:${Buffer.from(makeJpeg()).toString('base64')}\r\nEND:VCARD\r\n`)],
     ['vide.pdf', new Uint8Array(0)],
     [
       'ancien.doc',
@@ -193,8 +243,8 @@ describe('[C11.1] nothing English in French mode', () => {
       // So are an identifier (w:color, tEXt:Author) and what « » quotes.
       const words = text
         .replace(/«[^»]*»/g, ' ')
-        .replace(/[^\s—]*[/\\:=][^\s—]*/g, ' ')
         .replace(/Data Source|Initial Catalog|User ID/g, ' ')
+        .replace(/[^\s—]*[/\\:=][^\s—]*/g, ' ')
         .replace(/en-tête \S+/g, ' ');
       const match = ENGLISH.exec(words);
       if (match) english.push(`${where}: «${match[0]}» in ${text.slice(0, 140)}`);

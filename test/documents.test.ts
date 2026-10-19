@@ -11,6 +11,7 @@ import {
   ZIP_LIMITS,
 } from '../src/core/index.js';
 import { makePdf, makePptx, makeDocx, makeXlsx } from './fixtures.js';
+import { errorText } from '../src/shared/french.js';
 
 describe('detectFormat', () => {
   it('identifies formats by content, not extension', async () => {
@@ -220,8 +221,21 @@ describe('the decompression budget', () => {
 
     expect(bomb.length).toBeLessThan(4096);
     await expect(inspectFile(bomb)).rejects.toThrow(ArchiveTooLargeError);
-    await expect(inspectFile(bomb)).rejects.toThrow(/uncompressed content/);
+    // Each member also claims a thousand times its stored size, which is now caught first.
+    await expect(inspectFile(bomb)).rejects.toThrow(/uncompressed content|inflates more than/);
   });
+
+  it('[F-P2 2.2] refuses a member that inflates more than a thousand times its size, in the reader’s language', async () => {
+    const bomb = zipSync({ 'word/document.xml': strToU8('<w:document><w:body/></w:document>'), 'zeros.bin': new Uint8Array(20 * 1024 * 1024) }, { level: 9 });
+    expect(bomb.length).toBeLessThan(64 * 1024);
+    const error = await inspectFile(bomb).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ArchiveTooLargeError);
+    expect((error as ArchiveTooLargeError).detail).toBe('ratio:zeros.bin');
+    expect(errorText(error, 'fr')).toBe('Le membre « zeros.bin » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.');
+    // An ordinary, highly compressible document is not one.
+    const text = zipSync({ 'word/document.xml': strToU8(`<w:document><w:body>${'<w:p><w:r><w:t>Ligne de rapport</w:t></w:r></w:p>'.repeat(400_000)}</w:body></w:document>`) }, { level: 9 });
+    await expect(inspectFile(text)).resolves.toBeDefined();
+  }, 60_000);
 
   it('refuses an archive with more members than the cap allows', async () => {
     const parts: Record<string, Uint8Array> = {

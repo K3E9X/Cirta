@@ -13,6 +13,9 @@ import { vbaProject } from './helpers/cfb.js';
 import { compObj, legacyOffice, ole10Native, outlookMessage, pptOleRecord, propertySet, SUMMARY, DOC_SUMMARY } from './helpers/ole.js';
 import { jpegWith, tiff } from './helpers/tiff.js';
 import { mutations, ITERATIONS, SEED } from './helpers/mutate.js';
+import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
+import { vsdx } from './helpers/visio.js';
+import { zipSync } from 'fflate';
 
 /*
  * [F-2.8] The parsers added since the fuzzer was written, fuzzed the same
@@ -136,4 +139,29 @@ describe('[F-2.8] fuzzing the new parsers', () => {
       await redactFile(input, 'a.ipynb', { clearOutputs: true });
     });
   }, TIMEOUT * 2);
+
+  it('[F-P2 2.2] RTF, EPUB, Visio and the other picture formats, inspected and cleaned', async () => {
+    const both = (name: string) => async (input: Uint8Array) => {
+      await inspectFile(input, name);
+      await redactFile(input, name, { stripActive: true });
+    };
+    const rtf = strToU8(
+      '{\\rtf1\\ansi\\ansicpg1252{\\info{\\author J\\\'e9}{\\creatim\\yr2024\\mo1\\dy1}\\edmins5}{\\*\\generator W}{\\*\\rsidtbl \\rsid1}{\\*\\revtbl {Unknown;}{J;}}' +
+        '\\pard \\insrsid1 T\\u8364?{\\object\\objemb{\\*\\objclass Package}{\\*\\objdata 01050000020000000800000050616e6b61676500000000000000000000000000}{\\result x}}' +
+        '{\\pict\\jpegblip ffd8ffe1000c4578696600004949ffd9}{\\field{\\*\\fldinst {HYPERLINK "file:///C:/a"}}{\\fldrslt {a}}}\\bin3 {}x\\par}',
+    );
+    await fuzz('rtf', [rtf], both('a.rtf'));
+    const epub = zipSync({
+      mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+      'META-INF/container.xml': strToU8('<container><rootfiles><rootfile full-path="c.opf"/></rootfiles></container>'),
+      'c.opf': strToU8('<package unique-identifier="u"><metadata><dc:identifier id="u">urn:uuid:1</dc:identifier><dc:creator id="a">J</dc:creator><meta refines="#a" property="role">aut</meta></metadata></package>'),
+      'p.xhtml': strToU8('<html><body>x</body></html>'),
+    });
+    await fuzz('epub', [epub], both('a.epub'));
+    await fuzz('vsdx', [vsdx({ creator: 'J', comments: [{ name: 'M', initials: 'M' }], connection: 'Password=x', hyperlink: 'file:///C:/a' })], both('a.vsdx'));
+    await fuzz('latex', [strToU8('\\documentclass{article}\n% c\n\\author{J\\thanks{x}}\\input{/home/j/a}\n\\verb|%|\\url{a%b}\n\\begin{comment}\nx\n\\end{comment}\n\\begin{document}\\end{document}\n')], both('a.tex'));
+    await fuzz('ics', [strToU8('BEGIN:VCALENDAR\r\nPRODID:x\r\nBEGIN:VEVENT\r\nUID:1@h.l\r\nORGANIZER;CN=J:mailto:j@a\r\nDESCRIPTION:https://z.us/j?pwd=1\r\n  suite\r\nX-A:b\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')], both('a.ics'));
+    await fuzz('vcf', [strToU8('BEGIN:VCARD\r\nFN:J\r\nREV:1\r\nPHOTO;ENCODING=b:/9j/4QAMRXhpZgAASUkqAP/Z\r\nEND:VCARD\r\n')], both('a.vcf'));
+    await fuzz('pictures', [await webpWithMetadata(), await gifWithMetadata(), tiffWithMetadata(), heifWithMetadata('heic'), heifWithMetadata('avif')], both('a'));
+  }, TIMEOUT * 6);
 });

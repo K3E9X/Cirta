@@ -25,6 +25,15 @@ export const ZIP_LIMITS = {
   maxDeclaredBytes: 512 * 1024 * 1024,
   /** Member count, which bounds the per-member work regardless of size. */
   maxMembers: 8192,
+  /**
+   * [F-P2 2.2] A member that inflates more than this many times its stored
+   * size, once past {@link ZIP_LIMITS.ratioFloorBytes}: deflate tops out
+   * near 1032:1, so only a run of identical bytes gets there — a bomb, not a
+   * document. Found by the fuzzer: a mutated length turned 300 bytes into
+   * 335 MB of zeros, and cleaning it took twenty seconds.
+   */
+  maxRatio: 1000,
+  ratioFloorBytes: 16 * 1024 * 1024,
 } as const;
 
 /**
@@ -35,9 +44,15 @@ export const ZIP_LIMITS = {
 export const ZIP_EPOCH = new Date(1980, 0, 1);
 
 export class ArchiveTooLargeError extends Error {
-  constructor(reason: string) {
+  /** [F-P2 2.2] A code, so the refusal reads in the reader's language. */
+  readonly code = 'archive-too-large';
+  /** Which limit, and its value: `members:8192`, `bytes:512`, `ratio:<member>`. */
+  readonly detail: string;
+
+  constructor(reason: string, detail: string) {
     super(reason);
     this.name = 'ArchiveTooLargeError';
+    this.detail = detail;
   }
 }
 
@@ -53,6 +68,7 @@ export function unzipGuarded(data: Uint8Array): Unzipped {
   let declared = 0;
   let members = 0;
   let refusal: string | undefined;
+  let detail = '';
 
   const parts = unzipSync(data, {
     filter: (file) => {
@@ -61,13 +77,18 @@ export function unzipGuarded(data: Uint8Array): Unzipped {
       declared += file.originalSize;
       if (members > ZIP_LIMITS.maxMembers) {
         refusal = `archive declares more than ${ZIP_LIMITS.maxMembers} members`;
+        detail = `members:${ZIP_LIMITS.maxMembers}`;
       } else if (declared > ZIP_LIMITS.maxDeclaredBytes) {
         refusal = `archive declares more than ${Math.round(ZIP_LIMITS.maxDeclaredBytes / 1024 / 1024)} MB of uncompressed content`;
+        detail = `bytes:${Math.round(ZIP_LIMITS.maxDeclaredBytes / 1024 / 1024)}`;
+      } else if (file.originalSize > ZIP_LIMITS.ratioFloorBytes && file.originalSize > ZIP_LIMITS.maxRatio * Math.max(1, file.size)) {
+        refusal = `member "${file.name}" inflates more than ${ZIP_LIMITS.maxRatio} times its stored size`;
+        detail = `ratio:${file.name}`;
       }
       return !refusal;
     },
   });
 
-  if (refusal) throw new ArchiveTooLargeError(refusal);
+  if (refusal) throw new ArchiveTooLargeError(refusal, detail);
   return parts;
 }
