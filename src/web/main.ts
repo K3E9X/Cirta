@@ -343,6 +343,8 @@ function beforeAfter(format: Format, before: Uint8Array, redacted: RedactResult)
 const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
 /** [F-P2 2.2] Pictures read and never rewritten. */
 const FIXED_PICTURES = new Set(['tiff', 'heic', 'avif']);
+/** [F-P3 2.2] Archives read and never rewritten. */
+const READ_ONLY_ARCHIVES = new Set(['tar', 'gz', '7z']);
 
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -905,6 +907,8 @@ async function handleFile(file: File, container: HTMLElement, path = file.name):
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
       } else if (FIXED_PICTURES.has(result.format)) {
         node.append(el('p', 'note', errorText({ code: 'image-not-rewritable', detail: result.format }, lang())));
+      } else if (READ_ONLY_ARCHIVES.has(result.format)) {
+        node.append(el('p', 'note', errorText({ code: 'archive-inspect-only', detail: result.format }, lang())));
       } else {
         const foot = el('div', 'card-foot');
         // [F-2.7] The options this file is offered — its format takes them and
