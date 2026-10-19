@@ -69,6 +69,25 @@ jobs:
       - run: npm ci
       - run: node scripts/build-sea.mjs
 
+  # [F-P3 2.5] The image cirta serve runs in, built and tried as it would run:
+  # read-only, no capability, the smoke test against its two ports.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: docker build -t cirta:ci .
+      - run: docker run -d --name cirta --read-only --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 cirta:ci
+      - run: |
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
+          node scripts/smoke-serve.mjs --http http://127.0.0.1:8080 --icap 127.0.0.1:1344
+      - if: always()
+        run: docker logs cirta
+
   # [F-P2 2.6] The editor and browser extensions, built and packaged; the
   # browser one also through Mozilla's linter, which fails on an error.
   extensions:
