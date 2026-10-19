@@ -20,6 +20,7 @@ import { scanContent } from './archive.js';
 import { scanText, isArrangementFinding } from './text.js';
 import { describeC2pa } from './c2pa.js';
 import { findSourceTypes } from './sourcetype.js';
+import { XMP_FIELDS, xmpValue } from './xmp.js';
 
 const INFO_FIELDS = [
   { key: 'Title', label: 'Title', kind: 'identity' as const, confidence: 'probable' as const },
@@ -72,29 +73,6 @@ function readXmp(doc: PDFDocument): string | undefined {
     return undefined;
   }
 }
-
-/** Pull a single XMP property value, tolerating both element and attribute syntax. */
-function xmpValue(xmp: string, property: string): string | undefined {
-  const p = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const element = new RegExp(`<${p}[^>]*>([\\s\\S]*?)</${p}>`).exec(xmp);
-  if (element?.[1]) {
-    const text = element[1].replace(/<[^>]*>/g, '').trim();
-    if (text) return text;
-  }
-  const attribute = new RegExp(`\\s${p}="([^"]*)"`).exec(xmp);
-  return attribute?.[1] || undefined;
-}
-
-const XMP_FIELDS = [
-  { property: 'xmp:CreatorTool', label: 'XMP creator tool', kind: 'provenance' as const, confidence: 'informational' as const },
-  { property: 'pdf:Producer', label: 'XMP producer', kind: 'provenance' as const, confidence: 'informational' as const },
-  { property: 'dc:creator', label: 'XMP author', kind: 'identity' as const, confidence: 'confirmed' as const },
-  { property: 'dc:title', label: 'XMP title', kind: 'identity' as const, confidence: 'probable' as const },
-  { property: 'xmp:CreateDate', label: 'XMP created', kind: 'timestamp' as const, confidence: 'probable' as const },
-  { property: 'xmp:ModifyDate', label: 'XMP modified', kind: 'timestamp' as const, confidence: 'probable' as const },
-  { property: 'xmpMM:DocumentID', label: 'XMP document ID', kind: 'environment' as const, confidence: 'probable' as const },
-  { property: 'xmpMM:InstanceID', label: 'XMP instance ID', kind: 'environment' as const, confidence: 'probable' as const },
-];
 
 function looksLikeC2pa(xmp: string): boolean {
   return /c2pa|contentcredentials|content_credentials|claim_generator/i.test(xmp);

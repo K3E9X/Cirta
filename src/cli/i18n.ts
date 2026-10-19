@@ -35,6 +35,10 @@ const FR = {
   optForceText: 'Traite l’entrée comme du texte même si elle semble binaire',
   optRemoveHidden: 'redact : retire aussi le texte qu’un lecteur ne voit pas (Word, PowerPoint, HTML, Markdown)',
   removeHiddenHint: 'Le texte caché est resté. Relancez avec --remove-hidden pour le retirer de la copie.',
+  optAcceptChanges: 'redact : accepte toutes les modifications suivies d’un DOCX (le texte supprimé quitte le fichier)',
+  acceptChangesHint: 'Les modifications suivies sont restées, texte supprimé compris. Relancez avec --accept-changes pour les accepter.',
+  optRemoveComments: 'redact : retire tous les commentaires (Word, Excel, PowerPoint) — texte, auteurs, fils',
+  removeCommentsHint: 'Le texte des commentaires est resté (leurs auteurs sont anonymisés). Relancez avec --remove-comments pour les retirer.',
   aimedAlert: (n: number) =>
     n > 1
       ? `${n} consignes cachées destinées à une IA — invisibles pour un lecteur, lues comme des ordres par un assistant`
@@ -213,6 +217,10 @@ const EN: Strings = {
   optForceText: 'Treat the input as text even if it looks binary',
   optRemoveHidden: 'redact: also remove text a reader cannot see (Word, PowerPoint, HTML, Markdown)',
   removeHiddenHint: 'Hidden text was left in. Run again with --remove-hidden to take it out of the copy.',
+  optAcceptChanges: 'redact: accept every tracked change in a DOCX (deleted text leaves the file)',
+  acceptChangesHint: 'Tracked changes were left in, deleted text included. Run again with --accept-changes to accept them.',
+  optRemoveComments: 'redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads',
+  removeCommentsHint: 'Comment text was left in (its authors are anonymised). Run again with --remove-comments to remove them.',
   aimedAlert: (n: number) =>
     n > 1
       ? `${n} hidden instructions aimed at an AI — invisible to a reader, read as orders by an assistant`

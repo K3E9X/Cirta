@@ -108,13 +108,19 @@ function decodeNumericReferences(text: string): string {
  */
 const LINE_BREAK = /^<\/(?:w:p|a:p|text:p|text:h)\b|^<(?:w:br|a:br|text:line-break)\b/;
 
-const TOKEN = /<[^>]*>|[^<]+/g;
+/*
+ * A tag stops at the next "<" as well as at ">": `<[^>]*>` scanned to the end
+ * of the input from every "<" that had no ">" after it, so a body of unclosed
+ * brackets took quadratic time — minutes on a crafted mail. A lone "<" is a
+ * token of its own and carries no text, as it never could in well-formed XML.
+ */
+const TOKEN = /<[^<>]*>|<|[^<]+/g;
 
 export function collectTextContent(xml: string): string {
   const pieces: string[] = [];
   for (const token of xml.match(TOKEN) ?? []) {
     if (token.startsWith('<')) {
-      if (LINE_BREAK.test(token)) pieces.push('\n');
+      if (token.length > 1 && LINE_BREAK.test(token)) pieces.push('\n');
     } else {
       pieces.push(decodeEntities(decodeNumericReferences(token)));
     }

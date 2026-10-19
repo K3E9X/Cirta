@@ -118,6 +118,32 @@ const FIELD_LABEL: Record<string, string> = {
   'Earlier versions of this document are still in the file':
     'Des versions antérieures de ce document sont encore dans le fichier',
   'Annotation authors': 'Auteurs des annotations',
+  // [C7] Champs Exif, PNG et XMP des images.
+  'Camera make and model': 'Marque et modèle de l’appareil',
+  Software: 'Logiciel',
+  Artist: 'Artiste',
+  Copyright: 'Droits d’auteur',
+  'Date modified': 'Date de modification',
+  'Computer name': 'Nom de l’ordinateur',
+  'Image description': 'Description de l’image',
+  'Date taken': 'Date de prise de vue',
+  Lens: 'Objectif',
+  'Camera serial number': 'Numéro de série de l’appareil',
+  'Lens serial number': 'Numéro de série de l’objectif',
+  'Camera owner': 'Propriétaire de l’appareil',
+  'Time zone offset': 'Décalage horaire',
+  'GPS position': 'Position GPS',
+  'GPS altitude': 'Altitude GPS',
+  'GPS date and time': 'Date et heure GPS',
+  'Editing history': 'Historique d’édition',
+  'Source file path': 'Chemin du fichier source',
+  'Document ancestors': 'Documents d’origine',
+  'Source device': 'Appareil source',
+  Comment: 'Commentaire',
+  'Creation time': 'Date de création',
+  Disclaimer: 'Avertissement légal',
+  Warning: 'Avertissement',
+  'PNG text field': 'Champ texte PNG',
   // Texte qu'un lecteur ne voit pas et qu'une IA lit.
   'Text covered by a shape': 'Texte recouvert par une forme',
   'Text that does not show on the page': 'Texte qui n’apparaît pas sur la page',
@@ -128,6 +154,13 @@ const FIELD_LABEL: Record<string, string> = {
   'Text formatted as hidden': 'Texte mis en forme « masqué »',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
   'Encrypted document': 'Document chiffré',
+  'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
+  'Deleted text still in the file (tracked changes)': 'Texte supprimé encore présent (suivi de modifications)',
+  'Moved text still at its old place (tracked changes)': 'Texte déplacé encore à son ancienne place (suivi de modifications)',
+  'Inserted text not yet accepted (tracked changes)': 'Texte inséré pas encore accepté (suivi de modifications)',
+  'Comment text': 'Texte d’un commentaire',
+  'Comment author account': 'Compte de l’auteur d’un commentaire',
+  'Attachment not inspected': 'Pièce jointe non inspectée',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':
@@ -590,6 +623,7 @@ function translateReasons(value: string): string {
  * matched whole — a half-translated line reads as a bug because it is one.
  */
 const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
   [
     /^(\d+) revisions are present(.*?)\. A reader shows only the newest; the previous ones were appended to, never removed, and the first ends ([\d,]+) bytes in — about (\d+)% of the file\. Text covered or deleted in a later revision is still readable in an earlier one$/,
     (m) =>

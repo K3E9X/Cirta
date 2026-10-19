@@ -23,11 +23,12 @@ import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } f
 import { byConfidence } from './types.js';
 import { hiddenInDocx, stripHiddenDocx } from './hidden-text.js';
 import { hiddenInPptx, stripHiddenPptx } from './hidden-pptx.js';
+import { acceptChangesInParts, elements, trackedChangeFindings } from './tracked-changes.js';
+import { anonymizeComments, commentFindings, commentParts, countComments } from './comments.js';
 import {
   getElementText,
   setElementText,
   removeElement,
-  removeAttribute,
   collectAttribute,
   collectNamedProperties,
   collectTextContent,
@@ -145,30 +146,7 @@ function findHiddenSlides(parts: Parts): string[] {
  */
 function findWorkbookIdentities(parts: Parts): Finding[] {
   const findings: Finding[] = [];
-
-  const authors = new Set<string>();
-  for (const [path, raw] of Object.entries(parts)) {
-    if (!/^xl\/comments\d*\.xml$/.test(path)) continue;
-    for (const match of strFromU8(raw).matchAll(/<author>([^<]+)<\/author>/g)) {
-      const name = match[1]?.trim();
-      if (name && name !== ANONYMOUS_AUTHOR) authors.add(name);
-    }
-  }
-  for (const [path, raw] of Object.entries(parts)) {
-    if (!/^xl\/persons\/person\d*\.xml$/.test(path)) continue;
-    for (const name of collectAttribute(strFromU8(raw), 'displayName')) {
-      if (name !== ANONYMOUS_AUTHOR) authors.add(name);
-    }
-  }
-  if (authors.size) {
-    findings.push({
-      kind: 'identity',
-      confidence: 'confirmed',
-      location: 'xl/comments, xl/persons',
-      label: 'Comment authors',
-      value: [...authors].join(', '),
-    });
-  }
+  // Comment authors, persons and comment text: commentFindings(), for every format.
 
   const workbook = parts['xl/workbook.xml'];
   if (workbook) {
@@ -607,8 +585,9 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
 
   findings.push(...structuralGenerator(parts, format));
   findings.push(...findWorkbookIdentities(parts));
+  findings.push(...commentFindings(parts));
   findings.push(...inspectBodyText(parts));
-  if (format === 'docx') findings.push(...hiddenInDocx(parts));
+  if (format === 'docx') findings.push(...hiddenInDocx(parts), ...trackedChangeFindings(parts));
   if (format === 'pptx') findings.push(...hiddenInPptx(parts));
 
   notes.push({ code: 'scope:ooxml-metadata-only' });
@@ -632,6 +611,10 @@ export interface RedactOoxmlOptions {
   cleanBodyText?: boolean;
   /** Remove Word and PowerPoint runs a reader cannot see: hidden, background-coloured, under 2 pt, off the slide. Default false. */
   removeHidden?: boolean;
+  /** Accept every tracked change in a Word document: deletions go, insertions stay as plain text. Default false. */
+  acceptChanges?: boolean;
+  /** Remove every comment — text, authors, threads — from Word, Excel and PowerPoint. Default false. */
+  removeComments?: boolean;
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -664,6 +647,56 @@ function resolveTarget(relsPath: string, target: string): string {
  * root: a dangling relationship is not a cosmetic leftover — Word treats a
  * target it cannot resolve as a damaged file and offers to repair it.
  */
+/**
+ * [C6] Every comment out of the package, on request: the comment parts, their
+ * author registries and the relationships and content types that name them —
+ * and what points at them by id, which removePart() cannot see: Word's comment
+ * ranges and references, a sheet's <legacyDrawing>, the VML notes. Returns how
+ * many comments went.
+ */
+function removeAllComments(parts: Parts): number {
+  const count = countComments(parts);
+  const found = commentParts(parts);
+
+  // A sheet's notes are drawn by a VML part its <legacyDrawing> points at. The
+  // note shapes go; a VML part left with no shape goes with its reference.
+  for (const relsPath of Object.keys(parts).filter((p) => /^xl\/worksheets\/_rels\/[^/]+\.rels$/.test(p))) {
+    const sheetPath = relsPath.replace(/_rels\/([^/]+)\.rels$/, '$1');
+    const rels = readText(parts, relsPath)!;
+    for (const rel of rels.match(/<Relationship\b[^>]*\/>/g) ?? []) {
+      if (!/\/vmlDrawing"/.test(rel)) continue;
+      const id = /\sId="([^"]+)"/.exec(rel)?.[1];
+      const target = /\sTarget="([^"]+)"/.exec(rel)?.[1];
+      if (!id || !target) continue;
+      const vmlPath = resolveTarget(relsPath, target);
+      const vml = readText(parts, vmlPath);
+      if (vml === undefined) continue;
+      const notes = elements(vml, 'v:shape').filter((shape) => /ObjectType="Note"/.test(shape.inner));
+      let kept = vml;
+      for (const shape of notes.reverse()) kept = kept.slice(0, shape.start) + kept.slice(shape.end);
+      if (/<v:shape\b/.test(kept)) {
+        parts[vmlPath] = strToU8(kept);
+      } else {
+        removePart(parts, vmlPath);
+        const sheet = readText(parts, sheetPath);
+        if (sheet) parts[sheetPath] = strToU8(sheet.replace(new RegExp(`<legacyDrawing\\b[^<>]*\\br:id="${escapeRegExp(id)}"[^<>]*/>`), ''));
+      }
+    }
+  }
+
+  for (const path of [...found.sheet, ...found.threaded, ...found.persons, ...found.word, ...found.wordExtras, ...found.slide, ...found.slideAuthors]) {
+    removePart(parts, path);
+  }
+
+  // Word anchors each comment in the text with ranges and a reference mark.
+  for (const path of Object.keys(parts).filter((p) => /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes)\.xml$/.test(p))) {
+    const xml = readText(parts, path)!;
+    const cleaned = xml.replace(/<w:comment(?:RangeStart|RangeEnd|Reference)\b[^<>]*\/>/g, '');
+    if (cleaned !== xml) parts[path] = strToU8(cleaned);
+  }
+  return count;
+}
+
 function removePart(parts: Parts, path: string): void {
   delete parts[path];
 
@@ -707,6 +740,8 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
     stripMedia = true,
     cleanBodyText = true,
     removeHidden = false,
+    acceptChanges = false,
+    removeComments = false,
   } = options;
 
   const before = inspectOoxml(data);
@@ -748,12 +783,30 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
 
   if (removeRsids) {
     const settings = readText(parts, 'word/settings.xml');
-    if (settings) {
-      let cleaned = removeElement(settings, 'w:rsids');
-      cleaned = removeAttribute(cleaned, 'w:rsidR');
-      cleaned = removeAttribute(cleaned, 'w:rsidRDefault');
-      parts['word/settings.xml'] = strToU8(cleaned);
+    if (settings) parts['word/settings.xml'] = strToU8(removeElement(settings, 'w:rsids'));
+    // [C5] Every part, not settings.xml alone: each paragraph, run, style and
+    // list carries its own w:rsid… attributes, and together they record which
+    // editing session touched what.
+    for (const path of Object.keys(parts)) {
+      if (!/^word\/.*\.xml$/.test(path)) continue;
+      const xml = strFromU8(parts[path]!);
+      if (!xml.includes('w:rsid')) continue;
+      parts[path] = strToU8(xml.replace(/\sw:rsid\w*="[^"]*"/g, ''));
     }
+  }
+
+  // [C5] When each revision and comment was made, to the minute: timestamps,
+  // and removed with the names beside them. Both attributes are optional.
+  for (const path of Object.keys(parts)) {
+    if (!/^word\/.*\.xml$/.test(path)) continue;
+    const xml = strFromU8(parts[path]!);
+    if (!/\s(?:w:date|w16du:dateUtc)="/.test(xml)) continue;
+    parts[path] = strToU8(xml.replace(/\s(?:w:date|w16du:dateUtc)="[^"]*"/g, ''));
+  }
+
+  if (acceptChanges && format === 'docx') {
+    const accepted = acceptChangesInParts(parts);
+    if (accepted) notes.push({ code: 'removed:tracked-changes', detail: String(accepted) });
   }
 
   if (anonymizeAuthors) {
@@ -762,15 +815,16 @@ export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}):
       let xml = strFromU8(raw);
       const before = xml;
       xml = xml.replace(/\sw:author="[^"]*"/g, ` w:author="${ANONYMOUS_AUTHOR}"`);
-      // Spreadsheets name people in elements and in a person registry instead.
-      if (/^xl\/comments\d*\.xml$/.test(path)) {
-        xml = xml.replace(/<author>[^<]*<\/author>/g, `<author>${ANONYMOUS_AUTHOR}</author>`);
-      }
-      if (/^xl\/persons\/person\d*\.xml$/.test(path)) {
-        xml = xml.replace(/\sdisplayName="[^"]*"/g, ` displayName="${ANONYMOUS_AUTHOR}"`);
-      }
       if (xml !== before) parts[path] = strToU8(xml);
     }
+    // [C6] Spreadsheets and decks name comment authors in elements and
+    // registries of their own, wherever the producer put them.
+    anonymizeComments(parts);
+  }
+
+  if (removeComments) {
+    const removed = removeAllComments(parts);
+    if (removed) notes.push({ code: 'removed:comments', detail: String(removed) });
   }
 
   if (removeHidden && (format === 'docx' || format === 'pptx')) {

@@ -192,7 +192,8 @@ describe('generated images', () => {
 
   it('leaves an ordinary text chunk as an ordinary text chunk', async () => {
     const png = pngWithText('Comment', 'Scanned on a flatbed');
-    expect(await labels(png)).toContain('PNG tEXt chunk');
+    // [C7] Reported as the field it is, with its value, rather than as a chunk size.
+    expect(await labels(png)).toContain('Comment');
     expect(await labels(png)).not.toContain('Image generation settings, including the prompt');
   });
 });

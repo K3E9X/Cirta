@@ -15,6 +15,8 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     'Metadata, plus a scan of decompressed streams for credentials and provider identifiers, and of page text decoded through each font\'s ToUnicode map. That map is what turns a subset font\'s glyph codes back into characters; a page whose font carries none is still read as raw codes, where a hit is real but a miss proves nothing. A statistical model watermark would not show up either way.',
   'scope:ooxml-metadata-only': () =>
     'Document properties, a scan of the parts for credentials and provider identifiers, and a scan of the visible text for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and is unaffected by redaction.',
+  'scope:email': () =>
+    'Mail: the header block, then each MIME part read by its type — plain text and HTML bodies with their links and hidden text, attachments inspected like the members of an archive. Cleaning removes the header lines that name a tool and invisible characters; the encoded parts are left as written, and what survives is named.',
   'scope:invisible-characters-only': () =>
     'Character-level only: invisible codepoints, lookalike letters, and the credentials and provider identifiers that cannot occur innocently. A statistical model watermark in this text, if present, is unaffected and cannot be detected locally.',
   'scope:markup-metadata-only': () =>
@@ -39,6 +41,12 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `The pages were not rendered${detail ? ` (${detail})` : ''}, so text a reader cannot see — under a shape, in the page colour, too small, past the edge — was not looked for. Its absence from this report says nothing either way.`,
   'limit:hidden-text-truncated': (detail) =>
     `Hidden text was looked for on the first ${detail ? detail.replace('/', ' of ') : 'few'} pages only; the rest were not rendered.`,
+  'removed:comments': (detail) =>
+    detail === '1'
+      ? 'Removed the comment: its text, its author and its thread, with every reference to it in the document.'
+      : `Removed ${detail ?? 'the'} comments: their text, their authors and the threads they belonged to, with every reference to them in the document.`,
+  'removed:tracked-changes': (detail) =>
+    `Accepted ${detail ?? 'the'} tracked change${detail === '1' ? '' : 's'}: deleted and moved-away text is gone from the file, inserted text stays as ordinary text, and the record of formatting changes is dropped. The document now reads as it did with every change accepted in Word.`,
   'removed:hidden-text': (detail) =>
     `Removed ${detail ?? 'the'} hidden passage${detail === '1' ? '' : 's'} a reader could not see — the text, not the formatting around it. Text that is only faint, and anything listed as probable, was left: it may be meant to be seen.`,
   'limit:hidden-text-doubtful': (detail) =>
@@ -51,6 +59,8 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     "Métadonnées, plus un scan des flux décompressés (secrets, identifiants de fournisseur) et du texte des pages, décodé via la table ToUnicode de chaque police. C'est cette table qui retransforme les codes de glyphes d'une police sous-ensemble en caractères ; une page dont la police n'en porte pas est lue en codes bruts, où une détection reste fiable mais une absence ne prouve rien. Un filigrane statistique n'apparaîtrait dans aucun des deux cas.",
   'scope:ooxml-metadata-only': () =>
     "Propriétés du document, un scan des parties à la recherche de secrets et d'identifiants de fournisseur, et un scan du texte visible à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et le nettoyage ne l'affecte pas.",
+  'scope:email': () =>
+    "Courrier : le bloc d'en-têtes, puis chaque partie MIME lue selon son type — corps texte et HTML avec leurs liens et leur texte caché, pièces jointes inspectées comme les membres d'une archive. Le nettoyage retire les lignes d'en-tête qui nomment un logiciel et les caractères invisibles ; les parties encodées restent telles qu'écrites, et ce qui survit est nommé.",
   'scope:invisible-characters-only': () =>
     "Analyse au niveau des caractères : codepoints invisibles, lettres sosies, et les secrets et identifiants de fournisseur qui ne peuvent pas apparaître innocemment. Un filigrane statistique éventuellement présent dans ce texte n'est pas affecté et reste indétectable localement.",
   'scope:markup-metadata-only': () =>
@@ -71,6 +81,12 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Les pages n'ont pas été rendues${detail ? ` (${detail})` : ''} : le texte qu'un lecteur ne voit pas — sous une forme, couleur de la page, trop petit, hors de la page — n'a pas été cherché. Son absence de ce rapport ne prouve rien.`,
   'limit:hidden-text-truncated': (detail) =>
     `Le texte caché n'a été cherché que sur les ${detail ? detail.replace('/', ' premières pages sur ') : 'premières pages'} ; les suivantes n'ont pas été rendues.`,
+  'removed:comments': (detail) =>
+    detail === '1'
+      ? 'Commentaire retiré : son texte, son auteur et son fil, avec toutes les références à lui dans le document.'
+      : `${detail ?? 'Les'} commentaires retirés : leur texte, leurs auteurs et les fils dont ils faisaient partie, avec toutes les références à eux dans le document.`,
+  'removed:tracked-changes': (detail) =>
+    `${detail === '1' ? 'Modification suivie acceptée' : `${detail ?? 'Les'} modifications suivies acceptées`} : le texte supprimé ou déplacé a quitté le fichier, le texte inséré reste comme texte ordinaire, et l'historique des changements de mise en forme est retiré. Le document se lit désormais comme si toutes les modifications avaient été acceptées dans Word.`,
   'removed:hidden-text': (detail) =>
     `${detail === '1' ? 'Passage caché retiré' : `${detail ?? 'Les'} passages cachés retirés`} — le texte qu'un lecteur ne voyait pas, pas la mise en forme autour. Le texte seulement pâle, et ce qui est listé comme probable, a été laissé : il est peut-être fait pour être vu.`,
   'limit:hidden-text-doubtful': (detail) =>

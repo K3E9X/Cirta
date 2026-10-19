@@ -211,6 +211,9 @@ const FR = {
     n > 1
       ? 'Un lecteur ne les voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — les lira comme des instructions. Elles sont citées plus bas.'
       : 'Un lecteur ne la voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — la lira comme une instruction. Elle est citée plus bas.',
+  removeCommentsOption: (n: number) => (n > 1 ? `Retirer les ${n} commentaires` : 'Retirer le commentaire'),
+  acceptChangesOption: (n: number) =>
+    n > 1 ? `Accepter les ${n} modifications suivies (le texte supprimé quitte le fichier)` : 'Accepter la modification suivie (le texte supprimé quitte le fichier)',
   removeHiddenOption: (n: number) =>
     n > 1 ? `Retirer aussi les ${n} passages cachés` : 'Retirer aussi le passage caché',
 } as const;
@@ -402,6 +405,9 @@ const EN: Strings = {
     n > 1
       ? 'A reader does not see them. An assistant given this file — to summarise it, screen it, reply to it — will read them as instructions. They are quoted below.'
       : 'A reader does not see it. An assistant given this file — to summarise it, screen it, reply to it — will read it as an instruction. It is quoted below.',
+  removeCommentsOption: (n) => (n > 1 ? `Remove the ${n} comments` : 'Remove the comment'),
+  acceptChangesOption: (n) =>
+    n > 1 ? `Accept the ${n} tracked changes (deleted text leaves the file)` : 'Accept the tracked change (deleted text leaves the file)',
   removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),
 };
 

@@ -57,6 +57,8 @@ export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
 import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
 import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf, assertReadablePdf } from './pdf.js';
+import { inspectEml, redactEml } from './mail.js';
+import { looksLikeMail } from './mime.js';
 import { inspectOoxml, redactOoxml } from './ooxml.js';
 import { inspectOdf, redactOdf, isOdf } from './odf.js';
 import { inspectMarkup, redactMarkupCounted, detectMarkupFormat } from './markup.js';
@@ -81,6 +83,10 @@ function startsWith(data: Uint8Array, signature: number[]): boolean {
 
 const isPdf = (data: Uint8Array) => startsWith(data, [0x25, 0x50, 0x44, 0x46]); // %PDF
 const isZip = (data: Uint8Array) => startsWith(data, [0x50, 0x4b, 0x03, 0x04]);
+
+/** A saved mail: named .eml, or opening with an RFC 5322 header block. */
+const isMail = (data: Uint8Array, hint?: string) =>
+  hint === 'eml' || /\.eml$/i.test(hint ?? '') || looksLikeMail(data);
 
 /** True for a ZIP that is a document package rather than a plain archive. */
 function isDocumentPackage(parts: Record<string, Uint8Array>): boolean {
@@ -153,6 +159,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   }
   const image = detectImageKind(data);
   if (image) return image;
+  if (isMail(data, hint)) return 'eml';
   try {
     const text = decodeTextInput(data, decodeOptions(hint));
     // Anything that decodes as text but is no known markup is still a file
@@ -224,6 +231,9 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
       notes: [{ code: 'scope:image-metadata-only' }],
     };
   }
+
+  // [C4] Before the markup sniff: a mail whose body is HTML is a mail first.
+  if (isMail(data, hint)) return inspectEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray }));
 
   const format = detectFormat(data, hint);
   if (format === 'svg' || format === 'html' || format === 'markdown') {
@@ -317,7 +327,7 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
         'archive-not-rewritable',
       );
     }
-    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden }), hint, options);
+    return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments }), hint, options);
   }
 
   const image = detectImageKind(data);
@@ -329,6 +339,10 @@ export async function redactFile(data: Uint8Array, hint?: string, options: Inspe
       { format: image, data: stripImageMetadata(data) ?? data, removed: before, notes },
       hint,
     );
+  }
+
+  if (isMail(data, hint)) {
+    return noteSurvivors(await redactEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray })), hint, options);
   }
 
   const format = detectFormat(data, hint);
