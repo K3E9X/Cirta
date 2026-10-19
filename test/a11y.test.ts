@@ -34,6 +34,13 @@ describe('[F-P3 2.7] the drop zone', () => {
   });
 });
 
+describe('[F-P3 2.7] hidden means hidden', () => {
+  it('no class rule can show an element the markup or the script hid', () => {
+    // .button { display: inline-flex } showed « Forget » with no rules imported, and Tab reached it.
+    expect(css).toMatch(/\[hidden\] \{\s*display: none !important;\s*\}/);
+  });
+});
+
 describe('[F-P3 2.7] landmarks', () => {
   it('everything between the header and the footer is inside <main>', () => {
     const header = html.indexOf('</header>');

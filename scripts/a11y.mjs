@@ -15,8 +15,9 @@
  * and every <details> open:
  *   - axe-core finds no violation, contrast included;
  * and once:
- *   - every Tab stop, from the top of the page to the end of the tool, shows
- *     where the focus is; the first one is the skip link;
+ *   - every Tab stop in the page, with results on screen and every section
+ *     open, shows where the focus is; the first one is the skip link; nothing
+ *     marked hidden is shown;
  *   - Enter on « Choose files » opens the file picker, and the tabs answer the
  *     arrow keys;
  *   - a stored theme is applied under the page's own CSP, before the script
@@ -110,28 +111,30 @@ console.log('keyboard');
   const choosers = [];
   page.on('filechooser', (chooser) => choosers.push(chooser));
   await page.goto(url);
+  // Results on screen and every section open, so the walk meets their controls too.
+  await page.locator('#file-input').setInputFiles(SAMPLES);
+  await page.waitForFunction((count) => document.querySelectorAll('#file-results .card:not(.is-busy)').length >= count, SAMPLES.length, { timeout: 60_000 });
+  await page.evaluate(() => document.querySelectorAll('details').forEach((details) => (details.open = true)));
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
   const stops = [];
-  for (let i = 0; i < 40; i++) {
+  // Tab from the top until the focus leaves the page or comes back to where it started.
+  for (let i = 0; i < 500; i++) {
     await page.keyboard.press('Tab');
     const stop = await page.evaluate(() => {
       const node = document.activeElement;
       if (!node || node === document.body) return null;
       const style = getComputedStyle(node);
-      return { name: node.id ? `#${node.id}` : node.tagName.toLowerCase() + (node.className ? `.${String(node.className).split(' ')[0]}` : ''), ring: style.outlineStyle !== 'none' || style.boxShadow !== 'none' };
+      const name = node.id ? `#${node.id}` : node.tagName.toLowerCase() + (node.getAttribute('class') ? `.${node.getAttribute('class').split(' ')[0]}` : '');
+      return { name, key: node.outerHTML.slice(0, 200), ring: style.outlineStyle !== 'none' || style.boxShadow !== 'none' };
     });
-    if (!stop) break;
+    if (!stop || (stops.length && stop.key === stops[0].key)) break;
     stops.push(stop);
-    if (stop.name === '#tab-files') {
-      // The tool's own controls follow; past them, the walk has met each kind of control once.
-      for (let j = 0; j < 4; j++) {
-        await page.keyboard.press('Tab');
-        stops.push(await page.evaluate(() => ({ name: document.activeElement?.id ? `#${document.activeElement.id}` : document.activeElement?.tagName.toLowerCase(), ring: getComputedStyle(document.activeElement).outlineStyle !== 'none' })));
-      }
-      break;
-    }
   }
+  console.log(`  (${stops.length} Tab stops)`);
+  const shown = await page.evaluate(() => [...document.querySelectorAll('[hidden]')].filter((node) => getComputedStyle(node).display !== 'none').map((node) => node.id || node.tagName));
+  check('nothing marked hidden is shown', shown.length === 0, shown.join(', '));
   check('the first Tab stop is the skip link', stops[0]?.name === 'a.skip', stops[0]?.name);
-  check('the walk reaches the theme switch, the language switch, the tabs and both pickers', ['#theme-toggle', '#lang-toggle', '#tab-files', '#file-pick', '#folder-pick'].every((id) => stops.some((s) => s.name === id)), stops.map((s) => s.name).join(' '));
+  check('the walk reaches the switches, the tabs, both pickers, the options and the results', ['#theme-toggle', '#lang-toggle', '#tab-files', '#file-pick', '#folder-pick', '#scan-pii', 'input', 'button.button'].every((id) => stops.some((s) => s.name === id)), stops.map((s) => s.name).join(' '));
   const blind = stops.filter((s) => !s.ring).map((s) => s.name);
   check('every stop shows where the focus is', blind.length === 0, blind.join(', '));
 

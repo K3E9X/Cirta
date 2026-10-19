@@ -128,6 +128,14 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/*
+ * [F-P3 2.7] The attribute wins over any class: .button's display showed the
+ * rules' « Forget » button with nothing to forget, and Tab stopped on it.
+ */
+[hidden] {
+  display: none !important;
+}
+
 /* [F-P3 2.7] Read by a screen reader, not shown. */
 .visually-hidden {
   position: absolute;
