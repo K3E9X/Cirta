@@ -845,6 +845,52 @@ claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp      # Claude 
 { "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp"] } } }
 ```
 
+### Personal data and the organisation's rules — on request
+
+**`--pii`** also reads the document's text — hidden passages included, since an IBAN in a white run
+is still an IBAN — for personal and technical data. Where a number has a checksum it must hold, so a
+random run of digits is not reported; some shapes count only after the word that names them.
+
+| Found | How it is told apart | Level | Shown as |
+|---|---|---|---|
+| IBAN | mod-97 checksum | confirmed | `FR76 •••• •••• •••• •••• •••• 189` |
+| Payment card | Luhn, card prefixes | confirmed | `•••• •••• •••• 7893` |
+| French social security number (NIR) | its key | confirmed | `1 •• •• •• ••• ••• 91` |
+| SIREN / SIRET | Luhn, after "SIREN", "SIRET", "RCS" or "TVA" | confirmed | `732 ••• •••` |
+| Email address | shape | confirmed | `j•••@exemple.fr` |
+| Phone number | French and international shapes | probable | `06 •• •• •• 78` |
+| IP address (private or public), MAC address, internal host name (`.local`, `.lan`, `.corp`, `.internal`…) | shape | probable | `10.2.•.•`, `00:1A:2B:••:••:••`, `sql01.•••.corp` |
+| French licence plate, passport or ID card number | shape (the latter after "passeport", "CNI"…) | probable | `AB-•••-CD`, `•••••4567` |
+
+Values are always masked, in the terminal, in JSON and on the page: the report must not become the
+leak it describes. Personal data is content: cleaning leaves it and names it as still there.
+
+**`--rules <file>`** applies an organisation's own vocabulary — internal project names, private
+domains, identifier prefixes — written once in YAML (the subset rules need) or JSON:
+
+```yaml
+rules:
+  - id: projets
+    label: Internal project name
+    level: confirmed
+    words: [Orion, Pégase]          # whole words, any case
+  - id: domaine
+    label: Internal domain
+    level: probable
+    pattern: '[a-z0-9-]+\.corp\.example'
+    flags: i
+```
+
+Rules read the body and every field already reported (a project name in the title is found there). A
+file that does not read is refused with the line or the rule and why. A pattern runs as written: one
+that backtracks badly is slow on a long document. On the page, "Extended scan" offers both; the rules
+file and the choice are remembered in this browser only.
+
+```
+cirta inspect --pii --rules regles.yaml dossier/
+cirta verify --rules regles.yaml rapport.clean.pdf
+```
+
 ## Web interface
 
 Open the [published page](https://k3e9x.github.io/Cirta/), drop a file, read the report, download the

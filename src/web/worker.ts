@@ -12,6 +12,7 @@
  */
 
 import { inspectFile, redactFile, type InspectResult, type RedactResult } from '../core/index.js';
+import { parseRules, type Rule } from '../core/rules.js';
 import type { XrayEngine, XrayRegion } from '../core/xray.js';
 
 /*
@@ -46,8 +47,21 @@ const mayRender = (bytes: Uint8Array): boolean =>
   (bytes[0] === 0x50 && bytes[1] === 0x4b);
 
 export type WorkerRequest =
-  | { id: number; op: 'inspect'; data: ArrayBuffer; hint?: string }
-  | { id: number; op: 'redact'; data: ArrayBuffer; hint?: string; clean?: CleanChoices };
+  | { id: number; op: 'inspect'; data: ArrayBuffer; hint?: string; scan?: ScanChoices }
+  | { id: number; op: 'redact'; data: ArrayBuffer; hint?: string; clean?: CleanChoices; scan?: ScanChoices };
+
+/** [F-2.3] What else to look for: personal data, and the organisation's rules as written in their file. */
+export interface ScanChoices {
+  pii?: boolean;
+  rules?: string;
+}
+
+let parsedRules: { text: string; rules: Rule[] } | undefined;
+const rulesFrom = (text?: string): Rule[] | undefined => {
+  if (!text) return undefined;
+  if (parsedRules?.text !== text) parsedRules = { text, rules: parseRules(text) };
+  return parsedRules.rules;
+};
 
 /** What the reader chose to have changed in the document itself; every choice is off unless ticked. */
 export interface CleanChoices {
@@ -73,12 +87,13 @@ export type WorkerResponse =
 self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const { id, op, data, hint } = event.data;
   const clean = event.data.op === 'redact' ? (event.data.clean ?? {}) : {};
+  const scan = event.data.scan ?? {};
   try {
     const bytes = new Uint8Array(data);
     const engine = mayRender(bytes) ? await xray : undefined;
     if (op === 'inspect') {
       const hidden: XrayRegion[] = [];
-      const result = await inspectFile(bytes, hint, { xray: engine, onHidden: (regions) => hidden.push(...regions) });
+      const result = await inspectFile(bytes, hint, { xray: engine, onHidden: (regions) => hidden.push(...regions), pii: scan.pii === true, rules: rulesFrom(scan.rules) });
       (self as unknown as Worker).postMessage(
         { id, ok: true, op, result, hidden } satisfies WorkerResponse,
         hidden.map((region) => region.crop.rgba.buffer as ArrayBuffer),
@@ -100,6 +115,8 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       flattenAnnotations: clean.flattenAnnotations === true,
       stripTracking: clean.stripTracking === true,
       burnRedactions: clean.burnRedactions === true,
+      pii: scan.pii === true,
+      rules: rulesFrom(scan.rules),
     });
     // The buffer is transferred rather than copied: a redacted file can be tens
     // of megabytes and structured cloning it twice is pure waste.

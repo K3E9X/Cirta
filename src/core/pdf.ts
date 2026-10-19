@@ -1165,3 +1165,13 @@ async function rasterize(doc: PDFDocument, rendered: Map<number, RenderedPage>):
   }
   pruneUnreachable(doc);
 }
+
+/** [F-2.3] A PDF's text, read from its pages and streams, for a search of what it says. Nothing for an encrypted one. */
+export async function pdfText(data: Uint8Array): Promise<string> {
+  try {
+    const doc = await load(data);
+    return doc.isEncrypted ? '' : documentText(doc);
+  } catch {
+    return '';
+  }
+}

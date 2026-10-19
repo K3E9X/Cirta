@@ -14,6 +14,7 @@ Chaque PR ne montre que son lot.
 | n°4 | `feat/active-content` | `fix/test-campaign-2026-10-p2` | F-2.1 contenu actif (F-P1) |
 | n°5 | `feat/cleaning-options` | `feat/active-content` | F-2.4 nettoyage plus fort et `verify` (F-P1) |
 | n°6 | `feat/llm-pipeline` | `feat/cleaning-options` | F-2.5 `sanitize-for-llm` et serveur MCP (F-P1) |
+| n°7 | `feat/dlp-rules` | `feat/llm-pipeline` | F-2.3 DLP et règles (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -697,6 +698,77 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 - **PDF** : seules les 30 premières pages sont rendues, avec un délai. Au-delà, le texte est refusé plutôt que livré sans garantie.
 - **Pas de rendu de liens** : le texte d'un lien est celui affiché. L'adresse sosie d'un lien reste signalée par `inspect_file`, pas dans le texte nettoyé.
 
+## F-2.3 [F-P1] — DLP, données personnelles et règles de l'organisation
+
+**Statut : fait pour les deux puces F-P1.** La puce F-P2 n'est pas faite : profils `--profile strict|balanced|minimal`.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Détection des données personnelles et règles (cœur) | `415d5a2` | `src/core/pii.ts`, `src/core/rules.ts`, `src/core/body-text.ts` (nouveaux) ; `pdf.ts` (`pdfText`), `index.ts` (`dlp`, options transmises à la ré-inspection), `types.ts`, `errors.ts` (`rules-invalid`), `french.ts` |
+| CLI `--pii`, `--rules` | `2f0b046` | `src/cli/index.ts`, `src/cli/i18n.ts`, READMEs |
+| Page « Analyse étendue » | `b7a00fc` | `src/web/index.html`, `main.ts`, `worker.ts`, `i18n.ts`, `style.css` |
+| Corpus FR avec données personnelles | commit `test(i18n)` | `test/i18n-fr.test.ts` |
+
+Ce qui change :
+- **`--pii`** lit tout le texte du document, passages cachés compris.
+
+  | Type | Validation | Niveau |
+  |---|---|---|
+  | IBAN | mod 97 | confirmé |
+  | Carte | Luhn et préfixes de cartes | confirmé |
+  | NIR | clé | confirmé |
+  | SIREN/SIRET | Luhn, après « SIREN », « SIRET », « RCS » ou « TVA » | confirmé |
+  | E-mail | — | confirmé |
+  | Téléphones FR et internationaux | — | probable |
+  | IPv4/IPv6 privées et publiques, MAC, noms d'hôtes internes | — | probable |
+  | Plaques SIV | — | probable |
+  | Passeport et CNI | après le mot qui les nomme | probable |
+
+  - Les détecteurs réservent les caractères qu'ils reconnaissent, dans l'ordre : les chiffres d'un IBAN ne deviennent pas un téléphone.
+  - Les valeurs sont **toujours masquées**, par exemple `FR76 •••• •••• •••• •••• •••• 189`.
+  - Les données personnelles restent du contenu : après nettoyage, elles sont nommées comme toujours présentes.
+- **`--rules <fichier>`** accepte du YAML (sous-ensemble strict) ou du JSON.
+  - Chaque règle a un `id`, un `label`, un `level`, un `kind`, et soit des `words` (mots entiers, sans tenir compte de la casse), soit un `pattern` avec ses `flags`.
+  - Les règles lisent le corps et chaque champ déjà signalé.
+  - Un fichier illisible est refusé (code de sortie 2), avec la ligne ou la règle et la raison, aussi en français.
+  - `verify` échoue sur une règle confirmée.
+- **Page** : « Analyse étendue » regroupe une case pour les données personnelles et l'import du fichier de règles. Le fichier est validé à l'import et refusé avec sa raison s'il est illisible. Les deux choix sont mémorisés dans `localStorage`, tout accès sous try/catch.
+
+Tests :
+- `test/pii.test.ts` (8) :
+  - `finds an IBAN only when its checksum holds, and masks it`
+  - `finds a payment card by Luhn, masked to its last four digits`
+  - `finds a French social security number by its key`
+  - `finds SIREN and SIRET numbers named as such, by Luhn`
+  - `finds addresses, phones, hosts and machines, all masked`
+  - `says nothing about dates, times, versions and amounts`
+  - `is off by default, and reads the body of a document when asked`
+  - `counts personal data as still there after cleaning, never as removed`
+- `test/rules.test.ts` (5) :
+  - `reads a YAML rules file`
+  - `reads the same rules as JSON`
+  - `refuses a file it cannot read, saying where`
+  - `matches whole words, any case, and patterns, with their label and level`
+  - `reads the body and the metadata of a document`
+- `test/dlp-cli.test.ts` (3) :
+  - `reports personal data with --pii, masked, in French`
+  - `applies an organisation’s rules, and verify fails on them`
+  - `refuses a rules file it cannot read, in French, exit 2`
+- `test/i18n-fr.test.ts` : le corpus est inspecté avec `pii: true` et contient e-mail, téléphone et IBAN.
+- Vérifié dans Chromium : règles appliquées, IBAN masqué, choix et règles retrouvés après rechargement.
+
+Vérification manuelle :
+```
+cirta inspect --lang fr --pii note.txt     # « IBAN — FR76 •••• •••• •••• •••• •••• 189 », « Adresse e-mail — j•••@exemple.fr »
+cirta verify --rules regles.yaml note.txt  # ÉCHEC si un mot de la règle confirmed apparaît
+```
+
+Écarts :
+- Les valeurs d'un dictionnaire ou d'un motif de règle ne sont pas masquées : c'est le vocabulaire de l'organisation, choisi par elle.
+- `--pii` et `--rules` s'appliquent au fichier lui-même, pas aux membres d'une archive ZIP.
+- Le texte d'un PDF est lu par pdf-lib (chaînes des flux), sans rendu. Une police sans `ToUnicode` peut masquer une valeur.
+- Un motif de règle s'exécute tel qu'écrit, sans délai d'expiration possible en JavaScript. C'est documenté.
+
 ---
 
 ## État de vérification
@@ -725,11 +797,17 @@ Branche `feat/llm-pipeline` (PR n°6) :
 - `npm run verify` : exit 0. 53 fichiers de test, **776 tests** (761 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
 
+Branche `feat/dlp-rules` (PR n°7) :
+- `npm run verify` : exit 0. 56 fichiers de test, **795 tests** (776 avant). Fuzz sans crash. Build web OK.
+- `node scripts/real-files.mjs` : `all real-file checks passed`.
+
 Nouvelles options CLI (`cirta --help`) :
 ```
       --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
       --remove-comments redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads
       --normalize-spaces text --clean: also replace no-break and narrow spaces with ordinary ones
+      --pii             also look for personal data in the text (emails, phones, IBANs, cards, NIR…), values masked
+      --rules <file>    the organisation’s rules (YAML or JSON): words and patterns, each with its label and level
       --strip-active    redact: remove scripts, actions, macros, remote templates and embedded files
       --strip-remote-resources redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)
       --remove-notes    redact: remove speaker notes (PowerPoint)

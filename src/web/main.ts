@@ -9,7 +9,8 @@
  * watermarks are neither detected nor claimed to be.
  */
 
-import type { CleanChoices, WorkerRequest, WorkerResponse } from './worker.js';
+import { parseRules } from '../core/rules.js';
+import type { ScanChoices, CleanChoices, WorkerRequest, WorkerResponse } from './worker.js';
 import type { XrayRegion } from '../core/xray.js';
 // Imported from the individual modules rather than the barrel: pulling in
 // core/index.js would drag pdf-lib and fflate into the main bundle, when the
@@ -68,6 +69,30 @@ function ensureWorker(): Worker {
   return worker;
 }
 
+/*
+ * [F-2.3] Personal data and the organisation's rules: chosen once, kept in
+ * this browser only. Storage can be refused (private browsing, blocked site
+ * data); the choices then last for the visit, and nothing breaks.
+ */
+const STORE = { pii: 'cirta.pii', rules: 'cirta.rules', rulesName: 'cirta.rules.name' };
+const stored = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const store = (key: string, value: string | null): void => {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // Kept for this visit only.
+  }
+};
+const scanState = { pii: stored(STORE.pii) === '1', rules: stored(STORE.rules) ?? undefined, rulesName: stored(STORE.rulesName) ?? undefined };
+const scanChoices = (): ScanChoices => ({ pii: scanState.pii, rules: scanState.rules });
+
 function warmWorker(): void {
   const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
   if (idle) idle(() => ensureWorker());
@@ -80,7 +105,7 @@ function ask<T>(op: WorkerRequest['op'], data: Uint8Array, hint?: string, clean:
   const buffer = data.slice().buffer;
   return new Promise<T>((resolve, reject) => {
     pending.set(id, { resolve: resolve as (value: never) => void, reject });
-    ensureWorker().postMessage({ id, op, data: buffer, hint, clean } as WorkerRequest, [buffer]);
+    ensureWorker().postMessage({ id, op, data: buffer, hint, clean, scan: scanChoices() } as WorkerRequest, [buffer]);
   });
 }
 
@@ -824,6 +849,63 @@ function setupFiles(): void {
   });
 }
 
+/** [F-2.3] Personal data and the organisation's rules, remembered in this browser. */
+function setupScanOptions(): void {
+  const pii = must<HTMLInputElement>('#scan-pii');
+  const pick = must<HTMLButtonElement>('#rules-pick');
+  const input = must<HTMLInputElement>('#rules-input');
+  const status = must<HTMLElement>('#rules-status');
+  const forget = must<HTMLButtonElement>('#rules-forget');
+
+  const show = () => {
+    if (scanState.rules) {
+      try {
+        status.textContent = t().rulesLoaded(scanState.rulesName ?? '', parseRules(scanState.rules).length);
+        status.classList.remove('is-error');
+      } catch (error) {
+        status.textContent = errorText(error, lang());
+        status.classList.add('is-error');
+      }
+    } else status.textContent = '';
+    forget.hidden = !scanState.rules;
+  };
+
+  pii.checked = scanState.pii;
+  pii.addEventListener('change', () => {
+    scanState.pii = pii.checked;
+    store(STORE.pii, pii.checked ? '1' : null);
+  });
+  pick.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const text = await file.text();
+    try {
+      parseRules(text);
+    } catch (error) {
+      // A file that does not read is not kept: the rules in use stay as they were.
+      status.textContent = errorText(error, lang());
+      status.classList.add('is-error');
+      return;
+    }
+    scanState.rules = text;
+    scanState.rulesName = file.name;
+    store(STORE.rules, text);
+    store(STORE.rulesName, file.name);
+    show();
+  });
+  forget.addEventListener('click', () => {
+    scanState.rules = undefined;
+    scanState.rulesName = undefined;
+    store(STORE.rules, null);
+    store(STORE.rulesName, null);
+    show();
+  });
+  show();
+  document.addEventListener('cirta:language', show);
+}
+
 /* ------------------------------------------------------------------ text -- */
 
 function setupText(): void {
@@ -1034,12 +1116,15 @@ function setupLanguage(): void {
     }
     document.querySelector('#file-summary')?.remove();
     session.length = 0;
+    // Text written by a handler rather than the markup follows the language too.
+    document.dispatchEvent(new Event('cirta:language'));
   });
 }
 
 setupLanguage();
 setupTabs();
 setupFiles();
+setupScanOptions();
 setupText();
 // Two frames, so layout has settled and the chips' positions are final.
 requestAnimationFrame(() => requestAnimationFrame(playReveal));

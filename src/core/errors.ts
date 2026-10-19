@@ -23,7 +23,9 @@ export type ErrorCode =
   /** [F-2.4] Burning redactions was asked for and needs the page renderer, which is not available. */
   | 'burn-unavailable'
   /** [F-2.5] What a reader of a PDF sees cannot be told without the renderer. */
-  | 'renderer-unavailable';
+  | 'renderer-unavailable'
+  /** [F-2.3] A rules file that cannot be read. */
+  | 'rules-invalid';
 
 export class UnsupportedFormatError extends Error {
   readonly code: ErrorCode;
