@@ -23,6 +23,8 @@ describe('[F-2.8] no network', () => {
       .filter((file) => file !== join('src', 'web', 'worker.ts'))
       // [F-P2 2.7] The service worker fetches the site's own files, the ones the browser loads anyway; checked below.
       .filter((file) => file !== join('src', 'shared', 'site.ts'))
+      // [F-P3 2.5] cirta serve listens; checked below that it does nothing else.
+      .filter((file) => file !== join('src', 'cli', 'serve.ts'))
       .filter((file) => NETWORK.test(readFileSync(file, 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '')));
     expect(offenders).toEqual([]);
   });
@@ -33,6 +35,19 @@ describe('[F-2.8] no network', () => {
     const guard = source.indexOf("if (request.method !== 'GET' || !request.url.startsWith(SCOPE)) return;");
     expect(guard).toBeGreaterThan(0);
     expect(guard).toBeLessThan(source.indexOf('fetch(request)'));
+  });
+
+  it('[F-P3 2.5] cirta serve listens and never connects: servers only, nothing that opens a connection', () => {
+    const source = readFileSync(join('src', 'cli', 'serve.ts'), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
+    const imports = [...source.matchAll(/import \{([^}]*)\} from ['"]node:(http|https|net|tls|dgram|dns)['"]/g)];
+    expect(imports.map(([, , module]) => module).sort()).toEqual(['http', 'net']);
+    for (const [, names] of imports) {
+      const values = names!.split(',').map((name) => name.trim()).filter((name) => name && !name.startsWith('type '));
+      expect(values.map((name) => name.split(/\s+as\s+/)[0])).toEqual(['createServer']);
+    }
+    // Nothing else from those modules can be reached: no other import of them, no fetch, no dynamic import.
+    expect(source.match(/from ['"]node:(?:http|https|net|tls|dgram|dns)['"]/g)).toHaveLength(2);
+    expect(source).not.toMatch(/\b(?:connect|createConnection)\s*\(|\bfetch\s*\(|new\s+Socket\b|\bimport\s*\(|\brequire\s*\(/);
   });
 
   it('the page forbids every connection, and the worker removes the means before loading PDF.js', () => {

@@ -50,6 +50,7 @@ import { manifest, manifestEntry } from '../core/manifest.js';
 import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/files.js';
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { changedFiles, ChangedFilesError } from './changed.js';
+import { serve } from './serve.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -96,6 +97,7 @@ ${bold(t().usage)}
   cirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
   cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  ${t().usageSanitize}
   cirta mcp                          ${t().usageMcp}
+  cirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ${t().usageServe}
 
 ${t().paths}
 
@@ -130,6 +132,12 @@ ${bold(t().options)}
       --json            ${t().optJson}
       --sarif           ${t().optSarif}
       --fail-on <level> ${t().optFailOn}
+      --host <address>  ${t().optHost}
+      --http <port|off> ${t().optHttpPort}
+      --icap <port|off> ${t().optIcapPort}
+      --block-on <level> ${t().optBlockOn}
+      --allow-clean     ${t().optAllowClean}
+      --max-size <MB>   ${t().optMaxSize}
   -h, --help            ${t().optHelp}
   -V, --version         ${t().optVersion}
 
@@ -198,6 +206,13 @@ interface Args {
   lang?: string;
   sarif: boolean;
   failOn?: string;
+  /** [F-P3 2.5] cirta serve. */
+  host: string;
+  httpPort?: string;
+  icapPort?: string;
+  blockOn?: string;
+  allowClean: boolean;
+  maxSize?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -230,6 +245,8 @@ function parseArgs(argv: string[]): Args {
     pii: false,
     skip: [],
     sarif: false,
+    host: '127.0.0.1',
+    allowClean: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -331,6 +348,24 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--fail-on':
         args.failOn = argv[++i];
+        break;
+      case '--host':
+        args.host = argv[++i] ?? args.host;
+        break;
+      case '--http':
+        args.httpPort = argv[++i];
+        break;
+      case '--icap':
+        args.icapPort = argv[++i];
+        break;
+      case '--block-on':
+        args.blockOn = argv[++i];
+        break;
+      case '--allow-clean':
+        args.allowClean = true;
+        break;
+      case '--max-size':
+        args.maxSize = argv[++i];
         break;
       case '--skip':
         args.skip.push(...(argv[++i] ?? '').split(',').map((name) => name.trim()).filter(Boolean));
@@ -644,6 +679,67 @@ async function runSanitize(args: Args): Promise<number> {
 const LEVELS = ['informational', 'probable', 'confirmed'] as const;
 
 /**
+ * [F-P3 2.5] Cirta as a service (src/cli/serve.ts): ICAP and an HTTP API,
+ * inspection only unless --block-on or --allow-clean says otherwise. Stays up
+ * until SIGTERM or SIGINT — which a container's PID 1 must handle itself.
+ */
+async function runServe(args: Args): Promise<number> {
+  const port = (value: string | undefined, fallback: number): number | undefined | null => {
+    if (value === undefined) return fallback;
+    if (value.toLowerCase() === 'off') return undefined;
+    const n = Number(value);
+    return /^\d+$/.test(value) && n <= 65535 ? n : null;
+  };
+  const http = port(args.httpPort, 8080);
+  const icap = port(args.icapPort, 1344);
+  for (const [value, parsed] of [[args.httpPort, http], [args.icapPort, icap]] as const) {
+    if (parsed === null) {
+      console.error(red(terminalSafe(t().serveBadPort(String(value)))));
+      return 2;
+    }
+  }
+  if (http === undefined && icap === undefined) {
+    console.error(red(t().serveNothing));
+    return 2;
+  }
+  const blockOn = args.blockOn?.toLowerCase();
+  if (blockOn !== undefined && !(LEVELS as readonly string[]).includes(blockOn)) {
+    console.error(red(terminalSafe(t().unknownLevel(args.blockOn!))));
+    return 2;
+  }
+  const megabytes = args.maxSize === undefined ? 50 : Number(args.maxSize);
+  if (!(megabytes > 0)) {
+    console.error(red(terminalSafe(t().serveBadSize(String(args.maxSize)))));
+    return 2;
+  }
+  const service = await serve({
+    host: args.host,
+    http: http ?? undefined,
+    icap: icap ?? undefined,
+    blockOn: blockOn as Confidence | undefined,
+    allowClean: args.allowClean,
+    maxBytes: Math.round(megabytes * 1024 * 1024),
+    inspect: { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules },
+    clean: { ...redactOptions(args), xray: await nodeXrayEngine(), imageCodec: args.reencodeImages ? await nodeImageCodec() : undefined },
+    lang: lang(),
+    version: version(),
+    log: (line) => process.stdout.write(`${line}\n`),
+  });
+  const host = args.host.includes(':') ? `[${args.host}]` : args.host;
+  if (service.icap) console.error(t().serveListening('ICAP', `icap://${host}:${service.icap.port}/respmod  icap://${host}:${service.icap.port}/reqmod`));
+  if (service.http) console.error(t().serveListening('HTTP', `http://${host}:${service.http.port}/  (/health, /inspect${args.allowClean ? ', /clean' : ''})`));
+  console.error(dim(blockOn ? t().serveModeBlock(t().confidenceName[blockOn as Confidence]) : t().serveModeInspect));
+  if (args.allowClean) console.error(dim(t().serveModeClean));
+  await new Promise<void>((resolve) => {
+    process.once('SIGTERM', resolve);
+    process.once('SIGINT', resolve);
+  });
+  await service.close();
+  console.error(dim(t().serveStopped));
+  return 0;
+}
+
+/**
  * [F-2.4] The gate before a file goes out. Inspected again; a file passes
  * when nothing at or above the level is left — confirmed by default, so that
  * an ordinary cleaned file passes and a forgotten author does not. A file that
@@ -754,6 +850,16 @@ async function runInspect(args: Args): Promise<number> {
   return exitCode(args, results, failures);
 }
 
+/** The cleaning options the command line sets, for redact and for serve's /clean. */
+function redactOptions(args: Args) {
+  return {
+    removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
+    removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
+    removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
+    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, reencodeImages: args.reencodeImages, pii: args.pii, rules: args.rules,
+  };
+}
+
 async function runRedact(args: Args): Promise<number> {
   if (args.output && args.files.length > 1) {
     console.error(red(t().outputSingle));
@@ -761,12 +867,7 @@ async function runRedact(args: Args): Promise<number> {
   }
 
   let failures = 0;
-  const options = {
-    removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
-    removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
-    removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, reencodeImages: args.reencodeImages, pii: args.pii, rules: args.rules,
-  };
+  const options = redactOptions(args);
   // [F-P2 2.4] One entry per file cleaned, written once all are done.
   const entries: Awaited<ReturnType<typeof manifestEntry>>[] = [];
   for (const file of args.files) {
@@ -1015,6 +1116,8 @@ async function main(): Promise<number> {
       return runSanitize(args);
     case 'mcp':
       return runMcp();
+    case 'serve':
+      return runServe(args);
     case 'verify':
       if (!args.files.length) {
         console.error(red(t().needFiles('verify')));
