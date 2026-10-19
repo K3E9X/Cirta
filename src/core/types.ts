@@ -60,6 +60,7 @@ export type Format =
   /** [F-P3 2.2] Archives inspected only: TAR, gzip, 7z. */
   | 'tar'
   | 'gz'
+  | '7z'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
@@ -197,6 +198,10 @@ export type NoteCode =
   | 'scope:archive'
   /** Archive traversal stopped at a built-in limit. */
   | 'limit:archive-truncated'
+  /** [F-P3 2.2] Members of a 7z behind a coder not decoded here, or encrypted. Detail: "<coder>: <names>", several joined by "; ". */
+  | 'limit:archive-unread'
+  /** [F-P3 2.2] A 7z whose header is encrypted: not even the names can be read. */
+  | 'limit:archive-encrypted'
   /** A C2PA manifest was removed, so the file is no longer verifiable. */
   | 'removed:c2pa'
   /** Reported items that are document content, not metadata, and were left alone. */

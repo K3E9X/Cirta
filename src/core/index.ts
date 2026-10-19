@@ -92,6 +92,7 @@ import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
 import { calendarFormat, inspectCalendar, redactCalendar } from './calendar.js';
 import { detectMovieKind, inspectMovie, stripMovie } from './media-mp4.js';
 import { isMp3, inspectMp3, stripMp3, isWav, isRf64, inspectWav, stripWav } from './media-audio.js';
+import { is7z, read7z, sevenZipFindings } from './sevenzip.js';
 import { contentMembers, gunzipGuarded, gzipContentName, gzipFindings, gzipHeader, isGzip, isTar, readTar, tarFindings } from './tar.js';
 
 import { UnsupportedFormatError } from './errors.js';
@@ -100,7 +101,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV; TAR and gzip, inspection only.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV; TAR, gzip and 7z, inspection only.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -244,6 +245,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   if (isMp3(data)) return 'mp3';
   if (isWav(data)) return 'wav';
   if (isGzip(data)) return 'gz';
+  if (is7z(data)) return '7z';
   if (isTar(data)) return 'tar';
   if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
@@ -411,6 +413,18 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
     const name = gzipContentName(header, content, hint);
     const findings = [...gzipFindings(header), ...(await inspectMembers([{ path: name, data: content }], options))];
     return { format: 'gz', findings: findings.sort(byConfidence), notes: [{ code: 'scope:archive-inspect-only' }] };
+  }
+  if (is7z(data)) {
+    const archive = read7z(data);
+    const notes: Note[] = [{ code: 'scope:archive-inspect-only' }];
+    if (archive.headerEncrypted) notes.push({ code: 'limit:archive-encrypted' });
+    const unread = new Map<string, string[]>();
+    for (const entry of archive.entries) if (entry.unread) unread.set(entry.unread, [...(unread.get(entry.unread) ?? []), entry.path]);
+    if (unread.size) notes.push({ code: 'limit:archive-unread', detail: [...unread].map(([coder, names]) => `${coder}: ${names.join(', ')}`).join('; ') });
+    const read = archive.entries.filter((e) => e.data && e.data.length > 0) as Array<{ path: string; data: Uint8Array }>;
+    const findings = [...sevenZipFindings(archive), ...(await inspectMembers(read, options))];
+    for (const entry of archive.entries) if (!read.includes(entry as { path: string; data: Uint8Array })) findings.push(...fileNameFindings(entry.path, entry.path));
+    return { format: '7z', findings: findings.sort(byConfidence), notes };
   }
   if (isTar(data)) {
     const members = readTar(data);
@@ -646,9 +660,9 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   }
 
   // [F-P3 2.2] Read, never rewritten: see tar.ts.
-  if (isGzip(data) || isTar(data)) {
-    const kind = isGzip(data) ? 'gz' : 'tar';
-    throw new UnsupportedFormatError(`A ${kind === 'gz' ? 'gzip' : 'TAR'} archive is inspected but not rewritten. Extract it, clean the files, and archive them again.`, 'archive-inspect-only', kind);
+  if (isGzip(data) || isTar(data) || is7z(data)) {
+    const kind = isGzip(data) ? 'gz' : is7z(data) ? '7z' : 'tar';
+    throw new UnsupportedFormatError(`A ${kind === 'gz' ? 'gzip' : kind === '7z' ? '7z' : 'TAR'} archive is inspected but not rewritten. Extract it, clean the files, and archive them again.`, 'archive-inspect-only', kind);
   }
 
   if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);

@@ -14,6 +14,7 @@ import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
 import { tar, whereFroms } from './helpers/tar.js';
+import { sevenZip } from './helpers/sevenzip.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -185,6 +186,8 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
       ]),
     ],
     ['dossier.tar.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501, mtime: 1709287200 }]), { filename: 'dossier.tar', mtime: new Date(1709287200000) })],
+    ['dossier.7z', sevenZip([{ name: 'd', directory: true, mtime: 1709200800 }, { name: 'd/a.txt', data: enc('a\u200bb'), mtime: 1709287200 }], { coder: 'lzma2', encodeHeader: true })],
+    ['chiffre.7z', sevenZip([{ name: 'd/a.txt', data: enc('a'), mtime: 1709287200 }], { coder: 'aes' })],
     ['rapport.gz', gzipSync(tar([{ name: 'a.txt', data: 'x', uname: 'marie', uid: 501 }]))],
     [
       'memo.mp3',

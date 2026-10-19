@@ -51,6 +51,10 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
     `Removed a C2PA manifest${detail ? ` (${detail})` : ''}. The file no longer carries verifiable provenance — third parties can no longer confirm its origin in either direction. Two things this does not mean. C2PA also supports soft binding, where a mark in the content itself lets a vendor re-attach the credential, so a removed manifest does not mean no provenance remains. And the reverse: a credential is metadata attached to the file rather than embedded in it, so re-saving, converting or resizing strips it without a trace — its absence from any file proves nothing about origin.`,
   'scope:archive': () =>
     'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
+  'limit:archive-unread': (detail) =>
+    `Not read: the content of the files behind a coder Cirta does not decode, or encrypted (AES) — ${detail ?? ''}. Their names are checked; what they contain is not.`,
+  'limit:archive-encrypted': () =>
+    'The archive’s header is encrypted: without the password, not even the names of its files can be read. Nothing in it was inspected.',
   'limit:archive-truncated': (detail) =>
     `Archive traversal stopped at a built-in limit (${detail ?? 'member cap'}). Some members were not examined.`,
   'kept:in-content': (detail) =>
@@ -145,6 +149,10 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
     `Manifeste C2PA retiré${detail ? ` (${detail})` : ''}. Le fichier ne porte plus de provenance vérifiable — un tiers ne peut plus confirmer son origine, dans un sens comme dans l'autre. Deux choses que cela ne signifie pas. Le C2PA prévoit le « soft binding », où une marque dans le contenu lui-même permet à l'éditeur de rattacher le manifeste à distance : un manifeste retiré ne veut pas dire qu'il ne reste aucune provenance. Et l'inverse : un « content credential » est une note attachée au fichier, pas incrustée dedans — un simple réenregistrement, une conversion ou un redimensionnement l'efface sans laisser de trace. Son absence, sur n'importe quel fichier, ne prouve donc rien sur l'origine.`,
   'scope:archive': () =>
     "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne reconnaît du tout ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
+  'limit:archive-unread': (detail) =>
+    `Non lus : le contenu des fichiers placés derrière un codeur que Cirta ne décode pas, ou chiffrés (AES) — ${detail ?? ''}. Leurs noms sont vérifiés ; ce qu’ils contiennent ne l’est pas.`,
+  'limit:archive-encrypted': () =>
+    'L’en-tête de l’archive est chiffré : sans le mot de passe, même les noms de ses fichiers ne se lisent pas. Rien n’y a été inspecté.',
   'limit:archive-truncated': (detail) =>
     `Le parcours de l'archive s'est arrêté à une limite interne (${detail ?? 'plafond de membres'}). Certains membres n'ont pas été examinés.`,
   'kept:in-content': (detail) =>

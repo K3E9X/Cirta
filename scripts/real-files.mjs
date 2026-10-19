@@ -622,6 +622,40 @@ try {
     if (/ENOENT/.test(String(error))) console.log('  skip  tar is not installed: TAR and gzip not checked');
     else check('gnu.tar / gnu.tgz: written by GNU tar and inspected', false, String(error).slice(0, 200));
   }
+  // [F-P3 2.2] 7-Zip's own archives: by default (LZMA2, the header compressed with LZMA), LZMA,
+  // stored, BZip2, with a password, with an encrypted header — each read as far as it can be,
+  // what is not read named.
+  try {
+    await run('7z', ['i']);
+    const folder = join(dir, 'seven', 'dossier');
+    await run('mkdir', ['-p', folder]);
+    await writeFile(join(folder, 'rapport.docx'), await (async () => {
+      const { zipSync: zip, strToU8: u8 } = await import('fflate');
+      return zip({
+        '[Content_Types].xml': u8('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'),
+        'docProps/core.xml': u8('<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>Marie Martin</dc:creator></cp:coreProperties>'),
+        'word/document.xml': u8('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Rapport</w:t></w:r></w:p></w:body></w:document>'),
+      });
+    })());
+    await writeFile(join(folder, 'notes.txt'), 'Bon\u200bjour '.repeat(400));
+    const make = async (name, ...flags) => {
+      await run('7z', ['a', '-bd', '-bso0', ...flags, join(dir, name), 'dossier'], { cwd: join(dir, 'seven') });
+      return (await inspectFile(new Uint8Array(await readFile(join(dir, name))), name));
+    };
+    for (const [name, flags] of [['default.7z', []], ['lzma.7z', ['-m0=lzma']], ['store.7z', ['-mx0']]]) {
+      const { findings } = await make(name, ...flags);
+      check(`${name}: decoded, the author and the zero-width space read in the files`, findings.some((f) => f.label === 'Author' && f.value === 'Marie Martin') && findings.some((f) => f.kind === 'invisible-character' && f.location.startsWith('dossier/notes.txt')));
+    }
+    const bzip2 = await make('bzip2.7z', '-m0=bzip2');
+    check('bzip2.7z: the files behind BZip2 named as unread', /^BZip2: /.test(bzip2.notes.find((n) => n.code === 'limit:archive-unread')?.detail ?? ''));
+    const password = await make('pass.7z', '-pSecret');
+    check('pass.7z: the encrypted files named as unread, their names read', /^AES: .*dossier\/notes\.txt/.test(password.notes.find((n) => n.code === 'limit:archive-unread')?.detail ?? ''));
+    const hidden = await make('headenc.7z', '-pSecret', '-mhe=on');
+    check('headenc.7z: an encrypted header said so', hidden.notes.some((n) => n.code === 'limit:archive-encrypted'));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  7-Zip is not installed: 7z not checked');
+    else check('7z: written by 7-Zip and inspected', false, String(error).slice(0, 200));
+  }
   // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
   // text the same to the character (pdflatex and pdftotext, where they are installed).
   try {

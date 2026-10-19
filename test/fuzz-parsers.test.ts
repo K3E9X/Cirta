@@ -17,6 +17,9 @@ import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata }
 import { vsdx } from './helpers/visio.js';
 import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
 import { tar } from './helpers/tar.js';
+import { sevenZip } from './helpers/sevenzip.js';
+import { decodeLzma, decodeLzma2, LzmaError } from '../src/core/lzma.js';
+import { readFileSync } from 'node:fs';
 import { gzipSync, zipSync } from 'fflate';
 
 /*
@@ -188,6 +191,19 @@ describe('[F-2.8] fuzzing the new parsers', () => {
     const archive = tar([{ name: 'd/a.txt', data: 'a', uname: 'm', uid: 1, mtime: 1, pax: { 'SCHILY.xattr.com.apple.quarantine': '0083;1;S;X', comment: 'c' } }, { name: `d/${'x'.repeat(120)}`, data: 'b' }, { name: 'd/l', type: '2', link: '/x' }]);
     await fuzz('tar', [archive], inspectOnly('a.tar'));
     await fuzz('gz', [gzipSync(archive, { filename: 'a.tar', mtime: new Date(0) })], inspectOnly('a.tar.gz'));
+    const files = [{ name: 'd', directory: true, mtime: 1 }, { name: 'd/a.txt', data: strToU8('a\u200bb'), mtime: 2 }, { name: 'd/b.txt', data: strToU8('bb'), mtime: 3 }];
+    await fuzz('7z', [sevenZip(files), sevenZip(files, { coder: 'lzma2' }), sevenZip(files, { coder: 'lzma2', encodeHeader: true }), sevenZip(files, { coder: 'aes' })], inspectOnly('a.7z'));
+    // The decoder alone, on xz-utils' own streams mutated: a refusal, never a crash or a hang.
+    const [, lzma1, lzma2] = readFileSync(new URL('./vectors/lzma.txt', import.meta.url), 'utf8').trim().split('\n');
+    const decoder = (decode: (input: Uint8Array) => unknown) => async (input: Uint8Array) => {
+      try {
+        decode(input);
+      } catch (error) {
+        if (!(error instanceof LzmaError)) throw error;
+      }
+    };
+    await fuzz('lzma', [new Uint8Array(Buffer.from(lzma1!, 'base64'))], decoder((input) => decodeLzma(new Uint8Array([0x5d, 0, 0, 1, 0]), input, 1534)));
+    await fuzz('lzma2', [new Uint8Array(Buffer.from(lzma2!, 'base64'))], decoder((input) => decodeLzma2(input, 1534)));
     await fuzz('mp4', [movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf', apple: phone, xmpCreator: 'M' }), movie({ brand: 'qt  ' }), movie({ brand: 'M4A ' })], both('a.mp4'));
   }, TIMEOUT * 4);
 });

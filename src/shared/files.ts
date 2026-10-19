@@ -18,7 +18,7 @@ export const SUPPORTED_EXTENSIONS: ReadonlySet<string> = new Set([
   // [F-P3 2.2] Video and audio.
   '.mp4', '.m4v', '.mov', '.m4a', '.3gp', '.3g2', '.mp3', '.wav',
   // [F-P3 2.2] Archives read, not rewritten.
-  '.tar', '.tgz', '.gz',
+  '.tar', '.tgz', '.gz', '.7z',
   '.zip', '.epub',
   // Plain text and source files. An invisible character in a .py or a .json
   // travels exactly as far as one in a .docx, and a bidi override in source is

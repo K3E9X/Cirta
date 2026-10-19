@@ -240,6 +240,7 @@ const MIME: Record<Format, string> = {
   wav: 'audio/wav',
   tar: 'application/x-tar',
   gz: 'application/gzip',
+  '7z': 'application/x-7z-compressed',
   zip: 'application/zip',
   doc: 'application/msword',
   xls: 'application/vnd.ms-excel',
