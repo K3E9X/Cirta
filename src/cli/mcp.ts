@@ -19,6 +19,7 @@ import { sanitizeForLlm } from '../core/sanitize.js';
 import { errorText, noteText, translateLabel, translateLocation, translateValue, type Lang } from '../shared/french.js';
 import { nodeXrayEngine } from './xray-engine.js';
 import { formatHint } from './hint.js';
+import { nodeImageCodec } from './image-codec.js';
 
 const SUPPORTED = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const VERSION = '0.1.0';
@@ -42,6 +43,7 @@ const CLEAN_OPTIONS = [
   'stripTracking',
   'burnRedactions',
   'clearOutputs',
+  'reencodeImages',
 ] as const;
 
 const TOOLS = [
@@ -122,7 +124,7 @@ async function call(name: string, args: Json): Promise<Json> {
       if (output === file || ((await exists(output)) && args.overwrite !== true)) {
         throw new Error(`${output} exists; pass overwrite: true to replace it`);
       }
-      const options: InspectOptions = { xray: engine };
+      const options: InspectOptions = { xray: engine, imageCodec: await nodeImageCodec() };
       const asked = (args.options ?? {}) as Record<string, unknown>;
       for (const key of CLEAN_OPTIONS) if (asked[key] === true) options[key] = true;
       const result = await redactFile(new Uint8Array(await readFile(file)), formatHint(file), options);

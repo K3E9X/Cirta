@@ -257,6 +257,7 @@ const OPTION_LABEL: Record<CleanKey, (n: number) => string> = {
   flattenAnnotations: () => t().flattenAnnotationsOption(),
   burnRedactions: (n) => t().burnRedactionsOption(n),
   clearOutputs: (n) => t().clearOutputsOption(n),
+  reencodeImages: () => t().reencodeImagesOption,
 };
 
 /** Formats whose cleaned copy is text a person can read line by line. */
@@ -814,18 +815,7 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
     } else {
       node.append(findingsTable(result.findings));
 
-      // A plain archive is reported, never rewritten — redaction throws on it.
-      // Offering the button and failing on the click is a promise the page
-      // cannot keep, so it says so up front instead.
-      if (result.format === 'zip') {
-        node.append(
-          el(
-            'p',
-            'note',
-            t().archiveNote,
-          ),
-        );
-      } else if (LEGACY.has(result.format)) {
+      if (LEGACY.has(result.format)) {
         // [F-2.2] Inspected, never rewritten: the reason and what to do, before any click.
         node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
       } else {
@@ -843,12 +833,15 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
           foot.append(label);
           boxes.set(offer.key, box);
         }
-        const choices = (): CleanChoices => Object.fromEntries([...boxes].map(([key, box]) => [key, box.checked]));
+        // [F-P2 2.4] An archive's members are cleaned one by one, each with the advanced options.
+        const choices = (): CleanChoices =>
+          result.format === 'zip' ? { ...cleanState } : Object.fromEntries([...boxes].map(([key, box]) => [key, box.checked]));
         const summary = el('div', 'clean-plan');
         summary.setAttribute('aria-live', 'polite');
         const showPlan = () => {
           const list = el('ul');
           list.append(el('li', undefined, t().planMetadata));
+          if (result.format === 'zip') list.append(el('li', undefined, t().planArchive));
           for (const step of plan(result.format, result.findings, choices())) list.append(el('li', undefined, OPTION_LABEL[step.key](step.count)));
           summary.replaceChildren(el('p', 'clean-plan-title', t().planTitle), list);
           if (boxes.size && ![...boxes.values()].some((box) => box.checked)) summary.append(el('p', 'note', t().planContentKept));
@@ -879,9 +872,10 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             // manifest, and — more importantly — what was found and left in
             // place. Dropping those on the floor would make the browser claim
             // more than the CLI does for the same file.
-            const fresh = redacted.notes.filter(
-              (n) => n.code.startsWith('removed:') || n.code.startsWith('kept:'),
-            );
+            // Every note the clean adds — removed, kept, but also pages rasterised,
+            // annotations flattened, text recomposed, a picture rebuilt — not
+            // only the first two; scope notes are already on the card.
+            const fresh = redacted.notes.filter((n) => !n.code.startsWith('scope:') && !n.code.startsWith('limit:'));
             if (fresh.length) appendNotes(node, fresh);
             node.append(beforeAfter(result.format, data, redacted));
           } catch (error) {

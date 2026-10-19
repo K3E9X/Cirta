@@ -19,7 +19,7 @@ describe('[F-2.7] which cleaning options a file is offered', () => {
   it('knows every option the cleaner takes, PDF and notebook ones included', () => {
     expect(CLEAN_KEYS).toEqual([
       'removeHidden', 'acceptChanges', 'removeComments', 'removeNotes', 'removeHiddenSlides', 'removeHiddenSheets',
-      'stripActive', 'stripRemote', 'stripTracking', 'removeAttachments', 'flattenAnnotations', 'burnRedactions', 'clearOutputs',
+      'stripActive', 'stripRemote', 'stripTracking', 'removeAttachments', 'flattenAnnotations', 'burnRedactions', 'clearOutputs', 'reencodeImages',
     ]);
     const pdf = [f('Embedded file', { kind: 'active-content' }), f('Annotation authors'), f('Text covered by a shape'), f('Tracking parameters in a link')];
     expect(offered('pdf', pdf).map((o) => o.key)).toEqual(['stripActive', 'stripTracking', 'removeAttachments', 'flattenAnnotations', 'burnRedactions']);

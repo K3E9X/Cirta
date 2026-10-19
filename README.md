@@ -731,21 +731,25 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 
 | Support | Removed | Deliberately kept |
 |---|---|---|
-| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation; with `--strip-active`, scripts, actions, launches, form submissions, rich media, XFA and embedded files — and the objects they leave unreferenced, so no script stays in the bytes | Page content, what annotations say, and plain web links |
+| PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation; with `--strip-active`, scripts, actions, launches, form submissions, rich media, XFA and embedded files — and the objects they leave unreferenced, so no script stays in the bytes. The trailer `/ID` the producer wrote — a pair of hashes that ties every copy to the original — is replaced by a hash of the cleaned pages' content, which inspection recognises and does not report | Page content, what annotations say, and plain web links |
 | PPTX / DOCX / XLSX | With `--strip-active`: the VBA project, a remote template, the instructions of DDE and remote INCLUDE fields (the field's last result stays as text). Always: `core.xml`, `app.xml`, custom properties, thumbnail, `rsid`, comment author names (`w:author` attribute, `<author>` element, `displayName`), Exif in embedded pictures, C2PA manifests | Local links, hidden slides, speaker notes, defined names and links between workbooks — removing them would turn live cells into `#REF!`. Embedded objects and ActiveX controls, anchored in the layout: removing them would damage it, so they stay and are named |
 | ODT / ODS / ODP | `meta.xml`, user-defined properties, statistics, thumbnail, picture Exif, C2PA manifests | The content |
 | SVG | The `<metadata>` block, editor attributes and namespaces, generator comments | `<title>` and `<desc>` — what a screen reader announces |
 | HTML | `generator`/`author`/`creator`/`copyright`/`date` tags, generator comments | JSON-LD — what a search engine indexes |
 | Markdown | Identifying front-matter keys; delimiters removed if nothing is left inside | The body, other keys, attribution lines |
-| JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF | JFIF and the ICC profile — removing them would change the rendering |
-| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX` | `IHDR`, `PLTE`, `IDAT`, `IEND` |
+| JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF, **data after the end of the image** (an archive glued on, a vendor trailer). With `--reencode-images`, the picture is rebuilt from its pixels: whatever is not pixels goes, the orientation is applied | JFIF and the ICC profile — removing them would change the rendering |
+| PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX`, data after `IEND`; with `--reencode-images`, every chunk but the picture and its profile | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
 | Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
-| ZIP | **Nothing** — refused | Repacking would change compression, ordering and timestamps of every member |
+| ZIP | **Each member** it supports, with the same options, an archive inside it in turn; repacked in its order, every member dated 1980-01-01. **One member it cannot clean — a program, a legacy Office file, an encrypted PDF — and the archive is refused**, naming each | The members' order and names |
 | DOC / XLS / PPT / MSG | **Nothing** — refused, with the reason and what to do: save it as `.docx`/`.xlsx`/`.pptx` (a message as `.eml`) and clean that copy | Rebuilding a compound file (its sector table, its directory, and for Word the offsets that point between streams) is not something this tool can verify it did without damage |
 | Jupyter notebook | The notebook's metadata but for the kernel and language (Jupyter needs them to run it), cell metadata but for what changes how a cell shows (`tags`, `collapsed`, `jupyter`…), the metadata of every picture in the outputs and attachments; with `--clear-outputs`, the outputs and execution counts | The outputs, by default: they are what the author computed, and what they still say — a path, an account — is named as still there |
 | Text | Invisible characters; NFC when forms are mixed; exotic spaces only with `--normalize-spaces` | Emoji joiners and Persian/Indic non-joiners |
 | Document bodies | Invisible characters and their numeric-reference equivalents, in visible text only | XML structure, tag names, attributes, **typographic spaces** |
 | PDF bodies | Nothing — reported but not removable without rewriting the content stream | Page text |
+
+### Same input, same bytes
+
+Two cleans of the same file with the same options give the same bytes, whatever the clock says: rewritten packages date every member 1980-01-01, the PDF `/ID` is a hash of the cleaned pages, nothing records the hour of the clean. A cleaned copy can be checked by cleaning the original again and comparing hashes — with `--manifest`, the hashes are written down.
 
 ### The cleaning is measured, not asserted
 
@@ -816,6 +820,8 @@ report says what it changed — or why it did not.
 | `--strip-remote-resources` | Removes pictures, styles, scripts and frames loaded from the network, tracking pixels included | HTML, Markdown |
 | `--burn-redactions` | Removes text covered by a shape for good: each page that holds some becomes a picture of itself, so it loses its selectable text — the report names those pages. Needs the PDF renderer; without it the clean is refused | PDF |
 | `--clear-outputs` | Empties every cell's outputs and resets its execution count | Jupyter notebook |
+| `--reencode-images` | Rebuilds the picture from its decoded pixels: data after the end, private segments and chunks, comments and thumbnails go; the EXIF orientation is applied to the pixels and the ICC profile kept. Needs the native canvas (the page uses the browser's); without it the clean is refused. A lossless PNG keeps every pixel value, so a message in their low bits survives | JPEG, PNG |
+| `--manifest <file>` | Writes a chain-of-custody manifest: SHA-256 and size before and after, the findings before and after **by label and location, never by value**, the options, Cirta's version and the time | All |
 
 ```
 cirta redact deck.pptx --remove-notes --remove-hidden-slides

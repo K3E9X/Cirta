@@ -145,6 +145,8 @@ export type NoteCode =
   | 'scope:outlook'
   /** [F-2.2] A Jupyter notebook: metadata, outputs and the pictures in them. */
   | 'scope:notebook'
+  /** [F-P2 2.4] The picture was rebuilt from its pixels, on request. */
+  | 'reencoded:image'
   /** [F-2.2] A notebook's outputs were removed, on request. */
   | 'removed:outputs'
   /** Only invisible characters were examined. */
@@ -243,6 +245,10 @@ export interface InspectOptions {
   burnRedactions?: boolean;
   /** [F-2.1] Cleaning only: remove pictures, styles, scripts and frames loaded from the network (HTML, Markdown). Off by default. */
   stripRemote?: boolean;
+  /** [F-P2 2.4] Cleaning only: rebuild JPEG and PNG pictures from their pixels. Needs `imageCodec`. */
+  reencodeImages?: boolean;
+  /** [F-P2 2.4] Decodes and encodes pictures for `reencodeImages`: a native canvas, the browser's. */
+  imageCodec?: import('./reencode.js').ImageCodec;
   /** [F-2.2] Cleaning only: empty a notebook's outputs and execution counts. Off by default. */
   clearOutputs?: boolean;
   /** [F-2.3] Also look for personal data in the document's text: emails, phones, IBANs, cards… Off by default. */

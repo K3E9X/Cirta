@@ -54,8 +54,11 @@ export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.
 export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
 export { unzipGuarded, ZIP_LIMITS, ArchiveTooLargeError } from './zip.js';
+export { manifest, manifestEntry, manifestOptions, sha256, MANIFEST_SCHEMA } from './manifest.js';
+export type { Manifest, ManifestEntry, ManifestFinding, ManifestSide } from './manifest.js';
 
-import { unzipGuarded, ArchiveTooLargeError } from './zip.js';
+import { unzipGuarded, ArchiveTooLargeError, ZIP_EPOCH } from './zip.js';
+import { zipSync } from 'fflate';
 import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';
 import { inspectPdf, redactPdf, assertReadablePdf } from './pdf.js';
 import { inspectEml, redactEml } from './mail.js';
@@ -80,6 +83,7 @@ import { isCfb, readCfb } from './cfb.js';
 import { compoundKind, inspectLegacyOffice } from './legacy-office.js';
 import { inspectMsg } from './msg.js';
 import { inspectNotebook, parseNotebook, redactNotebook } from './notebook.js';
+import { reencodeImage } from './reencode.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -409,6 +413,67 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
   };
 }
 
+/** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
+const MEMBER_REFUSALS = new Set(['unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+
+/**
+ * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
+ * an archive inside it in turn, then repacked in its order, every member
+ * dated 1980-01-01. One member that cannot be cleaned — a program, a legacy
+ * Office file, an encrypted PDF — and the archive is refused, naming each:
+ * a copy that left one of them as it was would not be a cleaned archive.
+ */
+async function redactArchive(data: Uint8Array, options: InspectOptions, depth: number): Promise<RedactResult> {
+  const parts = unzipGuarded(data);
+  const out: Record<string, Uint8Array> = {};
+  const removed: Finding[] = [];
+  const notes: Note[] = [{ code: 'scope:archive' }];
+  const unsupported: string[] = [];
+  const seenNotes = new Set<string>();
+
+  for (const [name, bytes] of Object.entries(parts)) {
+    if (name.endsWith('/') || bytes.length === 0) {
+      out[name] = bytes;
+      continue;
+    }
+    try {
+      const nested = isZip(bytes) && !isDocumentPackage(unzipGuarded(bytes));
+      if (nested && depth + 1 > ARCHIVE_LIMITS.maxDepth) {
+        unsupported.push(name);
+        continue;
+      }
+      const cleaned = nested ? await redactArchive(bytes, options, depth + 1) : await redactFile(bytes, name, options);
+      out[name] = cleaned.data ?? bytes;
+      removed.push(...cleaned.removed.map((f) => ({ ...f, location: `${name}${ARCHIVE_SEPARATOR}${f.location}` })));
+      for (const note of cleaned.notes) {
+        if (note.code.startsWith('scope:') || note.code === 'kept:in-content') continue;
+        const key = `${note.code}\u0000${note.detail ?? ''}`;
+        if (!seenNotes.has(key)) notes.push(note);
+        seenNotes.add(key);
+      }
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      if (error instanceof BinaryInputError || (typeof code === 'string' && MEMBER_REFUSALS.has(code))) {
+        // A nested archive names its own members.
+        const detail = code === 'archive-not-rewritable' ? (error as UnsupportedFormatError).detail : undefined;
+        unsupported.push(...(detail ? detail.split(', ').map((inner) => `${name}${ARCHIVE_SEPARATOR}${inner}`) : [name]));
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (unsupported.length) {
+    const shown = unsupported.slice(0, 20).join(', ') + (unsupported.length > 20 ? `, +${unsupported.length - 20}` : '');
+    throw new UnsupportedFormatError(
+      `This archive holds files Cirta cannot clean: ${shown}. It is not rewritten.`,
+      'archive-not-rewritable',
+      shown,
+    );
+  }
+  return { format: 'zip', data: zipSync(out, { level: 6, mtime: ZIP_EPOCH }), removed, notes };
+}
+
 /**
  * Clean a file. [C11.1] A parser's complaint becomes a coded refusal here
  * too, as it does for inspection: a truncated PDF reached the reader as
@@ -434,12 +499,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   }
   if (isZip(data)) {
     const parts = unzipGuarded(data);
-    if (!isDocumentPackage(parts)) {
-      throw new UnsupportedFormatError(
-        'Plain archives are inspected but not rewritten. Extract it, redact the files individually, and repack.',
-        'archive-not-rewritable',
-      );
-    }
+    if (!isDocumentPackage(parts)) return noteSurvivors(await redactArchive(data, options, 0), hint, options);
     return noteSurvivors(isOdf(parts) ? redactOdf(data) : redactOoxml(data, { removeHidden: options.removeHidden, acceptChanges: options.acceptChanges, removeComments: options.removeComments, stripActive: options.stripActive, removeNotes: options.removeNotes, removeHiddenSlides: options.removeHiddenSlides, removeHiddenSheets: options.removeHiddenSheets, stripTracking: options.stripTracking }), hint, options);
   }
 
@@ -458,8 +518,15 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     const before = inspectImage(data, image === 'jpeg' ? 'JPEG segments' : 'PNG chunks');
     const notes: Note[] = [{ code: 'scope:image-metadata-only' }];
     if (before.some((f) => f.affectsVerifiability)) notes.push({ code: 'removed:c2pa' });
+    let cleaned: Uint8Array = stripImageMetadata(data) ?? data;
+    // [F-P2 2.4] Rebuilt from the pixels, on request; refused rather than skipped without a codec.
+    if (options.reencodeImages) {
+      if (!options.imageCodec) throw new UnsupportedFormatError('Re-encoding pictures needs an image codec, which is not available here.', 'reencode-unavailable');
+      cleaned = await reencodeImage(data, image, options.imageCodec);
+      notes.push({ code: 'reencoded:image' });
+    }
     return noteSurvivors(
-      { format: image, data: stripImageMetadata(data) ?? data, removed: before, notes },
+      { format: image, data: cleaned, removed: before, notes },
       hint,
       options,
     );

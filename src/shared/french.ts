@@ -240,6 +240,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Encrypted document': 'Document chiffré',
   'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
   'Link that runs a script': 'Lien qui exécute un script',
+  'Data after the end of the image': 'Données après la fin de l’image',
   'Link to data carried in the address': 'Lien vers des données portées par l’adresse',
   'Link through an open redirector': 'Lien qui passe par un redirecteur ouvert',
   'File name with a direction control': 'Nom de fichier avec un contrôle de sens d’écriture',
@@ -790,6 +791,7 @@ function translateReasons(value: string): string {
 const RETAINED_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^shows (.+) — goes to (.+)$/, (m) => `affiche ${m[1]} — mène à ${m[2]}`],
   // [F-P2 2.1] Liens et noms de fichiers piégés.
+  [/^(\d+) bytes after the image ends$/, (m) => `${m[1]} octets après la fin de l’image`],
   [/^data:(\S+) \(a page, opened as one\)$/, (m) => `data:${m[1]} (une page, ouverte comme telle)`],
   [/^shown as “([\s\S]*)”, really ends in (\S+) \((U\+[0-9A-F]+)\)$/, (m) => `affiché « ${m[1]} », se termine en réalité par ${m[2]} (${m[3]})`],
   [/^([\s\S]+) — opens as (\S+), not (\S+)$/, (m) => `${m[1]} — s’ouvre comme ${m[2]}, pas comme ${m[3]}`],
@@ -993,10 +995,16 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     en: `The cleaned copy did not parse again, so it was not delivered${detail ? ` (${detail})` : ''}. The original is untouched.`,
     fr: `La copie nettoyée n’a pas pu être relue, elle n’a donc pas été livrée${detail ? ` (${detail})` : ''}. L’original est intact.`,
   }),
-  'archive-not-rewritable': () => ({
-    en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
-    fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
-  }),
+  'archive-not-rewritable': (detail) =>
+    detail
+      ? {
+          en: `This archive holds files Cirta cannot clean: ${detail}. It is not rewritten, rather than handed back with those files as they were. Extract it, deal with them separately, clean the rest, and repack.`,
+          fr: `Cette archive contient des fichiers que Cirta ne sait pas nettoyer : ${detail}. Elle n’est pas réécrite, plutôt que rendue avec ces fichiers tels quels. Extrayez-la, traitez-les à part, nettoyez le reste, puis recompressez.`,
+        }
+      : {
+          en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
+          fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
+        },
   'legacy-not-rewritable': (detail) =>
     detail === 'msg'
       ? {
@@ -1008,6 +1016,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
           fr: `Les fichiers Office anciens (.doc, .xls, .ppt) sont inspectés mais pas réécrits : reconstruire un fichier composite sans l’abîmer n’est pas une chose que cet outil sait vérifier. Enregistrez-le en .${detail === 'xls' ? 'xlsx' : detail === 'ppt' ? 'pptx' : 'docx'} dans Office ou LibreOffice, puis nettoyez cette copie.`,
         },
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
+  'reencode-unavailable': () => ({
+    en: 'Re-encoding pictures needs an image codec, which is not available here: nothing was cleaned, rather than a copy that was not re-encoded.',
+    fr: 'Ré-encoder les images demande un codec d’image, absent ici : rien n’a été nettoyé, plutôt qu’une copie qui ne l’aurait pas été.',
+  }),
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,
     fr: `Le fichier de règles n’a pas pu être lu : ${translateRulesDetail(detail ?? 'raison inconnue')}.`,

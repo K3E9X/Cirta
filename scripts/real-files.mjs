@@ -399,6 +399,31 @@ try {
       }
     }
   }
+  // [F-P2 2.4] An archive of real documents: cleaned member by member, repacked, each member
+  // reopened by LibreOffice; and the same input cleaned twice gives the same bytes.
+  {
+    const docx = new Uint8Array(await readFile(join(dir, 'source.docx')));
+    const odt = new Uint8Array(await readFile(join(dir, 'source.odt')));
+    const archive = zipSync({ 'lettres/source.docx': docx, 'lettres/source.odt': odt, 'lisez-moi.txt': strToU8('Bon​jour') });
+    try {
+      const cleaned = await redactFile(archive, 'dossier.zip');
+      const again = await redactFile(archive, 'dossier.zip');
+      check('dossier.zip: cleaned twice, the same bytes', Buffer.from(cleaned.data).equals(Buffer.from(again.data)));
+      const left = (await inspectFile(cleaned.data, 'dossier.zip')).findings.filter((f) => f.confidence === 'confirmed');
+      check('dossier.zip: nothing confirmed survives in any member', left.length === 0, left.map((f) => `${f.location}: ${f.label}`).join('; '));
+      const members = unzipSync(cleaned.data);
+      for (const name of ['source.docx', 'source.odt']) {
+        const path = join(dir, `zip-${name}`);
+        await writeFile(path, members[`lettres/${name}`]);
+        const out = join(dir, `out-zip-${name}`);
+        await soffice(['--convert-to', 'pdf', '--outdir', out, path], `out-zip-${name}`);
+        const pdf = await readFile(join(out, `zip-${name.replace(/\.[^.]+$/, '.pdf')}`));
+        check(`dossier.zip → ${name}: reopens in LibreOffice after the archive clean`, pdf.length > 500, `${pdf.length} bytes`);
+      }
+    } catch (error) {
+      check('dossier.zip: cleaned and its members reopened', false, String(error).slice(0, 200));
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

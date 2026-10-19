@@ -12,6 +12,7 @@
  */
 
 import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { ZIP_EPOCH } from './zip.js';
 import { unzipGuarded } from './zip.js';
 import { inspectImage, stripImageMetadata } from './image.js';
 import { fingerprint } from './fingerprint.js';
@@ -796,7 +797,7 @@ function repack(parts: Parts): Uint8Array {
   for (const [path, raw] of Object.entries(parts)) {
     if (path !== '[Content_Types].xml') ordered[path] = raw;
   }
-  return zipSync(ordered, { level: 6 });
+  return zipSync(ordered, { level: 6, mtime: ZIP_EPOCH });
 }
 
 export function redactOoxml(data: Uint8Array, options: RedactOoxmlOptions = {}): RedactResult {

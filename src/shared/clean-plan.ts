@@ -23,6 +23,7 @@ export const CLEAN_KEYS = [
   'flattenAnnotations',
   'burnRedactions',
   'clearOutputs',
+  'reencodeImages',
 ] as const;
 
 export type CleanKey = (typeof CLEAN_KEYS)[number];
@@ -45,6 +46,8 @@ const OPTIONS: Record<CleanKey, { formats: Format[]; count: (findings: Finding[]
   removeAttachments: { formats: ['pdf'], count: labelled('Embedded file') },
   flattenAnnotations: { formats: ['pdf'], count: labelled('Annotation authors') },
   burnRedactions: { formats: ['pdf'], count: labelled(HIDDEN_LABEL.covered) },
+  // A picture can always be rebuilt: offered on every JPEG and PNG.
+  reencodeImages: { formats: ['jpeg', 'png'], count: () => 1 },
   clearOutputs: { formats: ['ipynb'], count: (fs) => new Set(fs.filter((f) => /^cells\[\d+\]\.outputs\[\d+\]/.test(f.location)).map((f) => f.location.split(' ')[0])).size },
 };
 
