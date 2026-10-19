@@ -31,6 +31,7 @@ import { cleanBatch } from '../shared/batch.js';
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { isSupportedFile, isWalkedDirectory } from '../shared/files.js';
 import { matchHash } from '../shared/site.js';
+import { FIXED_PICTURES, LEGACY, READ_ONLY_ARCHIVES } from '../shared/read-only.js';
 import {
   preview,
   type Finding,
@@ -338,13 +339,6 @@ function beforeAfter(format: Format, before: Uint8Array, redacted: RedactResult)
   }
   return box;
 }
-
-/** [F-2.2] Formats read and never rewritten. */
-const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
-/** [F-P2 2.2] Pictures read and never rewritten. */
-const FIXED_PICTURES = new Set(['tiff', 'heic', 'avif']);
-/** [F-P3 2.2] Archives read and never rewritten. */
-const READ_ONLY_ARCHIVES = new Set(['tar', 'gz', '7z']);
 
 
 function el<K extends keyof HTMLElementTagNameMap>(

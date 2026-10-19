@@ -1,0 +1,129 @@
+/* [F-P3 2.6] The add-in's panel, in the page's colours: ink on paper, one accent. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --ink: #0f0f0e;
+  --ink-2: #5c5952;
+  --line: #e5e2dc;
+  --accent: #c0451a;
+  --warn: #8a6100;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0a;
+    --ink: #f4f1ea;
+    --ink-2: #9a948a;
+    --line: #262521;
+    --accent: #ff8347;
+    --warn: #e0ab4a;
+  }
+}
+
+body {
+  margin: 0;
+  min-width: 26rem;
+  max-width: 34rem;
+  background: var(--bg);
+  color: var(--ink);
+  font: 0.875rem/1.5 system-ui, sans-serif;
+}
+
+main {
+  padding: 0.75rem 1rem 1rem;
+}
+
+h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+h2 {
+  margin: 0 0 0.3rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.explanation {
+  margin: 0 0 0.6rem;
+  color: var(--ink-2);
+}
+
+.explanation.is-held {
+  color: var(--ink);
+  border-left: 3px solid var(--accent);
+  padding-left: 0.5rem;
+}
+
+.item {
+  border-top: 1px solid var(--line);
+  padding: 0.6rem 0;
+}
+
+.lines {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 6.5rem 9rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.level {
+  font-family: ui-monospace, monospace;
+  color: var(--ink-2);
+}
+
+.is-confirmed .level {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.is-probable .level {
+  color: var(--warn);
+}
+
+.value {
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0 0 0.4rem;
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+}
+
+.scope {
+  margin: 0.6rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+}
+
+.button {
+  font: inherit;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--ink-2);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button-quiet {
+  margin-bottom: 0.6rem;
+}

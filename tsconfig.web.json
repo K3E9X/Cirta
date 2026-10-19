@@ -9,5 +9,6 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "integrations/**/*.ts", "vite.config.ts"],
   // The base config leaves src/web/ out of the build; this one is what checks it.
-  "exclude": ["node_modules", "dist", "dist-web"]
+  // [F-P3 2.6] api-check.ts needs Thunderbird's typings: its own tsconfig checks it.
+  "exclude": ["node_modules", "dist", "dist-web", "integrations/thunderbird/api-check.ts"]
 }

@@ -38,10 +38,11 @@ export function terminalSafe(text: string): string {
  * JSON for a terminal. JSON.stringify already escapes C0 controls; it leaves
  * DEL, the C1 block and the bidi controls as they are, which a terminal can
  * still act on when the report is printed rather than piped. Escaping them is
- * the same JSON, read back to the same strings.
+ * the same JSON, read back to the same strings. An indent of 0 gives one line,
+ * as a stream of reports (cirta watch --json) needs.
  */
-export function terminalJson(value: unknown): string {
-  return JSON.stringify(value, null, 2).replace(
+export function terminalJson(value: unknown, indent = 2): string {
+  return JSON.stringify(value, null, indent).replace(
     /[\x7f-\x9f‪-‮⁦-⁩‎‏؜]/g,
     (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
   );

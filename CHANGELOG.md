@@ -47,6 +47,8 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
   - A GitHub Action: findings annotated on the pull request, the check failed at `fail-on`, SARIF for code scanning on request.
   - A VS Code extension: invisible characters underlined where they are, any file inspected or cleaned from the Explorer.
   - A browser extension for Chrome and Firefox: the page, with no permission and no connection allowed.
+  - A Thunderbird add-in: attachments read before a message is sent, the message held back when one names its sender, cleaned in the message on request. Not yet run in Thunderbird itself.
+  - `cirta watch <folder>`: each file inspected as it arrives; `--clean -o <folder>` writes cleaned copies elsewhere, never in place.
 - **Profiles.** `--profile minimal|balanced|strict`.
 - **Chain of custody.**
   - Deterministic output: the same file cleaned twice gives the same bytes.

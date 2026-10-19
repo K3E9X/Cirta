@@ -1156,7 +1156,31 @@ Inputs: `base`, `paths`, `fail-on`, `upload-sarif`, `sarif-file`. A complete
 workflow: [`examples/github-action.yml`](examples/github-action.yml) — it needs
 `fetch-depth: 0`, to tell what the pull request changed.
 
-### In the editor, in the browser
+### A folder watched: `cirta watch`
+
+For an outbox, a shared drop folder, a scanner's output: every file that arrives is inspected as it
+arrives.
+
+```bash
+cirta watch ./outbox                     # inspection only: the files are not changed
+cirta watch ./outbox --json              # one line of JSON per file, the same report as inspect --json
+cirta watch ./outbox --clean -o ./ready  # a cleaned copy of each file in ./ready, under its path
+```
+
+- The folder is looked at again every second (`--interval <seconds>`) rather than through file-system
+  events, which do not arrive from a network share or a container's mounted volume. A file is read once
+  its size and date are the same on two looks in a row, so a copy in progress is not read half-written;
+  changed later, it is read again.
+- **Never in place.** `--clean` needs `--output`, a folder of its own (left out of the watch if it is
+  inside), and `--in-place` is refused: the original may be the very file someone is about to send. A
+  file Cirta does not rewrite — a gzip, a TIFF — is named with the reason and not copied.
+- Left out: downloads in progress (`.part`, `.crdownload`…), lock and swap files (`~$…`, `.swp`), hidden
+  files but not `.env` and the like, and the folders the command line skips (`node_modules`, `.git`…).
+  `--new-only` leaves out what was there when it started. The cleaning options of `redact` apply.
+- Files are handled one at a time; one that fails is reported and the watch goes on. <kbd>Ctrl</kbd>+<kbd>C</kbd>
+  or SIGTERM stops it.
+
+### In the editor, the browser, the mail client
 
 **VS Code** ([`integrations/vscode/`](integrations/vscode/)). A text file is
 inspected when it is opened and saved, and each invisible character is
@@ -1177,6 +1201,24 @@ makes sense on the web is left out: the service worker, the « Check this site �
 box. `node scripts/build-browser-extension.mjs` writes
 `build/browser-extension/` (load it unpacked) and a `.zip`; each release
 attaches it. It is not in the browser stores.
+
+**Thunderbird** (128 or later, [`integrations/thunderbird/`](integrations/thunderbird/)). When a message
+is sent, each attachment is read first. If one carries a confirmed finding — an author, an account, a
+path on the sender's disk — sending is held back and the panel of Cirta's button in the compose window
+opens: every attachment with what it carries, in Thunderbird's language. **Clean** replaces the
+attachment in the message with the copy the library wrote and read back; **Send as is** lets this
+message go as it is, until its attachments change. A format Cirta reads but does not rewrite is never
+offered for cleaning; one it does not read is said to be unread, not passed as clean; an attachment
+over 50 MB is not read, and the panel says so. One permission, `compose`, and a policy that forbids
+every connection. `node scripts/build-thunderbird.mjs` writes `build/thunderbird/` (load it from
+Thunderbird's « Debug Add-ons ») and a `.xpi`; each release attaches it. It is not on
+addons.thunderbird.net.
+
+**Not run in Thunderbird.** Thunderbird could not be installed where this was built. The add-in is
+tested against a stand-in for the part of Thunderbird's API it uses, written from its reference, and
+that stand-in's interface is checked against the typings generated from Thunderbird's own schemas
+(`npx tsc -p integrations/thunderbird/tsconfig.json`); its panel was driven in Chromium. A first run
+in Thunderbird itself is still to be done.
 
 ## As a library
 

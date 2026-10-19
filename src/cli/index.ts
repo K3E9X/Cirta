@@ -5,8 +5,8 @@
  * Everything runs locally; the process makes no network requests.
  */
 
-import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, extname, dirname, join } from 'node:path';
+import { mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { basename, extname, dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { banner } from './logo.js';
 import { lang, setLang, detectLang, t } from './i18n.js';
@@ -51,6 +51,7 @@ import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { changedFiles, ChangedFilesError } from './changed.js';
 import { serve } from './serve.js';
+import { watchFolder } from './watch.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -98,6 +99,7 @@ ${bold(t().usage)}
   cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  ${t().usageSanitize}
   cirta mcp                          ${t().usageMcp}
   cirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ${t().usageServe}
+  cirta watch <folder> [--clean -o <folder>] [--json]  ${t().usageWatch}
 
 ${t().paths}
 
@@ -138,6 +140,8 @@ ${bold(t().options)}
       --block-on <level> ${t().optBlockOn}
       --allow-clean     ${t().optAllowClean}
       --max-size <MB>   ${t().optMaxSize}
+      --interval <s>    ${t().optInterval}
+      --new-only        ${t().optNewOnly}
   -h, --help            ${t().optHelp}
   -V, --version         ${t().optVersion}
 
@@ -213,6 +217,9 @@ interface Args {
   blockOn?: string;
   allowClean: boolean;
   maxSize?: string;
+  /** [F-P3 2.6] cirta watch. */
+  interval?: string;
+  newOnly: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -247,6 +254,7 @@ function parseArgs(argv: string[]): Args {
     sarif: false,
     host: '127.0.0.1',
     allowClean: false,
+    newOnly: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -366,6 +374,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--max-size':
         args.maxSize = argv[++i];
+        break;
+      case '--interval':
+        args.interval = argv[++i];
+        break;
+      case '--new-only':
+        args.newOnly = true;
         break;
       case '--skip':
         args.skip.push(...(argv[++i] ?? '').split(',').map((name) => name.trim()).filter(Boolean));
@@ -932,6 +946,93 @@ async function runRedact(args: Args): Promise<number> {
   return failures > 0 ? 1 : 0;
 }
 
+/**
+ * [F-P3 2.6] A folder watched (src/cli/watch.ts): each file that arrives or
+ * changes is inspected, and with --clean a cleaned copy is written to another
+ * folder — never over the original, which may be the very file someone is
+ * about to send. A file Cirta refuses to clean is named with the reason and
+ * not copied. One line of JSON per file with --json.
+ */
+async function runWatch(args: Args): Promise<number> {
+  const [folder, ...extra] = args.files;
+  if (!folder || extra.length) {
+    console.error(red(t().watchNeedFolder));
+    return 2;
+  }
+  if (!(await stat(folder).then((info) => info.isDirectory(), () => false))) {
+    console.error(red(terminalSafe(t().watchNotFolder(folder))));
+    return 2;
+  }
+  const seconds = args.interval === undefined ? 1 : Number(args.interval);
+  if (!(seconds >= 0.05)) {
+    console.error(red(terminalSafe(t().watchBadInterval(String(args.interval)))));
+    return 2;
+  }
+  if (args.clean && (args.inPlace || !args.output)) {
+    console.error(red(t().watchNeedOutput));
+    return 2;
+  }
+  const out = args.clean ? resolve(args.output!) : undefined;
+  if (out) await mkdir(out, { recursive: true });
+  const xray = await nodeXrayEngine();
+  const options = redactOptions(args);
+  const imageCodec = args.reencodeImages ? await nodeImageCodec() : undefined;
+
+  const failed = (name: string, error: unknown) => {
+    const message = errorText(error, lang());
+    const code = (error as { code?: unknown } | null)?.code;
+    if (args.json) console.log(terminalJson({ schema: REPORT_SCHEMA, file: name, error: message, ...(typeof code === 'string' ? { code } : {}) }, 0));
+    else console.error(`\n${bold(terminalSafe(name))}\n  ${red(terminalSafe(message))}`);
+  };
+
+  const watcher = watchFolder({
+    root: folder,
+    interval: seconds * 1000,
+    existing: !args.newOnly,
+    ignore: out,
+    skip: new Set([...SKIP_DIRECTORIES, ...args.skip]),
+    onFile: async (path, name) => {
+      try {
+        const input = new Uint8Array(await readFile(path));
+        const hint = formatHint(path, args.forceText);
+        if (!out) {
+          const result = await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules });
+          if (args.json) console.log(terminalJson({ schema: REPORT_SCHEMA, file: name, result }, 0));
+          else {
+            console.log(`\n${bold(terminalSafe(name))} ${dim(`(${result.format})`)}`);
+            const findings = safeFindings(result.findings);
+            printFindings(findings);
+            printNotes(safeNotes(result.notes));
+          }
+          return;
+        }
+        const result = await redactFile(input, hint, { xray, imageCodec, ...options });
+        const destination = join(out, name);
+        await mkdir(dirname(destination), { recursive: true });
+        await safeWrite(destination, result.data!);
+        if (args.json) console.log(terminalJson({ schema: REPORT_SCHEMA, file: name, output: destination, format: result.format, removed: result.removed, notes: result.notes }, 0));
+        else {
+          console.log(`\n${bold(terminalSafe(name))} ${dim(SYMBOL.arrow)} ${bold(terminalSafe(destination))}`);
+          console.log(`  ${green(t().fieldsRemoved(result.removed.length))}`);
+          printFindings(safeFindings(result.removed));
+          printNotes(safeNotes(result.notes));
+        }
+      } catch (error) {
+        failed(name, error);
+      }
+    },
+  });
+  console.error(t().watchWatching(terminalSafe(resolve(folder)), String(seconds)));
+  console.error(dim(out ? t().watchModeClean(terminalSafe(out)) : t().watchModeInspect));
+  await new Promise<void>((done) => {
+    process.once('SIGTERM', done);
+    process.once('SIGINT', done);
+  });
+  await watcher.stop();
+  console.error(dim(t().watchStopped));
+  return 0;
+}
+
 async function readStdin(): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
@@ -1118,6 +1219,8 @@ async function main(): Promise<number> {
       return runMcp();
     case 'serve':
       return runServe(args);
+    case 'watch':
+      return runWatch(args);
     case 'verify':
       if (!args.files.length) {
         console.error(red(t().needFiles('verify')));

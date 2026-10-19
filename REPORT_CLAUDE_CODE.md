@@ -29,6 +29,7 @@ Chaque PR ne montre que son lot.
 | n°19 | `feat/p3-embed` | `feat/p2-integrations` | F-P3 2.5 build en un seul fichier, `cirta serve` (ICAP, HTTP), image Docker |
 | n°20 | `feat/p3-media` | `feat/p3-embed` | F-P3 2.2 vidéo et audio (MP4/MOV/M4A, MP3, WAV), TAR, gzip, 7z |
 | n°21 | `feat/p3-a11y` | `feat/p3-media` | F-P3 2.7 audit d'accessibilité (clavier, lecteurs d'écran, contraste), thème clair et sombre |
+| n°22 | `feat/p3-watch` | `feat/p3-a11y` | F-P3 2.6 `cirta watch`, add-in Thunderbird |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1890,6 +1891,88 @@ Vérification manuelle :
 
 ---
 
+## F-P3 2.6 — `cirta watch` et add-in Thunderbird
+
+**Statut : fait, avec un écart. `cirta watch` est livré et vérifié de bout en bout. L'add-in Thunderbird (plutôt qu'Outlook) est livré, mais il n'a pas tourné dans Thunderbird : le téléchargement est bloqué ici (proxy, 403). Il est testé contre une doublure de l'API, elle-même vérifiée par typage contre les schémas de Thunderbird, et son panneau a été piloté dans Chromium.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| `cirta watch` | `48f30be` | `src/cli/watch.ts` (nouveau), `src/cli/index.ts`, `src/cli/i18n.ts`, `src/cli/terminal.ts` (`terminalJson` sur une ligne) ; test `test/watch.test.ts` |
+| Add-in Thunderbird | `274841d` | `integrations/thunderbird/` (nouveau : `src/addin.ts`, `src/background.ts`, `src/popup.ts`, `src/strings.ts`, `popup.html`, `popup.css`, `_locales/{en,fr}`, `api-check.ts`, `tsconfig.json`) ; `scripts/build-thunderbird.mjs` + `.d.mts` ; `src/shared/read-only.ts` (repris de `src/web/main.ts`) ; `tsconfig.web.json` ; `package.json` (`@types/thunderbird-webext-browser` 127.0.0, développement) ; `.github/workflows/ci.yml`, `release.yml` ; test `test/thunderbird.test.ts` |
+| Documentation | `b11358e` | `README.md`, `README.fr.md`, `CHANGELOG.md`, `SECURITY.md`, `SECURITY.fr.md` |
+
+`npm run verify` sur la branche : 100 fichiers de test, 1054 tests, vert. `node scripts/real-files.mjs` : vert.
+
+Ce que fait `cirta watch <dossier>` :
+- **Scrutation**, pas d'événements du système de fichiers : un passage par seconde (`--interval`, 0,05 s au moins). Les événements n'arrivent pas d'un partage réseau ni d'un volume monté dans un conteneur, là où vivent souvent les boîtes d'envoi.
+- **Un fichier stable** : il est lu quand sa taille et sa date sont identiques à deux passages de suite ; modifié ensuite, il est relu ; supprimé puis remis, il est neuf.
+- **Inspection seule par défaut**. `--clean` exige `--output <dossier>` et refuse `--in-place` : l'original est peut-être le fichier qu'on va envoyer. Les chemins sont conservés sous le dossier de sortie, qui est exclu de la surveillance s'il se trouve dedans. Un refus (gzip, TIFF…) est nommé avec sa raison, et rien n'est copié.
+- **Laissés de côté** : `.part`, `.crdownload`, `.download`, `.tmp`, `.swp`, `~$…`, les fichiers cachés (sauf `.env` et les autres noms que la CLI lit exprès), les extensions non prises en charge, les dossiers sautés par la CLI et ceux de `--skip`. `--new-only` ignore les fichiers présents au démarrage.
+- **Un fichier à la fois** ; un échec est signalé et la surveillance continue. `--json` donne une ligne JSON par fichier (`{schema, file, result}`, ou `output`/`removed`/`notes` avec `--clean`, ou `error`/`code`). SIGTERM/SIGINT : « Arrêté. », code 0.
+
+Ce que fait l'add-in Thunderbird (MailExtension, Thunderbird 128 ou plus récent) :
+- **À l'envoi** (`compose.onBeforeSend`), chaque pièce jointe est lue (`listAttachments`, `getAttachmentFile`). Les lectures sont mises en cache par identifiant et taille. Une seule pièce portant un constat *confirmed* suffit : l'envoi est annulé, le bouton affiche « ! », et le panneau s'ouvre (`composeAction.openPopup`, ou une fenêtre `windows.create` si Thunderbird refuse : les types précisent que l'entrée utilisateur se perd après un `await`).
+- **Le panneau** liste chaque pièce jointe dans la langue de Thunderbird : niveau, champ et valeur. Une note n'apparaît que si la lecture a été limitée (`limit:*`). Sous la liste, une phrase dit une fois ce que Cirta lit et qu'il ne prétend pas détecter de filigrane statistique.
+- **Nettoyer** remplace la pièce dans le message (`updateAttachment`) par la copie que `redactFile` a écrite et relue, sous le même nom. Ce n'est jamais proposé pour un format inspecté seulement (`src/shared/read-only.ts`, partagé avec la page). Un refus donne sa raison.
+- **Envoyer tel quel** autorise ce message, pour cet ensemble de pièces jointes : en ajouter ou en modifier une redemande.
+- **Ce qui n'est pas lu le dit** : un format inconnu (« Format que Cirta ne lit pas. Non lue. ») et une pièce de plus de 50 Mo. Ni l'un ni l'autre ne retient l'envoi : l'add-in ne peut rien en dire.
+- **Paquet** : une seule permission, `compose` ; la politique `connect-src 'none'` ; noms en français et en anglais (`_locales`) ; `build/thunderbird/` et `build/cirta-thunderbird-<version>.xpi`, déterministe. La CI le construit, vérifie ses types contre Thunderbird et le passe au linter ; une publication joint le `.xpi`.
+
+Tests :
+- `test/watch.test.ts` (8) :
+  - `reads a file once it has stopped changing, and only then`
+  - `reads it again when it changes, under its path from the folder`
+  - `leaves out what the command line leaves out, files being downloaded, and its own output folder`
+  - `takes the files already there, unless asked for new ones only`
+  - `keeps going when a file cannot be handled, and one at a time`
+  - `inspects only by default: one JSON line per file, and the folder left as it was`
+  - `with --clean, writes a cleaned copy to the output folder, and names a file it refuses`
+  - `refuses what it cannot do safely: no folder, cleaning in place, a bad interval`
+- `test/thunderbird.test.ts` (12) :
+  - `holds back a message whose attachment names its author, and says why`
+  - `cleans an attachment in place in the message: same name, read back without the author, and the message goes`
+  - `sends as it is when asked, until the attachments change`
+  - `lets through a message with nothing confirmed attached, or nothing attached, without a word`
+  - `a format it inspects only is held back if it must be, but never rewritten: the reason is given instead`
+  - `does not read an attachment past the size limit, and says so`
+  - `reads an attachment Thunderbird lists without its name or size by the file itself`
+  - `speaks English to an English Thunderbird`
+  - `names itself in both languages, with the same keys`
+  - `asks for the compose permission alone, and forbids every connection`
+  - `is built, checked against Thunderbird’s API and linted in CI, and shipped with a release`
+  - `builds into a package whose background script holds a message back, in Thunderbird’s place` (le `background.js` construit, exécuté dans un contexte `vm` avec la doublure)
+
+Vérification manuelle :
+- **`cirta watch` (build `dist/`)**, `--clean -o ready`, en français :
+  - un DOCX copié ;
+  - une photo JPEG (GPS et artiste posés par exiftool) écrite en six morceaux espacés de 0,6 s, donc plus qu'un passage ;
+  - un gzip, un `.cache.jpg` et un `upload.jpg.part`.
+
+  Résultat :
+  - le DOCX : 8 champs retirés ;
+  - la photo : lue **une fois**, complète ; 3 champs retirés ; exiftool ne trouve ni GPS ni artiste dans `ready/photo.jpg` et les trouve toujours dans l'original ;
+  - le gzip : refusé, avec la raison ;
+  - les deux autres : ignorés ;
+  - Ctrl+C : « Arrêté. », code 0.
+- **Typage contre Thunderbird** : `api-check.ts` assigne chaque appel de l'API réelle (types `@types/thunderbird-webext-browser` 127.0.0, générés depuis les schémas de Thunderbird) à l'interface `Messenger` que les tests simulent.
+  - Il a trouvé un vrai écart : `ComposeAttachment.name` et `.size` sont optionnels (de même que `tab.id`). L'add-in prend désormais le nom et la taille sur le fichier, et un test le couvre.
+  - Une mutation volontaire (signature de `getAttachmentFile` à deux arguments, `updateAttachment` exigeant `type`) fait échouer le contrôle.
+- **`web-ext lint` 8.3.0** : 0 erreur, 1 avertissement attendu (la permission `compose` est inconnue des schémas de Firefox).
+- **Panneau dans Chromium** : le `background.js` et le `popup.js` construits, avec la doublure injectée dans la page. Une pièce DOCX, un `.txt` et un `.exe` ; en français et thème clair, en anglais et thème sombre.
+  - Le panneau retient l'envoi, liste 8 constats pour le DOCX, « Rien trouvé » pour le texte et « Format que Cirta ne lit pas » pour l'exécutable.
+  - Après « Nettoyer » : « 8 éléments retirés », et le message passe.
+  - axe-core : aucune violation avant ni après ; aucune erreur dans la page.
+  - Un premier essai a montré la note de portée, longue, répétée sous chaque pièce, et la liste complète des formats sous l'exécutable. Les deux ont été raccourcis (notes `limit:*` seulement, une phrase de portée en pied).
+
+Écarts :
+- **Thunderbird plutôt qu'Outlook** : le brief laisse le choix. Un add-in Outlook (Office.js) exige un manifeste servi en HTTPS et un compte Microsoft 365 pour l'essayer ; rien de cela n'est possible ici.
+- **Pas exécuté dans Thunderbird.** C'est la limite principale, et le README la dit. Le comportement réel d'`onBeforeSend` asynchrone, de `openPopup` et du remplacement de pièce jointe reste à confirmer dans Thunderbird 128.
+- **Le corps du message n'est pas lu**, seulement les pièces jointes. Les caractères invisibles d'un texte collé dans le message ne sont pas signalés par l'add-in.
+- **Pas de rendu des pages PDF** dans l'add-in (comme dans l'extension VS Code) : le contrôle par rendu ne tourne pas, et la note le dit.
+- **`cirta watch` ne suit pas les liens symboliques** : un lien n'est pas un fichier pour la lecture du dossier, il est ignoré. Non testé, donc non annoncé dans le README.
+
+---
+
 ## Bilan final
 
 **Fait :**
@@ -1900,9 +1983,12 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 
 - toutes les sous-sections F-P2 : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8 et 2.6 (PR n°31 à n°38).
 
-- F-P3, en cours : 2.5 et 2.2 (PR n°39 et n°40).
+- toutes les sous-sections F-P3 : 2.5, 2.2, 2.7 et 2.6 (PR n°39 à n°42).
 
-**Pas encore fait :** F-P3 2.7, 2.6.
+**Pas fait, ou pas vérifié :**
+- l'add-in Thunderbird n'a pas tourné dans Thunderbird (F-P3 2.6, « Écarts ») ;
+- aucun lecteur d'écran réel n'a été lancé sur la page (F-P3 2.7) ;
+- pas de build WebAssembly (F-P3 2.5).
 
 **Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
 
@@ -1921,7 +2007,9 @@ Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la pr
 | Après F-P2 2.8 (PR n°37, avec les correctifs `5e9981f`, `51e42fa`, `7d31a96`) | 83 | 950 |
 | Après F-P2 2.6 (PR n°38) | 88 | 971 |
 | Après F-P3 2.5 (PR n°39) | 91 | 992 |
-| Après F-P3 2.2 (PR n°40) | 96 | **1019** |
+| Après F-P3 2.2 (PR n°40) | 96 | 1019 |
+| Après F-P3 2.7 (PR n°41) | 98 | 1033 |
+| Après F-P3 2.6 (PR n°42) | 100 | **1054** |
 
 ### `npm run verify` (branche `feat/hardening`, dernier état)
 
@@ -2051,6 +2139,8 @@ Usage
   cirta verify  <path...> [--fail-on <level>]  Inspect again; exit non-zero if a finding at this level is left (confirmed by default)
   cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  The text as a reader sees it, for a model; hidden instructions on stderr
   cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
+  cirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ICAP service (proxy, mail gateway) and HTTP API; inspection only by default
+  cirta watch <folder> [--clean -o <folder>] [--json]  Watch a folder: every file that arrives is inspected; --clean -o <folder> writes a cleaned copy
 
 Paths may be files or directories. Directories are walked recursively for
 documents, images and text files; build and dependency directories such as
@@ -2077,11 +2167,26 @@ Options
       --strip-tracking-params redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)
       --burn-redactions redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)
       --clear-outputs   redact: empty the outputs and execution counts (Jupyter notebook)
+      --manifest <file> redact: write a manifest (SHA-256 and size before/after, findings by label, options, version)
+      --report <file>   inspect: write the report as an HTML page (.html) or Markdown (.md), values included
+      --changed-only    inspect, verify: only the staged files (pre-commit), or those changed since --base <ref> (pull request)
+      --base <ref>      with --changed-only: the git ref to compare with (origin/main…)
+      --profile <name>  minimal, balanced or strict: the cleaning options and the --fail-on threshold in one word
+      --reencode-images redact: rebuild JPEG and PNG pictures from their pixels (orientation applied, ICC profile kept)
       --lang <fr|en>    Output language (default: the locale, else en)
       --json            Machine-readable output
       --sarif           SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs
       --fail-on <level> Exit non-zero if any finding reaches this level (confirmed|probable|informational)
+      --host <address>  serve: address to listen on (127.0.0.1 by default; 0.0.0.0 for all)
+      --http <port|off> serve: HTTP API port (8080 by default; off for none)
+      --icap <port|off> serve: ICAP port (1344 by default; off for none)
+      --block-on <level> serve: replace a file carrying a finding at this level with a 403 page
+      --allow-clean     serve: open POST /clean (closed by default)
+      --max-size <MB>   serve: largest body inspected, in MB (50 by default)
+      --interval <s>    watch: seconds between two looks (1 by default)
+      --new-only        watch: leave out the files already there when it starts
   -h, --help            Show this message
+  -V, --version         Show the version
 
 Confidence
   confirmed      Verbatim identifying data — a name, a company, a local path
