@@ -1995,3 +1995,124 @@ textarea.is-cleaned {
 .rules-status.is-error {
   color: var(--danger);
 }
+
+/* [F-2.7] Advanced cleaning options, the plan before a download, and the before/after. */
+.clean-options {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.clean-options summary {
+  cursor: pointer;
+}
+
+.clean-options-intro {
+  margin: 0.5rem 0;
+}
+
+.clean-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.clean-group legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.clean-plan {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.clean-plan-title {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.clean-plan ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.before-after {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.before-after summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.before-after-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.before-after-column ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.before-after-head {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+}
+
+.before-after-column.is-gone .before-after-head {
+  color: var(--ok);
+}
+
+.before-after-column.is-left .before-after-head {
+  color: var(--warn);
+}
+
+.before-after-label {
+  font-weight: 600;
+}
+
+.diff {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.75rem;
+  max-height: 24rem;
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.diff-line {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-line.is-removed {
+  color: var(--danger);
+  background: var(--accent-wash);
+}
+
+.diff-line.is-added {
+  color: var(--ok);
+}
+
+.diff-line.is-skip {
+  color: var(--ink-2);
+  font-style: italic;
+}

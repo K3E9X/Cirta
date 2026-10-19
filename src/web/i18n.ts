@@ -219,7 +219,24 @@ const FR = {
       ? 'Un lecteur ne les voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — les lira comme des instructions. Elles sont citées plus bas.'
       : 'Un lecteur ne la voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — la lira comme une instruction. Elle est citée plus bas.',
   removeCommentsOption: (n: number) => (n > 1 ? `Retirer les ${n} commentaires` : 'Retirer le commentaire'),
-  clearOutputsOption: 'Vider les sorties des cellules',
+  clearOutputsOption: (n: number) => (n > 1 ? `Vider les sorties des ${n} cellules` : 'Vider les sorties de la cellule'),
+  removeNotesOption: (n: number) => (n > 1 ? `Retirer les notes du présentateur (${n} diapositives)` : 'Retirer les notes du présentateur'),
+  removeHiddenSlidesOption: (n: number) => (n > 1 ? `Retirer les ${n} diapositives masquées` : 'Retirer la diapositive masquée'),
+  removeHiddenSheetsOption: (n: number) => (n > 1 ? `Retirer les ${n} feuilles masquées (si rien ne les lit)` : 'Retirer la feuille masquée (si rien ne la lit)'),
+  stripTrackingOption: (n: number) => (n > 1 ? `Retirer les paramètres de suivi de ${n} liens` : 'Retirer les paramètres de suivi du lien'),
+  removeAttachmentsOption: (n: number) => (n > 1 ? `Retirer les ${n} fichiers intégrés` : 'Retirer le fichier intégré'),
+  flattenAnnotationsOption: () => 'Dessiner les annotations dans la page, puis les retirer avec leurs auteurs',
+  burnRedactionsOption: (n: number) =>
+    n > 1 ? `Supprimer pour de bon les ${n} textes recouverts (leurs pages deviennent des images)` : 'Supprimer pour de bon le texte recouvert (sa page devient une image)',
+  planTitle: 'Au téléchargement :',
+  planMetadata: 'Retirer ce que le fichier dit de sa fabrication (métadonnées, caractères invisibles), puis relire la copie',
+  planContentKept: 'Le contenu n’est pas modifié : les options ci-dessus sont décochées.',
+  beforeAfterTitle: 'Avant / après',
+  goneTitle: (n: number) => `Retiré (${n})`,
+  leftTitle: (n: number) => `Toujours là (${n})`,
+  diffTitle: 'Le texte, ligne à ligne — les caractères invisibles écrits en clair',
+  diffSkip: (n: number) => (n > 1 ? `… ${n} lignes identiques` : '… 1 ligne identique'),
+  diffSame: 'Le texte lui-même n’a pas changé.',
   stripActiveOption: (n: number) =>
     n > 1 ? `Retirer les ${n} éléments actifs (scripts, actions, fichiers intégrés)` : 'Retirer l’élément actif (script, action, fichier intégré)',
   stripRemoteOption: (n: number) =>
@@ -424,7 +441,24 @@ const EN: Strings = {
       ? 'A reader does not see them. An assistant given this file — to summarise it, screen it, reply to it — will read them as instructions. They are quoted below.'
       : 'A reader does not see it. An assistant given this file — to summarise it, screen it, reply to it — will read it as an instruction. It is quoted below.',
   removeCommentsOption: (n) => (n > 1 ? `Remove the ${n} comments` : 'Remove the comment'),
-  clearOutputsOption: 'Empty the cells’ outputs',
+  clearOutputsOption: (n) => (n > 1 ? `Empty the outputs of the ${n} cells` : 'Empty the cell’s outputs'),
+  removeNotesOption: (n) => (n > 1 ? `Remove the speaker notes (${n} slides)` : 'Remove the speaker notes'),
+  removeHiddenSlidesOption: (n) => (n > 1 ? `Remove the ${n} hidden slides` : 'Remove the hidden slide'),
+  removeHiddenSheetsOption: (n) => (n > 1 ? `Remove the ${n} hidden sheets (if nothing reads them)` : 'Remove the hidden sheet (if nothing reads it)'),
+  stripTrackingOption: (n) => (n > 1 ? `Remove the tracking parameters of ${n} links` : 'Remove the link’s tracking parameters'),
+  removeAttachmentsOption: (n) => (n > 1 ? `Remove the ${n} embedded files` : 'Remove the embedded file'),
+  flattenAnnotationsOption: () => 'Draw the annotations into the page, then remove them with their authors',
+  burnRedactionsOption: (n) =>
+    n > 1 ? `Remove the ${n} covered texts for good (their pages become pictures)` : 'Remove the covered text for good (its page becomes a picture)',
+  planTitle: 'On download:',
+  planMetadata: 'Remove what the file says about how it was made (metadata, invisible characters), then read the copy again',
+  planContentKept: 'The content is not changed: the options above are unticked.',
+  beforeAfterTitle: 'Before / after',
+  goneTitle: (n) => `Removed (${n})`,
+  leftTitle: (n) => `Still there (${n})`,
+  diffTitle: 'The text, line by line — invisible characters written out',
+  diffSkip: (n) => (n > 1 ? `… ${n} unchanged lines` : '… 1 unchanged line'),
+  diffSame: 'The text itself did not change.',
   stripActiveOption: (n) =>
     n > 1 ? `Remove the ${n} active elements (scripts, actions, embedded files)` : 'Remove the active element (script, action, embedded file)',
   stripRemoteOption: (n) =>
