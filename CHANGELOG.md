@@ -10,6 +10,11 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **Hidden keyword stuffing.** A pile of skills hidden in a CV for the screening software is reported as *Hidden keyword stuffing*, confirmed, apart from an order to a model.
+- **Hidden text in OpenDocument and RTF**: hidden formatting and fields, a colour on its background, type under 2 pt, a frame off the page (ODT).
+
 ## [0.2.0] — 2026-10-19
 
 Released on GitHub — single-file binaries, the library as one file, the editor, browser and Thunderbird
