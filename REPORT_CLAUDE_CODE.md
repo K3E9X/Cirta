@@ -28,6 +28,7 @@ Chaque PR ne montre que son lot.
 | n°18 | `feat/p2-integrations` | `feat/p2-release` | F-P2 2.6 `--changed-only`, hook pre-commit, Action GitHub, extensions VS Code et navigateur |
 | n°19 | `feat/p3-embed` | `feat/p2-integrations` | F-P3 2.5 build en un seul fichier, `cirta serve` (ICAP, HTTP), image Docker |
 | n°20 | `feat/p3-media` | `feat/p3-embed` | F-P3 2.2 vidéo et audio (MP4/MOV/M4A, MP3, WAV), TAR, gzip, 7z |
+| n°21 | `feat/p3-a11y` | `feat/p3-media` | F-P3 2.7 audit d'accessibilité (clavier, lecteurs d'écran, contraste), thème clair et sombre |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1816,6 +1817,76 @@ Vérification manuelle :
 - **Vecteur de test LZMA** : `test/vectors/lzma.txt` contient deux flux de 381 et 383 octets en base64, de provenance documentée (xz-utils via Python, graine 11). C'est un fichier texte, hors de `test/fixtures`. Le texte attendu est vérifié par son SHA-256 ; le chemin LZMA compressé, lui, n'est pas reconstructible sans encodeur.
 - **Les flux eux-mêmes ne sont pas analysés** : ni l'image ni le son. Une chaîne écrite dans le flux vidéo par l'encodeur (le SEI de x264) reste, et le README le dit.
 - **Formats vidéo et audio non couverts** : FLAC, Ogg, Matroska/WebM, AIFF, AVI ne sont pas dans le lot.
+
+---
+
+## F-P3 2.7 — Accessibilité et thème clair
+
+**Statut : fait. Un audit (axe-core dans Chromium, parcours au clavier, annonces, largeur de 320 px) a trouvé cinq défauts, tous corrigés ; il tourne désormais en CI. Le thème clair existait déjà (la page suivait le système) : un bouton permet maintenant d'imposer clair ou sombre. Aucun lecteur d'écran réel n'a été lancé.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Zone de dépôt avec de vrais boutons, un seul `main`, libellés bilingues, focus du champ texte | `daaf097` | `src/web/index.html`, `src/web/style.css`, `src/web/main.ts` ; test `test/a11y.test.ts` |
+| Thème clair et sombre, choisi dans l'en-tête | `7938743` | `src/web/index.html` (script en ligne), `style.css`, `main.ts`, `i18n.ts` ; test `test/theme.test.ts` |
+| L'audit : script et job CI | `f9682f2` | `scripts/a11y.mjs` (nouveau) ; `.github/workflows/ci.yml` (job `a11y`) ; test `test/a11y.test.ts` |
+| Résultats annoncés aux lecteurs d'écran | `3e4a705` | `src/web/index.html`, `style.css`, `main.ts` ; `scripts/a11y.mjs` ; test `test/a11y.test.ts` |
+| `[hidden]` l'emporte ; parcours clavier de toute la page | `6603fb1` | `src/web/style.css`, `scripts/a11y.mjs` ; test `test/a11y.test.ts` |
+| Documentation | `fa4e99a` | `README.md`, `README.fr.md`, `CHANGELOG.md` |
+
+`npm run verify` sur la branche : 98 fichiers de test, 1033 tests, vert.
+
+Ce que l'audit a trouvé, et ce qui change :
+- **Zone de dépôt** (axe : `nested-interactive`, grave). C'était un `role="button"` focalisable qui contenait le bouton « ou un dossier entier » : un lecteur d'écran l'annonçait comme une seule commande. Elle n'est plus qu'une cible de dépôt et de clic à la souris. À côté du bouton « dossier », un vrai bouton « Choisir des fichiers » ; la zone s'éclaire quand l'un des deux a le focus (`:focus-within`).
+- **Repères** (axe : `region`). Le bandeau d'accroche et les chiffres étaient hors de tout repère ; `<main>` s'ouvre désormais avant eux.
+- **Libellé en une seule langue.** Le groupe des profils portait `aria-label="Profils"`, lu en français dans la page anglaise. Il pointe maintenant vers son texte bilingue (`aria-labelledby`). Un test refuse tout `aria-label` statique dans le balisage.
+- **Résultats muets.** Les fiches apparaissaient sans annonce. Une zone `role="status"` unique, masquée à l'œil et placée hors des deux onglets (une zone dans un onglet caché n'est pas lue), dit la ligne de bilan des fichiers, ce qu'une analyse ou un nettoyage du texte a trouvé, et ce qu'un collage portait. Elle est vidée avant chaque phrase : deux résultats identiques sont lus deux fois.
+- **Bouton « Oublier » visible sans règles.** Il est marqué `hidden` tant qu'aucune règle n'est importée, mais `.button { display: inline-flex }` l'emportait : il s'affichait et la tabulation s'y arrêtait (depuis F-2.3). `[hidden] { display: none !important }` corrige ce cas et tous les suivants.
+- **Focus du champ texte** : un changement de couleur d'un pixel seulement ; c'est maintenant un anneau.
+- **Thème.**
+  - Un bouton « Thème : auto / clair / sombre » dans l'en-tête, à côté de la langue. Le choix est gardé dans `localStorage` (`cirta.theme`) ; si le stockage est refusé, la page suit le système.
+  - Le seul script en ligne (autorisé par son empreinte dans la CSP, recalculée par le build) applique `data-theme` **avant le premier rendu** : une page réglée en clair ne s'affiche pas d'abord en sombre.
+  - En CSS, les couleurs sombres sont dans deux blocs, `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` et `:root[data-theme="dark"]` ; un test les garde identiques. Le thème imposé règle aussi `color-scheme` (barres de défilement, champs) et la `theme-color` de la barre du navigateur.
+  - Sous 24rem, le mot « Thème » est masqué à l'œil mais reste dans le nom du bouton : l'en-tête débordait de 35 px à 320 px en français.
+- **Ce qui était déjà en ordre**, vérifié : aucun défaut de contraste en clair ni en sombre (axe) ; un anneau de focus à chaque arrêt de tabulation ; lien d'évitement en premier ; onglets ARIA aux flèches, Origine et Fin ; en-têtes de colonne exposés comme tels (arbre d'accessibilité de Chromium lu via CDP) ; mouvement réduit respecté.
+
+L'audit, `scripts/a11y.mjs`, après `npm run build:web` :
+- axe-core 4.10.3, les deux langues × quatre cas de thème (système clair, système sombre, clair imposé sur système sombre, sombre imposé sur système clair), avec trois fichiers lus à l'écran et toutes les sections ouvertes ;
+- parcours au clavier de toute la page (50 arrêts) : un anneau de focus à chaque arrêt, le lien d'évitement en premier, rien de `hidden` affiché, Entrée sur « Choisir des fichiers » ouvre le sélecteur (multiple), flèches entre les onglets ;
+- les trois annonces ;
+- thème : le choix stocké est appliqué par le script en ligne alors que le bundle est bloqué, sous la vraie CSP, sans refus ; le bouton fait le cycle et l'enregistre ;
+- 320 px de large en français et en anglais : pas de défilement horizontal (ce qu'affiche une fenêtre de 1280 px zoomée à 400 %, WCAG 1.4.10).
+
+Playwright 1.56.1 et axe-core 4.10.3 ne sont pas des dépendances : le job CI `a11y` les installe avec `npm install --no-save`, et un test vérifie que ces versions sont celles que le script annonce.
+
+Tests :
+- `test/a11y.test.ts` (9) :
+  - `is a drop target, not a button with buttons inside it`
+  - `holds a real button for choosing files, next to the one for a folder`
+  - `shows where the focus is when it is on one of its buttons`
+  - `no class rule can show an element the markup or the script hid`
+  - `everything between the header and the footer is inside <main>`
+  - `no label in the markup is written in one language only`
+  - `one status region, outside both panels, so a hidden tab does not silence it`
+  - `a file read, a text analysed, a text cleaned and a paste each say what came of it`
+  - `at the versions the script names, after building the site`
+- `test/theme.test.ts` (5) :
+  - `applies a stored choice before first paint, and only a valid one`
+  - `still starts when storage is refused, and keeps the motion switch`
+  - `the forced dark theme and the system dark theme are the same colours`
+  - `a forced theme also sets the colour scheme the browser draws its own controls in`
+  - `a control in the header chooses it, and the choice is kept in this browser`
+
+Vérification manuelle :
+- `scripts/a11y.mjs` : 22 contrôles verts sur le build final ; six exécutions de suite sans échec avant l'ajout des deux derniers contrôles (parcours complet, `hidden`). Un contrôle (Entrée ouvre le sélecteur) échouait une fois sur trois : Playwright active l'interception du sélecteur de façon asynchrone. L'écouteur est donc posé dès l'ouverture de la page ; stable ensuite.
+- **Le script détecte bien les défauts** : sur le site construit, j'ai remis `role="button" tabindex="0"` sur la zone, neutralisé le thème dans le script en ligne et ajouté `#file-pick:focus-visible{outline:none}` et `.nav{width:400px}` au CSS. Résultat : 15 contrôles en échec (axe `nested-interactive` ×8, focus invisible sur `#dropzone` et `#file-pick`, thème non appliqué et refus CSP du script modifié, débordement à 400 px). Le site a ensuite été reconstruit.
+- Arbre d'accessibilité (Chromium, CDP) : `banner`, `navigation`, `main`, `contentinfo` ; boutons « Thème : auto » et « English » ; onglet « Documents » ; boutons « Choisir des fichiers » et « ou un dossier entier » ; en-têtes de colonne `columnheader`. L'instantané ARIA de Playwright montrait ces en-têtes comme `cell` ; Chromium les expose bien comme `columnheader`.
+- Captures à 320 et 360 px, clair et sombre : l'en-tête tient.
+
+Écarts :
+- **Pas de lecteur d'écran réel** (NVDA, VoiceOver, Orca) : aucun n'est disponible ici. L'audit lit ce que le navigateur expose, pas ce qui est prononcé. Le README le dit.
+- **Non vérifiés** : l'espacement du texte (WCAG 1.4.12) et le mode de contraste forcé de Windows.
+- **Les en-têtes de colonne sont en majuscules par CSS** (`text-transform`). Chromium donne alors « NIVEAU » comme nom ; certains lecteurs d'écran épellent les mots courts en capitales. Laissé tel quel, noté.
+- **Extensions** : l’extension navigateur reprend la page, donc le thème et les annonces ; elle n’a pas été auditée à part. L’extension VS Code ne l’a pas été non plus.
 
 ---
 
