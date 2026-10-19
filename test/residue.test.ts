@@ -171,3 +171,14 @@ describe('cost on hostile input', () => {
     expect(cost(text)).toBeLessThan(500);
   });
 });
+
+describe('[F-2.8] Markdown links in linear time', () => {
+  it('reads a line of a hundred thousand brackets in well under a second, and still finds a link', () => {
+    const line = `${'['.repeat(100_000)}${']'.repeat(100_000)} [docs](https://exemple.fr/a)`;
+    const started = Date.now();
+    inspectPlainText(line);
+    const stripped = stripMarkdownResidue(`Voir [docs](https://exemple.fr/a) et [[x]](https://exemple.fr/b).`);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(stripped.text).toContain('docs (https://exemple.fr/a)');
+  });
+});

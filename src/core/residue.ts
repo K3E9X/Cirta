@@ -120,7 +120,9 @@ const MARKDOWN: MarkdownRule[] = [
   { key: '#', pattern: /^[ \t]*#{1,6}[ \t]+(?=\S)/gm, replace: () => '' },
   {
     key: '[…](…)',
-    pattern: /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    // The label stops at a bracket: a run of a hundred thousand "[" made every
+    // one of them scan to the end of the line, quadratic (F-2.8).
+    pattern: /\[([^[\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
     replace: (_m, label, url) => (label === url ? url : `${label} (${url})`),
   },
   { key: '`…`', pattern: /`([^`\n]+)`/g, replace: (_m, code) => code ?? '' },

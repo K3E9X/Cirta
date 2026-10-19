@@ -1190,6 +1190,8 @@ offset either way.
 
 ### Fuzzing the parsers
 
+The threat model, and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+
 Cirta is pointed at files from people the user has no reason to trust. That is
 the threat model in which a parser bug stops being a crash and becomes a
 vulnerability, and nine modules here take hostile bytes: PDF, ZIP, OOXML, ODF,
@@ -1199,7 +1201,13 @@ CBOR, JUMBF, image containers, XML and punycode.
 npm run fuzz                                  # a short run
 node scripts/fuzz.mjs --iterations 12000 --seed 31337
 node scripts/fuzz.mjs --target pdf
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
 ```
+
+The parsers added later — compound files (legacy Office, Outlook), OLE property sets, PowerPoint
+records, MIME mail, Exif IFDs, the rules file, the personal-data scan, notebooks — are fuzzed by
+`test/fuzz-parsers.test.ts`, inside `npm test`, from seeds the test helpers build; one mutator aims
+offsets back at earlier positions, which is how offset-chained formats loop.
 
 It is dependency-free and mutation-based: valid files are built, then bit-flipped,
 truncated, spliced, repeated, and had their length fields overwritten with the
@@ -1251,6 +1259,12 @@ reopens the result. Corrupting a Word file is the worst failure available here, 
 the suite would notice. The first conversion acts as a control — if LibreOffice cannot even produce
 the input, the script stops and says so rather than failing, because that proves nothing about the
 cleaning. CI runs it on Linux, after `verify`.
+
+The corpus: `.docx` and `.odt`, tracked changes, comments, active content, a deck with notes and a
+hidden slide, `.xlsx`, `.ods`, `.pptx`, `.odp` and a PDF — each with an author that must be found, then
+gone from the cleaned copy, which LibreOffice (poppler for the PDF, when installed) must reopen —, a
+`.doc` and a `.ppt` whose clean must be refused, and two notebooks validated by `nbformat` when
+`CIRTA_PYTHON` names a Python that has it. A missing tool is reported as `skip`, never as a pass.
 
 ```bash
 node scripts/real-files.mjs

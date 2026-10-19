@@ -17,6 +17,7 @@ Chaque PR ne montre que son lot.
 | n°7 | `feat/dlp-rules` | `feat/llm-pipeline` | F-2.3 DLP et règles (F-P1) |
 | n°8 | `feat/legacy-formats` | `feat/dlp-rules` | F-2.2 Office ancien, Outlook `.msg`, notebooks Jupyter (F-P1) |
 | n°9 | `feat/ui-options` | `feat/legacy-formats` | F-2.7 options avancées, plan avant téléchargement, avant/après (F-P1) |
+| n°10 | `feat/hardening` | `feat/ui-options` | F-2.8 robustesse XML, fuzzers, corpus réel élargi, `SECURITY.md` (F-P1) |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -923,6 +924,82 @@ Vérification manuelle : `npm run dev` (ou `dist-web`). Ouvrir « Options avanc�
 
 ---
 
+## F-2.8 [F-P1] — Sécurité et robustesse
+
+**Statut : fait pour les quatre puces.** Les nouveaux tests ont trouvé trois défauts, tous corrigés. Les deux premiers sont corrigés dans le même commit que leurs tests. Le troisième est apparu sur la CI Windows, puis a été corrigé (`380899f`).
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| F-2.8.1 XML hostile, et deux correctifs | `4efcf8e` | `test/xml-robustness.test.ts` (nouveau) ; `src/core/hidden-text.ts` (profondeur de paragraphes), `src/core/notebook.ts` (profondeur JSON) |
+| F-2.8.2 Fuzzers des nouveaux analyseurs | `e9ca088` | `test/fuzz-parsers.test.ts`, `test/helpers/mutate.ts` (nouveaux), READMEs |
+| F-2.8.3 Corpus réel élargi | `d80e933` | `scripts/real-files.mjs`, READMEs |
+| F-2.8.4 `SECURITY.md` et modèle de menace | `ff9ca3b` | `SECURITY.md`, `SECURITY.fr.md`, `test/no-network.test.ts` (nouveaux), READMEs |
+
+Ce qui change :
+- **XML hostile.** Les tests vérifient d'abord ce que `xml.ts` promet : un DOCTYPE est du texte, et aucune entité n'est résolue au-delà des cinq prédéfinies et des références numériques.
+  - Billion laughs dans un `.docx` et un SVG : rien n'est développé.
+  - Entités externes (`file:///etc/passwd`, adresse de métadonnées cloud) : rien n'est lu, que ce soit dans Office, SVG, OpenDocument ou XMP.
+  - Un attribut de 8 Mo et un attribut non fermé : lus jusqu'au bout.
+  - Deux défauts trouvés :
+    - **Imbrication de paragraphes Word, quadratique.** 100 000 niveaux prenaient 46 s à inspecter (20 000 niveaux : 1,8 s ; 40 000 : 6,6 s ; nettoyage 21 s). Chaque paragraphe relisait tout son corps. Au-delà de 32 niveaux, un paragraphe est maintenant lu avec celui qui l'englobe. Word n'imbrique que par les zones de texte, sur un ou deux niveaux. Résultat à 40 000 niveaux : 0,1 s.
+    - **Notebook JSON imbriqué 200 000 fois.** `JSON.parse` passait, puis `JSON.stringify` débordait la pile : un `RangeError`, donc un plantage et non un refus. Au-delà de 512 niveaux, le fichier n'est plus pris pour un notebook (le `json` de Python s'arrête vers 1 000) et il est lu comme du texte.
+    - **Liens Markdown, quadratique.** Un défaut existant, révélé par le test précédent sur la CI Windows. Le notebook profond, lu comme du texte, y prenait 541 s. La charge a fait dépasser leur limite de temps à deux autres tests (presse-papiers, courrier hostile). Cause : l'étiquette de `[…](https://…)` acceptait `[`, donc chaque crochet balayait la ligne jusqu'au bout. L'étiquette s'arrête maintenant à un crochet. 100 000 niveaux : 4,7 s → 36 ms. Test : `test/residue.test.ts` « reads a line of a hundred thousand brackets in well under a second, and still finds a link » (4 720 ms avant le correctif).
+- **Fuzzers.** `test/fuzz-parsers.test.ts`, dans `npm test`, part de graines construites par les helpers de test. `scripts/fuzz.mjs` travaille sur `dist` et ne peut pas les utiliser.
+  - Cibles : lecteur CFB, puis `.doc`/`.ppt`/`.msg` de bout en bout ; jeux de propriétés OLE ; enregistrements PowerPoint ; MIME (`parseMail`, `.eml`) ; IFD Exif, dont une boucle explicite (IFD0 dont les pointeurs Exif et suivant visent lui-même) ; fichier de règles ; données personnelles ; notebooks (inspection et nettoyage).
+  - Mutateur ajouté : il renvoie un décalage vers une position antérieure.
+  - 150 itérations par cible par défaut. `FUZZ_ITERATIONS` et `FUZZ_SEED` lancent une campagne plus longue.
+  - Campagne de 5 000 itérations sur 3 graines : aucun constat. Environ 80 % des `.doc` et `.msg` mutés sont encore lus comme tels, donc les mutations atteignent bien les analyseurs.
+- **Corpus réel.** LibreOffice produit `.xlsx`, `.ods`, `.pptx`, `.odp` et un PDF, chacun avec un auteur. Trois assertions par fichier :
+  - l'auteur est trouvé ;
+  - rien de confirmé ne survit au nettoyage ;
+  - une vraie implémentation rouvre la copie : LibreOffice ; pour le PDF, poppler (`pdfinfo` sans auteur, `pdftotext` retrouve le texte).
+
+  Un outil absent est annoncé `skip`, jamais compté comme réussi.
+- **`SECURITY.md` / `SECURITY.fr.md`** :
+  - signalement : onglet Security de GitHub, ou un ticket sans détail ;
+  - ce qui est protégé, et contre qui ;
+  - une table par surface (ce qui pourrait arriver, ce que fait Cirta, quel test le vérifie) ;
+  - le hors-périmètre : filigranes statistiques, pixels, formats seulement inspectés, machine compromise, dépendances.
+- **Promesses vérifiées.** « Pas de réseau » et « valeurs rendues comme du texte » étaient affirmés sans test. `test/no-network.test.ts` vérifie maintenant :
+  - qu'aucun module ne fait de requête réseau ni n'en importe un (une sonde important `node:https` le fait échouer) ;
+  - que la page porte `connect-src 'none'` ;
+  - que le worker retire les moyens réseau avant de charger PDF.js ;
+  - qu'aucun module de la page n'écrit de balisage depuis une chaîne.
+
+Tests :
+- `test/xml-robustness.test.ts` (6) :
+  - `resolves no entity: the scanner keeps an entity reference as written`
+  - `does not expand a billion laughs, in a .docx or in an SVG`
+  - `reads no external entity: no file, no address, in Office, SVG, OpenDocument or XMP`
+  - `survives XML nested a hundred thousand levels deep`
+  - `survives an attribute of several megabytes and an unclosed one`
+  - `refuses or reads, never crashes, on a notebook nested beyond what JSON tools handle`
+- `test/fuzz-parsers.test.ts` (6) :
+  - `compound files: the reader, then .doc, .ppt and .msg end to end`
+  - `OLE property sets and PowerPoint records`
+  - `MIME mail`
+  - `Exif IFDs, an offset loop among them`
+  - `the rules parser and the personal-data scan`
+  - `notebooks, inspected and cleaned`
+- `test/no-network.test.ts` (3) :
+  - `no source module imports a networking module or makes a request`
+  - `the page forbids every connection, and the worker removes the means before loading PDF.js`
+  - `no page module writes markup from a string`
+- `scripts/real-files.mjs` : 15 vérifications de plus (5 fichiers × 3).
+
+Vérification manuelle :
+```
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
+CIRTA_PYTHON=/chemin/vers/python-avec-nbformat node scripts/real-files.mjs
+```
+
+Écarts :
+- `scripts/fuzz.mjs` n'a pas reçu les nouvelles cibles : il travaille sur `dist` en JavaScript et n'a pas les graines, construites par les helpers TypeScript de test. Les nouvelles cibles tournent dans vitest, donc dans `verify`.
+- Une règle dont le motif fait exploser le retour arrière reste sans garde (pas de délai d'expiration en JavaScript). C'est dit dans `SECURITY.md`.
+- Le signalement par l'onglet Security suppose que le dépôt a activé le signalement privé de vulnérabilités. Ce réglage n'a pas été vérifié d'ici ; le texte prévoit l'autre voie.
+
+---
+
 ## État de vérification
 
 Branche `fix/test-campaign-2026-10` (PR n°1) :
@@ -961,6 +1038,10 @@ Branche `feat/ui-options` (PR n°9) :
 - `npm run verify` : exit 0. 61 fichiers de test, **832 tests** (823 avant). Fuzz sans crash. Build web OK.
 - `node scripts/real-files.mjs` : `all real-file checks passed`.
 
+Branche `feat/hardening` (PR n°10) :
+- `npm run verify` : exit 0. 64 fichiers de test, **847 tests** (832 avant). Fuzz : 3 588 entrées, `no crash and no hang`. Build web OK. Après le correctif des liens Markdown : **848 tests**.
+- `CIRTA_PYTHON=… node scripts/real-files.mjs` : `all real-file checks passed`, 41 vérifications `ok`, aucun `skip` (LibreOffice, poppler et nbformat présents).
+
 Nouvelles options CLI (`cirta --help`) :
 ```
       --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
@@ -984,9 +1065,216 @@ Nouvelles options CLI (`cirta --help`) :
   cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
 ```
 
+## Bilan final
+
+**Fait :**
+- toutes les corrections, C1 à C11 ;
+- toutes les sous-sections F-P1, dans l'ordre du brief : 2.1, 2.4, 2.5, 2.3, 2.2, 2.7, 2.8.
+
+Il y a dix PR empilées, n°21 à n°30 sur GitHub. Chacune est basée sur la précédente et ne montre que son lot ; la table en tête de ce rapport les liste.
+
+**Pas fait :** F-P2 et F-P3, faute de temps. Les puces F-P2 relevées en cours de route sont aussi restées hors périmètre, par exemple les profils `--profile` de 2.3.
+
+**Ordre de fusion.** Les PR se fusionnent dans l'ordre de la pile, n°21 d'abord, dans `main`. Une PR fusionnée change la base de la suivante.
+
+**CI.** Au moment d'écrire, la CI (Ubuntu, Windows, macOS × Node 22 et 24) est verte sur les PR n°21 à n°29. Sur la n°30, Windows a révélé le défaut des liens Markdown ; le correctif est poussé.
+
+### Nombre de tests
+
+| | Fichiers de test | Tests |
+|---|---|---|
+| Base `main` @ `b23fca9` | — | **560** |
+| Après C1–C11 (PR n°23) | 39 | 703 |
+| Après tout F-P1 (PR n°30) | 64 | **848** |
+
+### `npm run verify` (branche `feat/hardening`, dernier état)
+
+Commande : `npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && node scripts/fuzz.mjs --iterations 400 && npm run build:web`. Code de sortie : **0**.
+
+```
+ Test Files  64 passed (64)
+      Tests  847 passed (847)
+
+cirta smoke test — linux node 22.22.0
+  ok    --help exits 0
+  ok    --help documents the scope limit
+  ok    inspect exits 0
+  ok    inspect walks subdirectories
+  ok    inspect reports the author
+  ok    inspect derives the OS account
+  ok    inspect names the generating tool
+  ok    inspect summarises a multi-file run
+  ok    --json exits 0
+  ok    --json emits parseable output
+  ok    --json carries confidence levels
+  ok    redact exits 0
+  ok    redacted PDF has no metadata left
+  ok    redacted PPTX drops the template path
+  ok    redacted PPTX is still a valid container
+
+cirta: removed 2 invisible character type(s)
+  ok    text --clean strips invisible characters
+  ok    text refuses binary input
+  ok    text says why it refused
+  ok    text writes nothing when refusing
+
+/tmp/cirta-smoke-MbNVyO/nope.pdf
+  File not found: /tmp/cirta-smoke-MbNVyO/nope.pdf
+  ok    missing file exits non-zero
+Unknown command: wat
+  ok    unknown command exits 2
+
+all checks passed
+
+fuzz: seed 1332200836, 400 iterations per target, targets: inspect, pdf, zip, image, cbor, jumbf, text, url, markup
+fuzz: 3588 inputs executed
+
+fuzz: 10 rejection kind(s) escaped as a raw Error (675 inputs).
+      Not crashes — the parsers refused corrupt input — but the type is not one
+      a caller can match on. Shown for the record:
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): No PDF header found (x326)
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): Failed to parse invalid PDF object (x12)
+        pdf      Error        Failed to parse number (line:N col:N offset=N): "" (x6)
+        pdf      Error        Failed to parse PDF document (line:N col:N offset=N): Expected next byte to be N but it wa (x2)
+        zip      Error        invalid zip data (x315)
+        zip      Error        invalid distance (x1)
+        zip      Error        unknown compression type N (x9)
+        zip      Error        unexpected EOF (x2)
+        zip      Error        invalid block type (x1)
+        zip      Error        invalid length/literal (x1)
+
+fuzz: no crash and no hang.
+
+✓ built in 6.91s   (build:web)
+```
+
+Les dix types de rejet listés par le fuzz ne sont pas des plantages. Ce sont des refus de pdf-lib et fflate, appelés directement par les cibles `pdf` et `zip` du script. Ils existaient avant ; voir les dettes.
+
+### `node scripts/real-files.mjs` (avec LibreOffice, poppler et `CIRTA_PYTHON` pointant vers un Python avec nbformat)
+
+```
+real-file round trip — linux
+  control: LibreOffice produced source.docx, source.odt
+  ok    source.docx: inspected as docx
+  ok    source.docx: found the metadata LibreOffice wrote
+  ok    source.docx: nothing confirmed survives redaction
+  ok    source.docx: reopens in LibreOffice after redaction
+  ok    source.odt: inspected as odt
+  ok    source.odt: found the metadata LibreOffice wrote
+  ok    source.odt: nothing confirmed survives redaction
+  ok    source.odt: reopens in LibreOffice after redaction
+  ok    tracked.docx: the deleted text is quoted
+  ok    tracked.docx: reopens in LibreOffice with changes accepted
+  ok    tracked.docx: the deleted text is gone after accepting
+  ok    commented.docx: the comment text is reported
+  ok    commented.docx: reopens in LibreOffice with comments removed
+  ok    commented.docx: the comment is gone
+  ok    active.docx: the DDE field is reported
+  ok    active.docx: the remote template is reported
+  ok    active.docx: reopens in LibreOffice with active content stripped
+  ok    active.docx: no DDE or remote INCLUDE instruction is left
+  ok    deck.pptx: reopens in LibreOffice with notes and the hidden slide removed
+  ok    deck.pptx: the hidden slide and every notes part are gone from the package
+  ok    legacy.doc: read as doc, author and last saver from its property sets
+  ok    legacy.doc: cleaning refused rather than attempted
+  ok    legacy.ppt: read as ppt, author and last saver from its property sets
+  ok    legacy.ppt: cleaning refused rather than attempted
+  ok    notebook.clean.ipynb: valid for nbformat, metadata reduced to the kernel, outputs kept
+  ok    notebook.cleared.ipynb: valid for nbformat, metadata reduced to the kernel, outputs emptied
+  ok    corpus-sheet.xlsx: read as xlsx, the author found
+  ok    corpus-sheet.xlsx: nothing confirmed survives the clean
+  ok    corpus-sheet.clean.xlsx: reopens in LibreOffice
+  ok    corpus-sheet.ods: read as ods, the author found
+  ok    corpus-sheet.ods: nothing confirmed survives the clean
+  ok    corpus-sheet.clean.ods: reopens in LibreOffice
+  ok    corpus-deck.pptx: read as pptx, the author found
+  ok    corpus-deck.pptx: nothing confirmed survives the clean
+  ok    corpus-deck.clean.pptx: reopens in LibreOffice
+  ok    corpus-deck.odp: read as odp, the author found
+  ok    corpus-deck.odp: nothing confirmed survives the clean
+  ok    corpus-deck.clean.odp: reopens in LibreOffice
+  ok    corpus-text.pdf: read as pdf, the author found
+  ok    corpus-text.pdf: nothing confirmed survives the clean
+  ok    corpus-text.clean.pdf: poppler opens it, no author, the page text intact
+
+all real-file checks passed
+```
+
+### `cirta --help`
+
+```
+  ╭───────╮   cirta
+  │  ╭──  │   inspect and strip provenance metadata from documents
+  │  ╰──  │
+  ╰───────╯   everything runs locally; no network calls are made
+
+Usage
+  cirta inspect <path...>            Report metadata carried by each file
+  cirta redact  <path...> [options]  Write a copy with that metadata removed
+  cirta text [--clean]               Read text on stdin; report or clean it
+  cirta verify  <path...> [--fail-on <level>]  Inspect again; exit non-zero if a finding at this level is left (confirmed by default)
+  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  The text as a reader sees it, for a model; hidden instructions on stderr
+  cirta mcp                          Local MCP server (stdio): inspect_file, redact_file, sanitize_for_llm, scan_text
+
+Paths may be files or directories. Directories are walked recursively for
+documents, images and text files; build and dependency directories such as
+node_modules, .git and dist are skipped.
+
+Options
+  -o, --output <path>   Destination for a single redacted file
+      --in-place        Overwrite the input files (keeps a .bak)
+      --skip <names>    Extra directory names to skip, comma-separated
+      --force-text      Treat the input as text even if it looks binary
+      --remove-hidden   redact: also remove text a reader cannot see (Word, PowerPoint, HTML, Markdown)
+      --accept-changes  redact: accept every tracked change in a DOCX (deleted text leaves the file)
+      --remove-comments redact: remove every comment (Word, Excel, PowerPoint) — text, authors, threads
+      --normalize-spaces text --clean: also replace no-break and narrow spaces with ordinary ones
+      --pii             also look for personal data in the text (emails, phones, IBANs, cards, NIR…), values masked
+      --rules <file>    the organisation’s rules (YAML or JSON): words and patterns, each with its label and level
+      --strip-active    redact: remove scripts, actions, macros, remote templates and embedded files
+      --strip-remote-resources redact: remove pictures, styles, scripts and frames loaded from the network, tracking pixels included (HTML, Markdown)
+      --remove-notes    redact: remove speaker notes (PowerPoint)
+      --remove-hidden-slides redact: remove hidden slides and their notes (PowerPoint)
+      --remove-hidden-sheets redact: remove hidden sheets nothing reads (Excel; refused otherwise)
+      --remove-attachments redact: remove embedded files (PDF)
+      --flatten-annotations redact: draw annotations into the page, then remove them, authors included (PDF)
+      --strip-tracking-params redact: remove utm_*, fbclid, gclid… from links (HTML, Markdown, Office, PDF)
+      --burn-redactions redact: remove text covered by a shape for good; the page it is on becomes a picture (PDF)
+      --clear-outputs   redact: empty the outputs and execution counts (Jupyter notebook)
+      --lang <fr|en>    Output language (default: the locale, else en)
+      --json            Machine-readable output
+      --sarif           SARIF 2.1.0 output, read by GitHub Code Scanning and IDEs
+      --fail-on <level> Exit non-zero if any finding reaches this level (confirmed|probable|informational)
+  -h, --help            Show this message
+
+Confidence
+  confirmed      Verbatim identifying data — a name, a company, a local path
+  probable       Real information about you or your workflow, not always sensitive
+  informational  Names the software rather than the author
+
+Scope
+  Handles document metadata (PDF /Info and XMP, Office docProps) and invisible
+  Unicode in text. It does not detect or remove statistical model watermarks:
+  those live in word choice, not in a field, and reading one requires the
+  vendor's secret key. No local tool can do it, including this one.
+```
+
+Options ajoutées par ce travail : `--accept-changes`, `--remove-comments`, `--normalize-spaces`, `--pii`, `--rules`, `--strip-active`, `--strip-remote-resources`, `--remove-notes`, `--remove-hidden-slides`, `--remove-hidden-sheets`, `--remove-attachments`, `--flatten-annotations`, `--strip-tracking-params`, `--burn-redactions`, `--clear-outputs`. Commandes ajoutées : `verify`, `sanitize-for-llm`, `mcp`.
+
+---
+
 ## Dettes et risques notés en cours de route
 
 - Le récapitulatif multi-fichiers du CLI (`Summary … files`) était en dur en anglais : traité dans C11.1.
 - La ligne `fuzz: N rejection kind(s) escaped as a raw Error` concerne les cibles qui appellent pdf-lib et fflate directement. Elle existait avant ; l'entrée publique `inspectFile` et désormais `redactFile` convertissent ces erreurs en refus codés.
 - La vue en cartes (C11.6) n'est vérifiée qu'à la main dans Chromium : la suite n'a pas de test de rendu.
 - Test instable trouvé sur la CI de la PR n°2, puis corrigé : le helper AES-256 R6 de C1 comptait les tours de l'algorithme 2.B à partir de zéro, alors que PDF.js et qpdf comptent les tours effectués. Un fichier généré sur trente environ ne s'ouvrait pas. La correction (commit sur `fix/test-campaign-2026-10`, fusionnée dans les branches suivantes) donne 0 échec sur 200 fichiers avec PDF.js et 0 sur 50 avec pypdf.
+- **Le paragraphe « Scope » de `--help` est en retrait** sur ce que l'outil fait maintenant. Il parle de PDF, de docProps et de l'Unicode invisible. Il ne dit rien de faux : il ne prétend toujours pas détecter de filigrane statistique. Mais il est à mettre à jour.
+- **La ligne « rejection kinds » du fuzz.** Elle vient des cibles `pdf` et `zip`, qui appellent pdf-lib et fflate sans passer par `inspectFile`. L'entrée publique convertit déjà ces erreurs en refus codés. Il reste à décider si le script doit compter ces cibles autrement.
+- **Le texte des formats Office anciens** (`.doc`, `.xls`, `.ppt`) n'est pas lu : ni corps, ni commentaires, ni révisions. Le nettoyage de ces formats et du `.msg` est refusé. C'est conforme au brief et documenté.
+- **Aucun vrai `.msg` Outlook dans le corpus.** La lecture est contre-vérifiée par extract-msg sur des fichiers construits par les tests, pas sur un message sorti d'Outlook.
+- **Une règle DLP dont le motif fait exploser le retour arrière reste sans garde**, car JavaScript n'offre pas de délai d'expiration sur une regex. C'est dit dans le README et dans `SECURITY.md`.
+- **L'interface n'a pas de test de rendu automatisé.** La logique (options proposées, plan, diff) est testée ; l'affichage a été vérifié à la main dans Chromium, à 1280 et 375 px.
+- **`scripts/fuzz.mjs` n'a pas les cibles des nouveaux analyseurs.** Elles tournent dans `test/fuzz-parsers.test.ts`.
+- **Signalement de vulnérabilités** : il n'a pas été vérifié que le dépôt a activé le signalement privé GitHub. `SECURITY.md` donne l'autre voie.
+

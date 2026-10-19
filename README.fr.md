@@ -1262,6 +1262,8 @@ node scripts/smoke.mjs
 
 ### Fuzzing des parseurs
 
+Le modèle de menace, et comment signaler une vulnérabilité : [SECURITY.fr.md](SECURITY.fr.md).
+
 Cirta est pointé vers des fichiers venus de gens en qui l'utilisateur n'a aucune
 raison d'avoir confiance. C'est le modèle de menace où un bug de parseur cesse
 d'être un plantage pour devenir une vulnérabilité, et neuf modules ici mangent
@@ -1272,7 +1274,14 @@ XML et punycode.
 npm run fuzz                                  # passe courte
 node scripts/fuzz.mjs --iterations 12000 --seed 31337
 node scripts/fuzz.mjs --target pdf
+FUZZ_ITERATIONS=5000 FUZZ_SEED=1 npx vitest run test/fuzz-parsers.test.ts
 ```
+
+Les parseurs ajoutés ensuite — fichiers composites (Office ancien, Outlook), jeux de propriétés OLE,
+enregistrements PowerPoint, courrier MIME, IFD Exif, fichier de règles, recherche de données
+personnelles, notebooks — sont fuzzés par `test/fuzz-parsers.test.ts`, dans `npm test`, à partir de
+graines construites par les helpers de test ; un mutateur renvoie des décalages vers des positions
+antérieures, ce qui fait boucler les formats chaînés par décalage.
 
 Sans dépendance, par mutation : des fichiers valides sont construits, puis on
 inverse des bits, on tronque, on recolle, on répète, et on écrase les champs de
@@ -1328,6 +1337,13 @@ LibreOffice rouvre le résultat. Corrompre un fichier Word est le pire échec po
 d'autre dans la suite ne le remarquerait. La première conversion sert de témoin — si LibreOffice ne
 sait même pas fabriquer l'entrée, le script s'arrête en le disant plutôt qu'en échouant, parce que
 cela ne prouve rien sur le nettoyage. La CI l'exécute sur Linux, après `verify`.
+
+Le corpus : `.docx` et `.odt`, modifications suivies, commentaires, contenu actif, une présentation avec
+notes et diapositive masquée, `.xlsx`, `.ods`, `.pptx`, `.odp` et un PDF — chacun avec un auteur qui doit
+être trouvé, puis absent de la copie nettoyée, que LibreOffice (poppler pour le PDF, s'il est installé)
+doit rouvrir —, un `.doc` et un `.ppt` dont le nettoyage doit être refusé, et deux notebooks validés par
+`nbformat` quand `CIRTA_PYTHON` désigne un Python qui l'a. Un outil absent est annoncé `skip`, jamais
+compté comme réussi.
 
 ```bash
 node scripts/real-files.mjs
