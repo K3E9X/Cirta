@@ -35,7 +35,7 @@
     "cli": "node --experimental-strip-types src/cli/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.web.json",
-    "verify": "npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && node scripts/fuzz.mjs --iterations 400 && npm run build:web",
+    "verify": "npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && node scripts/fuzz.mjs --iterations 400 && npm run build:web && node scripts/check-site.mjs",
     "fuzz": "node scripts/fuzz.mjs"
   },
   "dependencies": {

@@ -1275,6 +1275,11 @@ tr.flagged td.value::after {
   max-width: 46ch;
 }
 
+.site-foot .foot-offline {
+  flex-basis: 100%;
+  max-width: 72ch;
+}
+
 .foot-links {
   display: flex;
   gap: 1.25rem;

@@ -1372,3 +1372,20 @@ setupText();
 requestAnimationFrame(() => requestAnimationFrame(playReveal));
 if (document.readyState === 'complete') warmWorker();
 else addEventListener('load', warmWorker, { once: true });
+
+/**
+ * [F-P2 2.7] Offline: the service worker keeps this site's files (see src/shared/site.ts).
+ * Built pages only — the development server has none to keep.
+ */
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .register('./sw.js')
+    .then(() => navigator.serviceWorker.ready)
+    .then(() => {
+      for (const [id, text] of [['#offline-status-fr', 'Disponible hors ligne dans ce navigateur.'], ['#offline-status-en', 'Available offline in this browser.']] as const) {
+        const node = document.querySelector(id);
+        if (node) node.textContent = text;
+      }
+    })
+    .catch(() => undefined);
+}
