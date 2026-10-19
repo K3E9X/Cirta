@@ -1,7 +1,8 @@
 name: Release
 
 # [F-P2 2.8] A tag v1.2.3 publishes 1.2.3: to npm with a provenance statement,
-# and as single-file binaries on the GitHub release, each attested. Nothing
+# and as single-file binaries and the editor and browser extensions on the
+# GitHub release, each attested. Nothing
 # goes out unless the version, the changelog, the licence and the package's
 # contents pass scripts/check-release.mjs, after the full verification.
 
@@ -80,8 +81,38 @@ jobs:
           name: binary-${{ matrix.os }}
           path: build/sea/cirta-*
 
+  # [F-P2 2.6] The VS Code extension (.vsix) and the browser extension (.zip),
+  # attested like the binaries, attached to the release. Publishing them to the
+  # Marketplace and the browser stores is left to the owner's accounts.
+  extensions:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-vscode.mjs --package
+      - run: node scripts/build-browser-extension.mjs
+      - run: |
+          mkdir -p build/extensions
+          cp integrations/vscode/cirta-vscode-*.vsix build/cirta-browser-extension-*.zip build/extensions/
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'build/extensions/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extensions
+          path: build/extensions/*
+
   github-release:
-    needs: [npm, binaries]
+    needs: [npm, binaries, extensions]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,7 +123,7 @@ jobs:
           merge-multiple: true
       - run: >-
           gh release create "$GITHUB_REF_NAME" binaries/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME"
-          --notes "What changed: CHANGELOG.md. Each binary is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
+          --notes "What changed: CHANGELOG.md. Each file is attested: gh attestation verify <file> -R $GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
 
