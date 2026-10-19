@@ -89,12 +89,14 @@ describe('[F-P2 2.8] the workflows are valid YAML', () => {
   });
 });
 
-describe('[F-P2 2.8] scripts keep LF line endings', () => {
+describe('[F-P2 2.8] text files keep LF line endings', () => {
   // A test imports scripts/*.mjs, whose #! line vite-node strips only when it
-  // ends in LF; Windows checkouts convert to CRLF unless told otherwise.
+  // ends in LF, and reads the workflows and the changelog line by line;
+  // Windows checkouts convert to CRLF unless told otherwise.
   it('on every system, by .gitattributes', () => {
-    expect(readFileSync('.gitattributes', 'utf8')).toMatch(/^\*\.mjs text eol=lf$/m);
-    const attribute = execFileSync('git', ['check-attr', 'eol', 'scripts/check-release.mjs'], { encoding: 'utf8' });
-    expect(attribute.trim()).toBe('scripts/check-release.mjs: eol: lf');
+    expect(readFileSync('.gitattributes', 'utf8')).toMatch(/^\* text=auto eol=lf$/m);
+    for (const file of ['scripts/check-release.mjs', '.github/workflows/release.yml', 'CHANGELOG.md']) {
+      expect(execFileSync('git', ['check-attr', 'eol', file], { encoding: 'utf8' }).trim()).toBe(`${file}: eol: lf`);
+    }
   });
 });
