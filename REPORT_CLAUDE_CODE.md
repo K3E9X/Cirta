@@ -21,6 +21,7 @@ Chaque PR ne montre que son lot.
 | n°11 | `feat/p2-links` | `feat/hardening` | F-P2 2.1 liens et noms de fichiers piégés |
 | n°12 | `feat/p2-cleaning` | `feat/p2-links` | F-P2 2.4 sortie déterministe, manifeste, archives, ré-encodage des images |
 | n°13 | `feat/p2-library` | `feat/p2-cleaning` | F-P2 2.5 API de bibliothèque, rapport JSON versionné et son schéma |
+| n°14 | `feat/p2-profiles` | `feat/p2-library` | F-P2 2.3 profils `--profile` |
 
 Ce rapport est cumulatif : chaque branche de la pile le complète.
 
@@ -1227,6 +1228,42 @@ npm run build && node examples/library.mjs offre.pdf   # JSON avec "schema": "ci
 Écarts :
 - Le paquet n'est pas publié sur npm : la publication avec provenance relève de 2.8 et demande un jeton du registre.
 - Le changement de forme (champ `schema` dans chaque entrée) est additif : un lecteur existant qui ignore les champs inconnus n'est pas cassé.
+
+---
+
+## F-P2 2.3 — Profils
+
+**Statut : fait.**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Profils | `39d32d5` | `src/shared/profiles.ts` (nouveau) ; `src/cli/index.ts`, `src/cli/i18n.ts`, `src/web/index.html`, `main.ts`, `style.css`, READMEs ; test `test/profiles.test.ts` |
+
+Ce qui change :
+- **`--profile minimal|balanced|strict`** fixe les options de nettoyage et le seuil `--fail-on` :
+  - `minimal` : métadonnées seulement ; échec sur `confirmed` ;
+  - `balanced` : aussi ce que le fichier fait ou charge (`--strip-active`, `--strip-remote-resources`, `--strip-tracking-params`) ; échec sur `confirmed` ;
+  - `strict` : toutes les options, contenu compris ; échec dès `probable`.
+- Les options explicites s'ajoutent au profil ; un `--fail-on` explicite l'emporte.
+- Un profil inconnu arrête l'exécution (code 2) et nomme les trois, en français aussi.
+- **Page** : trois boutons de profil dans « Options avancées », qui cochent les options du profil et décochent les autres. La règle est partagée avec le CLI.
+
+Tests :
+- `test/profiles.test.ts` (4) :
+  - `grow from minimal to strict, and strict sets every option the cleaner has`
+  - `sets the cleaning options in one word: strict removes comments, minimal keeps them`
+  - `sets the --fail-on threshold, which an explicit --fail-on overrides`
+  - `refuses a profile it does not know, in French too`
+- Vérifié dans Chromium : 14, 3 puis 0 option cochée selon le profil, et le choix retrouvé après rechargement.
+
+Vérification manuelle :
+```
+cirta redact --profile strict lettre.docx       # commentaires, révisions, texte caché… retirés
+cirta verify --profile strict lettre.clean.docx # échoue s'il reste un constat probable
+```
+
+Écarts :
+- `strict` demande le moteur de rendu et le codec d'image. Sans eux, un PDF ou une image est refusé, comme le font les options elles-mêmes.
 
 ---
 
