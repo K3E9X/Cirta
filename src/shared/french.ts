@@ -69,6 +69,19 @@ const FIELD_LABEL: Record<string, string> = {
   'Linked address': 'Adresse liée',
   'Audio tag field': 'Champ d’étiquette audio',
   'Recording code (ISRC)': 'Code d’enregistrement (ISRC)',
+  Engineer: 'Ingénieur du son',
+  Technician: 'Technicien',
+  'Commissioned by': 'Commandé par',
+  Source: 'Source',
+  Originator: 'Origine de l’enregistrement',
+  'Originator reference': 'Référence de l’enregistrement',
+  'Coding history': 'Historique de codage',
+  'Cue label': 'Libellé de repère',
+  Project: 'Projet',
+  Scene: 'Scène',
+  Tape: 'Bande',
+  Client: 'Client',
+  'iXML metadata': 'Métadonnées iXML',
   'LaTeX comment': 'Commentaire LaTeX',
   Organizer: 'Organisateur',
   Attendees: 'Participants',
@@ -816,6 +829,8 @@ export const translateLocation = (location: string, lang: Lang): string => {
   const tag = /^(ID3v2|ID3v1|APEv2) tag(.*)$/.exec(location);
   if (tag) return `étiquette ${tag[1]}${tag[2]}`;
   if (location === 'MPEG audio (encoder header)') return 'audio MPEG (en-tête de l’encodeur)';
+  const riff = /^WAV chunks(.*)$/.exec(location);
+  if (riff) return `blocs WAV${riff[1]}`;
   const picture = /^(WebP chunks|GIF blocks|TIFF directory|HEIF items)(.*)$/.exec(location);
   if (picture) return `${PICTURE_LOCATION_FR[picture[1]!]}${picture[2]}`;
 
@@ -1053,8 +1068,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A and MP3.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A et MP3.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, RTF, EPUB, SVG, HTML, Markdown, JPEG, PNG, WebP et GIF, ainsi que TIFF, HEIC et AVIF, en inspection seule ; MP4, QuickTime, M4A, MP3 et WAV.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
@@ -1112,6 +1127,10 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
       fr: `Le membre « ${value} » se décompresse en plus de 1 000 fois sa taille stockée : une bombe de compression, pas un document. Le fichier est refusé.`,
     };
   },
+  'media-not-rewritable': () => ({
+    en: 'An RF64 sound (a WAV past 4 GB, its sizes in 64 bits) is inspected but not rewritten: Cirta would rather refuse than write sizes it has not checked. Export it as a WAV under 4 GB, or cut it, and clean that copy.',
+    fr: 'Un son RF64 (un WAV de plus de 4 Go, aux tailles sur 64 bits) est inspecté mais pas réécrit : Cirta préfère refuser plutôt qu’écrire des tailles qu’il n’a pas vérifiées. Exportez-le en WAV de moins de 4 Go, ou découpez-le, puis nettoyez cette copie.',
+  }),
   'image-not-rewritable': (detail) => ({
     en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Cirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
     fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Cirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,

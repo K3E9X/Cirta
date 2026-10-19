@@ -25,6 +25,7 @@ import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import process from 'node:process';
 
 import { inspectFile, redactFile } from '../dist/core/index.js';
@@ -574,6 +575,23 @@ try {
   } catch (error) {
     if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg, ImageMagick or exiftool is not installed: MP3 not checked');
     else check('ff.mp3: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
+  }
+  // [F-P3 2.2] ffmpeg's WAV with LIST INFO and a Broadcast extension: read, cleaned, the samples
+  // the same once decoded, no tag left.
+  try {
+    await run('ffmpeg', ['-version']);
+    await run('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=1', '-c:a', 'pcm_s16le', '-write_bext', '1', '-metadata', 'artist=Marie Martin', '-metadata', 'originator=ZOOM H5', '-metadata', 'coding_history=A=PCM,F=44100,W=16,M=mono', join(dir, 'ff.wav')]);
+    const input = new Uint8Array(await readFile(join(dir, 'ff.wav')));
+    const found = (await inspectFile(input, 'ff.wav')).findings;
+    check('ff.wav: the artist (LIST INFO) and the recorder (bext) are read', found.some((f) => f.label === 'Artist' && f.value === 'Marie Martin') && found.some((f) => f.label === 'Originator' && f.value === 'ZOOM H5'));
+    const cleaned = await redactFile(input, 'ff.wav');
+    await writeFile(join(dir, 'ff.clean.wav'), cleaned.data);
+    const pcm = async (file) => createHash('sha256').update((await run('ffmpeg', ['-v', 'error', '-i', file, '-f', 's16le', '-'], { encoding: 'buffer', maxBuffer: 1 << 26 })).stdout).digest('hex');
+    const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'compact', join(dir, 'ff.clean.wav')]);
+    check('ff.wav: the cleaned copy decodes to the same samples, without a tag', (await pcm(join(dir, 'ff.wav'))) === (await pcm(join(dir, 'ff.clean.wav'))) && stdout.trim() === 'format|', stdout.trim().slice(0, 200));
+  } catch (error) {
+    if (/ENOENT/.test(String(error))) console.log('  skip  ffmpeg is not installed: WAV not checked');
+    else check('ff.wav: written by ffmpeg, inspected and cleaned', false, String(error).slice(0, 200));
   }
   // [F-P2 2.2] A LaTeX source compiled before and after the clean: comments gone, the typeset
   // text the same to the character (pdflatex and pdftotext, where they are installed).

@@ -138,3 +138,49 @@ export function apev2(items: Record<string, string>): Uint8Array {
   const footer = (header: boolean) => bytes('APETAGEX', u32le(2000), u32le(body.length + 32), u32le(entries.length), u32le(header ? 0xa0000000 : 0x80000000), new Uint8Array(8));
   return bytes(footer(true), body, footer(false));
 }
+
+/* ------------------------------------------------------------------- WAV -- */
+
+/** A RIFF chunk, padded to an even length. */
+export const chunk = (id: string, ...payload: Array<Uint8Array | number[] | string>) => {
+  const body = bytes(...payload);
+  return bytes(latin1(id), u32le(body.length), body, body.length % 2 ? [0] : []);
+};
+const fixed = (text: string, size: number) => {
+  const out = new Uint8Array(size);
+  out.set(latin1(text).subarray(0, size));
+  return out;
+};
+
+/** The samples of a 1-channel, 8 kHz, 16-bit PCM sound: odd-sized on purpose, so the pad byte is exercised. */
+export const SAMPLES = new Uint8Array(1001).map((_, i) => (i * 7) & 0xff);
+
+export interface WavOptions {
+  info?: Record<string, string>;
+  bext?: { description: string; originator: string; reference: string; date: string; time: string; history: string };
+  ixml?: string;
+  xmpCreator?: string;
+  id3Artist?: string;
+  cueLabel?: string;
+  rf64?: boolean;
+}
+
+export function wav(options: WavOptions = {}): Uint8Array {
+  const parts: Uint8Array[] = [chunk('fmt ', [1, 0], [1, 0], u32le(8000), u32le(16000), [2, 0], [16, 0])];
+  if (options.info) parts.push(chunk('LIST', 'INFO', ...Object.entries(options.info).map(([id, text]) => chunk(id, latin1(text), [0]))));
+  if (options.bext) {
+    const b = options.bext;
+    parts.push(chunk('bext', fixed(b.description, 256), fixed(b.originator, 32), fixed(b.reference, 32), fixed(b.date, 10), fixed(b.time, 8), new Uint8Array(8), [1, 0], new Uint8Array(64 + 10 + 180), latin1(b.history)));
+  }
+  if (options.ixml) parts.push(chunk('iXML', options.ixml));
+  if (options.xmpCreator) parts.push(chunk('_PMX', `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator><rdf:Seq><rdf:li>${options.xmpCreator}</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF></x:xmpmeta>`));
+  if (options.id3Artist) parts.push(chunk('id3 ', id3v2(3, [['TPE1', id3Text(options.id3Artist)]])));
+  if (options.cueLabel) {
+    parts.push(chunk('cue ', u32le(1), u32le(1), u32le(0), 'data', u32le(0), u32le(0), u32le(100)));
+    parts.push(chunk('LIST', 'adtl', chunk('labl', u32le(1), latin1(options.cueLabel), [0])));
+  }
+  parts.push(chunk('data', SAMPLES));
+  const body = bytes('WAVE', ...parts);
+  if (options.rf64) return bytes('RF64', u32le(0xffffffff), body);
+  return bytes('RIFF', u32le(body.length), body);
+}

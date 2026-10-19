@@ -12,7 +12,7 @@ import { iTXt, jpegWith, png, tEXt, tiff, xmpApp1, zTXt } from './helpers/tiff.j
 import { runCli } from './helpers/cli.js';
 import { vsdx } from './helpers/visio.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
-import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie } from './helpers/media.js';
+import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
@@ -164,6 +164,16 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['photo.heic', heifWithMetadata('heic')],
     ['photo.avif', heifWithMetadata('avif')],
     // [F-P3 2.2]
+    [
+      'entretien.wav',
+      wav({
+        info: { IART: 'M', IENG: 'P', ITCH: 'T', ICMS: 'C', ISRC: 'S', ISFT: 'A', IXYZ: 'x' },
+        bext: { description: 'D', originator: 'O', reference: 'R', date: '2024-03-01', time: '10:12:00', history: 'A=PCM' },
+        ixml: '<BWFXML><PROJECT>P</PROJECT><SCENE>S</SCENE><TAPE>T</TAPE><LOCATION><LOCATION_NAME>L</LOCATION_NAME></LOCATION></BWFXML>',
+        cueLabel: 'Q',
+      }),
+    ],
+    ['long.wav', wav({ info: { IART: 'M' }, rf64: true })],
     [
       'memo.mp3',
       bytes(

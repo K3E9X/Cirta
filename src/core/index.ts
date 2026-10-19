@@ -91,7 +91,7 @@ import { isEpub, inspectEpub, redactEpub } from './epub.js';
 import { looksLikeLatex, inspectLatex, redactLatex } from './latex.js';
 import { calendarFormat, inspectCalendar, redactCalendar } from './calendar.js';
 import { detectMovieKind, inspectMovie, stripMovie } from './media-mp4.js';
-import { isMp3, inspectMp3, stripMp3 } from './media-audio.js';
+import { isMp3, inspectMp3, stripMp3, isWav, isRf64, inspectWav, stripWav } from './media-audio.js';
 
 import { UnsupportedFormatError } from './errors.js';
 export { UnsupportedFormatError, type ErrorCode } from './errors.js';
@@ -99,7 +99,7 @@ export { UnsupportedFormatError, type ErrorCode } from './errors.js';
 const UNSUPPORTED =
   'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx, .vsdx), ' +
   'OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, ' +
-  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A and MP3.';
+  'Jupyter notebooks, RTF, EPUB, LaTeX, iCalendar, vCard, SVG, HTML, Markdown, JPEG, PNG, WebP and GIF, and TIFF, HEIC and AVIF, inspection only; MP4, QuickTime, M4A, MP3 and WAV.';
 
 /** [F-2.2] A compound file this library can name, or undefined. */
 function compound(data: Uint8Array) {
@@ -210,6 +210,7 @@ export function detectFormat(data: Uint8Array, hint?: string): Format | undefine
   const movie = detectMovieKind(data);
   if (movie) return movie;
   if (isMp3(data)) return 'mp3';
+  if (isWav(data)) return 'wav';
   if (isRtf(data)) return 'rtf';
   if (isMail(data, hint)) return 'eml';
   try {
@@ -360,6 +361,10 @@ async function dispatch(data: Uint8Array, hint: string | undefined, options: Ins
     const found = inspectMovie(data);
     return { format: movie, findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
   }
+  if (isWav(data)) {
+    const found = inspectWav(data);
+    return { format: 'wav', findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
+  }
   if (isMp3(data)) {
     const found = inspectMp3(data);
     return { format: 'mp3', findings: [...found, ...fingerprint(found)].sort(byConfidence), notes: [{ code: 'scope:media' }] };
@@ -452,7 +457,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
 }
 
 /** Refusals that mean "this member cannot be cleaned", as opposed to a bug. */
-const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable']);
+const MEMBER_REFUSALS = new Set(['image-not-rewritable', 'epub-encrypted', 'unsupported', 'unparseable', 'legacy-not-rewritable', 'encrypted-pdf', 'output-unreadable', 'renderer-unavailable', 'burn-unavailable', 'archive-not-rewritable', 'media-not-rewritable']);
 
 /**
  * [F-P2 2.4] A plain archive, cleaned member by member with the same options,
@@ -584,6 +589,11 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   const movie = detectMovieKind(data);
   if (movie) return noteSurvivors({ format: movie, data: stripMovie(data), removed: inspectMovie(data), notes: [{ code: 'scope:media' }] }, hint, options);
   if (isMp3(data)) return noteSurvivors({ format: 'mp3', data: stripMp3(data), removed: inspectMp3(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  if (isWav(data)) {
+    // [F-P3 2.2] Its sizes live in a ds64 chunk this does not rewrite: read, not rewritten.
+    if (isRf64(data)) throw new UnsupportedFormatError('An RF64 sound (a WAV past 4 GB) is inspected but not rewritten.', 'media-not-rewritable', 'rf64');
+    return noteSurvivors({ format: 'wav', data: stripWav(data), removed: inspectWav(data), notes: [{ code: 'scope:media' }] }, hint, options);
+  }
 
   if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);
 

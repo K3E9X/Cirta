@@ -15,7 +15,7 @@ import { jpegWith, tiff } from './helpers/tiff.js';
 import { mutations, ITERATIONS, SEED } from './helpers/mutate.js';
 import { gifWithMetadata, heifWithMetadata, tiffWithMetadata, webpWithMetadata } from './helpers/pictures.js';
 import { vsdx } from './helpers/visio.js';
-import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie } from './helpers/media.js';
+import { apev2, bytes, id3Text, id3v1, id3v2, lameFrame, mpegFrame, movie, wav } from './helpers/media.js';
 import { zipSync } from 'fflate';
 
 /*
@@ -174,6 +174,13 @@ describe('[F-2.8] fuzzing the new parsers', () => {
     const phone = { 'com.apple.quicktime.location.ISO6709': '+48.8584+002.2945/', 'com.apple.quicktime.model': 'iPhone' };
     const mp3 = bytes(id3v2(3, [['TPE1', id3Text('M')], ['COMM', bytes([1], 'fra', [0xff, 0xfe, 0, 0], [0x41, 0])], ['APIC', bytes([0], 'image/jpeg', [0], [3], [0], [0xff, 0xd8, 0xff, 0xd9])]]), lameFrame(), mpegFrame(), apev2({ Artist: 'M' }), id3v1('T', 'A', 'B', '2024', 'C'));
     await fuzz('mp3', [mp3, bytes(id3v2(4, [['TPE1', id3Text('M', 3)]]), mpegFrame(), mpegFrame()), bytes(id3v2(2, [['TP1', id3Text('M')]]), mpegFrame())], both('a.mp3'));
+    const full = { info: { IART: 'M', ISFT: 'A' }, bext: { description: 'D', originator: 'O', reference: 'R', date: '2024-03-01', time: '10:12:00', history: 'A=PCM' }, ixml: '<BWFXML><NOTE>N</NOTE><LOCATION_GPS>1, 2</LOCATION_GPS></BWFXML>', xmpCreator: 'J', id3Artist: 'M', cueLabel: 'Q' };
+    await fuzz('wav', [wav(full), wav({ ...full, rf64: true })], async (input) => {
+      await inspectFile(input, 'a.wav');
+      await redactFile(input, 'a.wav').catch((error: { code?: string }) => {
+        if (error.code !== 'media-not-rewritable') throw error;
+      });
+    });
     await fuzz('mp4', [movie({ gps: '+45.7640+004.8357/', encoder: 'Lavf', apple: phone, xmpCreator: 'M' }), movie({ brand: 'qt  ' }), movie({ brand: 'M4A ' })], both('a.mp4'));
   }, TIMEOUT * 4);
 });

@@ -390,3 +390,186 @@ export function stripMp3(data: Uint8Array): Uint8Array {
   for (let length = id3v2Length(data, start); length; length = id3v2Length(data, start)) start += length;
   return data.slice(start, Math.max(start, trailer(data).audioEnd));
 }
+
+/* -------------------------------------------------------------------- WAV -- */
+
+/**
+ * WAV: RIFF chunks. What a recorder, an editor or a broadcast chain writes
+ * beside the sound:
+ *
+ *   LIST INFO   IART artist, IENG engineer, ITCH technician, ICMS
+ *               commissioned by, INAM title, ICMT comment, ICRD date, ISFT
+ *               software…
+ *   bext        the Broadcast Wave extension: description, originator (the
+ *               recorder), its reference, the date and time of recording, the
+ *               coding history (the chain of devices)
+ *   iXML        a field recorder's notes: project, scene, take, a note, the
+ *               place and its position
+ *   _PMX        XMP
+ *   id3 / ID3   an ID3v2 tag
+ *   cart        a radio cart: title, artist, client
+ *   LIST adtl   the text of cue labels and notes
+ *
+ * Cleaning keeps the format, the samples and the cue points (positions, not
+ * words), drops those chunks and writes the RIFF size again. An RF64 file —
+ * a WAV past 4 GB, with 64-bit sizes in its ds64 chunk — is read but not
+ * rewritten.
+ */
+
+export function isWav(data: Uint8Array): boolean {
+  if (data.length < 12) return false;
+  const riff = LATIN1.decode(data.subarray(0, 4));
+  return (riff === 'RIFF' || riff === 'RF64' || riff === 'BW64') && LATIN1.decode(data.subarray(8, 12)) === 'WAVE';
+}
+
+interface Chunk {
+  id: string;
+  start: number;
+  body: number;
+  end: number;
+}
+
+function wavChunks(data: Uint8Array, start: number, end: number): Chunk[] {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const out: Chunk[] = [];
+  let at = start;
+  while (at + 8 <= end) {
+    const id = LATIN1.decode(data.subarray(at, at + 4));
+    let size = view.getUint32(at + 4, true);
+    // RF64's data chunk says 0xFFFFFFFF and leaves its size to ds64: it runs to the end.
+    if (size === 0xffffffff) size = end - at - 8;
+    const bodyEnd = Math.min(at + 8 + size, end);
+    out.push({ id, start: at, body: at + 8, end: bodyEnd });
+    at = at + 8 + size + (size % 2);
+  }
+  return out;
+}
+
+const INFO: Record<string, Field> = {
+  IART: person('Artist'),
+  IENG: person('Engineer'),
+  ITCH: person('Technician'),
+  ICMS: person('Commissioned by'),
+  INAM: detail('Title'),
+  IPRD: detail('Album'),
+  ISBJ: detail('Subject'),
+  ICMT: detail('Comment'),
+  ICOP: detail('Copyright'),
+  IKEY: detail('Keywords'),
+  ISRC: detail('Source'),
+  ICRD: when('Creation time'),
+  ISFT: tool,
+};
+
+const zstring = (data: Uint8Array, from: number, to: number) => {
+  const raw = data.subarray(from, to);
+  const end = raw.indexOf(0);
+  const field = end >= 0 ? raw.subarray(0, end) : raw;
+  try {
+    return STRICT_UTF8.decode(field).trim();
+  } catch {
+    return LATIN1.decode(field).trim();
+  }
+};
+
+const IXML_FIELDS: Array<[string, Field]> = [
+  ['PROJECT', detail('Project')],
+  ['SCENE', detail('Scene')],
+  ['TAPE', detail('Tape')],
+  ['NOTE', detail('Comment')],
+  ['LOCATION_NAME', person('Place name')],
+];
+
+/** The chunks a clean removes. */
+const WAV_METADATA = new Set(['bext', 'iXML', '_PMX', 'id3 ', 'ID3 ', 'cart', 'DISP', 'axml', 'umid']);
+
+export function inspectWav(data: Uint8Array): Finding[] {
+  const found: Finding[] = [];
+  const place = (path: string) => `WAV chunks (${path})`;
+  const add = (field: Field, path: string, value: string) => {
+    if (value) found.push({ kind: field.kind, confidence: field.confidence, location: place(path), label: field.label, value: preview(value, 160) });
+  };
+  for (const chunk of wavChunks(data, 12, data.length)) {
+    const body = data.subarray(chunk.body, chunk.end);
+    if (chunk.id === 'LIST' && body.length >= 4) {
+      const type = LATIN1.decode(body.subarray(0, 4));
+      for (const item of wavChunks(data, chunk.body + 4, chunk.end)) {
+        if (type === 'INFO') add(INFO[item.id] ?? detail('Audio tag field'), `LIST INFO/${item.id}`, INFO[item.id] ? zstring(data, item.body, item.end) : `${item.id}: ${zstring(data, item.body, item.end)}`);
+        // Labels and notes carry a cue point's number first, then the words.
+        else if (type === 'adtl' && (item.id === 'labl' || item.id === 'note')) add(detail('Cue label'), `LIST adtl/${item.id}`, zstring(data, item.body + 4, item.end));
+      }
+      continue;
+    }
+    switch (chunk.id) {
+      case 'bext': {
+        const text = (offset: number, size: number) => zstring(data, chunk.body + offset, Math.min(chunk.body + offset + size, chunk.end));
+        add(detail('Description'), 'bext', text(0, 256));
+        add(person('Originator'), 'bext', text(256, 32));
+        add(detail('Originator reference'), 'bext', text(288, 32));
+        add(when('Creation time'), 'bext', [text(320, 10), text(330, 8)].filter(Boolean).join(' '));
+        if (chunk.end - chunk.body > 602) add({ label: 'Coding history', kind: 'provenance', confidence: 'probable' }, 'bext', zstring(data, chunk.body + 602, chunk.end).replace(/\s+/g, ' '));
+        break;
+      }
+      case 'iXML': {
+        const xml = zstring(data, chunk.body, chunk.end);
+        for (const [tag, field] of IXML_FIELDS) {
+          const value = new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml)?.[1]?.trim();
+          if (value) add(field, 'iXML', value);
+        }
+        const gps = /<LOCATION_GPS>\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*<\/LOCATION_GPS>/.exec(xml);
+        if (gps && Math.abs(Number(gps[1])) <= 90 && Math.abs(Number(gps[2])) <= 180) {
+          found.push({ kind: 'identity', confidence: 'confirmed', location: place('iXML'), label: 'GPS position', value: `${Number(gps[1]).toFixed(5)}, ${Number(gps[2]).toFixed(5)}` });
+        }
+        found.push({ kind: 'identity', confidence: 'informational', location: place('iXML'), label: 'iXML metadata', value: `${chunk.end - chunk.body} bytes` });
+        break;
+      }
+      case '_PMX':
+        found.push(...imageXmpFindings(UTF8.decode(body), `${place('_PMX')} (XMP)`), { kind: 'identity', confidence: 'informational', location: place('_PMX'), label: 'XMP metadata', value: `${body.length} bytes` });
+        break;
+      case 'id3 ':
+      case 'ID3 ':
+        found.push(...id3v2Findings(body, place('id3')));
+        break;
+      case 'cart': {
+        const text = (offset: number, size: number) => zstring(data, chunk.body + offset, Math.min(chunk.body + offset + size, chunk.end));
+        add(detail('Title'), 'cart', text(4, 64));
+        add(person('Artist'), 'cart', text(68, 64));
+        add(detail('Client'), 'cart', text(196, 64));
+        add(tool, 'cart', text(484, 64));
+        break;
+      }
+      case 'DISP':
+        if (body.length > 4 && (body[0] === 1 || body[0] === 0)) add(detail('Comment'), 'DISP', zstring(data, chunk.body + 4, chunk.end));
+        break;
+    }
+  }
+  return found;
+}
+
+/** The WAV without its metadata chunks, the RIFF size written again. RF64 is refused by the caller. */
+export function stripWav(data: Uint8Array): Uint8Array {
+  const kept: Uint8Array[] = [];
+  for (const chunk of wavChunks(data, 12, data.length)) {
+    if (WAV_METADATA.has(chunk.id)) continue;
+    if (chunk.id === 'LIST') {
+      const type = LATIN1.decode(data.subarray(chunk.body, chunk.body + 4));
+      if (type === 'INFO' || type === 'adtl') continue;
+    }
+    const size = chunk.end - chunk.body;
+    kept.push(data.subarray(chunk.start, chunk.end));
+    if (size % 2) kept.push(new Uint8Array(1));
+  }
+  const total = 4 + kept.reduce((n, part) => n + part.length, 0);
+  const out = new Uint8Array(8 + total);
+  out.set(data.subarray(0, 4));
+  new DataView(out.buffer).setUint32(4, total, true);
+  out.set(data.subarray(8, 12), 8);
+  let at = 12;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+
+export const isRf64 = (data: Uint8Array) => LATIN1.decode(data.subarray(0, 4)) !== 'RIFF';

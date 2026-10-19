@@ -55,6 +55,8 @@ export type Format =
   | 'm4a'
   /** [F-P3 2.2] MPEG audio with its ID3, ID3v1 and APEv2 tags. */
   | 'mp3'
+  /** [F-P3 2.2] RIFF/WAVE, and RF64 inspected only. */
+  | 'wav'
   | 'text';
 
 /** Why a piece of embedded data is worth surfacing to the user. */
