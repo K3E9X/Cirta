@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serve, type Service } from '../src/cli/serve.js';
 import { inspectFile } from '../src/core/index.js';
@@ -148,9 +148,29 @@ describe('[F-P3 2.5] cirta serve', () => {
     expect(verdict).toMatch(/^X-Cirta-Verdict: block\r$/m);
   });
 
-  it('reads a compressed download as the browser would', async () => {
-    const [response] = await talk(icap(blocking), [respmod(gzipSync(makeDocx()), { httpHeaders: 'Content-Type: application/octet-stream\r\nContent-Encoding: gzip' })]);
+  it.each([
+    ['gzip', gzipSync],
+    ['deflate', deflateSync],
+    ['br', brotliCompressSync],
+  ] as const)('reads a download compressed with %s as the browser would', async (coding, compress) => {
+    const [response] = await talk(icap(blocking), [respmod(compress(makeDocx()), { httpHeaders: `Content-Type: application/octet-stream\r\nContent-Encoding: ${coding}` })]);
     expect(response).toMatch(/^X-Cirta-Verdict: block\r$/m);
+  });
+
+  it('lets through what it will not read whole, and says so: a body past --max-size, a body that inflates past it', async () => {
+    logs.length = 0;
+    const big = Buffer.alloc(1024 * 1024 + 10, 0x41);
+    const [skipped, refused, bomb] = await talk(icap(blocking), [
+      respmod(big, { httpHeaders: 'Content-Type: text/plain' }),
+      respmod(big, { httpHeaders: 'Content-Type: text/plain', allow204: false }),
+      respmod(gzipSync(Buffer.alloc(8 * 1024 * 1024)), { httpHeaders: 'Content-Type: text/plain\r\nContent-Encoding: gzip' }),
+    ]);
+    expect(skipped).toMatch(/^ICAP\/1\.0 204 /);
+    expect(skipped).toMatch(/^X-Cirta-Verdict: skipped\r$/m);
+    // Neither inspected nor kept: the client's own bypass setting decides.
+    expect(refused).toMatch(/^ICAP\/1\.0 500 /);
+    expect(bomb).toMatch(/^X-Cirta-Verdict: skipped\r$/m);
+    expect(logs.map((line) => JSON.parse(line).reason)).toEqual(['too-large', 'too-large', 'content-encoding']);
   });
 
   it('inspects each file of an upload (REQMOD, multipart), and keeps the connection for the next request', async () => {
