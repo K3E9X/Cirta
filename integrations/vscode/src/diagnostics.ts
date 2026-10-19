@@ -2,8 +2,8 @@
  * [F-P2 2.6] What Cirta finds, as editor diagnostics — without the editor, so
  * it can be tested on its own. extension.ts turns these into VS Code's types.
  *
- * An invisible character is placed where it is: its location is its code
- * point (U+200B), and in a text file every occurrence gets its own range, so
+ * An invisible character is placed where it is: its location ends with its
+ * code point (U+200B), and in a text file every occurrence gets its own range, so
  * the editor underlines the very spot. Anything else — an author in a
  * document's properties, a macro — belongs to the file, not to a line, and is
  * placed at its start.
@@ -52,7 +52,8 @@ export function toDiagnostics(findings: Finding[], lang: Lang, text?: string): P
   for (const finding of findings) {
     const message = `${translateLabel(finding.label, lang)} — ${translateValue(finding, lang)} (${translateLocation(finding.location, lang)})`;
     const base = { severity: SEVERITY[finding.confidence], message, code: finding.label };
-    const codePoint = /^U\+([0-9A-F]{4,6})$/.exec(finding.location)?.[1];
+    // "U+200B" in plain text, "document body (U+200B)" in Markdown, HTML, SVG.
+    const codePoint = /(?:^|\()U\+([0-9A-F]{4,6})\)?$/.exec(finding.location)?.[1];
     const places = text !== undefined && codePoint ? occurrences(text, parseInt(codePoint, 16)) : [];
     if (places.length) {
       for (const place of places) out.push({ ...base, range: { line: place.line, character: place.character, endLine: place.line, endCharacter: place.character + place.length } });

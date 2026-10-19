@@ -1246,12 +1246,16 @@ npm install /path/to/Cirta   # a built clone; `npm install cirta` once a release
 ```
 
 ```js
-import { inspectFile, redactFile } from 'cirta';
+import { readFile } from 'node:fs/promises';
+import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'cirta';
 import { nodeXrayEngine } from 'cirta/node'; // optional: renders PDF pages for the hidden-text check
 
-const report = await inspectFile(bytes, 'contract.pdf', { xray: await nodeXrayEngine() });
-const cleaned = await redactFile(bytes, 'contract.pdf', { removeComments: true });
-// cleaned.data: the cleaned bytes; cleaned.removed: what went; cleaned.kept: what is still there
+const bytes = new Uint8Array(await readFile('cv.pdf'));
+const xray = await nodeXrayEngine();
+const report = await inspectFile(bytes, 'cv.pdf', { xray }); // report.findings: what the file says, and hides
+const cleaned = await redactFile(bytes, 'cv.pdf', { xray }); // cleaned.data, cleaned.removed, cleaned.kept
+const forModel = await sanitizeForLlm(bytes, 'cv.pdf', { xray }); // forModel.text, forModel.hiddenInstructions
+const pasted = scanText('Bonjour\u200b Marie'); // pasted.findings: invisible characters in a string
 ```
 
 Types are published with the package (`dist/core/index.d.ts`); [`examples/library.mjs`](examples/library.mjs)

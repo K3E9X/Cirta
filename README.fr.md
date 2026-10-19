@@ -1324,12 +1324,16 @@ npm install /chemin/vers/Cirta   # un clone construit ; `npm install cirta` une 
 ```
 
 ```js
-import { inspectFile, redactFile } from 'cirta';
-import { nodeXrayEngine } from 'cirta/node'; // facultatif : rend les pages PDF pour la recherche de texte caché
+import { readFile } from 'node:fs/promises';
+import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'cirta';
+import { nodeXrayEngine } from 'cirta/node'; // facultatif : rend les pages PDF pour le contrôle du texte caché
 
-const rapport = await inspectFile(octets, 'contrat.pdf', { xray: await nodeXrayEngine() });
-const nettoye = await redactFile(octets, 'contrat.pdf', { removeComments: true });
-// nettoye.data : les octets nettoyés ; nettoye.removed : ce qui est parti ; nettoye.kept : ce qui reste
+const bytes = new Uint8Array(await readFile('cv.pdf'));
+const xray = await nodeXrayEngine();
+const report = await inspectFile(bytes, 'cv.pdf', { xray }); // report.findings : ce que dit le fichier, et ce qu'il cache
+const cleaned = await redactFile(bytes, 'cv.pdf', { xray }); // cleaned.data, cleaned.removed, cleaned.kept
+const forModel = await sanitizeForLlm(bytes, 'cv.pdf', { xray }); // forModel.text, forModel.hiddenInstructions
+const pasted = scanText('Bonjour\u200b Marie'); // pasted.findings : caractères invisibles dans une chaîne
 ```
 
 Les types sont publiés avec le paquet (`dist/core/index.d.ts`) ; [`examples/library.mjs`](examples/library.mjs)
