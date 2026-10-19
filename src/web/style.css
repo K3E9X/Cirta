@@ -1275,6 +1275,57 @@ tr.flagged td.value::after {
   max-width: 46ch;
 }
 
+.verify-site {
+  flex-basis: 100%;
+}
+
+.verify-site summary {
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.verify-site p {
+  max-width: 72ch;
+  margin: 0.75rem 0 0;
+}
+
+.verify-commands {
+  overflow-x: auto;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font: 0.8125rem/1.6 var(--mono);
+}
+
+.verify-file {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.verify-result {
+  font: 0.8125rem var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.verify-result.is-match {
+  color: var(--ink);
+}
+
+.verify-hashes {
+  margin-top: 0.75rem;
+  font: 0.75rem var(--mono);
+  border-collapse: collapse;
+}
+
+.verify-hashes th,
+.verify-hashes td {
+  padding: 0.2rem 0.75rem 0.2rem 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .site-foot .foot-offline {
   flex-basis: 100%;
   max-width: 72ch;

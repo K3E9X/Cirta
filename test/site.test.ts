@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { serviceWorkerSource, webManifest } from '../src/shared/site.js';
+import { readFileSync } from 'node:fs';
+import { hashRows, matchHash, sha256Sums, serviceWorkerSource, webManifest } from '../src/shared/site.js';
 
 type Handler = (event: Record<string, unknown>) => void;
 
@@ -76,5 +77,30 @@ describe('[F-P2 2.7] the site works offline', () => {
     const manifest = JSON.parse(webManifest());
     expect(manifest).toMatchObject({ name: 'Cirta', start_url: './', scope: './', display: 'standalone' });
     expect(manifest.icons[0]).toMatchObject({ src: 'logo.svg', type: 'image/svg+xml', sizes: 'any' });
+  });
+});
+
+describe('[F-P2 2.7] the site can be checked', () => {
+  const hashes: Array<[string, string]> = [
+    ['sw.js', 'b'.repeat(64)],
+    ['assets/index-abc.js', 'a'.repeat(64)],
+  ];
+
+  it('lists every file as sha256sum writes it, in one order', () => {
+    expect(sha256Sums(hashes)).toBe(`${'a'.repeat(64)}  assets/index-abc.js\n${'b'.repeat(64)}  sw.js\n`);
+  });
+
+  it('writes the same list into the page, escaped, and says which file a hash is', () => {
+    expect(hashRows([['a<b>.js', 'c'.repeat(64)]])).toBe(`<tr><td><code>a&lt;b&gt;.js</code></td><td><code>${'c'.repeat(64)}</code></td></tr>`);
+    expect(matchHash(hashes, 'A'.repeat(64))).toBe('assets/index-abc.js');
+    expect(matchHash(hashes, 'f'.repeat(64))).toBeUndefined();
+  });
+
+  it('the deployment attests every file it publishes', () => {
+    const workflow = readFileSync('.github/workflows/pages.yml', 'utf8');
+    expect(workflow).toMatch(/attestations: write/);
+    expect(workflow).toMatch(/uses: actions\/attest-build-provenance@v\d+[\s\S]*subject-path: ['"]?dist-web\/\*\*['"]?/);
+    expect(workflow.indexOf('attest-build-provenance')).toBeGreaterThan(workflow.indexOf('npm run build:web'));
+    expect(workflow.indexOf('attest-build-provenance')).toBeLessThan(workflow.indexOf('upload-pages-artifact'));
   });
 });

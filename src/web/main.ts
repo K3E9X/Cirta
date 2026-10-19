@@ -30,6 +30,7 @@ import { PROFILES, type ProfileName } from '../shared/profiles.js';
 import { cleanBatch } from '../shared/batch.js';
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { isSupportedFile, isWalkedDirectory } from '../shared/files.js';
+import { matchHash } from '../shared/site.js';
 import {
   preview,
   type Finding,
@@ -1372,6 +1373,37 @@ setupText();
 requestAnimationFrame(() => requestAnimationFrame(playReveal));
 if (document.readyState === 'complete') warmWorker();
 else addEventListener('load', warmWorker, { once: true });
+
+/**
+ * [F-P2 2.7] The « verify » box: the build's version and commit, and a file's
+ * SHA-256 computed here and looked up in the list the build wrote into the page.
+ */
+function setupVerify(): void {
+  must<HTMLElement>('#site-version').textContent = __CIRTA_VERSION__;
+  const link = must<HTMLAnchorElement>('#site-commit');
+  link.href = `https://github.com/K3E9X/Cirta/commit/${encodeURIComponent(__CIRTA_COMMIT__)}`;
+  link.querySelector('code')!.textContent = __CIRTA_COMMIT__.slice(0, 12);
+  const hashes = [...document.querySelectorAll<HTMLTableRowElement>('#site-hashes tr')].map((row): [string, string] => [row.cells[0]?.textContent ?? '', row.cells[1]?.textContent ?? '']);
+  const result = must<HTMLElement>('#verify-result');
+  // Written again when the language changes.
+  let say = (): string => (hashes.length ? '' : t().verifyDevBuild);
+  const show = () => (result.textContent = say());
+  show();
+  document.addEventListener('cirta:language', show);
+  const input = must<HTMLInputElement>('#verify-input');
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
+    const hash = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const found = matchHash(hashes, hash);
+    say = () => (found ? t().verifyMatch(found, hash) : t().verifyNoMatch(hash));
+    show();
+    result.classList.toggle('is-match', Boolean(found));
+    input.value = '';
+  });
+}
+setupVerify();
 
 /**
  * [F-P2 2.7] Offline: the service worker keeps this site's files (see src/shared/site.ts).

@@ -59,3 +59,29 @@ export function webManifest(): string {
     2,
   )}\n`;
 }
+
+/**
+ * [F-P2 2.7] The list of every file the build published and its SHA-256, in
+ * the format `sha256sum --check` reads. The deployment attests each file
+ * (actions/attest-build-provenance), this list included, so a copy fetched
+ * from the site can be traced to the commit and the workflow that built it.
+ */
+export function sha256Sums(hashes: Array<[string, string]>): string {
+  return [...hashes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([file, hash]) => `${hash}  ${file}\n`).join('');
+}
+
+const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** The same list as table rows, for the page's « verify » box. */
+export function hashRows(hashes: Array<[string, string]>): string {
+  return [...hashes]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([file, hash]) => `<tr><td><code>${escapeHtml(file)}</code></td><td><code>${escapeHtml(hash)}</code></td></tr>`)
+    .join('');
+}
+
+/** Which listed file a hash is, if any. */
+export function matchHash(hashes: Array<[string, string]>, hash: string): string | undefined {
+  const wanted = hash.trim().toLowerCase();
+  return hashes.find(([, value]) => value === wanted)?.[0];
+}
