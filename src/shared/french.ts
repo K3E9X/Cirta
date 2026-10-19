@@ -962,6 +962,9 @@ const HIDDEN_WHY: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^HTML comment$/, () => 'commentaire HTML'],
   [/^(alt|title|aria-label) attribute$/, (m) => `attribut « ${m[1]} »`],
   [/^(w:color|colou?r) (\S+) on (\S+)$/, (m) => `${m[1] === 'w:color' ? 'w:color' : 'couleur'} ${m[2]} sur ${m[3]}`],
+  // [P0-2] OpenDocument and RTF.
+  [/^(fo:color|\\cf\d+) (\S+) on (\S+)$/, (m) => `${m[1]} ${m[2]} sur ${m[3]}`],
+  [/^draw:frame outside the page$/, () => 'draw:frame hors de la page'],
 ];
 
 const HIDDEN_VALUE_LABELS = new Set([
