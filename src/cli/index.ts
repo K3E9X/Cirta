@@ -47,6 +47,8 @@ import { isProfile, PROFILES } from '../shared/profiles.js';
 import { REPORT_SCHEMA } from '../core/report-schema.js';
 import { nodeImageCodec } from './image-codec.js';
 import { manifest, manifestEntry } from '../core/manifest.js';
+import { isSupportedFile, isWalkedDirectory, SKIP_DIRECTORIES } from '../shared/files.js';
+import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { writeFile } from 'node:fs/promises';
 
 /**
@@ -118,6 +120,7 @@ ${bold(t().options)}
       --burn-redactions ${t().optBurnRedactions}
       --clear-outputs   ${t().optClearOutputs}
       --manifest <file> ${t().optManifest}
+      --report <file>   ${t().optReport}
       --profile <name>  ${t().optProfile}
       --reencode-images ${t().optReencodeImages}
       --lang <fr|en>    ${t().optLang}
@@ -168,6 +171,8 @@ interface Args {
   removeNotes: boolean;
   clearOutputs: boolean;
   manifest?: string;
+  /** [F-P2 2.7] The report as a page or a Markdown file. */
+  report?: string;
   profile?: string;
   reencodeImages: boolean;
   removeHiddenSlides: boolean;
@@ -257,6 +262,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--manifest':
         args.manifest = argv[++i];
+        break;
+      case '--report':
+        args.report = argv[++i];
         break;
       case '--clear-outputs':
         args.clearOutputs = true;
@@ -353,66 +361,6 @@ function printFindings(findings: Finding[]): void {
   }
 }
 
-const SUPPORTED_EXTENSIONS = new Set([
-  '.pdf',
-  '.pptx', '.docx', '.xlsx', '.pptm', '.docm', '.xlsm', '.dotm', '.potm', '.vsdx', '.vsdm',
-  '.odt', '.ods', '.odp',
-  // [F-2.2] Legacy Office, inspected only.
-  '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot',
-  '.svg', '.html', '.htm',
-  '.md', '.markdown', '.mdx',
-  '.jpg', '.jpeg', '.png',
-  // [F-P2 2.2] WebP and GIF cleaned; TIFF, HEIC and AVIF inspected.
-  '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif', '.avif',
-  '.zip', '.epub',
-  // Plain text and source files. An invisible character in a .py or a .json
-  // travels exactly as far as one in a .docx, and a bidi override in source is
-  // the Trojan Source case — the reason those controls are called out at all.
-  '.txt', '.text', '.log', '.csv', '.tsv',
-  // Mail exports. The header block is the most talkative metadata this tool
-  // reads, and a saved draft is exactly where it survives.
-  '.eml', '.mbox', '.msg',
-  '.json', '.yaml', '.yml', '.toml', '.ini',
-  // [F-2.2] Jupyter notebooks: read as notebooks, not as JSON text.
-  '.ipynb',
-  // [F-P2 2.2]
-  '.rtf', '.tex', '.ltx', '.sty', '.cls', '.bib', '.ics', '.ifb', '.vcf', '.vcard',
-  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
-  '.py', '.rb', '.rs', '.go', '.java', '.kt', '.swift',
-  '.c', '.h', '.cpp', '.hpp', '.cs', '.php', '.sh', '.sql',
-  '.css', '.scss', '.xml', '.rst', '.adoc',
-]);
-
-/**
- * Directories that are never the user's own content.
- *
- * Without this, `cirta inspect .` on an ordinary project is mostly noise: on
- * this repository the walk returned 125 files, 118 of them inside
- * node_modules. A report nobody can read through is a report nobody reads.
- */
-const SKIP_DIRECTORIES = new Set([
-  '.git', '.hg', '.svn',
-  'node_modules', 'bower_components', 'vendor',
-  '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache', '.ruff_cache',
-  'dist', 'build', 'out', 'target', '.next', '.nuxt', '.svelte-kit',
-  '.cache', '.gradle', '.terraform', 'coverage', '.idea', '.vscode',
-]);
-
-/**
- * Text formats whose bytes are ambiguous: a Markdown file without front matter
- * is indistinguishable from plain text, so the extension breaks the tie.
- */
-
-/**
- * Dotfiles carrying secrets. `extname('.env')` is the empty string — a leading
- * dot is not an extension to Node — so these can only be matched by name.
- */
-const SUPPORTED_NAMES = new Set(['.env', '.env.local', '.env.production', '.npmrc', '.netrc']);
-
-const isSupportedFile = (name: string) =>
-  SUPPORTED_NAMES.has(name.toLowerCase()) ||
-  SUPPORTED_EXTENSIONS.has(extname(name).toLowerCase());
-
 /** Walk a tree, pruning the directories rather than filtering their files out. */
 async function walkDirectory(root: string, skip: Set<string>): Promise<string[]> {
   const found: string[] = [];
@@ -422,7 +370,7 @@ async function walkDirectory(root: string, skip: Set<string>): Promise<string[]>
     if (entry.isDirectory()) {
       // Pruning rather than filtering: descending into node_modules to throw
       // the results away still costs the descent.
-      if (skip.has(entry.name) || entry.name.startsWith('.')) continue;
+      if (!isWalkedDirectory(entry.name, skip)) continue;
       found.push(...(await walkDirectory(path, skip)));
     } else if (entry.isFile() && isSupportedFile(entry.name)) {
       found.push(path);
@@ -743,9 +691,17 @@ async function runInspect(args: Args): Promise<number> {
       failures++;
       const message = errorText(error, lang());
       const code = (error as { code?: unknown } | null)?.code;
-      if (args.json || args.sarif) results.push({ file, error: message, ...(typeof code === 'string' ? { code } : {}) });
+      if (args.json || args.sarif || args.report) results.push({ file, error: message, ...(typeof code === 'string' ? { code } : {}) });
       else console.error(`\n${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
+  }
+
+  // [F-P2 2.7] Written beside whatever the terminal shows; a pipeline's stdout stays clean.
+  if (args.report) {
+    const page = /\.html?$/i.test(args.report);
+    const written = (page ? reportHtml : reportMarkdown)(results, lang(), { version: version() });
+    await writeFile(args.report, written);
+    if (!args.json && !args.sarif) console.log(`\n${dim(t().reportWritten(terminalSafe(args.report), results.length))}`);
   }
 
   // SARIF is what a pipeline reads, so it is emitted alone on stdout with
@@ -968,6 +924,11 @@ async function main(): Promise<number> {
     const chosen = PROFILES[args.profile];
     for (const [key, value] of Object.entries(chosen.options)) if (value) (args as unknown as Record<string, boolean>)[key] = true;
     args.failOn ??= chosen.failOn;
+  }
+
+  if (args.report !== undefined && !/\.(?:html?|md|markdown)$/i.test(args.report)) {
+    console.error(red(terminalSafe(t().reportFormat(args.report))));
+    return 2;
   }
 
   // [F-2.3] The organisation's rules, read once; a file that does not read stops the run.

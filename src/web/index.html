@@ -201,6 +201,8 @@
                   <p class="dropzone-title" data-lang="en">Drop a document</p>
                   <p class="dropzone-hint" data-lang="fr">ou cliquez pour en choisir un — PDF, PPTX, DOCX, XLSX, VSDX, ODT, ODS, ODP, DOC, XLS, PPT, RTF, EPUB, SVG, HTML, Markdown, LaTeX, JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, ZIP, e-mails (.eml, .msg), agendas et contacts (.ics, .vcf), notebooks Jupyter, et tout fichier texte ou source</p>
                   <p class="dropzone-hint" data-lang="en">or click to choose one — PDF, PPTX, DOCX, XLSX, VSDX, ODT, ODS, ODP, DOC, XLS, PPT, RTF, EPUB, SVG, HTML, Markdown, LaTeX, JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, ZIP, email (.eml, .msg), calendars and contacts (.ics, .vcf), Jupyter notebooks, and any text or source file</p>
+                  <button type="button" id="folder-pick" class="dropzone-folder"><span data-lang="fr">ou un dossier entier</span><span data-lang="en">or a whole folder</span></button>
+                  <input type="file" id="folder-input" webkitdirectory multiple hidden />
                   <input type="file" id="file-input" accept=".pdf,.pptx,.docx,.xlsx,.pptm,.docm,.xlsm,.vsdx,.vsdm,.odt,.ods,.odp,.doc,.xls,.ppt,.svg,.html,.htm,.md,.markdown,.mdx,.jpg,.jpeg,.png,.webp,.gif,.tif,.tiff,.heic,.heif,.avif,.zip,.epub,.txt,.text,.log,.csv,.tsv,.eml,.mbox,.msg,.json,.ipynb,.rtf,.tex,.ltx,.sty,.cls,.bib,.ics,.ifb,.vcf,.vcard,.yaml,.yml,.toml,.ini,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.rb,.rs,.go,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.sql,.css,.scss,.xml,.rst,.adoc" multiple hidden />
                 </div>
                 <details class="scan-options">
@@ -628,6 +630,53 @@
         <p data-lang="en">
           Cirta — everything runs locally, no account, no analytics. MIT licensed.
         </p>
+        <p class="foot-offline" data-lang="fr">
+          Hors ligne : une fois ouverte, la page reste disponible sans réseau. Son service worker ne garde
+          que les fichiers de ce site et ne répond qu’à ses adresses (<code>worker-src 'self'</code>) ; vos
+          documents sont lus sur votre disque, il ne les voit jamais. <span id="offline-status-fr"></span>
+        </p>
+        <p class="foot-offline" data-lang="en">
+          Offline: once opened, the page stays available without a network. Its service worker keeps only
+          this site's files and answers only its addresses (<code>worker-src 'self'</code>); your documents
+          are read from your disk, it never sees them. <span id="offline-status-en"></span>
+        </p>
+        <details class="verify-site" id="verify-site">
+          <summary><span data-lang="fr">Vérifier ce site</span><span data-lang="en">Check this site</span></summary>
+          <p data-lang="fr">
+            Ce que votre navigateur exécute est le résultat d’une compilation publique. Le déploiement signe, pour chaque
+            fichier publié, une attestation de provenance (<code>actions/attest-build-provenance</code>) qui relie son
+            empreinte SHA-256 à ce dépôt, au commit et au workflow qui l’ont produit.
+          </p>
+          <p data-lang="en">
+            What your browser runs is the output of a public build. For every file it publishes, the deployment signs a
+            provenance attestation (<code>actions/attest-build-provenance</code>) tying its SHA-256 to this repository, the
+            commit and the workflow that produced it.
+          </p>
+          <p class="verify-build"><span data-lang="fr">Version</span><span data-lang="en">Version</span> <code id="site-version"></code> · commit <a id="site-commit" href="https://github.com/K3E9X/Cirta"><code></code></a></p>
+          <p data-lang="fr">
+            La liste ci-dessous vient de la page elle-même : seule, elle ne prouve rien. La preuve est l’attestation, à
+            vérifier hors de la page :
+          </p>
+          <p data-lang="en">
+            The list below comes from the page itself: on its own, it proves nothing. The proof is the attestation,
+            checked outside the page:
+          </p>
+          <pre class="verify-commands"><code>curl -sO https://k3e9x.github.io/Cirta/SHA256SUMS
+gh attestation verify SHA256SUMS -R K3E9X/Cirta
+curl -s https://k3e9x.github.io/Cirta/sw.js | sha256sum</code></pre>
+          <label class="verify-file">
+            <span data-lang="fr">Ou calculez ici l’empreinte d’un fichier téléchargé — sur votre machine, sans envoi :</span>
+            <span data-lang="en">Or compute a downloaded file's hash here — on your machine, nothing sent:</span>
+            <input type="file" id="verify-input" />
+          </label>
+          <p id="verify-result" class="verify-result" aria-live="polite"></p>
+          <div class="table-scroll">
+            <table class="verify-hashes">
+              <thead><tr><th><span data-lang="fr">Fichier</span><span data-lang="en">File</span></th><th>SHA-256</th></tr></thead>
+              <tbody id="site-hashes"><!--cirta:site-hashes--></tbody>
+            </table>
+          </div>
+        </details>
         <div class="foot-links">
           <a href="https://github.com/k3e9x/Cirta">
             <span data-lang="fr">Code source</span><span data-lang="en">Source</span>

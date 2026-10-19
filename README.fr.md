@@ -889,6 +889,7 @@ sauf si on la donne, et le rapport dit ce qu'elle a changé — ou pourquoi elle
 | `--clear-outputs` | Vide les sorties de chaque cellule et remet son compteur d'exécution à zéro | Notebook Jupyter |
 | `--profile <nom>` | Fixe les options et le seuil `--fail-on` en un mot. `minimal` : métadonnées seulement, le document se lit comme avant ; échec sur confirmé. `balanced` : aussi ce que le fichier fait ou charge — `--strip-active`, `--strip-remote-resources`, `--strip-tracking-params` ; échec sur confirmé. `strict` : toutes les options ci-dessus ; échec dès probable — demande le moteur de rendu et le codec d'image. Les options données explicitement s'ajoutent ; un `--fail-on` explicite l'emporte. La page propose les trois mêmes dans « Options avancées » | Tous |
 | `--reencode-images` | Reconstruit l'image à partir de ses pixels décodés : données après la fin, segments et blocs privés, commentaires et miniatures partent ; l'orientation EXIF est appliquée aux pixels et le profil ICC gardé. Demande le canvas natif (la page utilise celui du navigateur) ; sans lui, le nettoyage est refusé. Un PNG sans perte garde chaque valeur de pixel, donc un message dans leurs bits de poids faible survit | JPEG, PNG |
+| `--report <fichier>` | Écrit le rapport en page HTML (`.html`) ou en Markdown (`.md`), dans la langue du lecteur, **valeurs comprises** ; toute autre extension est refusée | `inspect` |
 | `--manifest <fichier>` | Écrit un manifeste de chaîne de traçabilité : SHA-256 et taille avant et après, les constats avant et après **par libellé et emplacement, jamais par valeur**, les options, la version de Cirta et l'heure | Tous |
 
 ```
@@ -1004,13 +1005,55 @@ Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décom
 commande se comparent sans traduction. L'analyse tourne dans un *worker* : un PDF volumineux ne fige
 pas l'onglet, et un worker reste un fil d'exécution de la même page, pas une autre machine.
 
+**Un dossier entier.** Déposez un dossier, ou choisissez-le avec « ou un dossier entier » : la page
+prend les fichiers que la ligne de commande en prendrait — les mêmes extensions, les mêmes
+répertoires d'outils ignorés (`node_modules`, `.git`…) — et dit combien elle en a laissés. **Tout
+nettoyer** passe chaque fichier au nettoyage avec les options avancées et télécharge un seul ZIP : les
+chemins du dossier conservés, chaque membre daté du 1er janvier 1980, et `cirta-manifest.json` — pour
+chaque fichier, l'empreinte SHA-256 et les constats avant et après, par libellé, jamais par valeur.
+**Un fichier impossible à nettoyer reste hors de l'archive** et il est nommé, dans le manifeste avec son
+code de refus et sur la page avec la raison.
+
+**Le rapport en page HTML ou en Markdown**, à côté du JSON, dans la langue de la page — et en ligne de
+commande avec `inspect --report rapport.html` ou `rapport.md`. Chaque valeur vient du document de
+quelqu'un d'autre, aucune des deux formes ne la laisse donc agir : la page HTML échappe chaque valeur
+et déclare `default-src 'none'` (ni script, ni requête, ni cadre, même si un échappement manquait) ; en
+Markdown chaque valeur est du code en ligne, ses barres verticales échappées, elle ne peut donc ni
+ajouter de colonne ni charger une image à l'affichage. Contrairement au manifeste, le rapport contient
+les valeurs.
+
+**Hors ligne, et installable.** Une fois ouverte, la page fonctionne sans réseau : un service worker
+garde les fichiers publiés par la compilation — sa liste est écrite par la compilation, son cache
+nommé d'après leur contenu — et ne répond qu'aux requêtes à l'intérieur du dossier du site (pas une
+autre origine, pas un autre projet du même hôte, pas un POST). Les documents sont lus sur le disque, il
+n'en voit donc jamais. La politique n'autorise un worker que venant du site (`worker-src 'self'`), et le
+pied de page le dit.
+
+**Vérifier ce site.** La compilation écrit `SHA256SUMS` — chaque fichier publié, tel que
+`sha256sum --check` le lit — et la même liste dans l'encadré « Vérifier ce site » de la page, avec la
+version et le commit ; un fichier téléchargé peut y être haché, localement. Cette liste vient de la
+page et ne prouve rien seule. La preuve est ailleurs : le déploiement signe une attestation de
+provenance pour chaque fichier publié (`actions/attest-build-provenance`), vérifiable avec :
+
+```bash
+curl -sO https://k3e9x.github.io/Cirta/SHA256SUMS
+gh attestation verify SHA256SUMS -R K3E9X/Cirta
+curl -s https://k3e9x.github.io/Cirta/sw.js | sha256sum   # à comparer avec SHA256SUMS
+```
+
+`scripts/check-site.mjs`, dans `npm run verify`, confronte le site compilé à ces promesses : les
+directives de la politique, la liste du worker (chaque fichier compilé, rien d'autre, aucun autre
+site), le manifeste, et chaque empreinte de `SHA256SUMS` et de la page.
+
 « Aucune requête réseau » est imposé, pas promis. La page publiée porte une politique de sécurité
 (CSP) avec `connect-src 'none'` : le navigateur refuse tout fetch, XHR, WebSocket ou beacon venant
 d'elle. Un worker n'hérite pas de la politique de la page, et ce worker exécute PDF.js, qui contient
 son propre code réseau que Cirta n'appelle jamais ; avant de charger quoi que ce soit, le worker retire
 donc `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` et `WebTransport` de sa propre portée. Le
 moteur de rendu PDF est un fichier séparé que le worker demande dès son démarrage, pendant que la page
-est au repos — coupez le réseau ensuite, et tout fonctionne encore.
+est au repos — coupez le réseau ensuite, et tout fonctionne encore. Le service worker est la seule
+pièce qui fait une requête, et seulement vers les fichiers du site lui-même, ceux que le navigateur
+charge de toute façon — `test/no-network.test.ts` nomme cet appel unique et la garde qui le précède.
 
 Les onglets suivent les pratiques ARIA : un seul arrêt dans l'ordre de tabulation, les flèches
 (et <kbd>Origine</kbd>/<kbd>Fin</kbd>) circulent entre eux.

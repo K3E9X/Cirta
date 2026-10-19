@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join, relative } from 'node:path';
+import { execSync } from 'node:child_process';
+import { hashRows, serviceWorkerSource, sha256Sums, webManifest } from './src/shared/site.js';
 import { defineConfig, type Plugin } from 'vite';
 
 /**
@@ -62,6 +65,7 @@ function contentSecurityPolicy(): Plugin {
           "style-src 'self'",
           "font-src 'self'",
           "worker-src 'self'",
+          "manifest-src 'self'",
           "object-src 'none'",
           "base-uri 'none'",
           "form-action 'none'",
@@ -70,6 +74,77 @@ function contentSecurityPolicy(): Plugin {
       },
     },
   };
+}
+
+/** Every file under a directory, as paths relative to it with forward slashes. */
+function listFiles(root: string, dir = root): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? listFiles(root, join(dir, entry.name)) : [relative(root, join(dir, entry.name)).split('\\').join('/')],
+  );
+}
+
+/**
+ * [F-P2 2.7] Offline and installable: a web app manifest, and a service worker
+ * that keeps the files this build wrote — listed once they are on disk, so the
+ * list is the build's and nothing else. Its cache is named after their
+ * content, so a new build replaces it and an unchanged one keeps it.
+ */
+function progressiveApp(): Plugin {
+  let base = '/';
+  let outDir = '';
+  return {
+    name: 'cirta-progressive-app',
+    apply: 'build',
+    configResolved(config) {
+      base = config.base;
+      outDir = isAbsolute(config.build.outDir) ? config.build.outDir : join(config.root, config.build.outDir);
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler: (html) => html.replace('</head>', `    <link rel="manifest" href="${base}manifest.webmanifest" />\n  </head>`),
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: webManifest() });
+    },
+    closeBundle: {
+      order: 'post',
+      handler() {
+        const files = listFiles(outDir).filter((file) => file !== 'sw.js').sort();
+        const digest = createHash('sha256');
+        for (const file of files) digest.update(`${file}\0`).update(readFileSync(join(outDir, file)));
+        writeFileSync(join(outDir, 'sw.js'), serviceWorkerSource(files, `cirta-${digest.digest('hex').slice(0, 16)}`));
+        writeIntegrity(outDir);
+      },
+    },
+  };
+}
+
+const sha256 = (data: Buffer) => createHash('sha256').update(data).digest('hex');
+
+/**
+ * [F-P2 2.7] The SHA-256 of every published file, twice: in SHA256SUMS, which
+ * `sha256sum --check` reads and the deployment attests with the rest; and in
+ * the page's « verify » box, every file but the page itself (a page cannot
+ * list its own hash). Written last, once every other file is final.
+ */
+function writeIntegrity(outDir: string): void {
+  const others = listFiles(outDir).filter((file) => file !== 'index.html' && file !== 'SHA256SUMS');
+  const hashes = others.map((file): [string, string] => [file, sha256(readFileSync(join(outDir, file)))]);
+  const page = readFileSync(join(outDir, 'index.html'), 'utf8');
+  if (!page.includes('<!--cirta:site-hashes-->')) throw new Error('index.html has no place for the site hashes');
+  const final = page.replace('<!--cirta:site-hashes-->', hashRows(hashes));
+  writeFileSync(join(outDir, 'index.html'), final);
+  writeFileSync(join(outDir, 'SHA256SUMS'), sha256Sums([...hashes, ['index.html', sha256(Buffer.from(final))]]));
+}
+
+/** The commit a build comes from: GitHub's, or the working copy's. */
+function commit(): string {
+  if (process.env['GITHUB_SHA']) return process.env['GITHUB_SHA'];
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
 }
 
 /**
@@ -83,7 +158,13 @@ export default defineConfig({
   // transcription all refer to one file.
   publicDir: '../../assets',
   base: process.env['CIRTA_BASE'] ?? '/Cirta/',
-  plugins: [contentSecurityPolicy(), thirdPartyLicences()],
+  plugins: [contentSecurityPolicy(), thirdPartyLicences(), progressiveApp()],
+  // [F-P2 2.7] The version a batch manifest records.
+  define: {
+    __CIRTA_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version),
+    // [F-P2 2.7] Shown in the « verify » box, to match against the attestation.
+    __CIRTA_COMMIT__: JSON.stringify(commit()),
+  },
   // ES modules, so the worker can load PDF.js as its own chunk instead of
   // making every file wait for it.
   worker: { format: 'es' },

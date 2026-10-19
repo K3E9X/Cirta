@@ -23,7 +23,8 @@ from that.
 and nowhere else: the core makes no network request, the page's Content-Security-Policy forbids every
 connection (`connect-src 'none'`), and the analysis worker removes `fetch`, `XMLHttpRequest`,
 `WebSocket`, `EventSource` and `WebTransport` from its own scope before it loads PDF.js — a worker does
-not inherit the page's policy. `test/no-network.test.ts` checks all three.
+not inherit the page's policy. The page's service worker fetches only the site's own files, inside
+its folder, never a document. `test/no-network.test.ts` checks all of it.
 
 **Who it defends against.** Whoever wrote the file: a sender who wants the parser to crash or hang, to
 reach the file system or the network, to run code, or to make the report lie.

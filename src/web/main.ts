@@ -27,6 +27,10 @@ import { AIMED_LABEL } from '../core/hidden-text.js';
 import { CLEAN_KEYS, offered, plan, type CleanKey } from '../shared/clean-plan.js';
 import { hunks, lineDiff, showInvisible } from '../shared/diff.js';
 import { PROFILES, type ProfileName } from '../shared/profiles.js';
+import { cleanBatch } from '../shared/batch.js';
+import { reportHtml, reportMarkdown } from '../shared/report-export.js';
+import { isSupportedFile, isWalkedDirectory } from '../shared/files.js';
+import { matchHash } from '../shared/site.js';
 import {
   preview,
   type Finding,
@@ -746,7 +750,18 @@ function cleanName(name: string): string {
  * the page and one produced by `cirta inspect --json` can be compared or fed to
  * the same script without a translation step.
  */
-const session: Array<{ file: string; result?: InspectResult; error?: string }> = [];
+interface SessionEntry {
+  file: string;
+  /** [F-P2 2.7] Its path inside a dropped folder; the name alone otherwise. */
+  path: string;
+  result?: InspectResult;
+  error?: string;
+}
+const session: SessionEntry[] = [];
+/** The bytes behind each entry, for cleaning them all at once; kept out of the exported report. */
+const sources = new WeakMap<SessionEntry, File>();
+/** What the last batch clean said, shown again when the summary is redrawn. */
+let batchStatus: { text: string; error?: boolean } | undefined;
 
 /** Tally and export, refreshed after each file resolves. */
 function renderSummary(anchor: HTMLElement): void {
@@ -772,24 +787,72 @@ function renderSummary(anchor: HTMLElement): void {
   const text = el('p', flagged || failures ? 'summary-text is-flagged' : 'summary-text', parts.join(' · '));
   const button = el('button', 'button button-small', t().exportReport);
   button.addEventListener('click', () => {
-    const json = JSON.stringify(done, null, 2);
+    const json = JSON.stringify(done.map(({ file, path, result, error }) => ({ file: path === file ? file : path, result, error })), null, 2);
     download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
   });
 
-  node.append(text, button);
+  // [F-P2 2.7] The same report as a page or as Markdown, in the page's language.
+  const reportEntries = () => done.map((entry) => ({ file: entry.path, result: entry.result, error: entry.error }));
+  const html = el('button', 'button button-small', t().exportHtml);
+  html.title = t().exportTitle;
+  html.addEventListener('click', () => download(new TextEncoder().encode(reportHtml(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.html', 'text/html'));
+  const markdown = el('button', 'button button-small', t().exportMarkdown);
+  markdown.title = t().exportTitle;
+  markdown.addEventListener('click', () => download(new TextEncoder().encode(reportMarkdown(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.md', 'text/markdown'));
+
+  node.append(text, button, html, markdown);
+  // [F-P2 2.7] Every file of the session through one clean, into one ZIP with its manifest.
+  const cleanable = done.filter((entry) => entry.result && sources.has(entry));
+  if (cleanable.length >= 2) {
+    const all = el('button', 'button button-small button-primary', t().cleanAll(cleanable.length));
+    all.title = t().cleanAllOptions;
+    all.addEventListener('click', () => void cleanSession(cleanable, all, anchor));
+    node.append(all);
+  }
+  if (batchStatus) node.append(el('p', batchStatus.error ? 'error' : 'note', batchStatus.text));
   if (existing) existing.replaceWith(node);
   else anchor.before(node);
 }
 
-async function handleFile(file: File, container: HTMLElement): Promise<void> {
-  const node = card(file.name, undefined, t().analysing);
+/** [F-P2 2.7] Clean every file of the session with the advanced options, and hand back one ZIP. */
+async function cleanSession(entries: SessionEntry[], button: HTMLButtonElement, anchor: HTMLElement): Promise<void> {
+  button.disabled = true;
+  let done = 0;
+  button.textContent = t().cleaningAll(done, entries.length);
+  try {
+    const files = await Promise.all(entries.map(async (entry) => ({ path: entry.path, data: new Uint8Array(await sources.get(entry)!.arrayBuffer()) })));
+    const choices = { ...cleanState };
+    const outcome = await cleanBatch(
+      files,
+      {
+        inspect: async (data, hint) => (await inspectFile(data, formatHint(hint ?? '') ?? hint)).result,
+        redact: async (data, hint) => {
+          const result = await redactFile(data, formatHint(hint ?? '') ?? hint, choices);
+          button.textContent = t().cleaningAll(++done, entries.length);
+          return result;
+        },
+      },
+      { version: __CIRTA_VERSION__, options: choices },
+    );
+    download(outcome.zip, 'cirta-nettoye.zip', 'application/zip');
+    const refusals = outcome.refused.map((r) => `${r.file} — ${errorText(r.error, lang())}`);
+    batchStatus = { text: [t().cleanedAll(outcome.manifest.files.length, outcome.refused.length), ...refusals].join('\n') };
+  } catch (error) {
+    batchStatus = { text: errorText(error, lang()), error: true };
+  }
+  renderSummary(anchor);
+}
+
+async function handleFile(file: File, container: HTMLElement, path = file.name): Promise<void> {
+  const node = card(path, undefined, t().analysing);
   node.classList.add('is-busy');
   container.prepend(node);
 
   // Claimed synchronously so the export keeps the order files were dropped in,
   // not the order the worker happened to finish them.
-  const entry: { file: string; result?: InspectResult; error?: string } = { file: file.name };
+  const entry: SessionEntry = { file: file.name, path };
   session.push(entry);
+  sources.set(entry, file);
   const record = (patch: Partial<typeof entry>) => {
     Object.assign(entry, patch);
     renderSummary(container);
@@ -922,6 +985,31 @@ function setupFiles(): void {
   const accept = (files: FileList | null) => {
     for (const file of Array.from(files ?? [])) void handleFile(file, results);
   };
+  // [F-P2 2.7] A folder: the files the command line would take from it, under their paths.
+  const acceptFolder = (found: Array<{ file: File; path: string }>) => {
+    const kept = found.filter(({ path }) => {
+      const parts = path.split('/');
+      return isSupportedFile(parts.at(-1) ?? '') && parts.slice(1, -1).every((dir) => isWalkedDirectory(dir));
+    });
+    const skipped = found.length - kept.length;
+    document.querySelector('#folder-skipped')?.remove();
+    if (skipped) {
+      const note = el('p', 'note', t().folderSkipped(skipped));
+      note.id = 'folder-skipped';
+      results.before(note);
+    }
+    for (const { file, path } of kept.sort((a, b) => a.path.localeCompare(b.path))) void handleFile(file, results, path);
+  };
+  const folder = must<HTMLInputElement>('#folder-input');
+  must<HTMLButtonElement>('#folder-pick').addEventListener('click', (event) => {
+    // The drop zone opens the file picker on a click; this one opens the folder picker.
+    event.stopPropagation();
+    folder.click();
+  });
+  folder.addEventListener('change', () => {
+    acceptFolder(Array.from(folder.files ?? []).map((file) => ({ file, path: file.webkitRelativePath || file.name })));
+    folder.value = '';
+  });
 
   dropzone.addEventListener('click', () => input.click());
   dropzone.addEventListener('keydown', (event) => {
@@ -946,8 +1034,37 @@ function setupFiles(): void {
   }
   dropzone.addEventListener('drop', (event) => {
     event.preventDefault();
-    accept(event.dataTransfer?.files ?? null);
+    const entries = Array.from(event.dataTransfer?.items ?? [])
+      .map((item) => item.webkitGetAsEntry?.())
+      .filter((entry): entry is FileSystemEntry => Boolean(entry));
+    if (!entries.some((entry) => entry.isDirectory)) {
+      accept(event.dataTransfer?.files ?? null);
+      return;
+    }
+    void readEntries(entries).then(acceptFolder);
   });
+}
+
+/** [F-P2 2.7] Every file under dropped entries, a folder read to the end (readEntries gives a hundred at a time). */
+async function readEntries(entries: FileSystemEntry[]): Promise<Array<{ file: File; path: string }>> {
+  const out: Array<{ file: File; path: string }> = [];
+  const visit = async (entry: FileSystemEntry): Promise<void> => {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+      out.push({ file, path: entry.fullPath.replace(/^\//, '') });
+      return;
+    }
+    if (!entry.isDirectory) return;
+    if (entry.fullPath.split('/').length > 2 && !isWalkedDirectory(entry.name)) return;
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    for (;;) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!batch.length) break;
+      for (const child of batch) await visit(child);
+    }
+  };
+  for (const entry of entries) await visit(entry);
+  return out;
 }
 
 /** [F-2.7] The advanced cleaning options, remembered in this browser; each new card starts from them. */
@@ -1256,3 +1373,51 @@ setupText();
 requestAnimationFrame(() => requestAnimationFrame(playReveal));
 if (document.readyState === 'complete') warmWorker();
 else addEventListener('load', warmWorker, { once: true });
+
+/**
+ * [F-P2 2.7] The « verify » box: the build's version and commit, and a file's
+ * SHA-256 computed here and looked up in the list the build wrote into the page.
+ */
+function setupVerify(): void {
+  must<HTMLElement>('#site-version').textContent = __CIRTA_VERSION__;
+  const link = must<HTMLAnchorElement>('#site-commit');
+  link.href = `https://github.com/K3E9X/Cirta/commit/${encodeURIComponent(__CIRTA_COMMIT__)}`;
+  link.querySelector('code')!.textContent = __CIRTA_COMMIT__.slice(0, 12);
+  const hashes = [...document.querySelectorAll<HTMLTableRowElement>('#site-hashes tr')].map((row): [string, string] => [row.cells[0]?.textContent ?? '', row.cells[1]?.textContent ?? '']);
+  const result = must<HTMLElement>('#verify-result');
+  // Written again when the language changes.
+  let say = (): string => (hashes.length ? '' : t().verifyDevBuild);
+  const show = () => (result.textContent = say());
+  show();
+  document.addEventListener('cirta:language', show);
+  const input = must<HTMLInputElement>('#verify-input');
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
+    const hash = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const found = matchHash(hashes, hash);
+    say = () => (found ? t().verifyMatch(found, hash) : t().verifyNoMatch(hash));
+    show();
+    result.classList.toggle('is-match', Boolean(found));
+    input.value = '';
+  });
+}
+setupVerify();
+
+/**
+ * [F-P2 2.7] Offline: the service worker keeps this site's files (see src/shared/site.ts).
+ * Built pages only — the development server has none to keep.
+ */
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .register('./sw.js')
+    .then(() => navigator.serviceWorker.ready)
+    .then(() => {
+      for (const [id, text] of [['#offline-status-fr', 'Disponible hors ligne dans ce navigateur.'], ['#offline-status-en', 'Available offline in this browser.']] as const) {
+        const node = document.querySelector(id);
+        if (node) node.textContent = text;
+      }
+    })
+    .catch(() => undefined);
+}
