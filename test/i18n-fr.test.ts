@@ -13,6 +13,7 @@ import { runCli } from './helpers/cli.js';
 import { activePdf } from './helpers/active-pdf.js';
 import { docm } from './helpers/active-office.js';
 import { workbook } from './helpers/active-xlsx.js';
+import { compObj, legacyOffice, ole10Native, outlookMessage } from './helpers/ole.js';
 
 /*
  * [C11.1] French mode printed English: character names ("zero-width
@@ -116,6 +117,57 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['dossier.zip', zipSync({ 'interne.zip': zipSync({ 'photo.jpg': photo }), 'notes.txt': strToU8('jeton ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA') })],
     ['casse.zip', new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8, 9])],
     ['vide.pdf', new Uint8Array(0)],
+    [
+      'ancien.doc',
+      legacyOffice('doc', {
+        summary: { 4: 'Jean Dupont', 7: 'C:\\Users\\jdupont\\Modeles\\Cabinet.dot', 10: { seconds: 3600 } },
+        docSummary: { 15: 'Cabinet Dupont' },
+        custom: { Dossier: '2026-117' },
+        streams: {
+          'ObjectPool/_1/\x01CompObj': compObj('Package', 'Package'),
+          'ObjectPool/_1/\x01Ole10Native': ole10Native('a.txt', 'C:\\Users\\jdupont\\a.txt', '', strToU8('bonjour')),
+          'ObjectPool/_2/\x01CompObj': compObj('Feuille de calcul', 'Excel.Sheet.8'),
+        },
+      }),
+    ],
+    [
+      'message.msg',
+      outlookMessage({
+        strings: {
+          0x0037: 'Projet',
+          0x0c1a: 'Jean Dupont',
+          0x0c1f: '/O=CABINET/OU=GROUPE ADMINISTRATIF/CN=RECIPIENTS/CN=JDUPONT',
+          0x0042: 'Assistante',
+          0x007d: 'From: Jean Dupont <jean@exemple.fr>\r\nX-Mailer: Outlook 16.0\r\nMessage-ID: <a@poste>\r\n\r\n',
+          0x1000: 'Bonjour\u200b',
+        },
+        times: { 0x0039: new Date('2026-10-01T09:15:00Z') },
+        recipients: [{ name: 'Marie Martin', address: 'marie@exemple.fr', type: 3 }],
+        attachments: [{ name: 'note.bin', data: new Uint8Array([0, 1, 2, 0xff]) }, { name: 'Ancien', message: { strings: { 0x0c1a: 'Paul' } } }],
+      }),
+    ],
+    [
+      'analyse.ipynb',
+      enc(
+        JSON.stringify({
+          cells: [
+            {
+              cell_type: 'code',
+              metadata: { execution: { 'iopub.execute_input': '2026-10-01T09:14:58.120Z' }, outil: 'x' },
+              source: 'print(1)',
+              outputs: [
+                { output_type: 'stream', name: 'stdout', text: 'Lecture de /home/jdupont/donnees.csv\n' },
+                { output_type: 'error', ename: 'Erreur', evalue: 'x', traceback: ['C:\\Users\\jdupont\\lib\\a.py'] },
+                { output_type: 'display_data', data: { 'image/jpeg': Buffer.from(photo).toString('base64') } },
+              ],
+            },
+          ],
+          metadata: { kernelspec: { display_name: 'Python 3', name: 'python3' }, authors: [{ name: 'Jean Dupont' }], papermill: { input_path: '/home/jdupont/a.ipynb' } },
+          nbformat: 4,
+          nbformat_minor: 5,
+        }),
+      ),
+    ],
   ];
 }
 

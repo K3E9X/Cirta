@@ -219,6 +219,7 @@ const FR = {
       ? 'Un lecteur ne les voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — les lira comme des instructions. Elles sont citées plus bas.'
       : 'Un lecteur ne la voit pas. Un assistant à qui l’on donne ce fichier — pour le résumer, le trier, y répondre — la lira comme une instruction. Elle est citée plus bas.',
   removeCommentsOption: (n: number) => (n > 1 ? `Retirer les ${n} commentaires` : 'Retirer le commentaire'),
+  clearOutputsOption: 'Vider les sorties des cellules',
   stripActiveOption: (n: number) =>
     n > 1 ? `Retirer les ${n} éléments actifs (scripts, actions, fichiers intégrés)` : 'Retirer l’élément actif (script, action, fichier intégré)',
   stripRemoteOption: (n: number) =>
@@ -423,6 +424,7 @@ const EN: Strings = {
       ? 'A reader does not see them. An assistant given this file — to summarise it, screen it, reply to it — will read them as instructions. They are quoted below.'
       : 'A reader does not see it. An assistant given this file — to summarise it, screen it, reply to it — will read it as an instruction. It is quoted below.',
   removeCommentsOption: (n) => (n > 1 ? `Remove the ${n} comments` : 'Remove the comment'),
+  clearOutputsOption: 'Empty the cells’ outputs',
   stripActiveOption: (n) =>
     n > 1 ? `Remove the ${n} active elements (scripts, actions, embedded files)` : 'Remove the active element (script, action, embedded file)',
   stripRemoteOption: (n) =>

@@ -71,7 +71,8 @@ export function htmlLines(html: string): string {
     .join('\n');
 }
 
-function partFindings(part: MailPart): Finding[] {
+/** A body part's findings by its type: the HTML pass with links and residue, or the text pass. */
+export function partFindings(part: Pick<MailPart, 'type' | 'text'>): Finding[] {
   const text = part.text ?? '';
   if (part.type === 'text/html') {
     return [

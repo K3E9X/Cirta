@@ -211,6 +211,11 @@ const MIME: Record<Format, string> = {
   jpeg: 'image/jpeg',
   png: 'image/png',
   zip: 'application/zip',
+  doc: 'application/msword',
+  xls: 'application/vnd.ms-excel',
+  ppt: 'application/vnd.ms-powerpoint',
+  msg: 'application/vnd.ms-outlook',
+  ipynb: 'application/x-ipynb+json',
   text: 'text/plain',
 };
 
@@ -223,6 +228,9 @@ function formatHint(name: string): string | undefined {
   if (ext === '.eml') return 'eml';
   return undefined;
 }
+
+/** [F-2.2] Formats read and never rewritten. */
+const LEGACY = new Set(['doc', 'xls', 'ppt', 'msg']);
 
 /** [F-2.1] Formats whose active content a clean can take out. */
 const STRIPPABLE_ACTIVE = new Set(['pdf', 'docx', 'xlsx', 'pptx']);
@@ -734,6 +742,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
             t().archiveNote,
           ),
         );
+      } else if (LEGACY.has(result.format)) {
+        // [F-2.2] Inspected, never rewritten: the reason and what to do, before any click.
+        node.append(el('p', 'note', errorText({ code: 'legacy-not-rewritable', detail: result.format }, lang())));
       } else {
         const foot = el('div', 'card-foot');
         // Taking hidden text out changes the document, which nothing else in a
@@ -760,6 +771,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
         const stripActive = activeCount > 0 && STRIPPABLE_ACTIVE.has(result.format) ? option(t().stripActiveOption(activeCount)) : undefined;
         const remoteCount = result.findings.filter((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening').length;
         const stripRemote = remoteCount > 0 && ['html', 'markdown'].includes(result.format) ? option(t().stripRemoteOption(remoteCount)) : undefined;
+        // [F-2.2] A notebook's outputs are what its author computed: emptied only when asked.
+        const outputCount = result.findings.filter((f) => /^cells\[\d+\]\.outputs/.test(f.location)).length;
+        const clearOutputs = outputCount > 0 && result.format === 'ipynb' ? option(t().clearOutputsOption) : undefined;
         const button = el('button', 'button button-primary', t().download);
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -772,8 +786,9 @@ async function handleFile(file: File, container: HTMLElement): Promise<void> {
               removeComments: removeComments?.checked === true,
               stripActive: stripActive?.checked === true,
               stripRemote: stripRemote?.checked === true,
+              clearOutputs: clearOutputs?.checked === true,
             });
-            for (const box of [removeHidden, acceptChanges, removeComments, stripActive, stripRemote]) if (box) box.disabled = true;
+            for (const box of [removeHidden, acceptChanges, removeComments, stripActive, stripRemote, clearOutputs]) if (box) box.disabled = true;
             download(redacted.data!, cleanName(file.name), MIME[redacted.format]);
             node.classList.remove('is-cleaning');
             button.replaceChildren(check(), document.createTextNode(t().downloaded));

@@ -8,7 +8,7 @@
  * after a p-code block whose length the project's "dir" stream gives.
  */
 
-import { readCfb } from './cfb.js';
+import { readCfb, type Cfb } from './cfb.js';
 
 const MAX_SOURCE = 4 * 1024 * 1024;
 
@@ -61,7 +61,15 @@ export interface VbaModule {
 /** The modules of a vbaProject.bin, with their source when it reads. */
 export function readVbaProject(bin: Uint8Array): VbaModule[] | undefined {
   const cfb = readCfb(bin);
-  if (!cfb) return undefined;
+  return cfb ? readVbaStorage(cfb) : undefined;
+}
+
+/**
+ * [F-2.2] The modules of the first VBA project a compound file holds: its own
+ * in a vbaProject.bin, a storage of the document in a legacy .doc ("Macros")
+ * or .xls ("_VBA_PROJECT_CUR").
+ */
+export function readVbaStorage(cfb: Cfb): VbaModule[] | undefined {
   const dirEntry = cfb.entries.find((e) => e.type === 'stream' && /(^|\/)VBA\/dir$/i.test(e.path));
   if (!dirEntry) return undefined;
   const base = dirEntry.path.slice(0, -'dir'.length);

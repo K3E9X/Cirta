@@ -284,6 +284,72 @@ try {
       check('deck.pptx: reopens in LibreOffice with notes and the hidden slide removed', false, String(error).slice(0, 200));
     }
   }
+  // [F-2.2] Legacy Office as LibreOffice writes it: the properties read, the clean refused.
+  {
+    const meta = '<office:meta><meta:initial-creator>Jeanne Dupont</meta:initial-creator><dc:creator>Marc Leroy</dc:creator></office:meta>';
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" office:version="1.3"';
+    await writeFile(join(dir, 'legacy.fodt'), `<?xml version="1.0" encoding="UTF-8"?><office:document ${NS} office:mimetype="application/vnd.oasis.opendocument.text">${meta}<office:body><office:text><text:p>Bonjour</text:p></office:text></office:body></office:document>`);
+    await writeFile(join(dir, 'legacy.fodp'), `<?xml version="1.0" encoding="UTF-8"?><office:document ${NS} office:mimetype="application/vnd.oasis.opendocument.presentation">${meta}<office:body><office:presentation><draw:page draw:name="p1"/></office:presentation></office:body></office:document>`);
+    for (const [source, format] of [['legacy.fodt', 'doc'], ['legacy.fodp', 'ppt']]) {
+      const name = `legacy.${format}`;
+      try {
+        await soffice(['--convert-to', format, '--outdir', dir, join(dir, source)], `legacy-${format}`);
+        const bytes = new Uint8Array(await readFile(join(dir, name)));
+        const report = await inspectFile(bytes, name);
+        const author = report.findings.find((f) => f.label === 'Author')?.value;
+        const saver = report.findings.find((f) => f.label === 'Last modified by')?.value;
+        check(`${name}: read as ${format}, author and last saver from its property sets`, report.format === format && author === 'Jeanne Dupont' && saver === 'Marc Leroy', `${report.format}, ${author}, ${saver}`);
+        const refusal = await redactFile(bytes, name).then(() => undefined, (error) => error);
+        check(`${name}: cleaning refused rather than attempted`, refusal?.code === 'legacy-not-rewritable', String(refusal?.code));
+      } catch (error) {
+        check(`${name}: produced by LibreOffice and inspected`, false, String(error).slice(0, 200));
+      }
+    }
+  }
+  // [F-2.2] A cleaned notebook must still be a notebook, as Jupyter's own validator reads it.
+  // Needs Python with nbformat (CIRTA_PYTHON names the interpreter); without it, says so and moves on.
+  {
+    const python = process.env.CIRTA_PYTHON ?? 'python3';
+    let available = true;
+    try {
+      await run(python, ['-I', '-c', 'import nbformat'], { timeout: 60_000 });
+    } catch {
+      available = false;
+      console.log('  skip  notebook: nbformat is not installed for ' + python);
+    }
+    if (available) {
+      const nb = {
+        cells: [
+          { cell_type: 'markdown', id: 'a1', metadata: {}, source: ['# Analyse'] },
+          {
+            cell_type: 'code', id: 'b2', execution_count: 3,
+            metadata: { tags: ['parameters'], execution: { 'iopub.execute_input': '2026-10-01T09:14:58.120Z' } },
+            source: ['print(1)'],
+            outputs: [
+              { output_type: 'stream', name: 'stdout', text: ['/home/jdupont/donnees.csv\n'] },
+              { output_type: 'error', ename: 'E', evalue: 'x', traceback: ['C:\\Users\\jdupont\\a.py'] },
+              { output_type: 'execute_result', execution_count: 3, metadata: {}, data: { 'text/plain': ['1'] } },
+            ],
+          },
+        ],
+        metadata: { kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' }, language_info: { name: 'python' }, authors: [{ name: 'Jeanne Dupont' }], papermill: { input_path: '/home/jdupont/a.ipynb' } },
+        nbformat: 4,
+        nbformat_minor: 5,
+      };
+      const bytes = strToU8(JSON.stringify(nb));
+      for (const [name, options] of [['notebook.clean.ipynb', {}], ['notebook.cleared.ipynb', { clearOutputs: true }]]) {
+        const cleaned = await redactFile(bytes, 'notebook.ipynb', options);
+        await writeFile(join(dir, name), cleaned.data);
+        try {
+          const { stdout } = await run(python, ['-I', '-c', 'import nbformat, sys; nb = nbformat.read(sys.argv[1], as_version=4); nbformat.validate(nb); print(sorted(nb.metadata), sum(len(c.get("outputs", [])) for c in nb.cells))', join(dir, name)], { timeout: 60_000 });
+          const expected = `['kernelspec', 'language_info'] ${options.clearOutputs ? 0 : 3}`;
+          check(`${name}: valid for nbformat, metadata reduced to the kernel, outputs ${options.clearOutputs ? 'emptied' : 'kept'}`, stdout.trim() === expected, stdout.trim());
+        } catch (error) {
+          check(`${name}: valid for nbformat`, false, String(error).slice(0, 200));
+        }
+      }
+    }
+  }
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

@@ -61,6 +61,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Last printed': 'Dernière impression',
   'Link to a local or network path': 'Lien vers un chemin local ou réseau',
   'Hidden slides': 'Diapositives masquées',
+  'Path of the embedded file on the author’s machine': 'Chemin du fichier intégré sur la machine de l’auteur',
   'Speaker notes': 'Notes du présentateur',
   'Speaker notes text': 'Texte des notes du présentateur',
   'Text of a hidden slide': 'Texte d’une diapositive masquée',
@@ -244,6 +245,17 @@ const FIELD_LABEL: Record<string, string> = {
   'Comment text': 'Texte d’un commentaire',
   'Comment author account': 'Compte de l’auteur d’un commentaire',
   'Attachment not inspected': 'Pièce jointe non inspectée',
+  Kernel: 'Noyau',
+  Language: 'Langage',
+  'Notebook metadata': 'Métadonnées du notebook',
+  'Cell metadata': 'Métadonnées de cellule',
+  'Execution time': 'Heure d’exécution',
+  'Local path in an output': 'Chemin local dans une sortie',
+  'Attached message beyond the nesting limit': 'Message joint au-delà de la limite d’imbrication',
+  'Sent on behalf of': 'Envoyé au nom de',
+  'Exchange account (X.500 address)': 'Compte Exchange (adresse X.500)',
+  Sent: 'Envoyé le',
+  Received: 'Reçu le',
   'Cropped pictures keep their original image':
     'Les images recadrées conservent leur original',
   'Pivot table cache holds a copy of the source rows':
@@ -952,8 +964,8 @@ const translateRulesDetail = (detail: string): string => {
 
 const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: string }> = {
   unsupported: () => ({
-    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG and PNG.',
-    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), SVG, HTML, Markdown, JPEG et PNG.',
+    en: 'Unrecognised file. Supported: PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), legacy Office (.doc, .xls, .ppt) and Outlook (.msg), inspection only, Jupyter notebooks, SVG, HTML, Markdown, JPEG and PNG.',
+    fr: 'Fichier non reconnu. Formats pris en charge : PDF, Office Open XML (.pptx, .docx, .xlsx), OpenDocument (.odt, .ods, .odp), Office ancien (.doc, .xls, .ppt) et Outlook (.msg), en inspection seule, notebooks Jupyter, SVG, HTML, Markdown, JPEG et PNG.',
   }),
   unparseable: (detail) => ({
     en: `This file could not be parsed${detail ? `: ${detail}` : '.'}`,
@@ -971,6 +983,16 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
     en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
     fr: 'Les archives simples sont inspectées mais pas réécrites. Extrayez-la, nettoyez les fichiers un par un, puis recompressez.',
   }),
+  'legacy-not-rewritable': (detail) =>
+    detail === 'msg'
+      ? {
+          en: 'Outlook messages are inspected but not rewritten: rebuilding a compound file without damaging it is not something this tool can verify. Save the message as .eml from your mail client, then clean that copy.',
+          fr: 'Les messages Outlook sont inspectés mais pas réécrits : reconstruire un fichier composite sans l’abîmer n’est pas une chose que cet outil sait vérifier. Enregistrez le message en .eml depuis votre messagerie, puis nettoyez cette copie.',
+        }
+      : {
+          en: `Legacy Office files (.doc, .xls, .ppt) are inspected but not rewritten: rebuilding a compound file without damaging it is not something this tool can verify. Save it as .${detail === 'xls' ? 'xlsx' : detail === 'ppt' ? 'pptx' : 'docx'} in Office or LibreOffice, then clean that copy.`,
+          fr: `Les fichiers Office anciens (.doc, .xls, .ppt) sont inspectés mais pas réécrits : reconstruire un fichier composite sans l’abîmer n’est pas une chose que cet outil sait vérifier. Enregistrez-le en .${detail === 'xls' ? 'xlsx' : detail === 'ppt' ? 'pptx' : 'docx'} dans Office ou LibreOffice, puis nettoyez cette copie.`,
+        },
   'empty-file': () => ({ en: 'Empty file.', fr: 'Fichier vide.' }),
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,
