@@ -2270,6 +2270,17 @@ Branche `fix/retest-2026-10-19` depuis `main` (`e93b8fc`), puis une branche par 
 - Le rendu mobile et l'accessibilité du site déployé. L'audit `scripts/a11y.mjs` (axe, clavier, 320 px) passe sur le site construit, mais pas sur le déploiement.
 - Les extensions Thunderbird, VS Code et navigateur : elles sont construites et empaquetées en CI, mais personne ne les a essayées à la main pour cette repasse.
 
+## Renommage en Ciirta (20/10/2026)
+
+Demande du propriétaire : aucun domaine n'était libre pour « cirta », l'outil devient **Ciirta** (ciirta.com).
+
+- **Branche** `fix/retest-2026-10-19-ciirta`, empilée sur R6–R8. Elle fusionne aussi #46 (préréglages par lien, orientation JPEG), pour que le renommage la couvre et que les conflits README/CHANGELOG avec les correctifs R soient résolus une seule fois.
+- **Renommé :** le paquet et la commande `ciirta` (`ciirta/node`) ; les schémas `ciirta.report/1` et `ciirta.manifest/1` ; les en-têtes `X-Ciirta-*` ; les variables `CIIRTA_*` ; les clés du navigateur `ciirta.*` ; les extensions, l'aide, les README, le CHANGELOG et ce rapport.
+- **Rien n'est perdu dans le navigateur.** Le premier script de la page déplace une fois les clés `cirta.*` vers `ciirta.*`, sans écraser une valeur plus récente. Ce déplacement est dans son propre `try` : une écriture refusée ne bloque plus le thème, ce que le test du thème a révélé (`test/storage-rename.test.ts`).
+- **Gardé jusqu'au renommage des dépôts**, parce que ces adresses en dépendent : `github.com/K3E9X/Cirta` (l'Action reste `K3E9X/Cirta@…`), `k3e9x.github.io/Cirta` et le chemin de base `/Cirta/` du site, `K3E9X/cirta-cloud`. GitHub redirige les anciennes adresses après un renommage ; il faudra ensuite remplacer celles-ci.
+- **Trouvé en route :** le test d'orientation de #46 ne passait pas `npm run typecheck` (`data` optionnel, des types de constat qui n'existent pas). Corrigé sur la branche de #46 (`611b33a`).
+- **Vérification :** `npm run verify` (117 fichiers, 1 225 tests), `node scripts/real-files.mjs`, `npm run redos`, `node scripts/web-rules.mjs` et `node scripts/a11y.mjs` sont verts.
+
 ## Bilan final
 
 **Fait :**
