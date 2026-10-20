@@ -93,7 +93,7 @@ const decode = (text: string) =>
 
 /** Every text node of a comment body, whatever namespace its <t> carries. */
 const textOf = (inner: string) =>
-  [...inner.matchAll(/<(?:[\w.-]+:)?(?:t|text)(?:\s[^>]*)?>([^<]*)<\/(?:[\w.-]+:)?(?:t|text)>/g)]
+  [...inner.matchAll(/<(?:[\w.-]+:)?(?:t|text)(?:\s[^<>]*)?>([^<]*)<\/(?:[\w.-]+:)?(?:t|text)>/g)]
     .map((m) => decode(m[1] ?? ''))
     .join(' ')
     .replace(/\s+/g, ' ')

@@ -9,12 +9,15 @@ import { strFromU8, strToU8 } from 'fflate';
 type Parts = Record<string, Uint8Array>;
 type RemovePart = (parts: Parts, path: string) => void;
 
-const relsOf = (path: string) => path.replace(/([^/]+)$/, '_rels/$1.rels');
+const relsOf = (path: string) => {
+  const at = path.lastIndexOf('/') + 1;
+  return `${path.slice(0, at)}_rels/${path.slice(at)}.rels`;
+};
 const text = (parts: Parts, path: string) => (parts[path] ? strFromU8(parts[path]!) : undefined);
 
 function targets(parts: Parts, rels: string, type: string): Array<{ id: string; target: string }> {
   const xml = text(parts, rels) ?? '';
-  return [...xml.matchAll(/<Relationship\b[^>]*>/g)]
+  return [...xml.matchAll(/<Relationship\b[^<>]*>/g)]
     .filter((m) => new RegExp(`\\sType="[^"]*/${type}"`).test(m[0]))
     .map((m) => ({ id: /\sId="([^"]*)"/.exec(m[0])?.[1] ?? '', target: /\sTarget="([^"]*)"/.exec(m[0])?.[1] ?? '' }));
 }
@@ -23,7 +26,7 @@ function targets(parts: Parts, rels: string, type: string): Array<{ id: string; 
 function resolve(owner: string, target: string): string {
   if (target.startsWith('/')) return target.slice(1);
   const segments: string[] = [];
-  for (const segment of (owner.replace(/[^/]*$/, '') + target).split('/')) {
+  for (const segment of (owner.slice(0, owner.lastIndexOf('/') + 1) + target).split('/')) {
     if (segment === '.' || segment === '') continue;
     if (segment === '..') segments.pop();
     else segments.push(segment);
@@ -43,7 +46,7 @@ export function removeNotes(parts: Parts, removePart: RemovePart): number {
 }
 
 export function removeHiddenSlides(parts: Parts, removePart: RemovePart): number {
-  const hidden = Object.keys(parts).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p) && /<p:sld\b[^>]*\sshow="(0|false)"/.test(strFromU8(parts[p]!)));
+  const hidden = Object.keys(parts).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p) && /<p:sld\b[^<>]*\sshow="(0|false)"/.test(strFromU8(parts[p]!)));
   if (!hidden.length) return 0;
   let presentation = text(parts, 'ppt/presentation.xml') ?? '';
   const presRels = targets(parts, 'ppt/_rels/presentation.xml.rels', 'slide');
@@ -52,12 +55,12 @@ export function removeHiddenSlides(parts: Parts, removePart: RemovePart): number
     for (const { target } of targets(parts, relsOf(slide), 'notesSlide')) dropPart(parts, resolve(slide, target), removePart);
     const rel = presRels.find((r) => resolve('ppt/presentation.xml', r.target) === slide);
     if (rel) {
-      const entry = new RegExp(`<p:sldId\\b[^>]*\\sr:id="${rel.id}"[^>]*/>`).exec(presentation)?.[0];
+      const entry = new RegExp(`<p:sldId\\b[^<>]*\\sr:id="${rel.id}"[^<>]*/>`).exec(presentation)?.[0];
       const numeric = entry ? /\sid="(\d+)"/.exec(entry)?.[1] : undefined;
       if (entry) presentation = presentation.replace(entry, '');
       // Custom shows and sections name the slide too.
-      presentation = presentation.replace(new RegExp(`<p:sld\\b[^>]*\\sr:id="${rel.id}"[^>]*/>`, 'g'), '');
-      if (numeric) presentation = presentation.replace(new RegExp(`<p14:sldId\\b[^>]*\\sid="${numeric}"[^>]*/>`, 'g'), '');
+      presentation = presentation.replace(new RegExp(`<p:sld\\b[^<>]*\\sr:id="${rel.id}"[^<>]*/>`, 'g'), '');
+      if (numeric) presentation = presentation.replace(new RegExp(`<p14:sldId\\b[^<>]*\\sid="${numeric}"[^<>]*/>`, 'g'), '');
     }
     dropPart(parts, slide, removePart);
   }
@@ -75,7 +78,7 @@ export function removeHiddenSheets(parts: Parts, removePart: RemovePart): { remo
   const workbookPath = 'xl/workbook.xml';
   let workbook = text(parts, workbookPath);
   if (!workbook) return { removed: 0, refused: [] };
-  const sheets = [...workbook.matchAll(/<sheet\b[^>]*\/>/g)].map((m) => ({
+  const sheets = [...workbook.matchAll(/<sheet\b[^<>]*\/>/g)].map((m) => ({
     tag: m[0],
     name: /\sname="([^"]*)"/.exec(m[0])?.[1] ?? '',
     id: /\sr:id="([^"]*)"/.exec(m[0])?.[1] ?? '',
@@ -89,7 +92,7 @@ export function removeHiddenSheets(parts: Parts, removePart: RemovePart): { remo
     .filter(([p]) => /^xl\/(worksheets|chartsheets)\/[^/]+\.xml$|^xl\/charts\/[^/]+\.xml$|^xl\/pivotCache\//.test(p))
     .map(([, raw]) => strFromU8(raw))
     .join('\n');
-  const names = /<definedNames>([\s\S]*?)<\/definedNames>/.exec(workbook)?.[1] ?? '';
+  const names = /<definedNames>((?:(?!<definedNames\b)[\s\S])*?)<\/definedNames>/.exec(workbook)?.[1] ?? '';
   const decoded = (s: string) => s.replace(/&amp;/g, '&').replace(/&apos;/g, "'").replace(/&quot;/g, '"');
   const referenced = (name: string) => {
     const quoted = `'${name.replace(/'/g, "''")}'!`;

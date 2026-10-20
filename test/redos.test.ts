@@ -1,6 +1,6 @@
 import { strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { makeDocx } from './fixtures.js';
+import { makeDocx, makeXlsx } from './fixtures.js';
 import { corpus } from './helpers/cv-corpus.js';
 import { deck } from './helpers/deck.js';
 import { bundleCore, timed } from './helpers/redos.js';
@@ -61,5 +61,13 @@ describe('[P0-1] ReDoS: a hostile file is read in time', () => {
       xml.replace('<p:spPr/>', '<p:spPr>' + '<a:ln w="1">'.repeat(20_000) + '<a:effectLst>'.repeat(20_000) + '</p:spPr>').replace('</a:p>', '<a:r>'.repeat(40_000) + '<a:rPr b="1">'.repeat(30_000) + '</a:p>'),
     );
     await expectQuick(pptx, 'piege.pptx');
+  }, 30_000);
+
+  it('a workbook of tags and names that never close (sheet, row, t, definedName, ddeLink, progid: quadratic)', async () => {
+    const junk = '<sheet name="a" '.repeat(20_000) + '<definedName' + ' name="a"'.repeat(20_000) + '<row r="1" '.repeat(20_000) + '<t>'.repeat(20_000) + '<x' + ' progid="a"'.repeat(20_000);
+    let xlsx = makeXlsx();
+    for (const path of Object.keys(unzipSync(xlsx)).filter((p) => p.startsWith('xl/') && p.endsWith('.xml'))) xlsx = rewrite(xlsx, path, (xml) => xml.replace(/<\/[^<>]*>$/, (end) => junk + end));
+    xlsx = withPart(xlsx, 'xl/externalLinks/externalLink9.xml', '<externalLink><ddeLink' + ' ddeService="a"'.repeat(30_000) + '/></externalLink>');
+    await expectQuick(xlsx, 'piege.xlsx');
   }, 30_000);
 });

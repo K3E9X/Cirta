@@ -41,7 +41,7 @@ function relationships(parts: Parts): Relationship[] {
   const out: Relationship[] = [];
   for (const [rels, raw] of Object.entries(parts)) {
     if (!rels.endsWith('.rels')) continue;
-    for (const element of strFromU8(raw).match(/<Relationship\b[^>]*\/?>/g) ?? []) {
+    for (const element of strFromU8(raw).match(/<Relationship\b[^<>]*\/?>/g) ?? []) {
       const attr = (name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(element)?.[1] ?? '';
       out.push({
         rels,
@@ -74,7 +74,7 @@ function fieldInstructions(xml: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let current: string[] = [];
-  for (const m of xml.matchAll(/<w:fldChar\b[^>]*w:fldCharType="(begin|separate|end)"|<w:instrText\b[^>]*>([^<]*)<\/w:instrText>|<w:fldSimple\b[^>]*\sw:instr="([^"]*)"/g)) {
+  for (const m of xml.matchAll(/<w:fldChar\b[^<>]*w:fldCharType="(begin|separate|end)"|<w:instrText\b[^<>]*>([^<]*)<\/w:instrText>|<w:fldSimple\b[^<>]*\sw:instr="([^"]*)"/g)) {
     if (m[1] === 'begin') {
       depth++;
       current = [];
@@ -138,8 +138,11 @@ export function activeOfficeFindings(parts: Parts): Finding[] {
   }
   for (const [path, raw] of Object.entries(parts)) {
     if (!/^xl\/externalLinks\/externalLink\d+\.xml$/.test(path)) continue;
-    const dde = /<ddeLink\b[^>]*ddeService="([^"]*)"[^>]*ddeTopic="([^"]*)"/.exec(strFromU8(raw));
-    if (dde) push('DDE field (runs a command)', 'confirmed', path, `${dde[1]} ${dde[2]}`);
+    // [P0-1] The tag, then each attribute: two in one pattern backtracked across a long tag.
+    const tag = /<ddeLink\b[^<>]*/.exec(strFromU8(raw))?.[0] ?? '';
+    const service = /ddeService="([^"]*)"/.exec(tag)?.[1];
+    const topic = /ddeTopic="([^"]*)"/.exec(tag)?.[1];
+    if (service !== undefined && topic !== undefined) push('DDE field (runs a command)', 'confirmed', path, `${service} ${topic}`);
   }
 
   // Embedded objects, with the program each one names to open it.
@@ -149,10 +152,13 @@ export function activeOfficeFindings(parts: Parts): Finding[] {
     const xml = strFromU8(raw);
     if (!/progid=/i.test(xml)) continue;
     const owned = rels.filter((r) => ownerOf(r.rels) === path);
-    for (const m of xml.matchAll(/<[^>]*\bprogid="([^"]+)"[^>]*>/gi)) {
+    // [P0-1] Each tag, then its program: the attribute inside a tag pattern backtracked across a long one.
+    for (const m of xml.matchAll(/<[^<>]*>/g)) {
+      const progId = /\bprogid="([^"]+)"/i.exec(m[0])?.[1];
+      if (!progId) continue;
       const id = /\sr:id="([^"]+)"/.exec(m[0])?.[1];
       const rel = owned.find((r) => r.id === id);
-      if (rel) progIds.set(resolve(rel.rels, rel.target), m[1]!);
+      if (rel) progIds.set(resolve(rel.rels, rel.target), progId);
     }
   }
   for (const path of Object.keys(parts).filter((p) => EMBEDDING.test(p)).sort()) {
@@ -183,10 +189,10 @@ export function stripActiveOffice(parts: Parts, removePart: (parts: Parts, path:
   for (const rel of relationships(parts)) {
     if (rel.type !== 'attachedTemplate' || !rel.external) continue;
     const xml = strFromU8(parts[rel.rels]!);
-    parts[rel.rels] = strToU8(xml.replace(new RegExp(`<Relationship\\b[^>]*\\sId="${rel.id}"[^>]*/>`), ''));
+    parts[rel.rels] = strToU8(xml.replace(new RegExp(`<Relationship\\b[^<>]*\\sId="${rel.id}"[^<>]*/>`), ''));
     const owner = ownerOf(rel.rels);
     if (parts[owner]) {
-      parts[owner] = strToU8(strFromU8(parts[owner]!).replace(new RegExp(`<w:attachedTemplate\\b[^>]*r:id="${rel.id}"[^>]*/>`), ''));
+      parts[owner] = strToU8(strFromU8(parts[owner]!).replace(new RegExp(`<w:attachedTemplate\\b[^<>]*r:id="${rel.id}"[^<>]*/>`), ''));
     }
     removed++;
   }
@@ -198,7 +204,7 @@ export function stripActiveOffice(parts: Parts, removePart: (parts: Parts, path:
     const xml = strFromU8(raw);
     if (!/DDE|INCLUDEPICTURE|INCLUDETEXT|IMPORT|LINK/i.test(xml)) continue;
     let count = 0;
-    let out = xml.replace(/(<w:instrText\b[^>]*>)([^<]*)(<\/w:instrText>)/g, (whole, open: string, text: string, close: string) => {
+    let out = xml.replace(/(<w:instrText\b[^<>]*>)([^<]*)(<\/w:instrText>)/g, (whole, open: string, text: string, close: string) => {
       const instruction = text.replace(/&quot;/g, '"').trim();
       const include = INCLUDE.exec(instruction);
       if (DDE.test(instruction) || (include && isRemoteTarget(include[2]!.replace(/\\\\/g, '\\')))) {
@@ -207,7 +213,7 @@ export function stripActiveOffice(parts: Parts, removePart: (parts: Parts, path:
       }
       return whole;
     });
-    out = out.replace(/<w:fldSimple\b([^>]*)\sw:instr="([^"]*)"/g, (whole, before: string, instr: string) => {
+    out = out.replace(/<w:fldSimple\b([^<>]*)\sw:instr="([^"]*)"/g, (whole, before: string, instr: string) => {
       const instruction = instr.replace(/&quot;/g, '"').trim();
       const include = INCLUDE.exec(instruction);
       if (DDE.test(instruction) || (include && isRemoteTarget(include[2]!))) {
@@ -230,7 +236,7 @@ export function stripTrackingOffice(parts: Parts): number {
   for (const [path, raw] of Object.entries(parts)) {
     if (!path.endsWith('.rels')) continue;
     const xml = strFromU8(raw);
-    const out = xml.replace(/<Relationship\b[^>]*\/?>/g, (element) => {
+    const out = xml.replace(/<Relationship\b[^<>]*\/?>/g, (element) => {
       if (!/\sTargetMode="External"/.test(element) || !/\/hyperlink"/.test(element)) return element;
       return element.replace(/\sTarget="([^"]*)"/, (whole, target: string) => {
         const cleaned = cleanUrl(target.replace(/&amp;/g, '&'));

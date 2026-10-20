@@ -22,15 +22,16 @@ export async function bundleCore(): Promise<string> {
 const WORKER = `
 const { parentPort, workerData } = require('node:worker_threads');
 (async () => {
-  const { inspectFile, redactFile } = await import(workerData.core);
+  const { inspectFile, redactFile, sanitizeForLlm } = await import(workerData.core);
   const start = performance.now();
   await inspectFile(workerData.bytes, workerData.name).catch(() => {});
   await redactFile(workerData.bytes, workerData.name).catch(() => {});
+  await sanitizeForLlm(workerData.bytes, workerData.name).catch(() => {});
   parentPort.postMessage(Math.round(performance.now() - start));
 })();
 `;
 
-/** Inspects then cleans the file; the milliseconds it took, or undefined when the budget ran out. */
+/** Inspects the file, cleans it and reads it for a model; the milliseconds it took, or undefined when the budget ran out. */
 export function timed(core: string, bytes: Uint8Array, name: string, budgetMs: number): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(WORKER, { eval: true, workerData: { core, bytes, name } });

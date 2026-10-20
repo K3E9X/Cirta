@@ -27,6 +27,7 @@ import { htmlLines } from './mail.js';
 import { parseMail, decodeWords } from './mime.js';
 import { slideText } from './ooxml.js';
 import { attr, sharedStrings, sheets, whiteStyles } from './xlsx-active.js';
+import { removeUnrendered, replaceSpans } from './linear.js';
 import { elements } from './tracked-changes.js';
 import { visiblePdfText } from './xray.js';
 import { preview } from './types.js';
@@ -45,12 +46,13 @@ export interface SanitizedText {
 
 type Parts = Record<string, Uint8Array>;
 
+const UNRENDERED = ['noscript', 'template', 'script', 'style', 'head'];
+
 /** HTML as lines of the text it shows: hidden elements, comments, scripts, styles and templates out. */
 function htmlText(html: string): { text: string; removed: number } {
   const stripped = stripHiddenHtml(html, { everything: true });
-  const unrendered = /<!--[\s\S]*?-->|<(noscript|template|script|style|head)\b[\s\S]*?<\/\1\s*>/gi;
   // A block emptied of its hidden text leaves no blank line where it stood.
-  const lines = htmlLines(stripped.html.replace(unrendered, '')).split('\n').filter((line) => line.trim());
+  const lines = htmlLines(removeUnrendered(stripped.html, UNRENDERED)).split('\n').filter((line) => line.trim());
   return { text: lines.join('\n'), removed: stripped.removed };
 }
 
@@ -67,12 +69,12 @@ function wordText(parts: Parts): { text: string; removed: number } {
 
 function slidesText(parts: Parts): { text: string; removed: number } {
   const removed = stripHiddenPptx(parts, { everything: true });
-  const number = (p: string) => Number(/(\d+)\.xml$/.exec(p)?.[1] ?? 0);
+  const number = (p: string) => Number(/(?<!\d)(\d+)\.xml$/.exec(p)?.[1] ?? 0);
   const slides = Object.keys(parts)
     .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
     .sort((a, b) => number(a) - number(b))
     .map((p) => strFromU8(parts[p]!))
-    .filter((xml) => !/<p:sld\b[^>]*\sshow="(0|false)"/.test(xml));
+    .filter((xml) => !/<p:sld\b[^<>]*\sshow="(0|false)"/.test(xml));
   return { text: slides.map(slideText).filter(Boolean).join('\n\n'), removed };
 }
 
@@ -87,7 +89,7 @@ function sheetText(parts: Parts): { text: string; removed: number } {
       continue;
     }
     const xml = strFromU8(parts[sheet.path]!);
-    const hiddenCols = [...xml.matchAll(/<col\b[^>]*>/g)]
+    const hiddenCols = [...xml.matchAll(/<col\b[^<>]*>/g)]
       .filter((m) => /\shidden="(1|true)"/.test(m[0]))
       .map((m) => [Number(attr(m[0], 'min')), Number(attr(m[0], 'max'))] as const);
     const column = (ref: string) => [...(/^[A-Z]+/.exec(ref)?.[0] ?? '')].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
@@ -107,7 +109,7 @@ function sheetText(parts: Parts): { text: string; removed: number } {
           continue;
         }
         const type = attr(cell.open, 't');
-        const raw = type === 'inlineStr' ? /<t\b[^>]*>([^<]*)<\/t>/.exec(cell.inner)?.[1] : /<v>([^<]*)<\/v>/.exec(cell.inner)?.[1];
+        const raw = type === 'inlineStr' ? /<t\b[^<>]*>([^<]*)<\/t>/.exec(cell.inner)?.[1] : /<v>([^<]*)<\/v>/.exec(cell.inner)?.[1];
         if (raw === undefined || raw === '') continue;
         cells.push(type === 's' ? shared[Number(raw)] ?? '' : raw);
       }
@@ -187,7 +189,7 @@ export async function sanitizeForLlm(data: Uint8Array, hint?: string, options: P
     case 'markdown': {
       const markdown = decodeTextInput(data, { allowBinary: true });
       const stripped = stripHiddenHtml(markdown, { everything: true });
-      body = { text: stripped.html.replace(/<!--[\s\S]*?-->/g, '').trim(), removed: stripped.removed };
+      body = { text: replaceSpans(stripped.html, '<!--', '-->').trim(), removed: stripped.removed };
       break;
     }
     case 'eml':

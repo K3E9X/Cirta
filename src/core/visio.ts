@@ -32,7 +32,7 @@ export function visioFindings(parts: Parts): Finding[] {
   const comments = parts['visio/comments.xml'];
   if (comments) {
     const authors = new Set<string>();
-    for (const m of strFromU8(comments).matchAll(/<AuthorEntry\b[^>]*>/g)) {
+    for (const m of strFromU8(comments).matchAll(/<AuthorEntry\b[^<>]*>/g)) {
       const name = attr(m[0], 'Name')?.trim();
       if (name && name !== ANONYMOUS) authors.add(name);
       const account = attr(m[0], 'ResolutionID');
@@ -43,7 +43,7 @@ export function visioFindings(parts: Parts): Finding[] {
 
   const connections = parts['visio/data/connections.xml'];
   if (connections) {
-    for (const m of strFromU8(connections).matchAll(/<DataConnection\b[^>]*>/g)) {
+    for (const m of strFromU8(connections).matchAll(/<DataConnection\b[^<>]*>/g)) {
       const name = attr(m[0], 'FriendlyName') ?? attr(m[0], 'ID') ?? '';
       const source = attr(m[0], 'ConnectionString') ?? attr(m[0], 'FileName') ?? '';
       if (!source) continue;
@@ -61,7 +61,7 @@ export function visioFindings(parts: Parts): Finding[] {
 
   for (const [path, raw] of Object.entries(parts)) {
     if (!/^visio\/(?:pages|masters)\/[^/]+\.xml$/.test(path)) continue;
-    const addresses = [...strFromU8(raw).matchAll(/<Cell\b[^>]*\sN="Address"[^>]*>/g)].map((m) => attr(m[0], 'V')).filter((v): v is string => Boolean(v));
+    const addresses = [...strFromU8(raw).matchAll(/<Cell\b[^<>]*>/g)].filter((m) => /\sN="Address"/.test(m[0])).map((m) => attr(m[0], 'V')).filter((v): v is string => Boolean(v));
     findings.push(...linkFindings(addresses, path));
     for (const address of new Set(addresses)) {
       if (LOCAL_TARGET.test(address)) findings.push({ kind: 'environment', confidence: 'confirmed', location: path, label: 'Link to a local or network path', value: address });
@@ -75,7 +75,7 @@ export function anonymizeVisio(parts: Parts): void {
   const comments = parts['visio/comments.xml'];
   if (!comments) return;
   parts['visio/comments.xml'] = strToU8(
-    strFromU8(comments).replace(/<AuthorEntry\b[^>]*>/g, (tag) =>
+    strFromU8(comments).replace(/<AuthorEntry\b[^<>]*>/g, (tag) =>
       tag
         .replace(/\sName="[^"]*"/, ` Name="${ANONYMOUS}"`)
         .replace(/\sInitials="[^"]*"/, ' Initials="A"')
