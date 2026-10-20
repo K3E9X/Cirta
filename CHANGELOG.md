@@ -10,6 +10,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.
+
 ### Changed
 
 - **`cirta mcp` stays inside its roots.** It reads and writes only in the folders given with `--root` (repeatable), the current one otherwise, links followed; a path elsewhere — through `..` or a link — and an `output` outside are refused with a JSON-RPC error. A configuration that named files outside the folder the server starts in needs a `--root`. `redact_file` takes `output` (`output_path` is still read).
@@ -19,6 +23,7 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 - **Character names begin with a capital** in the report, the page and the MCP tools, in both languages (« Espace sans chasse »); the core's label, in JSON and the library, is unchanged. `--help`'s Scope paragraph says what Cirta reads today, in four lines, in English and with `--lang fr`.
 - **Three things reported as someone's identity that are not.** The `AppVersion` of a `.doc` or `.xls` property set (and Office's other bookkeeping properties, in every format with custom properties) is informational provenance. A library's default values — python-docx's author "python-docx", python-pptx's, openpyxl's, ReportLab's "anonymous", "untitled", "unspecified" — are named as *the default value of* that library. A field whose value is only unresolved XML entities (`&xxe;`, `&lol9;`) is no longer an author or a title; the DTD that declared them is reported as *DTD with entities in an XML part (unresolved)*, probable, with the file an external entity names.
 - **French reports of nested files.** A lookalike link or dash in a mail part, an attached message, a text attachment or a file inside a zip kept its explanation in English: the translation looked for the location « links » and found « part 1 (text/plain) → links ». It now reads the last step. A finding the text and HTML versions of a mail share is reported once, with both places.
+- **A cleaned phone photo keeps its orientation.** Cleaning a JPEG took the whole Exif block, so a portrait came out on its side; an Exif holding the orientation alone is written back, and not reported.
 
 ### Security
 

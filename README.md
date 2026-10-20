@@ -769,7 +769,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | SVG | The `<metadata>` block, editor attributes and namespaces, generator comments; with `--strip-active`, scripts, `on…` attributes, `javascript:` addresses and animations that set one | `<title>` and `<desc>` — what a screen reader announces |
 | HTML | `generator`/`author`/`creator`/`copyright`/`date` tags, generator comments; with `--strip-active`, `<script>` (inline or from a file), `on…` attributes, `javascript:`, `vbscript:` and `data:` page addresses (a link keeps its text), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, and the action of a form that sends to another address | JSON-LD — what a search engine indexes |
 | Markdown | Identifying front-matter keys; delimiters removed if nothing is left inside; with `--strip-active`, the same as HTML in its inline HTML, and a `[text](javascript:…)` link becomes its text | The body, other keys, attribution lines |
-| JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF, **data after the end of the image** (an archive glued on, a vendor trailer). With `--reencode-images`, the picture is rebuilt from its pixels: whatever is not pixels goes, the orientation is applied | JFIF and the ICC profile — removing them would change the rendering |
+| JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF, **data after the end of the image** (an archive glued on, a vendor trailer). With `--reencode-images`, the picture is rebuilt from its pixels: whatever is not pixels goes, the orientation is applied | JFIF and the ICC profile — removing them would change the rendering — and, for a photo that must be turned, an Exif holding the **orientation alone**, so a portrait does not come out on its side (`test/jpeg-orientation.test.ts`) |
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX`, data after `IEND`; with `--reencode-images`, every chunk but the picture and its profile | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
 | Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value; with `--strip-active`, the HTML parts and HTML or SVG attachments cleaned as HTML, each encoded again as it was (base64, quoted-printable) | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
 | WebP / GIF | WebP: `EXIF`, `XMP ` and private chunks, the `VP8X` flags that announced them, data past the RIFF size. GIF: comments, XMP and other application blocks, data after the trailer | The picture, its animation, the loop count (`NETSCAPE2.0`) and the colour profile |
@@ -986,6 +986,11 @@ The interface is **bilingual**. It follows the browser's language, a toggle in t
 and the choice is remembered. French mode is French throughout — field names, character names,
 values, the way a passage is hidden, parser refusals, a missing file, the CLI's verdict line — and a
 test inspects and cleans a corpus that exercises every check to hold it there.
+
+**A link can preset it.** `#tab=text`, `#lang=en` and `#format=pdf` (or `#format=docx,odt,rtf`) in the
+address open the page on the text tab, in English, with the file picker set to those types. They
+sit in the fragment, which the browser never sends, so the server does not learn what the visitor
+came for; an unknown value is ignored (`test/web-preset.test.ts`).
  Drop several files and a summary bar appears — the same tally as the
 CLI's `Summary` line — with a JSON export of the report. That export has exactly the shape
 `cirta inspect --json` emits, so a report produced from the page and one produced on the command line
