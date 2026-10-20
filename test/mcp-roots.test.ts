@@ -27,7 +27,8 @@ async function session(args: string[], calls: Array<Record<string, unknown>>, cw
 }
 
 function layout() {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'cirta-r4-')));
+  // The native call, as the server's: on Windows the plain one keeps the 8.3 short name (RUNNER~1).
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'cirta-r4-')));
   const inside = join(base, 'dossier');
   const outside = join(base, 'ailleurs');
   mkdirSync(inside);
