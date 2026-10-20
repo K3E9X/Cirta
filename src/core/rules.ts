@@ -5,13 +5,16 @@
  * regular expression. The file is YAML — the small subset rules need — or
  * JSON; anything it cannot read is refused with the rule and the reason.
  *
- * A pattern is the author's own and runs as written: a pattern that
- * backtracks badly is slow on long documents, as it would be anywhere.
+ * [R1] A pattern is the author's own, but a rules file travels like any
+ * other: one whose time can grow exponentially — `(a+)+$` — is refused when
+ * the file is read, with the part that makes it so (regex-risk.ts). The
+ * interfaces run the rest with a time budget per rule (rules-runner.ts).
  */
 
 import type { Confidence, Finding, FindingKind } from './types.js';
 import { preview } from './types.js';
 import { UnsupportedFormatError } from './errors.js';
+import { regexRisk } from './regex-risk.js';
 
 export interface Rule {
   id: string;
@@ -202,9 +205,34 @@ export function parseRules(text: string): Rule[] {
     } catch (error) {
       throw new RulesError(`${where}: ${(error as Error).message}`);
     }
+    const risk = pattern ? regexRisk(pattern, flags) : undefined;
+    if (risk) {
+      const why = risk.kind === 'nested-quantifier' ? 'a repetition inside a repeated group' : 'alternatives that can match the same text';
+      throw new RulesError(`${where}: pattern refused, its time can grow exponentially (${why}): ${risk.near}`);
+    }
     return { id, label, level: level as Confidence, kind: kind as FindingKind, words, pattern, flags, regex };
   });
 }
+
+/** A text the rules are run on, and where it is. */
+export interface RuleInput {
+  text: string;
+  location: string;
+}
+
+/** Runs rules over texts. The interfaces bring one that can stop a slow rule (rules-runner.ts). */
+export type RulesRunner = (inputs: RuleInput[], rules: Rule[]) => Promise<Finding[]>;
+
+/** [R1] The label of a rule that overran its time budget and was stopped. */
+export const ABANDONED = 'Rule abandoned: too slow';
+
+export const ruleFinding = (rule: Rule, value: string, location: string): Finding => ({
+  kind: rule.kind,
+  confidence: rule.level,
+  location,
+  label: rule.label,
+  value: preview(value, 200),
+});
 
 export function ruleFindings(input: string, rules: Rule[], location: string): Finding[] {
   const text = input.length > MAX_TEXT ? input.slice(0, MAX_TEXT) : input;
@@ -213,10 +241,14 @@ export function ruleFindings(input: string, rules: Rule[], location: string): Fi
     const seen = new Set<string>();
     rule.regex.lastIndex = 0;
     for (const m of text.matchAll(rule.regex)) {
-      if (!m[0] || seen.has(m[0]) || seen.size >= MAX_PER_RULE) continue;
+      if (!m[0] || seen.has(m[0])) continue;
       seen.add(m[0]);
-      findings.push({ kind: rule.kind, confidence: rule.level, location, label: rule.label, value: preview(m[0], 200) });
+      findings.push(ruleFinding(rule, m[0], location));
+      if (seen.size >= MAX_PER_RULE) break;
     }
   }
   return findings;
 }
+
+/** Rules run in this thread: what a library caller gets unless it brings a runner. */
+export const inThreadRules: RulesRunner = async (inputs, rules) => inputs.flatMap((input) => ruleFindings(input.text, rules, input.location));

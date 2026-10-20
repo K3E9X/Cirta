@@ -10,6 +10,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Security
+
+- **A rules file can no longer hold Cirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
+
 ## [0.3.0] — 2026-10-20
 
 The library's four entry points, stable; readers that a hostile file can no longer hold. Published to

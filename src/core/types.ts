@@ -298,6 +298,8 @@ export interface InspectOptions {
   pii?: boolean;
   /** [F-2.3] An organisation's own rules, parsed by parseRules(). */
   rules?: import('./rules.js').Rule[];
+  /** [R1] Where the rules run. The interfaces pass one that stops a rule over its time budget; by default, this thread. */
+  rulesRunner?: import('./rules.js').RulesRunner;
   /** [F-2.1] Inspect a file found inside this one, as the dispatcher would. Set by the dispatcher. */
   inspectMember?: (data: Uint8Array, name: string) => Promise<InspectResult>;
 }
