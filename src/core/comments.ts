@@ -39,8 +39,28 @@ const read = (parts: Record<string, Uint8Array>, path: string) => decoder.decode
 
 /** The local name of a part's root element, after any prolog. */
 export function rootOf(xml: string): { prefix: string; name: string } | undefined {
-  const m = /^\s*(?:<\?[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<(?:([\w.-]+):)?([\w.-]+)[\s>/]/.exec(xml.slice(0, 4000));
-  return m ? { prefix: m[1] ?? '', name: m[2]! } : undefined;
+  // [P0-1] Walked, not matched: one expression for the prolog and its comments
+  // backtracked exponentially on a run of broken comments (9 s for 195 bytes).
+  const head = xml.slice(0, 4000);
+  const skipSpace = (at: number) => {
+    while (at < head.length && /\s/.test(head[at]!)) at++;
+    return at;
+  };
+  let at = skipSpace(0);
+  if (head.startsWith('<?', at)) {
+    const end = head.indexOf('?>', at + 2);
+    if (end < 0) return undefined;
+    at = skipSpace(end + 2);
+  }
+  while (head.startsWith('<!--', at)) {
+    const end = head.indexOf('-->', at + 4);
+    if (end < 0) return undefined;
+    at = skipSpace(end + 3);
+  }
+  const m = /<(?:([\w.-]+):)?([\w.-]+)[\s>/]/y;
+  m.lastIndex = at;
+  const found = m.exec(head);
+  return found ? { prefix: found[1] ?? '', name: found[2]! } : undefined;
 }
 
 export function commentParts(parts: Record<string, Uint8Array>): CommentParts {
