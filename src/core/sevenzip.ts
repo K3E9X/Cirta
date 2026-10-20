@@ -401,7 +401,7 @@ export function read7z(data: Uint8Array): SevenZip {
           attributes = defined.map((d) => (d ? r.u32() : undefined));
         }
         else if (property === 0x16 && length > 1) {
-          if (r.byte() === 0) comment = new TextDecoder('utf-16le').decode(r.bytes(end - r.at)).replace(/\0+$/, '');
+          if (r.byte() === 0) comment = new TextDecoder('utf-16le').decode(r.bytes(end - r.at)).replace(/(?<!\0)\0+$/, '');
         }
         r.at = end;
       }

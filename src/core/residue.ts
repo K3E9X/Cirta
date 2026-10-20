@@ -35,7 +35,7 @@ const GREETING =
   /^\s*(?:bonjour|bonsoir|salut|madame|monsieur|mesdames|messieurs|ch[eè]re?s?|hello|hi|hey|dear|good (?:morning|afternoon|evening))\b/i;
 
 const SIGNOFF =
-  /^\s*(?:(?:bien )?cordialement|bien (?:à|a) (?:vous|toi)|(?:sinc[eè]res |meilleures )?salutations|amicalement|bonne (?:journée|soirée|fin de journée|semaine)|(?:best|kind|warm(?:est)?) regards|regards|sincerely|cheers|best wishes|merci(?: d'avance| par avance| encore)?|thanks(?: again| in advance)?|thank you|best)\s*[,.!]?\s*$/i;
+  /^\s*(?:(?:bien )?cordialement|bien (?:à|a) (?:vous|toi)|(?:sinc[eè]res |meilleures )?salutations|amicalement|bonne (?:journée|soirée|fin de journée|semaine)|(?:best|kind|warm(?:est)?) regards|regards|sincerely|cheers|best wishes|merci(?: d'avance| par avance| encore)?|thanks(?: again| in advance)?|thank you|best)\s*(?:[,.!]\s*)?$/i;
 
 /** Openings an assistant uses before handing over a draft. */
 const OPENER =
@@ -53,7 +53,7 @@ const CLOSER_OFFER =
 const CLOSER_EDIT =
   /\b(?:ajust|modifi|adapt|reformul|raccourc|allong|réécri|retouch|le ton|ce ton|plus (?:formel|court|long|direct|concis)|une autre version|cette version|variante|adjust|tweak|revis|rewrit|rephras|shorten|lengthen|the tone|another version|more (?:formal|casual|concise|direct)|make it)/i;
 
-const SUBJECT = /^\s*(?:\*\*)?\s*(?:objet|subject)\s*:/i;
+const SUBJECT = /^\s*(?:\*\*\s*)?(?:objet|subject)\s*:/i;
 
 /*
  * A placeholder the template expected someone to fill in. The vocabulary is
@@ -122,7 +122,7 @@ const MARKDOWN: MarkdownRule[] = [
     key: '[…](…)',
     // The label stops at a bracket: a run of a hundred thousand "[" made every
     // one of them scan to the end of the line, quadratic (F-2.8).
-    pattern: /\[([^[\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    pattern: /\[([^[\]\n]+)\]\((https?:\/\/(?:(?!\]\()[^)\s])+)\)/g,
     replace: (_m, label, url) => (label === url ? url : `${label} (${url})`),
   },
   { key: '`…`', pattern: /`([^`\n]+)`/g, replace: (_m, code) => code ?? '' },
@@ -135,8 +135,9 @@ const MARKDOWN: MarkdownRule[] = [
  * and then the markers are reported and left alone.
  */
 function looksLikeMarkdownDocument(text: string): boolean {
-  if (/^---\r?\n[\s\S]*?\r?\n---\s*$/m.test(text.slice(0, 4096)) && text.startsWith('---')) return true;
-  if (/^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/m.test(text)) return true;
+  if (text.startsWith('---') && /^---\r?\n[\s\S]*?\r?\n---\s*$/m.test(text.slice(0, 4096))) return true;
+  // [P0-1] A line at a time, each run of blanks as one: \s across lines, and blanks on either side of an optional bar, backtracked.
+  if (text.split('\n').some((line) => /^ ?\|? ?:?-{3,}:? ?(?:\| ?:?-{3,}:? ?)+\|? ?$/.test(line.replace(/\s+/g, ' ')))) return true;
   return (text.match(/^[ \t]*#{1,6}[ \t]+\S/gm) ?? []).length >= 3;
 }
 

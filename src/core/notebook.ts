@@ -129,7 +129,7 @@ function bundleFindings(data: Json, where: string, paths: Map<string, string>): 
 function textFindings(text: string, where: string, paths: Map<string, string>): Finding[] {
   const plain = text.replace(ANSI, '');
   for (const match of plain.matchAll(LOCAL_PATH)) {
-    const path = match[0].replace(/[.,;]+$/, '');
+    const path = match[0].replace(/(?<![.,;])[.,;]+$/, '');
     if (!paths.has(path) && paths.size < MAX_PATHS) paths.set(path, where);
   }
   return scanContent(plain, where);

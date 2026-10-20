@@ -12,9 +12,9 @@ import type { Finding } from './types.js';
 import { preview } from './types.js';
 
 const REMOTE = /^(?:https?:)?\/\//i;
-const TAGS = /<(img|script|iframe|frame|link|source|video|audio|embed|object|input|image)\b[^>]*>/gi;
-const CSS_URL = /url\(\s*['"]?((?:https?:)?\/\/[^'")\s]+)['"]?\s*\)/gi;
-const MARKDOWN_IMAGE = /!\[([^\]\n]{0,300})\]\(\s*<?((?:https?:)?\/\/[^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/g;
+const TAGS = /<(img|script|iframe|frame|link|source|video|audio|embed|object|input|image)\b[^<>]*>/gi;
+const CSS_URL = /url\(\s*['"]?((?:https?:)?\/\/(?:(?!url\()[^'")\s])+)['"]?\s*\)/gi;
+const MARKDOWN_IMAGE = /!\[([^[\]\n]{0,300})\]\(\s*<?((?:https?:)?\/\/(?:(?!\]\()[^)\s>])+)>?(?:\s+"[^"\n]*")?\s*\)/g;
 const MAX = 50;
 
 interface Resource {

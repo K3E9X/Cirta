@@ -15,7 +15,8 @@ function tag(name: string): string {
 /** Match `<name ...>...</name>` and the self-closing `<name ... />` form. */
 function elementPattern(name: string): RegExp {
   const t = tag(name);
-  return new RegExp(`<${t}(\\s[^>]*)?(?:/>|>([\\s\\S]*?)</${t}>)`, 'g');
+  // [P0-1] The body stops at the next opening of the same element: an unclosed one rescanned to the end.
+  return new RegExp(`<${t}(\\s[^<>]*)?(?:/>|>((?:(?!<${t}[\\s/>])[\\s\\S])*?)</${t}>)`, 'g');
 }
 
 /** Read the text content of the first matching element, or undefined. */
@@ -24,7 +25,7 @@ export function getElementText(xml: string, name: string): string | undefined {
   if (!match) return undefined;
   const inner = match[2];
   if (inner === undefined) return '';
-  return decodeEntities(inner.replace(/<[^>]*>/g, ''));
+  return decodeEntities(inner.replace(/<[^<>]*>/g, ''));
 }
 
 /** Replace the text content of every matching element with `value`. */
@@ -137,11 +138,14 @@ export function collectTextContent(xml: string): string {
  * would rewrite entities the producer chose deliberately.
  */
 export function mapTextContent(xml: string, transform: (text: string) => string): string {
-  return xml.replace(TEXT_CONTENT, (_full, text: string) => {
+  // [P0-1] Only up to the last "<": past it no text node closes, and every ">" there rescanned to the end.
+  const end = xml.lastIndexOf('<') + 1;
+  const head = xml.slice(0, end).replace(TEXT_CONTENT, (_full, text: string) => {
     const decoded = decodeNumericReferences(text);
     const result = transform(decodeEntities(decoded));
     return `>${escapeText(result)}<`;
   });
+  return head + xml.slice(end);
 }
 
 /**
@@ -159,14 +163,13 @@ export function collectNamedProperties(
 ): Array<{ name: string; value: string }> {
   const e = tag(element);
   const a = tag(nameAttribute);
-  const pattern = new RegExp(
-    `<${e}[^>]*\\s${a}="([^"]*)"[^>]*>([\\s\\S]*?)</${e}>`,
-    'g',
-  );
+  // [P0-1] The tag, then its name: both in one pattern backtracked across a long tag, and an unclosed body rescanned to the end.
+  const pattern = new RegExp(`<${e}(\\s[^<>]*)>((?:(?!<${e}[\\s/>])[\\s\\S])*?)</${e}>`, 'g');
+  const nameOf = new RegExp(`\\s${a}="([^"]*)"`);
   const out: Array<{ name: string; value: string }> = [];
   for (const match of xml.matchAll(pattern)) {
-    const name = decodeEntities(match[1] ?? '').trim();
-    const value = decodeEntities((match[2] ?? '').replace(/<[^>]*>/g, '')).trim();
+    const name = decodeEntities(nameOf.exec(match[1] ?? '')?.[1] ?? '').trim();
+    const value = decodeEntities((match[2] ?? '').replace(/<[^<>]*>/g, '')).trim();
     if (name && value) out.push({ name, value });
   }
   return out;

@@ -152,7 +152,7 @@ ${bold(t().confidenceTitle)}
 
 ${bold(t().scopeTitle)}
   ${t().scopeBody}
-`.replace(/^\n+|\n+$/g, '');
+`.replace(/^\n+|(?<!\n)\n+$/g, '');
 
 /*
  * [C2] What came out of a file is made safe before it reaches the terminal —

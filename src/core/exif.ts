@@ -79,7 +79,7 @@ function text(bytes: Uint8Array): string {
   }
   // A NUL ends a string, but Copyright keeps photographer and editor apart with one.
   return decoded
-    .replace(/\0+$/, '')
+    .replace(/(?<!\0)\0+$/, '')
     .split('\0')
     .map((part) => part.trim())
     .filter(Boolean)

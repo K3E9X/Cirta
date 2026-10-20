@@ -59,8 +59,11 @@ export function elements(xml: string, name: string): Element[] {
     let depth = 1;
     let cursor = tagEnd + 1;
     let close = -1;
+    // [P0-1] The next closing tag is looked up again only once passed: a
+    // thousand nested openings before one close each rescanned to it.
+    let nextClose = -1;
     while (depth > 0) {
-      const nextClose = xml.indexOf(closer, cursor);
+      if (nextClose < cursor) nextClose = xml.indexOf(closer, cursor);
       if (nextClose < 0) break;
       let nextOpen = xml.indexOf(opener, cursor);
       while (nextOpen >= 0 && nextOpen < nextClose && !ends(xml.charCodeAt(nextOpen + opener.length))) {
@@ -94,7 +97,7 @@ const decode = (text: string) =>
 
 /** The text a run sequence carries, deleted or not. */
 function runText(inner: string): string {
-  return [...inner.matchAll(/<w:(?:t|delText)(?:\s[^>]*)?>([^<]*)<\/w:(?:t|delText)>/g)].map((m) => decode(m[1] ?? '')).join('');
+  return [...inner.matchAll(/<w:(?:t|delText)(?:\s[^<>]*)?>([^<]*)<\/w:(?:t|delText)>/g)].map((m) => decode(m[1] ?? '')).join('');
 }
 
 const KINDS = [

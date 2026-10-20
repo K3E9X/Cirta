@@ -1,0 +1,97 @@
+[
+  {
+    "file": "src/core/keywords.ts",
+    "source": "^(?=.*[a-z])(?:[a-z0-9]+[.+#/-][a-z0-9.+#/-]*|[a-z]+\\d+[a-z0-9]*|\\.[a-z]+)$",
+    "reason": "Run only on a term of 40 characters or fewer (keywordStuffing)."
+  },
+  {
+    "file": "src/core/residue.ts",
+    "source": "^---\\r?\\n[\\s\\S]*?\\r?\\n---\\s*$",
+    "reason": "Run only on the first 4 096 characters, and only when the text starts with \"---\" (looksLikeMarkdownDocument)."
+  },
+  {
+    "file": "src/core/url.ts",
+    "source": "(?:https?:\\/\\/)?((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,})(?:[/:?#]\\S*)?",
+    "reason": "Run only on link text of 300 characters or fewer (findHtmlLinks)."
+  },
+  {
+    "file": "src/core/xml.ts",
+    "source": ">([^<]+)<",
+    "reason": "mapTextContent runs it only up to the last \"<\": every text node there closes, so no \">\" rescans to the end."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — the part before \"@\" is a username, not a destination: this goes to (\\S+), while \"(.*)\" is what a reader sees first$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — \"(.*)\" draws on Latin and (.+?) at once(, written in the address bar as (\\S+?))?( — it renders as \"(.*)\")?$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — \"(.*)\" is (.+?) throughout, so nothing about it is mixed — but it renders as \"(.*)\"(\\. The address is really (\\S+))?$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — (\\S+) is displayed as \"(.*)\" — legitimate for a non-Latin name, and the shape a homograph also takes$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^\"([\\s\\S]*)\" — in an earlier revision, not in the current one; in context: \"([\\s\\S]*)\"$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — (\\d+) bytes(, .+)?$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+?): (?:(\\d+) rows? \\(([^)]*)\\))?(?:, )?(?:(\\d+) columns? \\(([^)]*)\\))?$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — (Password|Pwd)=•+ \\(user (.+)\\)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — one word mixing (.+)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) — from \"(.+)\"$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": " — despite meta:generator naming (.+)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^(.+) \\((.+)\\)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^shows (.+) — goes to (.+)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^written by (.+?)( — begins \"(.*)\")?\\. The prompt, the model and the seed travel with the file$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  },
+  {
+    "file": "src/shared/french.ts",
+    "source": "^rule (.+?): unknown kind (.+)$",
+    "reason": "Run only on a finding value or a rules error of 4 000 characters or fewer (MAX_TRANSLATED): at that length the slowest pattern takes a few tens of milliseconds."
+  }
+]

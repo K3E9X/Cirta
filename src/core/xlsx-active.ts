@@ -30,9 +30,9 @@ function connectionFindings(parts: Parts): Finding[] {
   const findings: Finding[] = [];
   for (const element of elements(strFromU8(xml), 'connection')) {
     const name = attr(element.open, 'name') ?? '';
-    const db = /<dbPr\b[^>]*>/.exec(element.inner)?.[0];
-    const web = /<webPr\b[^>]*>/.exec(element.inner)?.[0];
-    const text = /<textPr\b[^>]*>/.exec(element.inner)?.[0];
+    const db = /<dbPr\b[^<>]*>/.exec(element.inner)?.[0];
+    const web = /<webPr\b[^<>]*>/.exec(element.inner)?.[0];
+    const text = /<textPr\b[^<>]*>/.exec(element.inner)?.[0];
     const source = (db && attr(db, 'connection')) ?? (web && attr(web, 'url')) ?? (text && attr(text, 'sourceFile')) ?? attr(element.open, 'sourceFile') ?? '';
     if (!source) continue;
     const masked = source.replace(new RegExp(PASSWORD.source, 'gi'), '$1=••••••••');
@@ -61,7 +61,7 @@ function queryTables(parts: Parts): Finding[] {
       confidence: 'probable' as const,
       location: path,
       label: 'Query table',
-      value: attr(/<queryTable\b[^>]*>/.exec(strFromU8(parts[path]!))?.[0] ?? '', 'name') ?? path,
+      value: attr(/<queryTable\b[^<>]*>/.exec(strFromU8(parts[path]!))?.[0] ?? '', 'name') ?? path,
     }));
 }
 
@@ -74,7 +74,7 @@ function powerQuery(parts: Parts): Finding[] {
   for (const [path, raw] of Object.entries(parts)) {
     if (!/^customXml\/item\d+\.xml$/.test(path)) continue;
     const xml = raw[0] === 0xff && raw[1] === 0xfe ? new TextDecoder('utf-16le').decode(raw) : strFromU8(raw);
-    const encoded = /<DataMashup\b[^>]*>([^<]+)<\/DataMashup>/.exec(xml)?.[1];
+    const encoded = /<DataMashup\b[^<>]*>([^<]+)<\/DataMashup>/.exec(xml)?.[1];
     if (!encoded || encoded.length > MAX_MASHUP * 2) continue;
     let code = '';
     try {
@@ -102,10 +102,12 @@ export function sheets(parts: Parts): Array<{ name: string; path: string; hidden
   const workbook = parts['xl/workbook.xml'] ? strFromU8(parts['xl/workbook.xml']) : '';
   const rels = parts['xl/_rels/workbook.xml.rels'] ? strFromU8(parts['xl/_rels/workbook.xml.rels']) : '';
   const out: Array<{ name: string; path: string; hidden: boolean }> = [];
-  for (const [index, m] of [...workbook.matchAll(/<sheet\b[^>]*>/g)].entries()) {
+  for (const [index, m] of [...workbook.matchAll(/<sheet\b[^<>]*>/g)].entries()) {
     const name = attr(m[0], 'name') ?? `sheet${index + 1}`;
     const id = attr(m[0], 'r:id');
-    const target = id ? new RegExp(`<Relationship\\b[^>]*Id="${id}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] : undefined;
+    // [P0-1] Each relationship, then its id: two attributes in one pattern backtracked across a long tag.
+    const relationship = id ? [...rels.matchAll(/<Relationship\b[^<>]*/g)].find((r) => /Id="([^"]*)"/.exec(r[0])?.[1] === id)?.[0] : undefined;
+    const target = relationship ? /Target="([^"]+)"/.exec(relationship)?.[1] : undefined;
     const path = target ? (target.startsWith('/') ? target.slice(1) : `xl/${target}`) : `xl/worksheets/sheet${index + 1}.xml`;
     if (parts[path]) out.push({ name, path, hidden: /\sstate="(hidden|veryHidden)"/.test(m[0]) });
   }
@@ -118,8 +120,8 @@ function hiddenRowsAndColumns(parts: Parts): Finding[] {
   const findings: Finding[] = [];
   for (const { name, path } of sheets(parts)) {
     const xml = strFromU8(parts[path]!);
-    const rows = [...xml.matchAll(/<row\b[^>]*>/g)].filter((m) => /\shidden="(1|true)"/.test(m[0])).map((m) => attr(m[0], 'r') ?? '?');
-    const cols = [...xml.matchAll(/<col\b[^>]*>/g)]
+    const rows = [...xml.matchAll(/<row\b[^<>]*>/g)].filter((m) => /\shidden="(1|true)"/.test(m[0])).map((m) => attr(m[0], 'r') ?? '?');
+    const cols = [...xml.matchAll(/<col\b[^<>]*>/g)]
       .filter((m) => /\shidden="(1|true)"/.test(m[0]))
       .map((m) => ({ min: Number(attr(m[0], 'min')), max: Number(attr(m[0], 'max')) }))
       .filter((c) => c.min > 0 && c.max >= c.min);
@@ -144,15 +146,15 @@ export function whiteStyles(parts: Parts): Set<number> {
   const white = new Set<number>();
   if (!styles) return white;
   const fonts = elements(elements(styles, 'fonts')[0]?.inner ?? '', 'font').map((f) => {
-    const rgb = /<color\b[^>]*\srgb="([0-9A-Fa-f]{6,8})"/.exec(f.inner)?.[1];
+    const rgb = /<color\b[^<>]*\srgb="([0-9A-Fa-f]{6,8})"/.exec(f.inner)?.[1];
     return rgb !== undefined && WHITE.test(rgb);
   });
   const fills = elements(elements(styles, 'fills')[0]?.inner ?? '', 'fill').map((f) => {
-    const rgb = /<fgColor\b[^>]*\srgb="([0-9A-Fa-f]{6,8})"/.exec(f.inner)?.[1];
+    const rgb = /<fgColor\b[^<>]*\srgb="([0-9A-Fa-f]{6,8})"/.exec(f.inner)?.[1];
     return /patternType="solid"/.test(f.inner) && rgb !== undefined && !WHITE.test(rgb);
   });
   const xfs = elements(styles, 'cellXfs')[0]?.inner ?? '';
-  [...xfs.matchAll(/<xf\b[^>]*>/g)].forEach((m, index) => {
+  [...xfs.matchAll(/<xf\b[^<>]*>/g)].forEach((m, index) => {
     const font = Number(attr(m[0], 'fontId') ?? 0);
     const fill = Number(attr(m[0], 'fillId') ?? 0);
     // White on a coloured fill is ordinary; only white on the sheet's white is not.
@@ -164,7 +166,7 @@ export function whiteStyles(parts: Parts): Set<number> {
 /** The workbook's shared strings, by index. */
 export function sharedStrings(parts: Parts): string[] {
   return parts['xl/sharedStrings.xml']
-    ? elements(strFromU8(parts['xl/sharedStrings.xml']), 'si').map((si) => [...si.inner.matchAll(/<t\b[^>]*>([^<]*)<\/t>/g)].map((m) => m[1]).join(''))
+    ? elements(strFromU8(parts['xl/sharedStrings.xml']), 'si').map((si) => [...si.inner.matchAll(/<t\b[^<>]*>([^<]*)<\/t>/g)].map((m) => m[1]).join(''))
     : [];
 }
 
@@ -180,7 +182,7 @@ function whiteCells(parts: Parts): Finding[] {
       const style = Number(attr(cell.open, 's') ?? -1);
       if (!white.has(style)) continue;
       const type = attr(cell.open, 't');
-      const raw = type === 'inlineStr' ? /<t\b[^>]*>([^<]*)<\/t>/.exec(cell.inner)?.[1] : /<v>([^<]*)<\/v>/.exec(cell.inner)?.[1];
+      const raw = type === 'inlineStr' ? /<t\b[^<>]*>([^<]*)<\/t>/.exec(cell.inner)?.[1] : /<v>([^<]*)<\/v>/.exec(cell.inner)?.[1];
       if (raw === undefined || raw === '') continue;
       const value = type === 's' ? shared[Number(raw)] ?? '' : raw;
       if (!value.trim()) continue;

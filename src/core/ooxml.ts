@@ -30,6 +30,7 @@ import { activeOfficeFindings, stripActiveOffice, stripTrackingOffice } from './
 import { workbookActiveFindings } from './xlsx-active.js';
 import { anonymizeVisio, visioFindings } from './visio.js';
 import { removeHiddenSheets, removeHiddenSlides, removeNotes } from './content-options.js';
+import { removeFirst } from './linear.js';
 import {
   getElementText,
   setElementText,
@@ -141,7 +142,7 @@ const MAX_QUOTED = 30;
 function findHiddenSlides(parts: Parts): string[] {
   return Object.keys(parts)
     .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .filter((p) => /<p:sld[^>]*\sshow="(0|false)"/.test(strFromU8(parts[p]!)))
+    .filter((p) => /<p:sld[^<>]*\sshow="(0|false)"/.test(strFromU8(parts[p]!)))
     .sort();
 }
 
@@ -159,7 +160,8 @@ function findWorkbookIdentities(parts: Parts): Finding[] {
 
   const workbook = parts['xl/workbook.xml'];
   if (workbook) {
-    const names = [...strFromU8(workbook).matchAll(/<definedName[^>]*name="([^"]+)"[^>]*>([^<]*)</g)];
+    // [P0-1] The tag, then its name: both in one pattern backtracked across a long tag.
+    const names = [...strFromU8(workbook).matchAll(/<definedName\b([^<>]*)>([^<]*)</g)].map((m) => [m[0], /\sname="([^"]+)"/.exec(m[1]!)?.[1], m[2]] as const).filter(([, name]) => name);
     const external = names.filter(([, , value]) => LOCAL_TARGET.test((value ?? '').replace(/^'/, '')));
     if (external.length) {
       findings.push({
@@ -235,7 +237,7 @@ function structuralGenerator(parts: Parts, format: Format): Finding[] {
   }
 
   const app = readText(parts, 'docProps/app.xml');
-  if (app !== undefined && /<Properties[^>]*\/>|<Properties[^>]*>\s*<\/Properties>/.test(app)) {
+  if (app !== undefined && /<Properties[^<>]*\/>|<Properties[^<>]*>\s*<\/Properties>/.test(app)) {
     reasons.push('docProps/app.xml is present but empty');
   }
 
@@ -279,7 +281,7 @@ function structuralGenerator(parts: Parts, format: Format): Finding[] {
 
 /** Presenter notes are rarely written for the audience that receives the deck. */
 /** Placeholders that are furniture, not words: slide number, date, footer, the slide's picture. */
-const FURNITURE = /<p:ph\b[^>]*\stype="(?:sldNum|dt|ftr|hdr|sldImg)"/;
+const FURNITURE = /<p:ph\b[^<>]*\stype="(?:sldNum|dt|ftr|hdr|sldImg)"/;
 
 const unescapeXml = (text: string) =>
   text
@@ -314,7 +316,7 @@ export function slideText(xml: string): string {
 function speakerNotesText(parts: Parts): Array<{ path: string; text: string }> {
   return Object.keys(parts)
     .filter((p) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(p))
-    .sort((a, b) => Number(/(\d+)\.xml$/.exec(a)![1]) - Number(/(\d+)\.xml$/.exec(b)![1]))
+    .sort((a, b) => Number(/(?<!\d)(\d+)\.xml$/.exec(a)![1]) - Number(/(?<!\d)(\d+)\.xml$/.exec(b)![1]))
     .map((path) => ({ path, text: slideText(strFromU8(parts[path]!)) }))
     .filter(({ text }) => text);
 }
@@ -388,7 +390,7 @@ function retainedContent(parts: Parts, format: Format): Finding[] {
   for (const [path, raw] of Object.entries(parts)) {
     if (!/^(word|ppt|xl)\/.*\.xml$/.test(path)) continue;
     const text = strFromU8(raw);
-    for (const match of text.matchAll(/<a:srcRect\b([^>]*)\/?>/g)) {
+    for (const match of text.matchAll(/<a:srcRect\b([^<>]*)\/?>/g)) {
       // A srcRect with no edge attributes crops nothing.
       if (/[lrtb]=["'][1-9]/.test(match[1] ?? '')) cropped.add(path);
     }
@@ -430,7 +432,7 @@ function retainedContent(parts: Parts, format: Format): Finding[] {
     if (workbook) {
       const hidden: string[] = [];
       let veryHidden = 0;
-      for (const match of workbook.matchAll(/<sheet\b[^>]*>/g)) {
+      for (const match of workbook.matchAll(/<sheet\b[^<>]*>/g)) {
         const tag = match[0];
         const state = /state=["'](\w+)["']/.exec(tag)?.[1];
         if (state !== 'hidden' && state !== 'veryHidden') continue;
@@ -690,7 +692,6 @@ export interface RedactOoxmlOptions {
   stripTracking?: boolean;
 }
 
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Resolve an OPC relationship target against the part that declares it.
@@ -736,7 +737,7 @@ function removeAllComments(parts: Parts): number {
   for (const relsPath of Object.keys(parts).filter((p) => /^xl\/worksheets\/_rels\/[^/]+\.rels$/.test(p))) {
     const sheetPath = relsPath.replace(/_rels\/([^/]+)\.rels$/, '$1');
     const rels = readText(parts, relsPath)!;
-    for (const rel of rels.match(/<Relationship\b[^>]*\/>/g) ?? []) {
+    for (const rel of rels.match(/<Relationship\b[^<>]*\/>/g) ?? []) {
       if (!/\/vmlDrawing"/.test(rel)) continue;
       const id = /\sId="([^"]+)"/.exec(rel)?.[1];
       const target = /\sTarget="([^"]+)"/.exec(rel)?.[1];
@@ -752,7 +753,7 @@ function removeAllComments(parts: Parts): number {
       } else {
         removePart(parts, vmlPath);
         const sheet = readText(parts, sheetPath);
-        if (sheet) parts[sheetPath] = strToU8(sheet.replace(new RegExp(`<legacyDrawing\\b[^<>]*\\br:id="${escapeRegExp(id)}"[^<>]*/>`), ''));
+        if (sheet) parts[sheetPath] = strToU8(removeFirst(sheet, /<legacyDrawing\b[^<>]*\/>/g, (tag) => /\br:id="([^"]*)"/.exec(tag)?.[1] === id));
       }
     }
   }
@@ -776,14 +777,14 @@ function removePart(parts: Parts, path: string): void {
   const types = readText(parts, '[Content_Types].xml');
   if (types) {
     parts['[Content_Types].xml'] = strToU8(
-      types.replace(new RegExp(`<Override[^>]*PartName="/${escapeRegExp(path)}"[^>]*/>`, 'g'), ''),
+      types.replace(/<Override[^<>]*\/>/g, (tag) => (/PartName="([^"]*)"/.exec(tag)?.[1] === `/${path}` ? '' : tag)),
     );
   }
 
   for (const relsPath of Object.keys(parts)) {
     if (!relsPath.endsWith('.rels')) continue;
     const xml = readText(parts, relsPath)!;
-    const cleaned = xml.replace(/<Relationship\b[^>]*\/>/g, (element) => {
+    const cleaned = xml.replace(/<Relationship\b[^<>]*\/>/g, (element) => {
       const target = /\sTarget="([^"]*)"/.exec(element)?.[1];
       if (target === undefined) return element;
       // An external target is a URL, not a part; leave it alone.

@@ -104,7 +104,7 @@ export function describeSourceType(value: string, location: string): Finding[] {
  * matched, since the same vocabulary is written both ways.
  */
 const IN_TEXT =
-  /(?:Iptc4xmpExt:)?[Dd]igitalSourceType["'\s:=>]+(?:[^"'<>\s]*[/#])?([A-Za-z]+)/g;
+  /(?:Iptc4xmpExt:)?[Dd]igitalSourceType["'\s:=>]+(?!["'\s:=>])(?:[^"'<>\s]*[/#])?([A-Za-z]+)/g;
 
 export function findSourceTypes(text: string, location: string): Finding[] {
   const seen = new Set<string>();

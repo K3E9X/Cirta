@@ -17,6 +17,8 @@
  * and `bfrange` for runs — because that is all a ToUnicode CMap contains.
  */
 
+import { spans } from './linear.js';
+
 /** Code point width in bytes, and the code → text mapping itself. */
 export interface ToUnicode {
   codeBytes: number;
@@ -50,22 +52,23 @@ export function parseToUnicode(cmap: string): ToUnicode | undefined {
 
   // The codespace range states how many bytes a code occupies. Identity-H, the
   // usual choice for a subset font, uses two; a simple font uses one.
-  const codespace = /begincodespacerange([\s\S]*?)endcodespacerange/.exec(cmap);
-  const firstRange = codespace ? hexTokens(codespace[1] ?? '')[0] : undefined;
+  // [P0-1] Sections found with indexOf: a lazy pattern rescanned from every unclosed begin.
+  const codespace = spans(cmap, 'begincodespacerange', 'endcodespacerange')[0];
+  const firstRange = codespace ? hexTokens(cmap.slice(codespace[0] + 19, codespace[1] - 17))[0] : undefined;
   const codeBytes = firstRange && firstRange.length >= 4 ? 2 : 1;
 
-  for (const section of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    const tokens = hexTokens(section[1] ?? '');
+  for (const [start, end] of spans(cmap, 'beginbfchar', 'endbfchar')) {
+    const tokens = hexTokens(cmap.slice(start + 11, end - 9));
     for (let i = 0; i + 1 < tokens.length; i += 2) {
       map.set(hexToNumber(tokens[i]!), decodeDestination(tokens[i + 1]!));
     }
   }
 
-  for (const section of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
-    const body = section[1] ?? '';
+  for (const [start, end] of spans(cmap, 'beginbfrange', 'endbfrange')) {
+    const body = cmap.slice(start + 12, end - 10);
     // Two shapes: `<lo> <hi> <dst>` walks the destination upward, and
     // `<lo> <hi> [<d1> <d2> …]` lists one destination per code.
-    for (const entry of body.matchAll(/<([0-9A-Fa-f\s]*)>\s*<([0-9A-Fa-f\s]*)>\s*(\[[\s\S]*?\]|<[0-9A-Fa-f\s]*>)/g)) {
+    for (const entry of body.matchAll(/<([0-9A-Fa-f\s]*)>\s*<([0-9A-Fa-f\s]*)>\s*(\[[^[\]]*\]|<[0-9A-Fa-f\s]*>)/g)) {
       const lo = hexToNumber((entry[1] ?? '').replace(/\s+/g, ''));
       const hi = hexToNumber((entry[2] ?? '').replace(/\s+/g, ''));
       const destination = entry[3] ?? '';

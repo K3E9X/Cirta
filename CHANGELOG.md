@@ -10,11 +10,20 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-20
+
+The library's four entry points, stable; readers that a hostile file can no longer hold. Published to
+npm with provenance by the release workflow once the repository variable `PUBLISH_NPM` is `true`.
+
 ### Added
 
 - **Hidden keyword stuffing.** A pile of skills hidden in a CV for the screening software is reported as *Hidden keyword stuffing*, confirmed, apart from an order to a model.
 - **Hidden text in OpenDocument and RTF**: hidden formatting and fields, a colour on its background, type under 2 pt, a frame off the page (ODT).
 - **`sanitizeForLlm` from the library's entry point**, beside `inspectFile`, `redactFile` and `scanText`; the README's example uses all four and is run against the packed package.
+
+### Security
+
+- **Regular expressions that a hostile file could make backtrack.** One was exponential: 195 bytes of broken comments at the head of any part of a DOCX, XLSX or PPTX held Cirta for 9 s, a few more for hours. 190 were quadratic, in the Office, OpenDocument, EPUB, HTML, SVG, Markdown, mail, PDF and plain-text readers: a DOCX of 1.4 KB took 8 s. They read their input in linear time now, and the few still quadratic see only bounded input; `test/redos.test.ts` keeps one hostile file per family, and a CI job checks every pattern (`npm run redos`).
 
 ### Fixed
 
@@ -115,6 +124,7 @@ The first version: metadata of PDF, Office Open XML, OpenDocument, SVG, HTML, Ma
 invisible characters in text and documents; C2PA manifests; the command line and the site. Never
 published to npm.
 
-[Unreleased]: https://github.com/K3E9X/Cirta/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/K3E9X/Cirta/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/K3E9X/Cirta/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/K3E9X/Cirta/compare/b23fca9...v0.2.0
 [0.1.0]: https://github.com/K3E9X/Cirta/tree/b23fca9

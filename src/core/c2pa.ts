@@ -160,8 +160,10 @@ export function readXmpClaimGenerator(manifest: string): string | undefined {
   for (const key of ['claim_generator_info', 'claim_generator', 'softwareAgent']) {
     const attribute = new RegExp(`${key}\\s*=\\s*["']([^"']{2,120})["']`, 'i').exec(manifest);
     if (attribute?.[1]) return attribute[1].trim();
-    const element = new RegExp(`<[^<>]*${key}[^<>]*>([^<]{2,120})<`, 'i').exec(manifest);
-    if (element?.[1]?.trim()) return element[1].trim();
+    // [P0-1] Each tag, then the key in it: the key between two runs in one pattern backtracked across a long tag.
+    const lower = key.toLowerCase();
+    const element = [...manifest.matchAll(/<([^<>]*)>([^<]{2,120})(?=<)/g)].find((m) => m[1]!.toLowerCase().includes(lower));
+    if (element?.[2]?.trim()) return element[2].trim();
   }
   return undefined;
 }

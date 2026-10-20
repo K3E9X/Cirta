@@ -83,7 +83,7 @@ const BY_NAME = new Map(HEADERS.map((rule) => [rule.name, rule]));
 const ANCHORS = new Set(['from', 'to', 'received', 'message-id', 'return-path', 'date']);
 
 /** Any RFC 5322 field name: printable ASCII except colon, then a colon. */
-const FIELD = /^([!-9;-~]+):[ \t]*(.*)$/;
+const FIELD = /^([!-9;-~]+):[ \t]*(?![ \t])(.*)$/;
 
 interface Header {
   name: string;

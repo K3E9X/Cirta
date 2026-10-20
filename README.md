@@ -1608,6 +1608,37 @@ A coverage-guided fuzzer (Jazzer.js, libFuzzer) finds deeper bugs and should
 follow. It needs an install, a toolchain and a long campaign — which is the
 difference between a fuzzer that is part of the build and one nobody starts.
 
+### Patterns that backtrack
+
+A regular expression can be made to take time in proportion to the square of its input — or to an
+exponential of it — by a file built for the purpose, and while it runs, nothing else on its thread
+does. The first audit, with [recheck](https://makenowjust-labs.github.io/recheck/), found one
+exponential pattern: the one that skipped the prolog of an Office part, which took 9 s on 195 bytes
+of broken comments and hours on a few more. It also found 190 quadratic ones, most of the same
+kind: `<w:r>([\s\S]*?)</w:r>` looks for its closing tag from every opening that lacks one, so a
+DOCX of 1.4 KB whose paragraph holds 200 KB of `<w:r>` took 8 s.
+
+They now stop where the input says they must. A tag cannot run past `<`, and an element's body
+stops at the next opening of the same element. Two attributes are no longer read by one pattern:
+the tag is found first and its attributes after. Comments, CDATA and PDF strings are found with
+`indexOf` (`src/core/linear.ts`), and `test/linear.test.ts` checks each scan against the pattern it
+replaced, on random strings.
+
+```bash
+npx vitest run test/redos.test.ts   # one hostile file per family, each with a 10-second budget
+npm run redos                       # every pattern in the sources, checked; a CI job
+```
+
+`test/redos.test.ts` holds one file per family: Word, PowerPoint, Excel, HTML, Markdown, mail,
+EPUB, OpenDocument and PDF. Each ran past its 10-second budget before the fix and now ends in
+under 3 s. The file runs in a worker thread that is terminated when the budget runs out, so a
+regression fails the test instead of hanging the suite. `scripts/redos.mjs` reads every pattern from
+the syntax tree and asks recheck about it. recheck's fuzzer also flags patterns whose cost stays
+linear, so each verdict is measured on its attack string made four times longer. A pattern that
+gets more than eight times slower fails the build, unless `scripts/redos-allow.json` names it with
+the reason its input is bounded: the translation patterns, for instance, never see a value of more
+than 4 000 characters.
+
 ### Real files
 
 Every unit fixture is built by hand: that is fast and precise, but a container built here shares the

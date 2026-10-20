@@ -63,7 +63,7 @@ export function parseHeaders(head: string): MailHeader[] {
       headers[headers.length - 1]!.value += ' ' + line.trim();
       continue;
     }
-    const m = /^([!-9;-~]+):[ \t]*(.*)$/.exec(line);
+    const m = /^([!-9;-~]+):[ \t]*(?![ \t])(.*)$/.exec(line);
     if (m) headers.push({ name: m[1]!.toLowerCase(), value: m[2]!.trim() });
   }
   return headers;
@@ -71,13 +71,34 @@ export function parseHeaders(head: string): MailHeader[] {
 
 const header = (headers: MailHeader[], name: string) => headers.find((h) => h.name === name)?.value;
 
+/**
+ * [P0-1] The value cut at each ";" with an even number of quotes after it, as
+ * `split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)` cut it — that lookahead read to the
+ * end from every ";", quadratic on a header of semicolons.
+ */
+export function splitOutsideQuotes(value: string): string[] {
+  let after = 0;
+  for (const c of value) if (c === '"') after++;
+  const out: string[] = [];
+  let from = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === '"') after--;
+    else if (value[i] === ';' && after % 2 === 0) {
+      out.push(value.slice(from, i));
+      from = i + 1;
+    }
+  }
+  out.push(value.slice(from));
+  return out;
+}
+
 /** A header's main value and its `; key=value` parameters, RFC 2231 continuations kept simple. */
 function parameters(value: string | undefined): { main: string; params: Map<string, string> } {
   const params = new Map<string, string>();
   if (!value) return { main: '', params };
-  const [main = '', ...rest] = value.split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+  const [main = '', ...rest] = splitOutsideQuotes(value);
   for (const part of rest) {
-    const m = /^\s*([^=\s]+)\s*=\s*(.*)$/.exec(part);
+    const m = /^\s*([^=\s]+)\s*=\s*(?!\s)(.*)$/.exec(part);
     if (!m) continue;
     let key = m[1]!.toLowerCase();
     let val = m[2]!.trim().replace(/^"(.*)"$/, '$1');

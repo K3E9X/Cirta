@@ -217,7 +217,11 @@ function inspectGif(data: Uint8Array, location: string): Finding[] {
       const text = UTF8.decode(block.data);
       findings.push(...findSourceTypes(text, location), { kind: 'identity', confidence: 'probable', location, label: 'Embedded comment', value: preview(text, 200) });
     } else if (block.application === 'XMP DataXMP') {
-      const xmp = /<x:xmpmeta[\s\S]*<\/x:xmpmeta>/.exec(UTF8.decode(block.data))?.[0] ?? '';
+      // [P0-1] From the first opening to the last closing, as the greedy pattern took it, without retrying from every opening.
+      const decoded = UTF8.decode(block.data);
+      const start = decoded.indexOf('<x:xmpmeta');
+      const end = decoded.lastIndexOf('</x:xmpmeta>');
+      const xmp = start >= 0 && end > start ? decoded.slice(start, end + '</x:xmpmeta>'.length) : '';
       findings.push(...xmpBlock(xmp, location));
     } else if (gifRemoved(block)) {
       findings.push({ kind: 'environment', confidence: 'probable', location, label: 'Application metadata', value: `${(block.application ?? '').trim() || '?'} — ${block.end - block.start} bytes` });
@@ -268,7 +272,7 @@ function inspectTiff(data: Uint8Array, location: string): Finding[] {
   const exif = parseExif(data);
   const findings = exif ? exifFindings(exif, location) : [];
   const xmp = ifd0Tag(data, 700);
-  if (xmp) findings.push(...xmpBlock(UTF8.decode(xmp).replace(/\0+$/, ''), location));
+  if (xmp) findings.push(...xmpBlock(UTF8.decode(xmp).replace(/(?<!\0)\0+$/, ''), location));
   const iptc = ifd0Tag(data, 33723);
   if (iptc) findings.push({ kind: 'identity', confidence: 'probable', location, label: 'IPTC/Photoshop metadata', value: `${iptc.length} bytes` });
   return findings;

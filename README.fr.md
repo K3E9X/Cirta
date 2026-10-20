@@ -1705,6 +1705,39 @@ profonds et devrait suivre. Il demande une installation, une chaîne d'outils et
 une campagne longue — c'est la différence entre un fuzzer intégré au build et un
 fuzzer que personne ne lance.
 
+### Les motifs qui reviennent en arrière
+
+Un fichier fabriqué pour ça peut faire prendre à une expression régulière un temps proportionnel au
+carré de sa taille, voire exponentiel, et tant qu'elle tourne, rien d'autre ne tourne sur son fil. Le
+premier audit, fait avec [recheck](https://makenowjust-labs.github.io/recheck/), a trouvé un motif
+exponentiel : celui qui sautait le prologue d'une partie Office. Il prenait 9 s sur 195 octets de
+commentaires cassés, et des heures sur quelques octets de plus. L'audit a aussi trouvé 190 motifs
+quadratiques, presque tous du même type : `<w:r>([\s\S]*?)</w:r>` cherche sa balise fermante
+depuis chaque ouverture qui n'en a pas. Un DOCX de 1,4 Ko dont un paragraphe contient 200 Ko de
+`<w:r>` prenait ainsi 8 s.
+
+Ils s'arrêtent maintenant là où l'entrée l'impose. Une balise ne peut plus dépasser un `<`, et le
+corps d'un élément s'arrête à la prochaine ouverture du même élément. Un même motif ne lit plus
+deux attributs : on trouve d'abord la balise, puis ses attributs. Les commentaires, les CDATA et
+les chaînes PDF sont trouvés avec `indexOf` (`src/core/linear.ts`). `test/linear.test.ts` compare
+chaque parcours au motif qu'il remplace, sur des chaînes aléatoires.
+
+```bash
+npx vitest run test/redos.test.ts   # un fichier hostile par famille, 10 secondes chacun
+npm run redos                       # chaque motif des sources, vérifié ; un job de la CI
+```
+
+`test/redos.test.ts` contient un fichier par famille : Word, PowerPoint, Excel, HTML, Markdown,
+e-mail, EPUB, OpenDocument et PDF. Chacun dépassait son budget de 10 secondes avant le correctif ;
+il se termine maintenant en moins de 3 s. Le fichier tourne dans un fil de travail arrêté quand le
+budget est épuisé : une régression fait échouer le test au lieu de bloquer la suite.
+`scripts/redos.mjs` lit chaque motif dans l'arbre syntaxique et le soumet à recheck. Le fuzzer de
+recheck signale aussi des motifs dont le coût reste linéaire, donc chaque verdict est mesuré sur sa
+chaîne d'attaque rendue quatre fois plus longue. Un motif plus de huit fois plus lent fait échouer
+le build, sauf si `scripts/redos-allow.json` le nomme avec la raison pour laquelle son entrée est
+bornée : ceux des traductions, par exemple, ne voient jamais une valeur de plus de 4 000
+caractères.
+
 ### Fichiers réels
 
 Toutes les fixtures unitaires sont construites à la main : c'est rapide et précis, mais un conteneur

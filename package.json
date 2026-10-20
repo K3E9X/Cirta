@@ -1,6 +1,6 @@
 {
   "name": "cirta",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Inspect and clean what documents say about their making — metadata, hidden text, active content, invisible characters — locally, in PDF, Office, OpenDocument, images, mail, notebooks and text.",
   "type": "module",
   "main": "./dist/core/index.js",
@@ -62,7 +62,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.web.json",
     "verify": "npm run typecheck && npm test && npm run build && node scripts/smoke.mjs && node scripts/fuzz.mjs --iterations 400 && npm run build:web && node scripts/check-site.mjs",
-    "fuzz": "node scripts/fuzz.mjs"
+    "fuzz": "node scripts/fuzz.mjs",
+    "redos": "node scripts/redos.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",
@@ -79,6 +80,7 @@
     "ajv": "^8.20.0",
     "esbuild": "^0.25.12",
     "postject": "^1.0.0-alpha.6",
+    "recheck": "^4.5.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
     "vitest": "^2.1.0"

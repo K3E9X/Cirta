@@ -666,7 +666,7 @@ function findWhitespaceChannels(input: string): Finding[] {
   const findings: Finding[] = [];
   const lines = input.split('\n');
 
-  const trailing = lines.filter((line) => /[ \t]+\r?$/.test(line)).length;
+  const trailing = lines.filter((line) => /(?<![ \t])[ \t]+\r?$/.test(line)).length;
   if (trailing >= 3) {
     findings.push({
       kind: 'invisible-character',

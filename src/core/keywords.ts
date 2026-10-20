@@ -100,7 +100,7 @@ function terms(text: string): string[] {
     .toLowerCase()
     .replace(/[’‘ʼ]/g, "'")
     .split(/[\s,;|•·▪◦●■►→()[\]{}"«»]+/u)
-    .map((term) => term.replace(/^[.:!?]+(?!net\b)|[.:!?]+$/g, ''))
+    .map((term) => term.replace(/^[.:!?]+(?!net\b)|(?<![.:!?])[.:!?]+$/g, ''))
     .filter(Boolean);
 }
 
@@ -119,7 +119,8 @@ export function keywordStuffing(text: string): boolean {
       }
     }
     const term = list[i]!;
-    if (!matched && TECH_SHAPED.test(term)) matched = 1;
+    // [P0-1] No technology is named in forty letters; a longer term made the pattern backtrack.
+    if (!matched && term.length <= 40 && TECH_SHAPED.test(term)) matched = 1;
     if (matched) {
       skills++;
       covered += matched;

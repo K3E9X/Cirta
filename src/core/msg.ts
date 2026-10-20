@@ -66,9 +66,9 @@ const hex4 = (id: number) => id.toString(16).toUpperCase().padStart(4, '0');
 
 function string(s: Storage, id: number): string | undefined {
   const unicode = s.cfb.read(`${s.prefix}__substg1.0_${hex4(id)}001F`);
-  if (unicode) return wide.decode(unicode).replace(/\0+$/, '').trim() || undefined;
+  if (unicode) return wide.decode(unicode).replace(/(?<!\0)\0+$/, '').trim() || undefined;
   const narrow = s.cfb.read(`${s.prefix}__substg1.0_${hex4(id)}001E`);
-  return narrow ? ansi.decode(narrow).replace(/\0+$/, '').trim() || undefined : undefined;
+  return narrow ? ansi.decode(narrow).replace(/(?<!\0)\0+$/, '').trim() || undefined : undefined;
 }
 
 const binary = (s: Storage, id: number) => s.cfb.read(`${s.prefix}__substg1.0_${hex4(id)}0102`);
