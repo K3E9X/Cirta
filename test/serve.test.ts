@@ -229,9 +229,9 @@ describe('[F-P3 2.5] ciirta serve from the command line', () => {
     const child = spawn(process.execPath, ['node_modules/vite-node/vite-node.mjs', '--root', '.', 'src/cli/index.ts', 'serve', '--http', '0', '--icap', '0', '--lang', 'en'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (data) => (stderr += data));
-    await expect.poll(() => /HTTP: http:\/\/127\.0\.0\.1:\d+/.test(stderr), { timeout: 30_000 }).toBe(true);
+    // The mode line is written after the addresses, and stderr can deliver it in a later chunk.
+    await expect.poll(() => /HTTP: http:\/\/127\.0\.0\.1:\d+/.test(stderr) && /inspection only/i.test(stderr), { timeout: 30_000 }).toBe(true);
     expect(stderr).toMatch(/ICAP: icap:\/\/127\.0\.0\.1:\d+\/respmod/);
-    expect(stderr).toMatch(/inspection only/i);
     const port = Number(/http:\/\/127\.0\.0\.1:(\d+)/.exec(stderr)![1]);
     expect((await fetch(`http://127.0.0.1:${port}/health`)).status).toBe(200);
     const exit = new Promise<number | null>((resolve) => child.on('exit', resolve));
