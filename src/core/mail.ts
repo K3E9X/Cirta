@@ -12,7 +12,8 @@
 import type { Finding, InspectResult, Note, RedactResult } from './types.js';
 import { byConfidence, PLACES } from './types.js';
 import { emailHeaders, stripToolHeaders } from './email.js';
-import { decodeWords, parseMail, type MailPart } from './mime.js';
+import { bytesOf, decodeTransfer, decodeWords, encodeTransfer, latin1, parseMail, type MailPart } from './mime.js';
+import { stripActiveMarkup } from './markup-active.js';
 import { inspectPlainText } from './plaintext.js';
 import { inspectMarkup } from './markup.js';
 import { findHtmlLinks } from './url.js';
@@ -156,9 +157,38 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
  * left as they are — re-encoding them is not a clean, it is a rewrite — and
  * whatever survives is measured by re-inspection and named.
  */
-export async function redactEml(data: Uint8Array, inspectMember: InspectMember): Promise<RedactResult> {
+/** A part a browser would run: an HTML body, an HTML or SVG attachment. */
+const runnable = (part: MailPart) =>
+  part.type === 'text/html' || part.type === 'image/svg+xml' || /\.(?:html?|xhtml|svg)$/i.test(part.filename ?? '');
+
+/**
+ * [R3] --strip-active on a mail: each HTML or SVG part decoded, its scripts,
+ * handlers and running addresses taken out, and encoded again as it was. The
+ * markup is ASCII, so the part is worked on byte for byte, whatever its
+ * charset; the other parts and the headers are left as they are.
+ */
+function stripActiveParts(data: Uint8Array): { data: Uint8Array; removed: number } {
+  const raw = latin1(data);
+  let out = '';
+  let cursor = 0;
+  let removed = 0;
+  for (const part of parseMail(data).parts) {
+    if (!runnable(part) || !part.encoded) continue;
+    const at = raw.indexOf(part.encoded, cursor);
+    if (at < 0) continue;
+    const stripped = stripActiveMarkup(latin1(decodeTransfer(part.encoded, part.transferEncoding)), part.type === 'image/svg+xml' || /\.svg$/i.test(part.filename ?? ''));
+    if (!stripped.removed) continue;
+    out += raw.slice(cursor, at) + encodeTransfer(stripped.text, part.transferEncoding);
+    cursor = at + part.encoded.length;
+    removed += stripped.removed;
+  }
+  return removed ? { data: bytesOf(out + raw.slice(cursor)), removed } : { data, removed: 0 };
+}
+
+export async function redactEml(data: Uint8Array, inspectMember: InspectMember, { stripActive = false }: { stripActive?: boolean } = {}): Promise<RedactResult> {
   const before = await inspectEml(data, inspectMember);
-  const text = decodeTextInput(data, { allowBinary: true });
+  const active = stripActive ? stripActiveParts(data) : { data, removed: 0 };
+  const text = decodeTextInput(active.data, { allowBinary: true });
   const stripped = stripToolHeaders(cleanText(text, { normalizeSpaces: false }).text);
   return {
     format: 'eml',
@@ -167,6 +197,6 @@ export async function redactEml(data: Uint8Array, inspectMember: InspectMember):
     // Measured, not assumed: noteSurvivors() keeps only what re-inspection no
     // longer finds, so the count is what really went.
     removed: before.findings,
-    notes: [{ code: 'scope:email' }],
+    notes: [{ code: 'scope:email' }, ...(active.removed ? [{ code: 'removed:active-content' as const, detail: String(active.removed) }] : [])],
   };
 }

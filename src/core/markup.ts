@@ -24,6 +24,7 @@ import { byConfidence } from './types.js';
 import { hiddenInHtml, stripHiddenHtml } from './hidden-text.js';
 import { remoteFindings } from './beacons.js';
 import { trackingFindings } from './tracking.js';
+import { activeMarkupFindings } from './markup-active.js';
 import { htmlLinkTargets, linkFindings, markdownLinkTargets } from './links.js';
 import { findHtmlLinks } from './url.js';
 import { replaceSpans, spans } from './linear.js';
@@ -392,6 +393,8 @@ export function inspectMarkup(text: string, format: MarkupFormat): Finding[] {
   if (format !== 'svg') findings.push(...hiddenInHtml(text, 'document body'));
   // [F-2.1] What opening the page fetches from elsewhere.
   if (format !== 'svg') findings.push(...remoteFindings(text, 'document body', format === 'markdown'));
+  // [R3] Scripts, event handlers, addresses that run, refreshes and plug-in objects.
+  findings.push(...activeMarkupFindings(text, format === 'svg'));
   findings.push(...trackingFindings(text, 'links'));
   // [F-P2 2.1] Links that run, carry a page, or bounce through a redirector;
   // and link text that shows one address on a link to another.
