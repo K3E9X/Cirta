@@ -38,6 +38,8 @@ import { stringsFor } from './i18n.js';
 
 export interface ServeOptions {
   host: string;
+  /** [R5] Other Host names the HTTP API answers, beside the loopback's own and `host`. */
+  allowedHosts?: string[];
   /** Port of the HTTP API; undefined: none. 0 picks a free one. */
   http?: number;
   /** Port of the ICAP server; undefined: none. */
@@ -526,8 +528,45 @@ const cleanName = (name: string) => {
   return dot > 0 ? `${name.slice(0, dot)}.clean${name.slice(dot)}` : `${name || 'file'}.clean`;
 };
 
+/** The name in a Host header, lowercased, without its port; an IPv6 address keeps its brackets. */
+function hostName(header: string): string {
+  const value = header.trim().toLowerCase();
+  // A port is digits, or the whole value is kept and matches no name: « [::1].evil » is not [::1].
+  const port = (rest: string) => rest === '' || /^:\d{1,5}$/.test(rest);
+  if (value.startsWith('[')) {
+    const end = value.indexOf(']');
+    return end > 0 && port(value.slice(end + 1)) ? value.slice(0, end + 1) : value;
+  }
+  const colon = value.indexOf(':');
+  return colon < 0 ? value : port(value.slice(colon)) ? value.slice(0, colon) : value;
+}
+
+const LOOPBACK_NAMES = ['127.0.0.1', 'localhost', '[::1]'];
+const loopback = (host: string) => host === 'localhost' || host === '::1' || /^127\./.test(host);
+
+/**
+ * [R5] Whether the HTTP API answers a request for this Host. A page the user
+ * opens can point a name it controls at 127.0.0.1 (DNS rebinding) and read
+ * the API from its own origin: on the loopback, only the loopback's names,
+ * the --host given and each --allowed-host are answered. Listening beyond it,
+ * a service is reached by names this cannot know, unless --allowed-host says.
+ */
+export function hostAllowed(header: string | undefined, options: Pick<ServeOptions, 'host' | 'allowedHosts'>): boolean {
+  // HTTP/1.1 requires one, and Node refuses its absence; an HTTP/1.0 client without one is not a browser.
+  if (header === undefined) return true;
+  const name = hostName(header);
+  const allowed = (options.allowedHosts ?? []).map((h) => hostName(h));
+  if (!loopback(options.host) && !allowed.length) return true;
+  const own = options.host.includes(':') ? `[${options.host.toLowerCase()}]` : options.host.toLowerCase();
+  return [...LOOPBACK_NAMES, own, ...allowed].includes(name);
+}
+
 async function handleHttp(request: IncomingMessage, response: ServerResponse, options: ServeOptions): Promise<void> {
   const s = stringsFor(options.lang);
+  if (!hostAllowed(request.headers.host, options)) {
+    request.resume();
+    return json(response, 421, { error: s.serveMisdirected });
+  }
   const url = new URL(request.url ?? '/', 'http://localhost/');
   const routes = ['/health', '/inspect', '/clean'];
   if (!routes.includes(url.pathname)) return json(response, 404, { error: s.serveNotFound });
