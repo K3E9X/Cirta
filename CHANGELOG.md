@@ -16,6 +16,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 - **Hidden text in OpenDocument and RTF**: hidden formatting and fields, a colour on its background, type under 2 pt, a frame off the page (ODT).
 - **`sanitizeForLlm` from the library's entry point**, beside `inspectFile`, `redactFile` and `scanText`; the README's example uses all four and is run against the packed package.
 
+### Security
+
+- **Regular expressions that a hostile file could make backtrack.** One was exponential: 195 bytes of broken comments at the head of any part of a DOCX, XLSX or PPTX held Cirta for 9 s, a few more for hours. 190 were quadratic, in the Office, OpenDocument, EPUB, HTML, SVG, Markdown, mail, PDF and plain-text readers: a DOCX of 1.4 KB took 8 s. They read their input in linear time now, and the few still quadratic see only bounded input; `test/redos.test.ts` keeps one hostile file per family, and a CI job checks every pattern (`npm run redos`).
+
 ### Fixed
 
 - **The library reads a file name as the command line does**: `inspectFile(bytes, 'cv.html')` reads HTML, `'notes.md'` Markdown, where the library used to read them as plain text and miss what their markup hides.
