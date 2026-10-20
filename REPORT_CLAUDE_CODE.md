@@ -2263,7 +2263,7 @@ Branche `fix/retest-2026-10-19` depuis `main` (`e93b8fc`), puis une branche par 
 
 ### Vérification du dernier groupe
 
-`npm run verify` : 114 fichiers, 1 215 tests, smoke, fuzz, site construit, tout vert. `node scripts/real-files.mjs` (LibreOffice, poppler) : tous les allers-retours passent. `npm run redos` : aucun motif nouveau ne retourne en arrière.
+`npm run verify` : 114 fichiers, 1 215 tests, smoke, fuzz, site construit, tout vert. `node scripts/real-files.mjs` (LibreOffice, poppler) : tous les allers-retours passent. `npm run redos` : un motif de traduction ajouté pour R6 était quadratique ; remplacé par un découpage au `lastIndexOf` (commit suivant), plus aucun motif ne retourne en arrière.
 
 ### Non vérifié dans cette repasse (comme le brief le signale)
 
