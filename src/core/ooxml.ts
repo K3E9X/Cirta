@@ -12,6 +12,7 @@
  */
 
 import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { customPropertyLevel } from './technical-properties.js';
 import { ZIP_EPOCH } from './zip.js';
 import { unzipGuarded } from './zip.js';
 import { inspectImage, stripImageMetadata } from './image.js';
@@ -39,6 +40,7 @@ import {
   collectNamedProperties,
   collectTextContent,
   mapTextContent,
+  dtdFindings,
 } from './xml.js';
 
 type Parts = Record<string, Uint8Array>;
@@ -505,8 +507,7 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
     const properties = collectNamedProperties(custom, 'property', 'name');
     for (const { name, value } of properties) {
       findings.push({
-        kind: 'identity',
-        confidence: 'confirmed',
+        ...customPropertyLevel(name),
         location: `docProps/custom.xml:${name}`,
         label: `Custom property: ${name}`,
         value,
@@ -662,6 +663,8 @@ export function inspectOoxml(data: Uint8Array): InspectResult {
   // Derived last, so it can draw on every field the format modules surfaced.
   findings.push(...fingerprint(findings));
 
+  // [R6] Entities declared for a parser to expand: named, never expanded.
+  findings.push(...dtdFindings(parts));
   return { format, findings: findings.sort(byConfidence), notes };
 }
 

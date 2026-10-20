@@ -42,6 +42,8 @@ export const strippedByActive = (f: Finding): boolean =>
   f.confidence !== 'informational' &&
   f.label !== 'Tracking pixel' &&
   f.label !== 'Remote resource loaded on opening' &&
+  // [R6] Named, not removed: a DTD is part of the XML it heads.
+  f.label !== 'DTD with entities in an XML part (unresolved)' &&
   // A mail's attachments are read, not rewritten — except an HTML or SVG one.
   !/^attachment (?!\S*\.(?:html?|xhtml|svg) →)/i.test(f.location);
 const labelled = (...labels: string[]) => (findings: Finding[]) => findings.filter((f) => labels.includes(f.label)).length;

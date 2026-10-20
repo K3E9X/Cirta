@@ -12,6 +12,7 @@
  */
 
 import { zipSync, strToU8, strFromU8 } from 'fflate';
+import { customPropertyLevel } from './technical-properties.js';
 import { ZIP_EPOCH } from './zip.js';
 import { unzipGuarded } from './zip.js';
 import type { Finding, InspectResult, RedactResult, Format, Note, Confidence } from './types.js';
@@ -23,6 +24,7 @@ import {
   collectNamedProperties,
   collectTextContent,
   mapTextContent,
+  dtdFindings,
 } from './xml.js';
 import { scanText, cleanText, isArrangementFinding } from './text.js';
 import { fingerprint } from './fingerprint.js';
@@ -194,28 +196,6 @@ function structuralOdf(parts: Parts, meta: string | undefined): Finding[] {
   return out;
 }
 
-/**
- * [C9] User properties that are an Office application's own bookkeeping,
- * carried over when a .docx is converted: the version that saved it, its
- * security flag, layout switches, statistics. They name no one, and
- * reporting "AppVersion = 14.0000" as confirmed identity buried what the
- * section exists for — a property called "Model" or "Client".
- */
-const TECHNICAL_PROPERTIES = new Set([
-  'AppVersion',
-  'DocSecurity',
-  'ScaleCrop',
-  'LinksUpToDate',
-  'SharedDoc',
-  'HyperlinksChanged',
-  'Pages',
-  'Words',
-  'Characters',
-  'CharactersWithSpaces',
-  'Lines',
-  'Paragraphs',
-]);
-
 export function inspectOdf(data: Uint8Array): InspectResult {
   const parts = unzipGuarded(data);
   const format = detectOdfFormat(parts);
@@ -241,10 +221,8 @@ export function inspectOdf(data: Uint8Array): InspectResult {
     // with their values, since that is where a model or session name lands.
     const userDefined = collectNamedProperties(meta, 'meta:user-defined', 'meta:name');
     for (const { name, value } of userDefined) {
-      const technical = TECHNICAL_PROPERTIES.has(name);
       findings.push({
-        kind: technical ? 'provenance' : 'identity',
-        confidence: technical ? 'informational' : 'confirmed',
+        ...customPropertyLevel(name),
         location: `meta.xml:meta:user-defined:${name}`,
         label: `User-defined property: ${name}`,
         value,
@@ -296,6 +274,8 @@ export function inspectOdf(data: Uint8Array): InspectResult {
   notes.push({ code: 'scope:ooxml-metadata-only' });
   findings.push(...fingerprint(findings));
 
+  // [R6] Entities declared for a parser to expand: named, never expanded.
+  findings.push(...dtdFindings(parts));
   return { format, findings: findings.sort(byConfidence), notes };
 }
 

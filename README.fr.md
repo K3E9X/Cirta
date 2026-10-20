@@ -289,7 +289,10 @@ Trois réponses possibles, et la troisième est la plus importante :
    général, avec le rappel que ce sont les métadonnées du fichier qui l'affirment.
 2. **Seule une bibliothèque est nommée** (`ReportLab`, `python-docx`) — le conteneur a été fabriqué
    par un programme, ce qui ne dit rien de qui a écrit les mots. L'outil le dit et ne va pas plus
-   loin.
+   loin. Ce que la bibliothèque écrit quand personne ne lui dit rien d'autre — l'auteur
+   « python-docx » et le titre « Word Document » de python-docx, ceux de python-pptx et d'openpyxl,
+   les « anonymous », « untitled » et « unspecified » de ReportLab — est signalé comme *valeur par
+   défaut* de cette bibliothèque, en provenance informative, pas comme une personne.
 3. **Rien ne nomme quoi que ce soit** — et le rapport le formule explicitement, au lieu de se taire :
    *ce n'est pas la même chose que « pas d'IA »*. Les champs ont pu être vidés, jamais écrits, ou le
    texte collé à la main dans Word. Et la formulation elle-même — là où vit un filigrane statistique
@@ -565,7 +568,7 @@ chaque format — celle où une chaîne de génération écrit ce qu'elle veut �
 |---|---|
 | PDF | Toutes les clés `/Info`, y compris non standard. Les neuf clés standard (ISO 32000-1 §14.3.3, `/Trapped` compris) ne sont pas signalées comme personnalisées |
 | DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
-| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur. La comptabilité propre à Office reprise d'un `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistiques…) est de la provenance informative ; toute autre propriété reste confirmée |
+| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur. La comptabilité propre à Office reprise d'un `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistiques…) est de la provenance informative ; toute autre propriété reste confirmée. La même liste s'applique aux propriétés personnalisées OOXML, RTF et aux jeux de propriétés des `.doc`, `.xls` et `.ppt` |
 | Markdown | Toutes les clés de front matter reconnues |
 | SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
 

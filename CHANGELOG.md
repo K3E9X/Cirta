@@ -16,6 +16,7 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ### Fixed
 
+- **Three things reported as someone's identity that are not.** The `AppVersion` of a `.doc` or `.xls` property set (and Office's other bookkeeping properties, in every format with custom properties) is informational provenance. A library's default values — python-docx's author "python-docx", python-pptx's, openpyxl's, ReportLab's "anonymous", "untitled", "unspecified" — are named as *the default value of* that library. A field whose value is only unresolved XML entities (`&xxe;`, `&lol9;`) is no longer an author or a title; the DTD that declared them is reported as *DTD with entities in an XML part (unresolved)*, probable, with the file an external entity names.
 - **French reports of nested files.** A lookalike link or dash in a mail part, an attached message, a text attachment or a file inside a zip kept its explanation in English: the translation looked for the location « links » and found « part 1 (text/plain) → links ». It now reads the last step. A finding the text and HTML versions of a mail share is reported once, with both places.
 
 ### Security

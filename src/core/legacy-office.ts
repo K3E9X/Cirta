@@ -18,6 +18,7 @@
  */
 
 import { unzlibSync } from 'fflate';
+import { customPropertyLevel } from './technical-properties.js';
 import { readCfb, type Cfb } from './cfb.js';
 import { readPropertySet, FMTID_SUMMARY, FMTID_DOC_SUMMARY, FMTID_USER_DEFINED } from './ole-props.js';
 import { readVbaStorage, summariseVba } from './vba.js';
@@ -80,7 +81,7 @@ export function propertyFindings(cfb: Cfb, prefix = ''): Finding[] {
       if (section.fmtid === FMTID_USER_DEFINED) {
         for (const [id, value] of section.properties) {
           const name = section.names.get(id) ?? `#${id}`;
-          findings.push({ kind: 'identity', confidence: 'confirmed', location: `${where}:${name}`, label: `Custom property: ${name}`, value: String(value) });
+          findings.push({ ...customPropertyLevel(name), location: `${where}:${name}`, label: `Custom property: ${name}`, value: String(value) });
         }
         continue;
       }

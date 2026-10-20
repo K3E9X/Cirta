@@ -138,6 +138,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Text of a hidden slide': 'Texte d’une diapositive masquée',
   'Comment authors': 'Auteurs des commentaires',
   'Rule abandoned: too slow': 'Règle abandonnée : trop lente',
+  'DTD with entities in an XML part (unresolved)': 'DTD avec entités dans une partie XML (non résolues)',
   'Script in the page': 'Script dans la page',
   'Script loaded from a file': 'Script chargé depuis un fichier',
   'Event handler attribute': 'Attribut qui exécute du code sur un événement',
@@ -599,6 +600,8 @@ const measure = (text: string): string =>
   text.replace(/of unknown size/, 'de taille inconnue').replace(/ bytes/, ' octets');
 
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  // [R6] A library's default value, named.
+  [/^([\s\S]*) — the default value of (.+)$/, (m) => `${m[1]} — valeur par défaut de ${m[2]}`],
   [
     /^(.+) — a second copy of the picture, which not every editor regenerates when the original is cropped or retouched$/,
     (m) =>
