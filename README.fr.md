@@ -823,7 +823,7 @@ embarqué, et le compte est donc donné sous forme de fourchette.
 | SVG | Bloc `<metadata>`, attributs et espaces de noms d'éditeur, commentaires de génération ; avec `--strip-active`, scripts, attributs `on…`, adresses `javascript:` et animations qui en posent une | `<title>` et `<desc>` — ce que lit un lecteur d'écran |
 | HTML | Balises `generator`/`author`/`creator`/`copyright`/`date`, commentaires de génération ; avec `--strip-active`, `<script>` (en ligne ou chargé d'un fichier), attributs `on…`, adresses `javascript:`, `vbscript:` et `data:` de page (un lien garde son texte), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, et l'action d'un formulaire qui envoie vers une autre adresse | JSON-LD — ce qu'indexe un moteur de recherche |
 | Markdown | Clés de front matter identifiantes ; délimiteurs retirés s'il ne reste rien dedans ; avec `--strip-active`, comme pour le HTML dans son HTML en ligne, et un lien `[texte](javascript:…)` devient son texte | Le corps, les autres clés, les lignes d'attribution |
-| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA, **données après la fin de l'image** (une archive accolée, un bloc constructeur). Avec `--reencode-images`, l'image est reconstruite à partir de ses pixels : tout ce qui n'est pas pixel part, l'orientation est appliquée | JFIF et profil ICC — les retirer changerait le rendu |
+| JPEG | Exif, XMP, IPTC/Photoshop, commentaires, JUMBF C2PA, **données après la fin de l'image** (une archive accolée, un bloc constructeur). Avec `--reencode-images`, l'image est reconstruite à partir de ses pixels : tout ce qui n'est pas pixel part, l'orientation est appliquée | JFIF et profil ICC — les retirer changerait le rendu — et, pour une photo à faire pivoter, un Exif réduit à la **seule orientation**, pour qu'un portrait ne sorte pas couché (`test/jpeg-orientation.test.ts`) |
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, `caBX` C2PA, données après `IEND` ; avec `--reencode-images`, tous les blocs sauf l'image et son profil | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
 | E-mail | Les lignes d'en-tête qui nomment un outil : `X-Mailer`, `User-Agent`, `X-Generated-By` et les en-têtes `X-` inconnus — la ligne entière, pas seulement sa valeur ; avec `--strip-active`, les parties HTML et les pièces jointes HTML ou SVG nettoyées comme du HTML, chacune réencodée comme elle l'était (base64, quoted-printable) | `From`, `To`, `Subject`, `Date`, `Message-ID` — ils sont le message, et les fils de discussion se cassent sans eux |
 | WebP / GIF | WebP : blocs `EXIF`, `XMP ` et privés, les drapeaux `VP8X` qui les annonçaient, les données au-delà de la taille RIFF. GIF : commentaires, XMP et autres blocs d'application, données après la fin | L'image, son animation, le nombre de boucles (`NETSCAPE2.0`) et le profil de couleur |
@@ -1052,6 +1052,11 @@ change, et le choix est mémorisé. Le mode français est en français de bout e
 et des caractères, valeurs, manière dont un passage est caché, refus des analyseurs, fichier
 introuvable, ligne de bilan du CLI —, et un test inspecte et nettoie un corpus qui exerce chaque
 contrôle pour l'y maintenir.
+
+**Un lien peut la prérégler.** `#tab=text`, `#lang=en` et `#format=pdf` (ou `#format=docx,odt,rtf`)
+dans l'adresse ouvrent la page sur l'onglet texte, en anglais, avec le sélecteur de fichiers limité à
+ces types. Ces réglages sont dans le fragment, que le navigateur n'envoie jamais : le serveur ne sait
+pas ce que le visiteur venait faire. Une valeur inconnue est ignorée (`test/web-preset.test.ts`).
 
 Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décompte que la ligne
 `Summary` du CLI — avec un export JSON du rapport. Cet export a exactement la forme qu'émet
