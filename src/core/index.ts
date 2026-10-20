@@ -49,6 +49,8 @@ export { findDeceptiveUrls, decodePunycode, skeleton } from './url.js';
 export { toSarif, ruleId, meetsThreshold } from './sarif.js';
 export type { SarifInput } from './sarif.js';
 export { inspectPlainText, cleanPlainText, type PlainTextClean } from './plaintext.js';
+// [P0-3] The text a reader sees, for a model, with what was hidden from the reader listed apart.
+export { sanitizeForLlm, type SanitizedText } from './sanitize.js';
 export { parseRules, RulesError, type Rule } from './rules.js';
 export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.js';
 export { inspectClipboardHtml } from './clipboard.js';
@@ -58,6 +60,7 @@ export { manifest, manifestEntry, manifestOptions, sha256, MANIFEST_SCHEMA } fro
 export { REPORT_SCHEMA } from './report-schema.js';
 export type { Manifest, ManifestEntry, ManifestFinding, ManifestSide } from './manifest.js';
 
+import { hintFromName } from './hint.js';
 import { unzipGuarded, ArchiveTooLargeError, ZIP_EPOCH } from './zip.js';
 import { zipSync } from 'fflate';
 import type { Format, InspectOptions, InspectResult, RedactResult, Note, Finding } from './types.js';
@@ -219,6 +222,7 @@ const decodeOptions = (hint?: string) => ({ allowBinary: hint === 'text' });
  * ambiguous — a Markdown file without front matter looks like plain text.
  */
 export function detectFormat(data: Uint8Array, hint?: string): Format | undefined {
+  hint = hintFromName(hint);
   if (isPdf(data)) return 'pdf';
   if (isZip(data)) {
     try {

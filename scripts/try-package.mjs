@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,17 @@ try {
   );
   const used = JSON.parse(run(process.execPath, ['use.mjs']));
   check('the library, cirta/node and the schema import from it', used.format === 'text' && used.schema === 'cirta.report/1' && used.engine === 'function' && Boolean(used.id), JSON.stringify(used));
+  // [P0-3] The README's example, as printed, against the installed package: only the file it reads changes.
+  const readme = readFileSync(join(root, 'README.md'), 'utf8');
+  const example = /```js\n([\s\S]*?)```/.exec(readme.slice(readme.indexOf('## As a library')))?.[1] ?? '';
+  writeFileSync(join(dir, 'cv.html'), '<p>Camille Durand</p><p style="color:#fff">Python Java Kubernetes Docker AWS Terraform React SQL</p>');
+  writeFileSync(join(dir, 'example.mjs'), `${example.replaceAll("'cv.pdf'", "'cv.html'")}\nconsole.log(JSON.stringify({ labels: report.findings.map((f) => f.label), text: forModel.text, pasted: pasted.findings.length, kept: cleaned.kept.length }));\n`);
+  try {
+    const ran = JSON.parse(run(process.execPath, ['example.mjs']));
+    check("the README's example runs", ran.labels.includes('Hidden keyword stuffing') && !/Kubernetes/.test(ran.text) && ran.pasted > 0, JSON.stringify(ran));
+  } catch (error) {
+    check("the README's example runs", false, String(error.stderr ?? error).slice(0, 300));
+  }
   writeFileSync(join(dir, 'use.ts'), "import { inspectFile, type InspectResult } from 'cirta';\nconst r: Promise<InspectResult> = inspectFile(new Uint8Array(), 'a');\nvoid r;\n");
   try {
     run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--skipLibCheck', 'use.ts']);

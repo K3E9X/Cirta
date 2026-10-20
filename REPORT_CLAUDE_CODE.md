@@ -2007,6 +2007,74 @@ Vérification :
 
 ---
 
+## Phase 0 — plan « Cirta SaaS »
+
+Le plan demande trois tâches avant tout service. Mes questions sur le brief R2, le dépôt `cirta-cloud` et npm ont été refusées ; j'ai donc pris les choix par défaut : P0-2 en entier, P0-3 préparé sans publier, P0-1 et `cirta-cloud` en attente.
+
+### P0-1 — Corrections R1 à R8 : **bloqué**
+
+Le brief `CIRTA_CLAUDE_CODE_R2.md` n'est ni dans le dépôt ni dans la conversation. Je n'invente pas huit corrections, ReDoS (R1) compris, sans leur énoncé. Il faut fournir le brief.
+
+### P0-2 — Bourrage de mots-clés caché : **fait**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Le bourrage nommé à part d'une consigne à un modèle | `f0957d8` | `src/core/keywords.ts` (nouveau), `src/core/hidden-text.ts`, `src/core/xray.ts`, `src/shared/french.ts`, `test/keyword-stuffing.test.ts` |
+| Texte caché en OpenDocument et RTF | `e664d11` | `src/core/hidden-odf.ts` (nouveau), `src/core/odf.ts`, `src/core/rtf.ts`, `test/hidden-odf-rtf.test.ts`, `test/helpers/odt.ts` |
+| Vingt CV synthétiques, test d'acceptation, français partout | `c63a87e` | `test/helpers/cv-corpus.ts`, `test/cv-corpus.test.ts`, `test/i18n-fr.test.ts`, `src/shared/french.ts` |
+| Documentation | `220a585` | `README.md`, `README.fr.md`, `CHANGELOG.md` |
+
+Ce que fait l'heuristique : un texte caché est du *bourrage* s'il réunit toutes ces conditions :
+- au moins 5 termes, dont au moins 4 compétences (lexique FR/EN, expressions de 3 mots au plus, ou termes de forme technique comme `node.js` ou `c#`) ;
+- des compétences qui couvrent au moins la moitié des termes ;
+- aucun pronom, et 20 % de mots-outils au plus.
+
+Une consigne à un modèle garde la priorité. Les deux sont *confirmés*, même en un point ou en gris pâle.
+
+Corpus : 20 CV construits par le test, sans aucun binaire dans `test/fixtures`. Il y a :
+- 10 CV honnêtes, dont certains avec un titre blanc sur un bandeau foncé ;
+- 6 CV bourrés : blanc, 1 pt, hors page, sous un calque ;
+- 4 CV avec une consigne ;
+- cinq formats : PDF, DOCX, ODT, HTML, RTF.
+
+Résultats :
+- rappel 100 % (seuil 90 %) et aucun faux positif ;
+- sans le classifieur, le rappel tombe à 40 % : le test mesure bien quelque chose ;
+- vérifié aussi à la main sur des CV produits par LibreOffice en quatre formats.
+
+Ce que Cirta ne prétend pas : il ne détecte aucun filigrane statistique. Le bourrage est du texte caché, et c'est ce qu'il nomme.
+
+### P0-3 — API stable, cirta 0.3.0 : **préparé, non publié**
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Quatre points d'entrée, noms de fichier lus comme indices, exemple du README exécuté | `dc268cd` | `src/core/hint.ts` (nouveau), `src/core/index.ts`, `src/cli/hint.ts`, `integrations/vscode/src/diagnostics.ts`, `test/library-api.test.ts`, `scripts/try-package.mjs`, `README.md`, `README.fr.md`, `CHANGELOG.md` |
+
+Ce qui change :
+- `sanitizeForLlm` est exporté avec `inspectFile`, `redactFile` et `scanText`. Le schéma JSON du rapport (`cirta/schema/report.v1.json`) l'était déjà.
+- **Bogue trouvé en écrivant l'exemple :** la bibliothèque lisait `inspectFile(bytes, 'cv.html')` comme du texte brut. Elle manquait donc tout ce que le balisage cache. La règle de la ligne de commande vit maintenant dans `src/core/hint.ts` et sert aux deux.
+- Effet de bord corrigé : un fichier `.md` ouvert dans VS Code est désormais lu comme du Markdown. Le lieu y devient « document body (U+200B) », et l'extension retrouve le point de code à la fin du lieu.
+- L'exemple du README, identique en FR et en EN aux commentaires près, est exécuté à deux endroits :
+  - sur les sources, par `test/library-api.test.ts` ;
+  - sur le paquet empaqueté et installé dans un projet vide, par `scripts/try-package.mjs`, que le workflow de release lance avant de publier. C'est le critère « `npm i` dans un projet neuf, l'exemple tourne », sans le registre.
+
+Ce qui reste au propriétaire :
+- **Tag `v0.2.0` absent du dépôt distant** (`git ls-remote --tags` ne renvoie rien ; le proxy de la session refuse les tags). À lancer : `git tag -a v0.2.0 a0d5e61 -m "Cirta 0.2.0" && git push origin v0.2.0`.
+- **Le passage en 0.3.0 attend ce tag**, pour que 0.2.0 reste ce qui a été décrit.
+- **La publication npm** demande deux réglages côté npm et GitHub :
+  - la publication de confiance npm, ou le secret `NPM_TOKEN` ;
+  - la variable de dépôt `PUBLISH_NPM=true`.
+
+  Le job publie déjà avec `npm publish --provenance`.
+
+Vérification : `npm run verify` passe (104 fichiers, 1089 tests), ainsi que `node scripts/real-files.mjs` et `node scripts/try-package.mjs`.
+
+### `cirta-cloud` : **non commencé**
+
+Le dépôt privé `K3E9X/cirta-cloud` n'existe pas dans le périmètre de cette session. Il faut le créer et l'y ajouter avant P1.
+
+---
+
 ## Bilan final
 
 **Fait :**

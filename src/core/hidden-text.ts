@@ -14,6 +14,7 @@
 
 import type { Finding } from './types.js';
 import { preview } from './types.js';
+import { keywordStuffing, STUFFING_LABEL } from './keywords.js';
 
 /* ------------------------------------------------------------- shared -- */
 
@@ -97,7 +98,19 @@ export function aimedAtModel(text: string): boolean {
 }
 
 /** Every label a hidden-text finding can carry, for interfaces that group them. */
-export const HIDDEN_LABELS: ReadonlySet<string> = new Set<string>([AIMED_LABEL, ...Object.values(HIDDEN_LABEL)]);
+export const HIDDEN_LABELS: ReadonlySet<string> = new Set<string>([AIMED_LABEL, STUFFING_LABEL, ...Object.values(HIDDEN_LABEL)]);
+
+/**
+ * [P0-2] What a hidden passage is, before how it was hidden: an order to a
+ * model first, then a pile of keywords for the software that screens CVs.
+ * Either is the point of hiding it, and is confirmed however small or faint
+ * the type: nobody writes a list of skills in white by accident.
+ */
+export function hiddenPurpose(text: string): typeof AIMED_LABEL | typeof STUFFING_LABEL | undefined {
+  if (aimedAtModel(text)) return AIMED_LABEL;
+  if (keywordStuffing(text)) return STUFFING_LABEL;
+  return undefined;
+}
 
 /**
  * What counts as visible, as a contrast ratio with what is behind it (the WCAG
@@ -179,7 +192,7 @@ export interface StripScope {
 export const inScope = (scope: StripScope) => (item: Hidden) => (scope.everything ? (item.ranges?.length ?? 0) > 0 : removable(item));
 
 export function removable(item: Hidden): boolean {
-  return !item.probable && (item.how !== 'faint' || aimedAtModel(item.text)) && letters(item.text) >= MIN_LETTERS;
+  return !item.probable && (item.how !== 'faint' || hiddenPurpose(item.text) !== undefined) && letters(item.text) >= MIN_LETTERS;
 }
 
 /**
@@ -190,7 +203,7 @@ export function removable(item: Hidden): boolean {
  */
 export function removableFinding(finding: Finding): boolean {
   if (!HIDDEN_LABELS.has(finding.label)) return false;
-  if (finding.label === AIMED_LABEL) return finding.confidence === 'confirmed';
+  if (finding.label === AIMED_LABEL || finding.label === STUFFING_LABEL) return finding.confidence === 'confirmed';
   if (finding.label === HIDDEN_LABEL.faint) return false;
   return finding.confidence === 'confirmed' || finding.label === HIDDEN_LABEL.tiny;
 }
@@ -204,13 +217,13 @@ export function toFindings(found: Hidden[], location: string): Finding[] {
     const key = `${item.how}\u0000${text}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const aimed = aimedAtModel(text);
+    const purpose = hiddenPurpose(text);
     out.push({
       kind: 'invisible-character',
-      // An order to a model in one-pixel type is no less certain for being small.
-      confidence: item.probable || (!aimed && (item.how === 'faint' || item.how === 'tiny')) ? 'probable' : 'confirmed',
+      // An order to a model, or a pile of keywords, in one-pixel type is no less certain for being small.
+      confidence: item.probable || (!purpose && (item.how === 'faint' || item.how === 'tiny')) ? 'probable' : 'confirmed',
       location,
-      label: aimed ? AIMED_LABEL : HIDDEN_LABEL[item.how],
+      label: purpose ?? HIDDEN_LABEL[item.how],
       value: `${preview(text, 160)} — ${item.why}`,
     });
     if (out.length >= MAX_FINDINGS) break;

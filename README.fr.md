@@ -490,6 +490,14 @@ un tableau ou une couleur de thème modifiée est en travers, la couleur n'est p
 réservé sans position propre est placé là où sa mise en page le met. Vérifié sur des présentations
 écrites par LibreOffice.
 
+**OpenDocument et RTF — les mêmes procédés, lus dans leur propre balisage.** Dans un ODT :
+`text:display` à none, les champs de texte et de paragraphe masqués, une section masquée, une couleur
+sur le fond de son segment ou de son paragraphe ou sur la page blanche, un corps inférieur à 2 pt, un
+cadre placé hors de la page ; les styles nommés et automatiques sont suivis jusqu'à leurs parents. En
+RTF : `\v`, une couleur `\cf` sur le `\highlight` ou le `\cb` derrière elle ou sur la page blanche,
+et `\fs` sous 2 pt, l'état suivi de groupe en groupe et remis à zéro par `\plain`. Un titre blanc sur
+un bandeau sombre n'est signalé ni dans l'un ni dans l'autre.
+
 **Le texte qu'un navigateur n'affiche jamais est lu aussi.** Un commentaire HTML ou Markdown, le
 contenu de `<noscript>` et de `<template>` : aucun lecteur ne les voit, tout modèle à qui l'on donne
 le fichier les lit. Ils sont signalés comme *Texte qu'un navigateur n'affiche pas*, en probable — les
@@ -510,6 +518,19 @@ une police d'un pixel, et annoncé en tête du rapport. Les formulations sont vo
 « as an AI company », « ignore the previous email », « Model: iPhone 15 Pro » ou « Reviewer: Jean
 Dupont » sont de la prose ou une étiquette, et testés comme tels — et le
 texte visible n'est jamais lu pour cela : une consigne qu'un lecteur voit n'est cachée à personne.
+
+**Des mots-clés cachés dans un CV sont appelés ainsi.** Le procédé le plus courant des CV qui
+trichent n'est pas une consigne à un modèle mais une pile de compétences cachée au lecteur pour le
+logiciel de tri — 90 à 96 % des CV piégés d'une étude portant sur 196 682 CV réels
+([arXiv 2605.28999](https://arxiv.org/abs/2605.28999)). Un texte caché d'au moins cinq termes, dont
+quatre compétences, outils ou technologies (d'une liste française et anglaise, ou qui en ont la forme :
+C++, ISO 27001, Node.js), qui en forment la moitié, sans pronom et avec peu de mots grammaticaux, est
+étiqueté *Bourrage de mots-clés caché*, confirmé même en corps d'un point. Une consigne à un modèle
+qui énumère aussi des compétences est signalée comme consigne. Seul le texte caché est lu pour cela :
+une rubrique de compétences visible, ce sont les mêmes mots, et elle est honnête. Vingt CV
+synthétiques en PDF, DOCX, ODT, HTML et RTF — dix honnêtes, six cachant des mots-clés en blanc, en un
+point, hors de la page ou sous un calque, quatre cachant une consigne — servent de test d'acceptation
+(`test/cv-corpus.test.ts`) : chaque piège est nommé, aucun CV honnête n'est signalé.
 
 **La retirer, sur demande.** Pour Word, PowerPoint, HTML et Markdown, la page propose « Retirer aussi les passages
 cachés » au-dessus du bouton de téléchargement, et la ligne de commande accepte `--remove-hidden`. Ce
@@ -1303,12 +1324,16 @@ npm install /chemin/vers/Cirta   # un clone construit ; `npm install cirta` une 
 ```
 
 ```js
-import { inspectFile, redactFile } from 'cirta';
-import { nodeXrayEngine } from 'cirta/node'; // facultatif : rend les pages PDF pour la recherche de texte caché
+import { readFile } from 'node:fs/promises';
+import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'cirta';
+import { nodeXrayEngine } from 'cirta/node'; // facultatif : rend les pages PDF pour le contrôle du texte caché
 
-const rapport = await inspectFile(octets, 'contrat.pdf', { xray: await nodeXrayEngine() });
-const nettoye = await redactFile(octets, 'contrat.pdf', { removeComments: true });
-// nettoye.data : les octets nettoyés ; nettoye.removed : ce qui est parti ; nettoye.kept : ce qui reste
+const bytes = new Uint8Array(await readFile('cv.pdf'));
+const xray = await nodeXrayEngine();
+const report = await inspectFile(bytes, 'cv.pdf', { xray }); // report.findings : ce que dit le fichier, et ce qu'il cache
+const cleaned = await redactFile(bytes, 'cv.pdf', { xray }); // cleaned.data, cleaned.removed, cleaned.kept
+const forModel = await sanitizeForLlm(bytes, 'cv.pdf', { xray }); // forModel.text, forModel.hiddenInstructions
+const pasted = scanText('Bonjour\u200b Marie'); // pasted.findings : caractères invisibles dans une chaîne
 ```
 
 Les types sont publiés avec le paquet (`dist/core/index.d.ts`) ; [`examples/library.mjs`](examples/library.mjs)

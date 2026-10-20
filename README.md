@@ -453,6 +453,13 @@ slide there is, and is tested as such: the moment a picture, a gradient, a table
 with modifiers is in the way, the colour is not judged. A placeholder with no position of its own is
 placed where its layout puts it. Checked against decks LibreOffice wrote.
 
+**OpenDocument and RTF — the same tricks, read from their own markup.** In an ODT: `text:display`
+none, the hidden-text and hidden-paragraph fields, a hidden section, a colour on its span's or
+paragraph's background or on the white page, type under 2 pt, and a frame placed off the page;
+named and automatic styles are followed to their parents. In RTF: `\v`, a `\cf` colour against the
+`\highlight` or `\cb` behind it or the white page, and `\fs` under 2 pt, the state carried through
+groups and reset by `\plain`. A white title on a dark band is not reported in either.
+
 **Text a browser never renders is read too.** An HTML or Markdown comment, the content of
 `<noscript>` and `<template>`: no reader sees them, every model given the file reads them. They are
 reported as *Text a browser does not render*, probable — comments are also where developers leave
@@ -471,6 +478,18 @@ The same rule applies to Word, PowerPoint, HTML, mail and PDF. It is labelled
 the report. The phrases are narrow on purpose — "as an AI company", "ignore the previous email",
 "Model: iPhone 15 Pro" or "Reviewer: Jean Dupont" are prose or a label, and tested as such — and visible text is never read for this: an instruction a reader can see
 is not hidden from anyone.
+
+**Hidden keywords in a CV are called that.** The commonest trick in the CVs that cheat is not an
+order to a model but a pile of skills hidden from the reader for the screening software — 90 to 96 %
+of the planted CVs in a study of 196 682 real ones ([arXiv 2605.28999](https://arxiv.org/abs/2605.28999)).
+Hidden text of at least five terms, four of them skills, tools or technologies (from a French and
+English list, or shaped like one: C++, ISO 27001, Node.js), making up half the text, with no pronoun
+and few function words, is labelled *Hidden keyword stuffing*, confirmed even in one-point type. An
+order to a model that also lists skills is reported as the order. Only hidden text is read for this:
+a visible skills section is the same words and honest. Twenty synthetic CVs in PDF, DOCX, ODT, HTML
+and RTF — ten honest, six hiding keywords in white, at one point, off the page or under a layer, four
+hiding an order — are the acceptance test (`test/cv-corpus.test.ts`): every trap named, no honest CV
+reported.
 
 **Taking it out, on request.** For Word, PowerPoint, HTML and Markdown, the page offers "Also remove the hidden
 passages" above the download button, and the command line takes `--remove-hidden`. What goes is
@@ -1227,12 +1246,16 @@ npm install /path/to/Cirta   # a built clone; `npm install cirta` once a release
 ```
 
 ```js
-import { inspectFile, redactFile } from 'cirta';
+import { readFile } from 'node:fs/promises';
+import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'cirta';
 import { nodeXrayEngine } from 'cirta/node'; // optional: renders PDF pages for the hidden-text check
 
-const report = await inspectFile(bytes, 'contract.pdf', { xray: await nodeXrayEngine() });
-const cleaned = await redactFile(bytes, 'contract.pdf', { removeComments: true });
-// cleaned.data: the cleaned bytes; cleaned.removed: what went; cleaned.kept: what is still there
+const bytes = new Uint8Array(await readFile('cv.pdf'));
+const xray = await nodeXrayEngine();
+const report = await inspectFile(bytes, 'cv.pdf', { xray }); // report.findings: what the file says, and hides
+const cleaned = await redactFile(bytes, 'cv.pdf', { xray }); // cleaned.data, cleaned.removed, cleaned.kept
+const forModel = await sanitizeForLlm(bytes, 'cv.pdf', { xray }); // forModel.text, forModel.hiddenInstructions
+const pasted = scanText('Bonjour\u200b Marie'); // pasted.findings: invisible characters in a string
 ```
 
 Types are published with the package (`dist/core/index.d.ts`); [`examples/library.mjs`](examples/library.mjs)

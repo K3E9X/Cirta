@@ -308,6 +308,8 @@ const FIELD_LABEL: Record<string, string> = {
   'Tag characters': 'Caractères d’étiquette (tag)',
   'Variation selectors': 'Sélecteurs de variante',
   'Hidden instruction aimed at an AI': 'Consigne cachée destinée à une IA',
+  // [P0-2]
+  'Hidden keyword stuffing': 'Bourrage de mots-clés caché',
   'Encrypted document': 'Document chiffré',
   'Link text shows a different address': 'Le texte du lien affiche une autre adresse',
   'Link that runs a script': 'Lien qui exécute un script',
@@ -960,10 +962,14 @@ const HIDDEN_WHY: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^HTML comment$/, () => 'commentaire HTML'],
   [/^(alt|title|aria-label) attribute$/, (m) => `attribut « ${m[1]} »`],
   [/^(w:color|colou?r) (\S+) on (\S+)$/, (m) => `${m[1] === 'w:color' ? 'w:color' : 'couleur'} ${m[2]} sur ${m[3]}`],
+  // [P0-2] OpenDocument and RTF.
+  [/^(fo:color|\\cf\d+) (\S+) on (\S+)$/, (m) => `${m[1]} ${m[2]} sur ${m[3]}`],
+  [/^draw:frame outside the page$/, () => 'draw:frame hors de la page'],
 ];
 
 const HIDDEN_VALUE_LABELS = new Set([
   'Hidden instruction aimed at an AI',
+  'Hidden keyword stuffing',
   'Text covered by a shape',
   'Text that does not show on the page',
   'Text too faint to read',

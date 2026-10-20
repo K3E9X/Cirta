@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { odt } from './helpers/odt.js';
 import { gzipSync, strToU8, zipSync } from 'fflate';
 import { inspectFile, redactFile, type Finding, type Note } from '../src/core/index.js';
 import { errorText, noteText, translateLabel, translateLocation, translateValue } from '../src/shared/french.js';
@@ -124,6 +125,16 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     [
       'pieges.zip',
       zipSync({ 'facture\u202Efdp.exe': strToU8('MZ'), '../evasion.txt': strToU8('x'), 'releve.pdf.exe': strToU8('MZ'), 'p\u0430ypal.pdf': strToU8('x'), 'ra\u200bpport.pdf': strToU8('x') }),
+    ],
+    // [P0-2] CVs hiding a pile of keywords, in RTF and OpenDocument, read in French: the label and the way it was hidden.
+    ['cv-piege.rtf', enc('{\\rtf1\\ansi{\\colortbl;\\red255\\green255\\blue255;}Camille Durand\\par {\\cf1 Python Java Kubernetes Docker AWS Terraform React SQL}\\par {\\fs2 texte minuscule pour personne}\\par}')],
+    [
+      'cv-piege.odt',
+      odt(
+        '<text:p><text:span text:style-name="T1">Python Java Kubernetes Docker AWS Terraform React SQL</text:span></text:p>' +
+          '<text:p><draw:frame svg:x="-30cm" svg:y="1cm" svg:width="5cm" svg:height="2cm"><draw:text-box><text:p>Phrase posée hors de la page</text:p></draw:text-box></draw:frame></text:p>',
+        '<style:style style:name="T1" style:family="text"><style:text-properties fo:color="#ffffff"/></style:style>',
+      ),
     ],
     [
       'liens.html',
@@ -286,6 +297,8 @@ describe('[C11.1] nothing English in French mode', () => {
         .replace(/en-tête \S+/g, ' ');
       const match = ENGLISH.exec(words);
       if (match) english.push(`${where}: «${match[0]}» in ${text.slice(0, 140)}`);
+      // [P0-2] "on" is French too; a colour on a colour is not.
+      else if (/\son #[0-9a-f]{6}/i.test(text)) english.push(`${where}: «on» in ${text.slice(0, 140)}`);
     };
     for (const [name, data] of await corpus()) {
       for (const [mode, run] of [

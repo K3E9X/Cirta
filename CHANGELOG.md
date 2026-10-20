@@ -10,6 +10,17 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **Hidden keyword stuffing.** A pile of skills hidden in a CV for the screening software is reported as *Hidden keyword stuffing*, confirmed, apart from an order to a model.
+- **Hidden text in OpenDocument and RTF**: hidden formatting and fields, a colour on its background, type under 2 pt, a frame off the page (ODT).
+- **`sanitizeForLlm` from the library's entry point**, beside `inspectFile`, `redactFile` and `scanText`; the README's example uses all four and is run against the packed package.
+
+### Fixed
+
+- **The library reads a file name as the command line does**: `inspectFile(bytes, 'cv.html')` reads HTML, `'notes.md'` Markdown, where the library used to read them as plain text and miss what their markup hides.
+- **VS Code underlines an invisible character in Markdown, HTML and SVG** where it is, as it did in plain text.
+
 ## [0.2.0] — 2026-10-19
 
 Released on GitHub — single-file binaries, the library as one file, the editor, browser and Thunderbird
