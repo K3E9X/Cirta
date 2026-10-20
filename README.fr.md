@@ -945,10 +945,14 @@ nettoyage retire est surtout ce que personne ne voit.
 CV. Il écrit le texte du document **tel qu'une personne qui le lit le voit** — passages cachés, texte
 sous une forme, commentaires, `<noscript>` et `<template>`, notes du présentateur, diapositives,
 feuilles et lignes masquées, suppressions suivies et caractères invisibles laissés de côté — et liste,
-sur stderr, les consignes adressées à une IA qu'il a trouvées cachées. `--json` donne `{file, format,
-text, hiddenInstructions, hiddenRemoved, invisibleRemoved}` ; `--fail-on-instructions` sort en 1
-quand il en a trouvé une, pour qu'un pipeline s'arrête sur le fichier au lieu d'en donner le reste à
-un modèle. Un PDF demande le moteur de rendu (c'est lui qui dit ce qui est recouvert) ; sans lui, ou
+sur stderr, les consignes adressées à une IA qu'il a trouvées cachées. Un lien dont l'adresse affichée
+n'est pas celle où il mène — texte de lien qui nomme un autre site, en HTML, Markdown ou dans un mail,
+ou adresse écrite en lettres sosies — est suivi dans le texte de sa vraie cible,
+`https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, et signalé sur stderr. `--json` donne
+`{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved, deceptiveLinks}` ;
+`--fail-on-instructions` sort en 1 quand une consigne a été trouvée, `--fail-on-deceptive-links` quand
+un tel lien l'a été, pour qu'un pipeline s'arrête sur le fichier au lieu d'en donner le reste à un
+modèle. Un PDF demande le moteur de rendu (c'est lui qui dit ce qui est recouvert) ; sans lui, ou
 si toutes les pages n'ont pas pu être rendues à temps, aucun texte n'est produit, plutôt qu'un texte
 qui pourrait contenir ce qui est caché.
 

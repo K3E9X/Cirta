@@ -888,9 +888,12 @@ code point** (`Bonjour⟨U+200B⟩`), since what a clean removes is mostly what 
 It prints the text of the document **as a person reading it sees it** — hidden runs, text under a
 shape, comments, `<noscript>` and `<template>`, speaker notes, hidden slides, sheets and rows, tracked
 deletions and invisible characters left out — and lists, on stderr, the instructions to an AI it found
-hidden. `--json` gives `{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved}`;
-`--fail-on-instructions` exits 1 when one was found, so a pipeline can stop on the file instead of
-feeding the rest to a model. A PDF needs the renderer (it tells what is covered); without it, or when
+hidden. A link whose shown address is not where it goes — link text naming another site, in HTML,
+Markdown or a mail, or an address written in lookalike letters — is followed in the text by its real
+target, `https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, and said on stderr. `--json`
+gives `{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved, deceptiveLinks}`;
+`--fail-on-instructions` exits 1 when an instruction was found, `--fail-on-deceptive-links` when such a
+link was, so a pipeline can stop on the file instead of feeding the rest to a model. A PDF needs the renderer (it tells what is covered); without it, or when
 not every page could be rendered in time, no text is produced rather than text that may hold what is
 hidden.
 

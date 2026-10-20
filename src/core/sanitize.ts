@@ -31,6 +31,8 @@ import { removeUnrendered, replaceSpans } from './linear.js';
 import { elements } from './tracked-changes.js';
 import { visiblePdfText } from './xray.js';
 import { preview } from './types.js';
+import { markdownLinkTargets } from './links.js';
+import { mismatchedAnchors, URL_PATTERN } from './url.js';
 
 export interface SanitizedText {
   format: Format;
@@ -42,6 +44,12 @@ export interface SanitizedText {
   hiddenRemoved: number;
   /** Kinds of invisible character removed from the text. */
   invisibleRemoved: number;
+  /**
+   * [R7] Links whose shown address is not where they go: link text naming
+   * another site, or an address written in lookalike letters. The text marks
+   * each one with its real target, `shown [→ target]`.
+   */
+  deceptiveLinks: Array<{ shown: string; target: string }>;
 }
 
 type Parts = Record<string, Uint8Array>;
@@ -228,11 +236,50 @@ export async function sanitizeForLlm(data: Uint8Array, hint?: string, options: P
   }
 
   const cleaned = cleanText(body.text, { normalizeSpaces: false, normalize: 'when-flagged' });
+  const plain = cleaned.text.replace(/\n{3,}/g, '\n\n').trim();
+  const deceptiveLinks = deceptive(data, report.format, plain);
   return {
     format: report.format,
-    text: cleaned.text.replace(/\n{3,}/g, '\n\n').trim(),
+    text: markTargets(plain, deceptiveLinks),
+    deceptiveLinks,
     hiddenInstructions: hiddenInstructions.map((i) => ({ ...i, text: preview(i.text, 500) })),
     hiddenRemoved: body.removed,
     invisibleRemoved: cleaned.removed.length,
   };
+}
+
+/**
+ * [R7] The links a reader would be misled by. A model handed the text reads
+ * « https://paypal.com/login » as a destination and may repeat it as one; the
+ * text says where it really goes.
+ */
+function deceptive(data: Uint8Array, format: Format, text: string): Array<{ shown: string; target: string }> {
+  const found = new Map<string, string>();
+  const html: string[] = [];
+  if (format === 'html') html.push(decodeTextInput(data, { allowBinary: true }));
+  if (format === 'markdown') {
+    const markdown = decodeTextInput(data, { allowBinary: true });
+    html.push(markdown, markdownLinkTargets(markdown).map((l) => `<a href="${l.target.replace(/"/g, '&quot;')}">${l.text}</a>`).join('\n'));
+  }
+  if (format === 'eml') for (const part of parseMail(data).parts) if (part.type === 'text/html' && part.text) html.push(part.text);
+  for (const source of html) for (const anchor of mismatchedAnchors(source)) if (!found.has(anchor.address)) found.set(anchor.address, anchor.href);
+  // An address in letters from another alphabet: where it goes is its punycode.
+  for (const m of text.matchAll(URL_PATTERN)) {
+    const host = m[0].split('/')[2] ?? '';
+    if (!/[^\x00-\x7f]/.test(host) || found.has(m[0])) continue;
+    try {
+      found.set(m[0], new URL(m[0]).href);
+    } catch {
+      // Not an address after all.
+    }
+  }
+  return [...found].filter(([shown, target]) => shown !== target).map(([shown, target]) => ({ shown, target }));
+}
+
+/** Each shown address followed by its real target, in one pass, longest first. */
+function markTargets(text: string, links: Array<{ shown: string; target: string }>): string {
+  if (!links.length) return text;
+  const targets = new Map(links.map((l) => [l.shown, l.target]));
+  const pattern = new RegExp([...targets.keys()].sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  return text.replace(pattern, (shown) => `${shown} [→ ${targets.get(shown)}]`);
 }

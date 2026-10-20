@@ -101,7 +101,7 @@ ${bold(t().usage)}
   cirta redact  <path...> [options]  ${t().usageRedact}
   cirta text [--clean]               ${t().usageText}
   cirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
-  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions]  ${t().usageSanitize}
+  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions] [--fail-on-deceptive-links]  ${t().usageSanitize}
   cirta mcp                          ${t().usageMcp}
   cirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ${t().usageServe}
   cirta watch <folder> [--clean -o <folder>] [--json]  ${t().usageWatch}
@@ -210,6 +210,8 @@ interface Args {
   stripTracking: boolean;
   burnRedactions: boolean;
   failOnInstructions: boolean;
+  /** [R7] sanitize-for-llm: exit 1 on a link whose shown address is not where it goes. */
+  failOnDeceptiveLinks: boolean;
   pii: boolean;
   rulesFile?: string;
   rules?: Rule[];
@@ -260,6 +262,7 @@ function parseArgs(argv: string[]): Args {
     stripTracking: false,
     burnRedactions: false,
     failOnInstructions: false,
+    failOnDeceptiveLinks: false,
     pii: false,
     skip: [],
     sarif: false,
@@ -351,6 +354,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--fail-on-instructions':
         args.failOnInstructions = true;
+        break;
+      case '--fail-on-deceptive-links':
+        args.failOnDeceptiveLinks = true;
         break;
       case '--pii':
         args.pii = true;
@@ -697,16 +703,19 @@ async function runSanitize(args: Args): Promise<number> {
           console.error(red(t().sanitizeInstruction(terminalSafe(translateLocation(instruction.location, lang())), terminalSafe(instruction.text))));
         }
       }
+      // [R7] On stderr with --json too: the JSON carries them, a reader of the log should see them.
+      for (const link of result.deceptiveLinks) console.error(red(t().sanitizeDeceptive(terminalSafe(link.shown), terminalSafe(link.target))));
     } catch (error) {
       failed = true;
       const message = errorText(error, lang());
-      report.push({ file, format: 'text', text: '', hiddenInstructions: [], hiddenRemoved: 0, invisibleRemoved: 0, error: message });
+      report.push({ file, format: 'text', text: '', hiddenInstructions: [], hiddenRemoved: 0, invisibleRemoved: 0, deceptiveLinks: [], error: message });
       if (!args.json) console.error(`${bold(terminalSafe(file))}\n  ${red(terminalSafe(message))}`);
     }
   }
   if (args.json) console.log(terminalJson(report));
   if (failed) return 1;
-  return args.failOnInstructions && report.some((r) => r.hiddenInstructions.length) ? 1 : 0;
+  if (args.failOnInstructions && report.some((r) => r.hiddenInstructions.length)) return 1;
+  return args.failOnDeceptiveLinks && report.some((r) => r.deceptiveLinks.length) ? 1 : 0;
 }
 
 const LEVELS = ['informational', 'probable', 'confirmed'] as const;
