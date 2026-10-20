@@ -97,7 +97,7 @@ const decode = (text: string) =>
 
 /** The text a run sequence carries, deleted or not. */
 function runText(inner: string): string {
-  return [...inner.matchAll(/<w:(?:t|delText)(?:\s[^>]*)?>([^<]*)<\/w:(?:t|delText)>/g)].map((m) => decode(m[1] ?? '')).join('');
+  return [...inner.matchAll(/<w:(?:t|delText)(?:\s[^<>]*)?>([^<]*)<\/w:(?:t|delText)>/g)].map((m) => decode(m[1] ?? '')).join('');
 }
 
 const KINDS = [

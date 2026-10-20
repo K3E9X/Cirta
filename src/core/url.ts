@@ -413,7 +413,7 @@ export function findHtmlLinks(html: string, location = 'links'): Finding[] {
     const from = m.index + m[0].length;
     const close = lower.indexOf('</a', from);
     const inner = close < 0 || close - from > 4000 ? '' : html.slice(from, close);
-    const shown = inner.replace(/<[^>]*>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
+    const shown = inner.replace(/<[^<>]*>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
     // An address someone reads as the destination sits in short link text; a
     // paragraph-long anchor is prose, and is not searched for one.
     const visible = shown.length > 300 ? null : /(?:https?:\/\/)?((?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,})(?:[/:?#]\S*)?/u.exec(shown);

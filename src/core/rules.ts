@@ -126,7 +126,7 @@ function block(lines: Line[], start: number, indent: number): { value: unknown; 
   let i = start;
   while (i < lines.length && lines[i]!.indent === indent) {
     const line = lines[i]!;
-    const m = /^([^:]+):(?:\s+(.*))?$/.exec(line.text);
+    const m = /^([^:]+):(?:\s+(?!\s)(.*))?$/.exec(line.text);
     if (!m) throw new RulesError(`line ${line.number}: expected "key: value"`);
     const key = m[1]!.trim();
     if (m[2] !== undefined && m[2].trim() !== '') {

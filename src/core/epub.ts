@@ -29,6 +29,7 @@ import { fingerprint } from './fingerprint.js';
 import { unzipGuarded, ZIP_EPOCH } from './zip.js';
 import { UnsupportedFormatError } from './errors.js';
 import { ARCHIVE_SEPARATOR } from './archive.js';
+import { replaceSpans } from './linear.js';
 
 type Parts = Record<string, Uint8Array>;
 
@@ -37,10 +38,11 @@ export const isEpub = (parts: Parts) => Boolean(parts['mimetype'] && strFromU8(p
 /** dcterms:modified once cleaned: required by EPUB 3, dated like every repacked member. */
 export const EPUB_EPOCH = '1980-01-01T00:00:00Z';
 
+const MODIFIED = /\sproperty\s*=\s*"dcterms:modified"/;
+
 const decode = (text: string) =>
-  text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<[^>]*>/g, '')
+  replaceSpans(text, '<![CDATA[', ']]>', (span) => span.slice(9, -3))
+    .replace(/<[^<>]*>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
@@ -54,7 +56,7 @@ const attr = (attrs: string, name: string) => new RegExp(`\\s${name.replace(':',
 
 function opfPath(parts: Parts): string | undefined {
   const container = parts['META-INF/container.xml'];
-  const declared = container && /<rootfile\b[^>]*\sfull-path\s*=\s*"([^"]+)"/.exec(strFromU8(container))?.[1];
+  const declared = container && /<rootfile\b[^<>]*\sfull-path\s*=\s*"([^"]+)"/.exec(strFromU8(container))?.[1];
   if (declared && parts[declared]) return declared;
   return Object.keys(parts).find((p) => /\.opf$/i.test(p));
 }
@@ -89,9 +91,9 @@ function encrypted(parts: Parts): string[] {
   const out: string[] = [];
   const xml = parts['META-INF/encryption.xml'];
   if (xml) {
-    for (const block of strFromU8(xml).matchAll(/<(?:\w+:)?EncryptedData\b[\s\S]*?<\/(?:\w+:)?EncryptedData>/g)) {
+    for (const block of strFromU8(xml).matchAll(/<(?:\w+:)?EncryptedData\b(?:(?!<(?:\w+:)?EncryptedData\b)[\s\S])*?<\/(?:\w+:)?EncryptedData>/g)) {
       const algorithm = /Algorithm\s*=\s*"([^"]*)"/.exec(block[0])?.[1] ?? '';
-      const uri = /<(?:\w+:)?CipherReference\b[^>]*\sURI\s*=\s*"([^"]*)"/.exec(block[0])?.[1];
+      const uri = /<(?:\w+:)?CipherReference\b[^<>]*\sURI\s*=\s*"([^"]*)"/.exec(block[0])?.[1];
       if (!FONT_OBFUSCATION.has(algorithm) && uri) out.push(decodeURIComponent(uri));
     }
   }
@@ -106,7 +108,7 @@ interface DcElement {
   id?: string;
 }
 
-const DC = /<dc:(creator|contributor|publisher|identifier|date|title)\b([^>]*)>([\s\S]*?)<\/dc:\1>/g;
+const DC = /<dc:(creator|contributor|publisher|identifier|date|title)\b([^<>]*)>((?:(?!<dc:\1\b)[\s\S])*?)<\/dc:\1>/g;
 
 function dcElements(opf: string): DcElement[] {
   return [...opf.matchAll(DC)].map((m) => ({ name: m[1]!, attrs: m[2]!, value: decode(m[3]!), id: attr(m[2]!, 'id') }));
@@ -117,13 +119,13 @@ function role(opf: string, element: DcElement): string | undefined {
   const own = attr(element.attrs, 'opf:role');
   if (own) return own;
   if (!element.id) return undefined;
-  const refine = new RegExp(`<meta\\b[^>]*\\srefines\\s*=\\s*"#${element.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*\\sproperty\\s*=\\s*"role"[^>]*>([^<]*)</meta>`).exec(opf);
+  const refine = new RegExp(`<meta\\b[^<>]*\\srefines\\s*=\\s*"#${element.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^<>]*\\sproperty\\s*=\\s*"role"[^<>]*>([^<]*)</meta>`).exec(opf);
   return refine?.[1]?.trim();
 }
 
 function opfFindings(opf: string, path: string, derived: string): Finding[] {
   const out: Finding[] = [];
-  const unique = /<package\b[^>]*\sunique-identifier\s*=\s*"([^"]*)"/.exec(opf)?.[1];
+  const unique = /<package\b[^<>]*\sunique-identifier\s*=\s*"([^"]*)"/.exec(opf)?.[1];
   for (const element of dcElements(opf)) {
     if (!element.value) continue;
     const location = `${path}:dc:${element.name}`;
@@ -151,9 +153,10 @@ function opfFindings(opf: string, path: string, derived: string): Finding[] {
         break;
     }
   }
-  const modified = /<meta\b[^>]*\sproperty\s*=\s*"dcterms:modified"[^>]*>([^<]*)<\/meta>/.exec(opf)?.[1]?.trim();
+  // [P0-1] Each <meta>, then its property: both in one pattern backtracked across a long tag.
+  const modified = [...opf.matchAll(/<meta\b([^<>]*)>([^<]*)<\/meta>/g)].find((m) => MODIFIED.test(m[1]!))?.[2]?.trim();
   if (modified && modified !== EPUB_EPOCH) out.push({ kind: 'timestamp', confidence: 'probable', location: `${path}:dcterms:modified`, label: 'Modified', value: modified });
-  for (const m of opf.matchAll(/<meta\b([^>]*)\/?>/g)) {
+  for (const m of opf.matchAll(/<meta\b([^<>]*)\/?>/g)) {
     const name = attr(m[1]!, 'name');
     const content = attr(m[1]!, 'content');
     if (!name || !content) continue;
@@ -174,7 +177,7 @@ export async function inspectEpub(data: Uint8Array, _options: InspectOptions = {
   if (opf) findings.push(...opfFindings(strFromU8(parts[opf]!), opf, await contentUuid(parts, opf)));
   for (const [path, raw] of Object.entries(parts)) {
     if (/\.ncx$/i.test(path)) {
-      const author = /<docAuthor\b[^>]*>([\s\S]*?)<\/docAuthor>/.exec(strFromU8(raw))?.[1];
+      const author = /<docAuthor\b[^<>]*>((?:(?!<docAuthor\b)[\s\S])*?)<\/docAuthor>/.exec(strFromU8(raw))?.[1];
       if (author && decode(author)) findings.push({ kind: 'identity', confidence: 'confirmed', location: `${path}:docAuthor`, label: 'Author', value: decode(author) });
     }
   }
@@ -211,7 +214,7 @@ export interface RedactEpubOptions {
 
 /** Remove a DC element, and the metas that refine it. */
 function cleanOpf(opf: string, uid: string): string {
-  const unique = /<package\b[^>]*\sunique-identifier\s*=\s*"([^"]*)"/.exec(opf)?.[1];
+  const unique = /<package\b[^<>]*\sunique-identifier\s*=\s*"([^"]*)"/.exec(opf)?.[1];
   const removedIds: string[] = [];
   let out = opf.replace(DC, (full, name: string, attrs: string) => {
     const id = attr(attrs, 'id');
@@ -228,10 +231,15 @@ function cleanOpf(opf: string, uid: string): string {
   });
   for (const id of removedIds) {
     const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(`<meta\\b[^>]*\\srefines\\s*=\\s*"#${escaped}"[^>]*(?:/>|>[^<]*</meta>)`, 'g'), '');
+    out = out.replace(new RegExp(`<meta\\b[^<>]*\\srefines\\s*=\\s*"#${escaped}"[^<>]*(?:/>|>[^<]*</meta>)`, 'g'), '');
   }
-  out = out.replace(/(<meta\b[^>]*\sproperty\s*=\s*"dcterms:modified"[^>]*>)[^<]*(<\/meta>)/, `$1${EPUB_EPOCH}$2`);
-  out = out.replace(/<meta\b[^>]*\sname\s*=\s*"(?:calibre:[^"]*|generator|Sigil version)"[^>]*?(?:\/>|>\s*<\/meta>)/gi, '');
+  let dated = false;
+  out = out.replace(/(<meta\b([^<>]*)>)[^<]*(<\/meta>)/g, (full, open: string, attrs: string, close: string) => {
+    if (dated || !MODIFIED.test(attrs)) return full;
+    dated = true;
+    return `${open}${EPUB_EPOCH}${close}`;
+  });
+  out = out.replace(/<meta\b([^<>]*?)(?:\/>|>\s*<\/meta>)/gi, (full, attrs: string) => (/\sname\s*=\s*"(?:calibre:[^"]*|generator|Sigil version)"/i.test(attrs) ? '' : full));
   // The lines the removed elements stood on.
   return out.replace(/\n[ \t]*(?=\n)/g, '');
 }
@@ -271,8 +279,8 @@ export async function redactEpub(data: Uint8Array, options: RedactEpubOptions = 
   for (const path of Object.keys(parts).filter((p) => /\.ncx$/i.test(p))) {
     parts[path] = strToU8(
       strFromU8(parts[path]!)
-        .replace(/<docAuthor\b[^>]*>[\s\S]*?<\/docAuthor>/g, '')
-        .replace(/(<meta\b[^>]*\sname\s*=\s*"dtb:uid"[^>]*\scontent\s*=\s*")[^"]*(")/, `$1${uid}$2`),
+        .replace(/<docAuthor\b[^<>]*>(?:(?!<docAuthor\b)[\s\S])*?<\/docAuthor>/g, '')
+        .replace(/<meta\b[^<>]*/g, (tag) => (/\sname\s*=\s*"dtb:uid"/.test(tag) ? tag.replace(/(\scontent\s*=\s*")[^"]*(")/, `$1${uid}$2`) : tag)),
     );
   }
   if (hidden) notes.push({ code: 'removed:hidden-text', detail: String(hidden) });

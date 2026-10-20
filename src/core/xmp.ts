@@ -62,9 +62,9 @@ function attributeValues(xmp: string, name: string): string[] {
 
 /** The items of an rdf:Seq, rdf:Bag or rdf:Alt, or the element's own text. */
 function listItems(inner: string): string[] {
-  const items = elementTexts(inner, 'rdf:li').map((li) => decode(li.replace(/<[^>]*>/g, '')).trim()).filter(Boolean);
+  const items = elementTexts(inner, 'rdf:li').map((li) => decode(li.replace(/<[^<>]*>/g, '')).trim()).filter(Boolean);
   if (items.length) return items;
-  const text = decode(inner.replace(/<[^>]*>/g, '')).trim();
+  const text = decode(inner.replace(/<[^<>]*>/g, '')).trim();
   return text ? [text] : [];
 }
 

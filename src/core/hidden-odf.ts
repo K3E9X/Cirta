@@ -44,7 +44,7 @@ function points(value: string | undefined): number | undefined {
 }
 
 function propertiesOf(body: string): TextStyle {
-  const props = /<style:text-properties\b[^>]*>/.exec(body)?.[0];
+  const props = /<style:text-properties\b[^<>]*>/.exec(body)?.[0];
   if (!props) return {};
   const out: TextStyle = {};
   const display = attr(props, 'text:display');
@@ -56,7 +56,7 @@ function propertiesOf(body: string): TextStyle {
   const size = points(attr(props, 'fo:font-size'));
   if (size !== undefined) out.points = size;
   // A paragraph's own background sits on its paragraph-properties.
-  const paragraph = /<style:paragraph-properties\b[^>]*>/.exec(body)?.[0];
+  const paragraph = /<style:paragraph-properties\b[^<>]*>/.exec(body)?.[0];
   const fill = paragraph ? odfColour(attr(paragraph, 'fo:background-color')) : undefined;
   if (fill && !out.background) out.background = fill;
   return out;
@@ -66,7 +66,7 @@ const merge = (...layers: TextStyle[]): TextStyle => Object.assign({}, ...layers
 
 function odfStyles(xml: string): Map<string, { own: TextStyle; parent?: string }> {
   const out = new Map<string, { own: TextStyle; parent?: string }>();
-  for (const m of xml.matchAll(/<style:style\b([^>]*?)(?:\/>|>([\s\S]*?)<\/style:style>)/g)) {
+  for (const m of xml.matchAll(/<style:style\b([^<>]*?)(?:\/>|>((?:(?!<style:style\b)[\s\S])*?)<\/style:style>)/g)) {
     const name = attr(m[1]!, 'style:name');
     if (!name) continue;
     out.set(name, { own: propertiesOf(m[2] ?? ''), parent: attr(m[1]!, 'style:parent-style-name') });
@@ -76,7 +76,7 @@ function odfStyles(xml: string): Map<string, { own: TextStyle; parent?: string }
 
 /** The page's size, for frames placed beyond it: A4 when the layout does not say. */
 function pageSize(styles: string): [number, number] {
-  const layout = /<style:page-layout-properties\b[^>]*>/.exec(styles)?.[0] ?? '';
+  const layout = /<style:page-layout-properties\b[^<>]*>/.exec(styles)?.[0] ?? '';
   return [points(attr(layout, 'fo:page-width')) ?? 595, points(attr(layout, 'fo:page-height')) ?? 842];
 }
 
@@ -116,7 +116,10 @@ export function hiddenInOdf(parts: Parts): Finding[] {
   };
   const [width, height] = pageSize(stylesXml);
 
-  const body = /<office:body>([\s\S]*)<\/office:body>/.exec(xml)?.[1] ?? '';
+  // [P0-1] From the first opening to the last closing, as the greedy pattern took it, without retrying from every opening.
+  const bodyStart = xml.indexOf('<office:body>');
+  const bodyEnd = xml.lastIndexOf('</office:body>');
+  const body = bodyStart >= 0 && bodyEnd > bodyStart ? xml.slice(bodyStart + '<office:body>'.length, bodyEnd) : '';
   const found: Hidden[] = [];
   /** Open elements: their style, and frames whose content is off the page. */
   const stack: Array<{ name: string; style: TextStyle; frame?: Frame }> = [{ name: '', style: {} }];
@@ -138,7 +141,7 @@ export function hiddenInOdf(parts: Parts): Finding[] {
     run.text += text;
   };
 
-  for (const m of body.matchAll(/<(\/?)([a-zA-Z][\w.-]*:[\w.-]+)([^>]*?)(\/?)>|([^<]+)/g)) {
+  for (const m of body.matchAll(/<(\/?)([a-zA-Z][\w.-]*:[\w.-]+)(?![\w.-])([^<>]*?)(\/?)>|([^<]+)/g)) {
     if (m[5] !== undefined) {
       emit(decodeXml(m[5]));
       continue;

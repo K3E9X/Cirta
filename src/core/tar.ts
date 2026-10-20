@@ -178,7 +178,7 @@ function xattrs(pax: Record<string, string>): Array<[string, string]> {
   return out;
 }
 
-const baseName = (path: string) => path.replace(/\/+$/, '').split('/').pop() ?? path;
+const baseName = (path: string) => path.replace(/(?<!\/)\/+$/, '').split('/').pop() ?? path;
 
 /** What the headers of a TAR say, beside its members' content. */
 export function tarFindings(members: TarMember[]): Finding[] {

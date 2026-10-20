@@ -230,7 +230,7 @@ const IMAGE_GENERATORS: Array<[RegExp, string]> = [
   [/stable[- ]?diffusion|\bsdxl\b/i, 'Stable Diffusion'],
   [/\bmidjourney\b/i, 'Midjourney'],
   [/\bdall[·.\-]?e\b/i, 'DALL·E'],
-  [/\bfirefly\b.*adobe|adobe firefly/i, 'Adobe Firefly'],
+  [/\bfirefly\b[^\n]{0,200}adobe|adobe firefly/i, 'Adobe Firefly'],
   [/\bnovelai\b/i, 'NovelAI'],
   [/\bflux\.1|black forest labs/i, 'FLUX'],
   [/\bimagen\b|\bnano banana\b/i, 'Imagen'],

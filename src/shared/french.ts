@@ -1009,8 +1009,16 @@ function translateHyphens(value: string): string | undefined {
   return names + match[2]!.replace(' — indistinguishable from "-" on screen', ' — indiscernables du « - » à l’écran');
 }
 
+/**
+ * [P0-1] The patterns below read a value in one anchored attempt, and some
+ * backtrack in proportion to its length squared: 0.2 s at 8 000 characters.
+ * A value longer than this — a document's own text, never Cirta's wording —
+ * is shown as it is.
+ */
+const MAX_TRANSLATED = 4000;
+
 export function translateValue(finding: Finding, lang: Lang): string {
-  if (lang === 'en') return finding.value;
+  if (lang === 'en' || finding.value.length > MAX_TRANSLATED) return finding.value;
   if (HIDDEN_VALUE_LABELS.has(finding.label)) {
     const cut = finding.value.lastIndexOf(' — ');
     if (cut > 0) {

@@ -112,8 +112,7 @@ function extractPdfStrings(stream: string): string {
   }
 
   // Literal strings, honouring backslash escapes.
-  for (const match of stream.matchAll(/\(((?:[^()\\]|\\[\s\S])*)\)/g)) {
-    const body = match[1] ?? '';
+  for (const body of literalStrings(stream)) {
     if (!body) continue;
     pieces.push(body.replace(/\\([nrtbf()\\])/g, (_, c: string) =>
       c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c,
@@ -121,6 +120,30 @@ function extractPdfStrings(stream: string): string {
   }
 
   return pieces.join(' ');
+}
+
+/**
+ * [P0-1] The bodies `/\(((?:[^()\\]|\\[\s\S])*)\)/g` matches, scanned once.
+ * The pattern started again at every "(" — escaped ones included — and read
+ * to the end each time when no ")" closed it: quadratic on `(\(\(\(…`.
+ * A scan that fails at an unescaped "(" resumes there, as the pattern's next
+ * success could only start there; one that reaches the end ends the search.
+ */
+export function literalStrings(stream: string): string[] {
+  const out: string[] = [];
+  let at = stream.indexOf('(');
+  while (at >= 0) {
+    let i = at + 1;
+    while (i < stream.length && stream[i] !== '(' && stream[i] !== ')') i += stream[i] === '\\' ? 2 : 1;
+    if (i >= stream.length) break;
+    if (stream[i] === '(') {
+      at = i;
+      continue;
+    }
+    out.push(stream.slice(at + 1, i));
+    at = stream.indexOf('(', i + 1);
+  }
+  return out;
 }
 
 /**
@@ -313,7 +336,7 @@ function pageTexts(doc: PDFDocument): string[] {
     const pieces: string[] = [];
     // One pass over the operators that matter: `/Name size Tf` switches font,
     // and any hex string is text drawn with whichever font is current.
-    for (const token of content.matchAll(/\/([^\s/<>[\]()]+)[^/]*?\bTf\b|<([0-9A-Fa-f\s]+)>/g)) {
+    for (const token of content.matchAll(/\/([^\s/<>[\]()]+)(?![^\s/<>[\]()])[^/]*?\bTf\b|<([0-9A-Fa-f\s]+)>/g)) {
       if (token[1] !== undefined) {
         current = fonts.get(token[1]) ?? current;
         continue;

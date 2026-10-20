@@ -123,10 +123,10 @@ function quicktimeText(data: Uint8Array, box: Box): string {
     if (p + 4 + length > box.end) break;
     const raw = data.subarray(p + 4, p + 4 + length);
     // A packed ISO 639 language means UTF-8; a Macintosh language code, Mac Roman — read as Latin-1, near enough for names.
-    texts.push((language >= 0x400 ? UTF8 : LATIN1).decode(raw).replace(/\0+$/, ''));
+    texts.push((language >= 0x400 ? UTF8 : LATIN1).decode(raw).replace(/(?<!\0)\0+$/, ''));
     p += 4 + length;
   }
-  if (!texts.length) return UTF8.decode(data.subarray(box.body, box.end)).replace(/\0+$/, '');
+  if (!texts.length) return UTF8.decode(data.subarray(box.body, box.end)).replace(/(?<!\0)\0+$/, '');
   return texts.join(' / ');
 }
 

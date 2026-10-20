@@ -73,8 +73,8 @@ export function inspectClipboardHtml(input: string): Finding[] {
   }
 
   const generator =
-    /<meta\b[^>]{0,300}\bname\s*=\s*["']?generator["']?[^>]{0,300}\bcontent\s*=\s*["']([^"']{1,200})["']/i.exec(html)?.[1] ??
-    /<meta\b[^>]{0,300}\bcontent\s*=\s*["']([^"']{1,200})["'][^>]{0,300}\bname\s*=\s*["']?generator\b/i.exec(html)?.[1];
+    /<meta\b[^<>]{0,300}\bname\s*=\s*["']?generator["']?[^<>]{0,300}\bcontent\s*=\s*["']([^"']{1,200})["']/i.exec(html)?.[1] ??
+    /<meta\b[^<>]{0,300}\bcontent\s*=\s*["']([^"']{1,200})["'][^<>]{0,300}\bname\s*=\s*["']?generator\b/i.exec(html)?.[1];
   if (generator) {
     findings.push({
       kind: 'provenance',

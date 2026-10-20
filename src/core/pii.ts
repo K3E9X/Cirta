@@ -119,7 +119,7 @@ const DETECTORS: Detector[] = [
   {
     label: 'Email address',
     confidence: 'confirmed',
-    pattern: /\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,24}\b/g,
+    pattern: /\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,15}\.[A-Za-z]{2,24}\b/g,
     mask: (m) => `${m[0]}${B.repeat(3)}${m.slice(m.indexOf('@'))}`,
   },
   {
@@ -167,7 +167,7 @@ const DETECTORS: Detector[] = [
   {
     label: 'Internal host name',
     confidence: 'probable',
-    pattern: /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.(?:local|lan|corp|internal|intra|intranet|localdomain|home\.arpa)\b/gi,
+    pattern: /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?){0,15}\.(?:local|lan|corp|internal|intra|intranet|localdomain|home\.arpa)\b/gi,
     mask: (m) => {
       const labels = m.split('.');
       return labels.length >= 3 ? `${labels[0]}.${B.repeat(3)}.${labels[labels.length - 1]}` : `${B.repeat(3)}.${labels[labels.length - 1]}`;

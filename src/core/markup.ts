@@ -26,10 +26,13 @@ import { remoteFindings } from './beacons.js';
 import { trackingFindings } from './tracking.js';
 import { htmlLinkTargets, linkFindings, markdownLinkTargets } from './links.js';
 import { findHtmlLinks } from './url.js';
+import { replaceSpans, spans } from './linear.js';
 
 export type MarkupFormat = 'svg' | 'html' | 'markdown';
 
-const COMMENT = /<!--([\s\S]*?)-->/g;
+/** HTML and SVG comments: [P0-1] found with indexOf, as a lazy pattern rescanned from every unclosed one. */
+const comments = (text: string) => spans(text, '<!--', '-->').map(([start, end]) => ({ index: start, 0: text.slice(start, end), 1: text.slice(start + 4, end - 3) }));
+const dropGeneratorComments = (text: string) => replaceSpans(text, '<!--', '-->', (full) => (GENERATOR_HINT.test(full.slice(4, -3)) ? '' : full));
 
 /** Producer strings frequently written into comments and generator tags. */
 const GENERATOR_HINT = /generator|generated|created\s+(?:with|by)|exported|produced\s+by/i;
@@ -42,7 +45,7 @@ const EDITOR_NAMESPACES = ['inkscape', 'sodipodi', 'krita', 'serif', 'figma', 's
 function inspectSvg(text: string): Finding[] {
   const findings: Finding[] = [];
 
-  const metadata = /<metadata[^>]*>([\s\S]*?)<\/metadata>/i.exec(text);
+  const metadata = /<metadata[^<>]*>((?:(?!<metadata)[\s\S])*?)<\/metadata>/i.exec(text);
   if (metadata) {
     const inner = metadata[1] ?? '';
     if (/c2pa|contentcredentials/i.test(inner)) {
@@ -73,7 +76,7 @@ function inspectSvg(text: string): Finding[] {
   }
 
   // Illustrator and similar write "Generator: ..." into a leading comment.
-  for (const match of text.matchAll(COMMENT)) {
+  for (const match of comments(text)) {
     const body = (match[1] ?? '').trim();
     if (body && GENERATOR_HINT.test(body)) {
       findings.push({
@@ -87,7 +90,7 @@ function inspectSvg(text: string): Finding[] {
   }
 
   for (const tag of ['title', 'desc'] as const) {
-    const match = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(text);
+    const match = new RegExp(`<${tag}[^<>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(text);
     const value = match?.[1]?.trim();
     if (value) {
       findings.push({
@@ -104,13 +107,13 @@ function inspectSvg(text: string): Finding[] {
 }
 
 function redactSvg(text: string): string {
-  let out = text.replace(/<metadata[^>]*>[\s\S]*?<\/metadata>/gi, '');
-  out = out.replace(COMMENT, (full, body: string) => (GENERATOR_HINT.test(body) ? '' : full));
+  let out = text.replace(/<metadata[^<>]*>(?:(?!<metadata)[\s\S])*?<\/metadata>/gi, '');
+  out = dropGeneratorComments(out);
   for (const namespace of EDITOR_NAMESPACES) {
     out = out.replace(new RegExp(`\\sxmlns:${namespace}="[^"]*"`, 'gi'), '');
     out = out.replace(new RegExp(`\\s${namespace}:[a-z-]+="[^"]*"`, 'gi'), '');
-    out = out.replace(new RegExp(`<${namespace}:[^>]*/>`, 'gi'), '');
-    out = out.replace(new RegExp(`<${namespace}:([a-z-]+)[^>]*>[\\s\\S]*?</${namespace}:\\1>`, 'gi'), '');
+    out = out.replace(new RegExp(`<${namespace}:[^<>]*/>`, 'gi'), '');
+    out = out.replace(new RegExp(`<${namespace}:([a-z-]+)[^<>]*>[\\s\\S]*?</${namespace}:\\1>`, 'gi'), '');
   }
   // <title> and <desc> stay: they are what a screen reader reads out.
   return out;
@@ -128,7 +131,7 @@ const HTML_META: Array<{ name: string; label: string; kind: Finding['kind']; con
 
 function metaContent(text: string, name: string): string | undefined {
   // Attribute order varies, so match name= and content= independently.
-  const tags = text.matchAll(/<meta\s+([^>]*)>/gi);
+  const tags = text.matchAll(/<meta\s([^<>]*)>/gi);
   for (const tag of tags) {
     const attributes = tag[1] ?? '';
     const nameMatch = /\b(?:name|property)\s*=\s*["']([^"']+)["']/i.exec(attributes);
@@ -155,7 +158,7 @@ function inspectHtml(text: string): Finding[] {
     }
   }
 
-  for (const match of text.matchAll(COMMENT)) {
+  for (const match of comments(text)) {
     const body = (match[1] ?? '').trim();
     if (body && GENERATOR_HINT.test(body)) {
       findings.push({
@@ -183,7 +186,8 @@ function inspectHtml(text: string): Finding[] {
   }
 
   // JSON-LD is indexed by search engines; it is content, so it is reported only.
-  const jsonLd = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i.exec(text);
+  // [P0-1] Each script, then its type: the type inside the tag pattern backtracked across a long tag.
+  const jsonLd = [...text.matchAll(/<script\b([^<>]*)>((?:(?!<script\b)[\s\S])*?)<\/script>/gi)].map((m) => [m[1], m[2]] as const).find(([attrs]) => /type\s*=\s*["']application\/ld\+json["']/i.test(attrs!)) ?? null;
   if (jsonLd?.[1]?.trim()) {
     findings.push({
       kind: 'identity',
@@ -200,12 +204,12 @@ function inspectHtml(text: string): Finding[] {
 function redactHtml(text: string): string {
   let out = text;
   for (const meta of HTML_META) {
-    out = out.replace(/<meta\s+([^>]*)>\s*/gi, (full, attributes: string) => {
+    out = out.replace(/<meta\s([^<>]*)>\s*/gi, (full, attributes: string) => {
       const nameMatch = /\b(?:name|property)\s*=\s*["']([^"']+)["']/i.exec(attributes);
       return nameMatch?.[1]?.toLowerCase() === meta.name ? '' : full;
     });
   }
-  out = out.replace(COMMENT, (full, body: string) => (GENERATOR_HINT.test(body) ? '' : full));
+  out = dropGeneratorComments(out);
   // Unlike JSON-LD, a data-ai-* attribute changes nothing a reader or a search
   // engine sees, so there is nothing to weigh against removing it.
   out = out.replace(/\sdata-ai[\w-]*\s*=\s*["'][^"']*["']/gi, '');
@@ -245,12 +249,12 @@ const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/;
  * vendor name, so prose that merely mentions a model is not flagged.
  */
 const MARKDOWN_ATTRIBUTION =
-  /^\s*[*_>\s-]*(?:g[ée]n[ée]r[ée]e?\s+(?:par|avec)|generated\s+(?:by|with)|created\s+(?:by|with)|written\s+by|produit\s+par|r[ée]dig[ée]\s+par)\b.{0,120}$/i;
+  /^[*_>\s-]*(?:g[ée]n[ée]r[ée]e?\s+(?:par|avec)|generated\s+(?:by|with)|created\s+(?:by|with)|written\s+by|produit\s+par|r[ée]dig[ée]\s+par)\b.{0,120}$/i;
 
 function inspectMarkdown(text: string): Finding[] {
   const findings: Finding[] = [];
 
-  for (const match of text.matchAll(COMMENT)) {
+  for (const match of comments(text)) {
     const body = (match[1] ?? '').trim();
     if (body && GENERATOR_HINT.test(body)) {
       findings.push({
@@ -280,7 +284,7 @@ function inspectMarkdown(text: string): Finding[] {
   if (!block) return findings;
 
   for (const line of (block[1] ?? '').split(/\r?\n/)) {
-    const entry = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line);
+    const entry = /^([A-Za-z_][\w-]*)\s*:\s*(?!\s)(.*)$/.exec(line);
     if (!entry) continue;
     const key = entry[1]!.toLowerCase();
     const described = FRONT_MATTER_KEYS.get(key);

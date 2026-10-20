@@ -168,7 +168,7 @@ export function inspectLatex(text: string): InspectResult {
     for (const value of argumentsOf(source, command)) findings.push({ kind: 'identity', confidence: command === 'email' ? 'confirmed' : 'probable', location: `\\${command}`, label: 'Author contact', value: preview(value.trim(), 200) });
   }
   for (const setup of [...argumentsOf(source, 'hypersetup'), ...argumentsOf(source, 'pdfinfo')]) {
-    const author = /pdfauthor\s*=\s*\{([^}]*)\}|pdfauthor\s*=\s*([^,}\n]+)|\/Author\s*\(([^)]*)\)/.exec(setup);
+    const author = /pdfauthor\s*=\s*\{([^}]*)\}|pdfauthor\s*=\s*([^,}\n]+)|\/Author\s*\(([^()]*)\)/.exec(setup);
     const value = (author?.[1] ?? author?.[2] ?? author?.[3])?.trim();
     if (value) findings.push({ kind: 'identity', confidence: 'confirmed', location: '\\hypersetup', label: 'PDF author set by the source', value });
   }

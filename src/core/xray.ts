@@ -766,7 +766,7 @@ export async function visiblePdfText(data: Uint8Array, engine: XrayEngine): Prom
         text += chars.filter((_, i) => !ranges.some(([from, to]) => i >= from && i < to)).join('');
         text += item.hasEOL ? '\n' : '';
       });
-      pages.push(text.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim());
+      pages.push(text.replace(/[ \t]+/g, ' ').replace(/(?<! ) *\n */g, '\n').trim());
       page.cleanup();
       pagesChecked = n;
     }

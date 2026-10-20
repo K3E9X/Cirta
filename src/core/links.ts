@@ -120,7 +120,7 @@ export function htmlLinkTargets(html: string): string[] {
 /** Markdown link and image targets: [text](target) and <target>. */
 export function markdownLinkTargets(markdown: string): Array<{ text: string; target: string }> {
   const out: Array<{ text: string; target: string }> = [];
-  for (const m of markdown.matchAll(/\[([^[\]\n]{0,300})\]\(\s*<?([^)\s>]{1,2000})>?(?:\s+"[^"\n]*")?\s*\)/g)) {
+  for (const m of markdown.matchAll(/\[([^[\]\n]{0,300})\]\(\s*<?((?:(?!\]\()[^)\s>]){1,2000})>?(?:\s+"[^"\n]*")?\s*\)/g)) {
     out.push({ text: m[1]!, target: m[2]! });
     if (out.length >= 5000) break;
   }

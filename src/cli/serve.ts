@@ -383,7 +383,7 @@ async function handleIcap(socket: Socket, options: ServeOptions): Promise<void> 
     const offered = SERVICES[path];
 
     // The encapsulated message: its HTTP headers, then perhaps a chunked body.
-    const sections = [...(request.headers.get('encapsulated') ?? '').matchAll(/([a-z-]+)=(\d+)/g)].map(([, name, offset]) => ({ name: name!, offset: Number(offset) }));
+    const sections = [...(request.headers.get('encapsulated') ?? '').matchAll(/(?<![a-z-])([a-z-]+)=(\d+)/g)].map(([, name, offset]) => ({ name: name!, offset: Number(offset) }));
     const bodySection = sections.find((section) => /-body$/.test(section.name));
     const http: Record<string, Buffer> = {};
     try {
