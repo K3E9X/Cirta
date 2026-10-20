@@ -333,6 +333,9 @@ export interface RedactResult {
 }
 
 /** Truncate a value for terminal/DOM display without breaking surrogate pairs. */
+/** [R2] Between the places of one finding reported at several: a mail's text and HTML versions. */
+export const PLACES = ' · ';
+
 export function preview(value: string, max = 72): string {
   const flat = value.replace(/\s+/g, ' ').trim();
   if (flat.length <= max) return flat;

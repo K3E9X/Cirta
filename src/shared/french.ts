@@ -12,7 +12,7 @@
  * returns its input unchanged when the language is English.
  */
 
-import type { Finding, Note } from '../core/types.js';
+import { PLACES, type Finding, type Note } from '../core/types.js';
 import type { ErrorCode } from '../core/errors.js';
 import { NOTE_TEXT_EN, NOTE_TEXT_FR } from '../core/notes.js';
 
@@ -487,7 +487,7 @@ const LOCATION_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^revision (\d+)$/, (m) => `révision ${m[1]}`],
   [/^line (\d+)$/, (m) => `ligne ${m[1]}`],
   [/^stream (.+)$/, (m) => `flux ${m[1]}`],
-  [/^document body \((.+)\)$/, (m) => `corps du document (${m[1]})`],
+  [/^document body \((.+)\)$/, (m) => `corps du document (${translateLocation(m[1]!, 'fr')})`],
   [/^comment (\d+)$/, (m) => `commentaire ${m[1]}`],
 ];
 
@@ -828,6 +828,9 @@ export const translateLocation = (location: string, lang: Lang): string => {
   const derived = /^derived from (.+)$/.exec(location);
   if (derived?.[1]) return `dérivé de ${translateLocation(derived[1], lang)}`;
 
+  // [R2] One finding the text and HTML versions of a message share: each place on its own.
+  if (location.includes(PLACES)) return location.split(PLACES).map((place) => translateLocation(place, lang)).join(PLACES);
+
   // [C11.1] An archive member or a mail part leads, its own location follows:
   // each step is translated on its own, paths staying as they are.
   if (location.includes(' → ')) return location.split(' → ').map((step) => translateLocation(step, lang)).join(' → ');
@@ -1019,6 +1022,20 @@ function translateHyphens(value: string): string | undefined {
  */
 const MAX_TRANSLATED = 4000;
 
+
+/**
+ * [R2] Where a finding sits within its own file: the last step of a nested
+ * location (« part 1 (text/plain) → links »), inside « document body (…) ».
+ * Comparing the whole location missed every finding an archive or a mail
+ * part had prefixed, and left its value in English.
+ */
+const placesOf = (location: string): string[] =>
+  location.split(PLACES).map((place) => {
+    const step = place.split(' → ').at(-1)!;
+    return /^document body \((.+)\)$/.exec(step)?.[1] ?? step;
+  });
+const isAt = (finding: Finding, place: string): boolean => placesOf(finding.location).includes(place);
+
 export function translateValue(finding: Finding, lang: Lang): string {
   if (lang === 'en' || finding.value.length > MAX_TRANSLATED) return finding.value;
   if (HIDDEN_VALUE_LABELS.has(finding.label)) {
@@ -1031,7 +1048,7 @@ export function translateValue(finding: Finding, lang: Lang): string {
       }
     }
   }
-  if (finding.location === 'hyphen lookalikes') {
+  if (isAt(finding, 'hyphen lookalikes')) {
     const hyphens = translateHyphens(finding.value);
     if (hyphens) return hyphens;
   }
@@ -1042,12 +1059,12 @@ export function translateValue(finding: Finding, lang: Lang): string {
   // Occurrence counts read identically in both languages.
   const mapped = VALUE_TEXT[finding.value];
   if (mapped) return mapped;
-  if (/\bstructure$/.test(finding.location)) return translateReasons(finding.value);
+  if (placesOf(finding.location).some((place) => /\bstructure$/.test(place))) return translateReasons(finding.value);
   for (const [pattern, render] of RETAINED_PATTERNS) {
     const match = pattern.exec(finding.value);
     if (match) return render(match);
   }
-  if (finding.location === 'links') {
+  if (isAt(finding, 'links')) {
     for (const [pattern, render] of LINK_PATTERNS) {
       const match = pattern.exec(finding.value);
       if (match) return render(match);

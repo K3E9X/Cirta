@@ -10,7 +10,7 @@
  */
 
 import type { Finding, InspectResult, Note, RedactResult } from './types.js';
-import { byConfidence } from './types.js';
+import { byConfidence, PLACES } from './types.js';
 import { emailHeaders, stripToolHeaders } from './email.js';
 import { decodeWords, parseMail, type MailPart } from './mime.js';
 import { inspectPlainText } from './plaintext.js';
@@ -29,6 +29,22 @@ export type InspectMember = (data: Uint8Array, name: string) => Promise<InspectR
 
 const prefix = (findings: Finding[], where: string): Finding[] =>
   findings.map((finding) => ({ ...finding, location: `${where} → ${finding.location}` }));
+
+/**
+ * [R2] A message usually comes as text and as HTML, the same words twice: a
+ * lookalike link was reported once per version. A finding the body parts
+ * share — same label, same value — is reported once, at each of its places.
+ */
+function samePlaces(findings: Finding[]): Finding[] {
+  const merged = new Map<string, Finding>();
+  for (const finding of findings) {
+    const key = `${finding.label}\u0000${finding.value}`;
+    const first = merged.get(key);
+    if (!first) merged.set(key, { ...finding });
+    else if (!first.location.split(PLACES).includes(finding.location)) first.location += `${PLACES}${finding.location}`;
+  }
+  return [...merged.values()];
+}
 
 const BLOCKS = /^\/?(?:p|div|br|li|tr|td|th|h[1-6]|table|ul|ol|blockquote|section|article|header|footer|pre|hr)\b/i;
 
@@ -98,6 +114,7 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
   const notes: Note[] = [{ code: 'scope:email' }];
 
   const bodies = mail.parts.filter((part) => !part.attachment);
+  const bodyFindings: Finding[] = [];
   for (const [index, part] of mail.parts.entries()) {
     if (part.attachment) {
       const name = part.filename ?? `part ${index + 1}`;
@@ -118,8 +135,10 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
       continue;
     }
     const found = partFindings(part);
-    findings.push(...(bodies.length > 1 ? prefix(found, `part ${index + 1} (${part.type})`) : found));
+    if (bodies.length > 1) bodyFindings.push(...prefix(found, `part ${index + 1} (${part.type})`));
+    else findings.push(...found);
   }
+  findings.push(...samePlaces(bodyFindings));
 
   const seen = new Set<string>();
   const unique = findings.filter((f) => {
