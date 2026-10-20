@@ -10,6 +10,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A cleaned phone photo keeps its orientation.** Cleaning a JPEG took the whole Exif block, so a portrait came out on its side; an Exif holding the orientation alone is written back, and not reported.
+
 ### Added
 
 - **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.

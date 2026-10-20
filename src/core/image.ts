@@ -92,6 +92,9 @@ function describeJpegSegment(
   const head = ASCII.decode(segment.body.subarray(0, 32));
   if (segment.marker === 0xffe1) {
     if (head.startsWith('Exif')) {
+      // An Exif holding the orientation alone is what cleaning writes back: it says nothing about anyone.
+      const exif = parseExif(segment.body.subarray(6));
+      if (exif && exif.exif.size === 0 && exif.gps.size === 0 && [...exif.ifd0.keys()].every((tag) => tag === 0x0112)) return undefined;
       // "GPS " appears as an IFD tag name only in the raw TIFF structure, so
       // look for the GPSInfo tag id (0x8825) instead.
       const hasGps = containsUint16(segment.body, 0x8825);
@@ -285,24 +288,62 @@ function containsUint16(data: Uint8Array, value: number): boolean {
   return false;
 }
 
+/**
+ * The orientation a JPEG's Exif gives, when it is not upright (2 to 8): the
+ * one Exif field that changes how the picture is drawn. A phone stores the
+ * sensor's image and this tag to turn it.
+ */
+function exifOrientation(segments: JpegSegment[]): number | undefined {
+  for (const segment of segments) {
+    if (segment.marker !== 0xffe1 || ASCII.decode(segment.body.subarray(0, 6)) !== 'Exif\0\0') continue;
+    const value = parseExif(segment.body.subarray(6))?.ifd0.get(0x0112);
+    const orientation = Array.isArray(value) ? value[0] : undefined;
+    if (orientation !== undefined && orientation >= 2 && orientation <= 8) return orientation;
+  }
+  return undefined;
+}
+
+/** An Exif segment holding the orientation and nothing else: big-endian TIFF, one IFD, one entry. */
+function orientationSegment(orientation: number): Uint8Array {
+  const tiff = [0x4d, 0x4d, 0x00, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation, 0, 0, 0, 0, 0, 0];
+  const body = [0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
+  const length = body.length + 2;
+  return new Uint8Array([0xff, 0xe1, length >> 8, length & 0xff, ...body]);
+}
+
 function stripJpeg(data: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   const { segments, scanStart } = jpegSegments(data);
   const keep = segments.filter((s) => !shouldStrip(s));
+  // Exif goes whole, but a photo that must be turned to be seen the right way
+  // up keeps that, alone — without it a portrait comes out on its side.
+  const orientation = exifOrientation(segments);
+  const turn = orientation === undefined ? undefined : orientationSegment(orientation);
   // [F-P2 2.4] Whatever follows the end of the image goes too: it is not the picture.
   const end = trailing(data, jpegEnd(data)) ? jpegEnd(data)! : data.length;
   if (keep.length === segments.length && end === data.length) return undefined;
   data = data.subarray(0, end);
 
-  let size = 2 + (data.length - scanStart);
+  let size = 2 + (data.length - scanStart) + (turn?.length ?? 0);
   for (const segment of keep) size += segment.end - segment.start;
 
   const out = new Uint8Array(size);
   out[0] = 0xff;
   out[1] = 0xd8;
   let cursor = 2;
+  // JFIF's APP0, when there is one, comes first; the orientation after it.
+  let placed = !turn;
   for (const segment of keep) {
+    if (!placed && segment.marker !== 0xffe0) {
+      out.set(turn!, cursor);
+      cursor += turn!.length;
+      placed = true;
+    }
     out.set(data.subarray(segment.start, segment.end), cursor);
     cursor += segment.end - segment.start;
+  }
+  if (!placed) {
+    out.set(turn!, cursor);
+    cursor += turn!.length;
   }
   out.set(data.subarray(scanStart), cursor);
   return out;
