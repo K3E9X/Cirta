@@ -2024,7 +2024,7 @@ Le brief `CIRTA_CLAUDE_CODE_R2.md` n'est ni dans le dépôt ni dans la conversat
 | HTML, Markdown, e-mail, EPUB, ODF, PDF, texte | `7c94e81` | 30 fichiers de `src/core`, `src/cli/{index,serve}.ts`, `src/shared/french.ts`, `test/linear.test.ts` (nouveau) |
 | Motifs construits à l'exécution | `fea024f` | `src/core/{c2pa,content-options,ooxml,ooxml-active,xlsx-active,epub,markup,latex,linear}.ts` |
 | Contrôle en CI : recheck puis mesure | `543d376` | `scripts/redos.mjs` (nouveau), `scripts/redos-allow.json` (nouveau), `.github/workflows/ci.yml`, `package.json` (`recheck` en dépendance de développement) |
-| Documentation | voir `git log` | `README.md`, `README.fr.md`, `CHANGELOG.md` |
+| Documentation | `b9c6f91` | `README.md`, `README.fr.md`, `CHANGELOG.md` |
 
 Ce qui a été trouvé, avec [recheck](https://makenowjust-labs.github.io/recheck/) sur les 1 181 motifs des sources :
 - **1 exponentiel.** `rootOf` sautait le prologue d'une partie Office avec un seul motif. 195 octets de commentaires cassés en tête de n'importe quelle partie d'un DOCX, XLSX ou PPTX prenaient 9 s, et quelques octets de plus, des heures.
