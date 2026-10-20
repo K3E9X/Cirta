@@ -15,6 +15,7 @@
 import type { Finding } from './types.js';
 import { preview } from './types.js';
 import { keywordStuffing, STUFFING_LABEL } from './keywords.js';
+import { elements } from './tracked-changes.js';
 
 /* ------------------------------------------------------------- shared -- */
 
@@ -570,7 +571,7 @@ function scanHtml(input: string): Hidden[] {
       i = end < 0 ? n : lower.indexOf('>', end) + 1 || n;
       // What a script-free browser, or a script, would show — and a model reads now.
       if (name === 'noscript' || name === 'template') {
-        unrendered(html.slice(start, end < 0 ? n : end).replace(/<[^>]*>/g, ' '), `<${name}>`, [start, end < 0 ? n : end]);
+        unrendered(html.slice(start, end < 0 ? n : end).replace(/<[^<>]*>/g, ' '), `<${name}>`, [start, end < 0 ? n : end]);
       }
       continue;
     }
@@ -624,8 +625,11 @@ const HIGHLIGHT: Record<string, Rgb> = {
   lightGray: [211, 211, 211],
 };
 
+/** A run's properties. [P0-1] Not past the next <w:rPr>: an unclosed one rescanned to the end from every opening. */
+const RPR = /<w:rPr>((?:(?!<w:rPr>)[\s\S])*?)<\/w:rPr>/;
+
 const attr = (xml: string, element: string, name = 'w:val'): string | undefined =>
-  new RegExp(`<${element}\\b[^>]*?\\s${name}="([^"]*)"`).exec(xml)?.[1];
+  new RegExp(`<${element}\\b[^<>]*?\\s${name}="([^"]*)"`).exec(xml)?.[1];
 
 function wordHex(value: string | undefined): Rgb | undefined {
   if (!value || !/^[0-9A-Fa-f]{6}$/.test(value)) return undefined; // "auto" and theme-only colours
@@ -635,7 +639,7 @@ function wordHex(value: string | undefined): Rgb | undefined {
 /** The properties a <w:rPr> sets, each undefined where it is silent. */
 function runStyle(rPr: string): RunStyle {
   const out: RunStyle = {};
-  const vanish = /<w:vanish\b([^>]*)\/?>/.exec(rPr);
+  const vanish = /<w:vanish\b([^<>]*)\/?>/.exec(rPr);
   if (vanish) out.vanish = !/w:val="(?:false|0|off)"/.test(vanish[1] ?? '');
   const colour = wordHex(attr(rPr, 'w:color'));
   if (colour) out.colour = colour;
@@ -653,10 +657,11 @@ const merge = (...layers: RunStyle[]): RunStyle => Object.assign({}, ...layers.m
 /** Character and paragraph styles from styles.xml, resolved through basedOn. */
 function wordStyles(xml: string): { resolve(id: string | undefined): RunStyle; defaults: RunStyle } {
   const own = new Map<string, { rPr: RunStyle; basedOn?: string }>();
-  for (const m of xml.matchAll(/<w:style\b[^>]*?w:styleId="([^"]+)"[^>]*>([\s\S]*?)<\/w:style>/g)) {
-    const body = m[2] ?? '';
-    const rPr = /<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(body)?.[1] ?? '';
-    own.set(m[1]!, { rPr: runStyle(rPr), basedOn: attr(body, 'w:basedOn') });
+  for (const style of elements(xml, 'w:style')) {
+    const id = /\sw:styleId="([^"]+)"/.exec(style.open)?.[1];
+    if (!id) continue;
+    const rPr = RPR.exec(style.inner)?.[1] ?? '';
+    own.set(id, { rPr: runStyle(rPr), basedOn: attr(style.inner, 'w:basedOn') });
   }
   const cache = new Map<string, RunStyle>();
   const resolve = (id: string | undefined, depth = 0): RunStyle => {
@@ -668,7 +673,7 @@ function wordStyles(xml: string): { resolve(id: string | undefined): RunStyle; d
     cache.set(id, value);
     return value;
   };
-  const defaults = runStyle(/<w:rPrDefault>([\s\S]*?)<\/w:rPrDefault>/.exec(xml)?.[1] ?? '');
+  const defaults = runStyle(/<w:rPrDefault>((?:(?!<w:rPrDefault>)[\s\S])*?)<\/w:rPrDefault>/.exec(xml)?.[1] ?? '');
   return { resolve: (id) => resolve(id), defaults };
 }
 
@@ -733,7 +738,7 @@ function scanDocx(parts: Record<string, Uint8Array>): Map<string, Hidden[]> {
     const cells: Array<{ fill?: Rgb }> = [];
     const paragraphs: number[] = [];
 
-    for (const m of xml.matchAll(/<w:(tbl|tc|p)(?:\s[^>]*)?>|<\/w:(tbl|tc|p)>/g)) {
+    for (const m of xml.matchAll(/<w:(tbl|tc|p)(?:\s[^<>]*)?>|<\/w:(tbl|tc|p)>/g)) {
       const opening = m[1];
       const closing = m[2];
       const at = m.index! + m[0].length;
@@ -762,7 +767,7 @@ function scanDocx(parts: Record<string, Uint8Array>): Map<string, Hidden[]> {
         // the same length, so positions found here are positions in the part.
         const body = xml
           .slice(start, m.index)
-          .replace(/<w:txbxContent>[\s\S]*?<\/w:txbxContent>/g, (box) => ' '.repeat(box.length));
+          .replace(/<w:txbxContent>(?:(?!<w:txbxContent>)[\s\S])*?<\/w:txbxContent>/g, (box) => ' '.repeat(box.length));
         for (const item of paragraphRuns(body, styles, cells[cells.length - 1]?.fill, tables.some((t) => t.styled), page)) {
           item.ranges = item.ranges?.map(([x, y]) => [x + start, y + start]);
           found.push(item);
@@ -784,15 +789,15 @@ function paragraphRuns(
   const pPr = /^\s*<w:pPr>([\s\S]*?)<\/w:pPr>/.exec(body)?.[1] ?? '';
   const paragraphStyle = styles.resolve(attr(pPr, 'w:pStyle'));
   // The paragraph's own shading, not its mark's: the <w:rPr> inside <w:pPr> is the pilcrow.
-  const paragraphFill = wordHex(attr(pPr.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, ''), 'w:shd', 'w:fill'));
+  const paragraphFill = wordHex(attr(pPr.replace(RPR, ''), 'w:shd', 'w:fill'));
 
   const out: Hidden[] = [];
   let current: Hidden | undefined;
-  for (const run of body.matchAll(/<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g)) {
+  for (const run of body.matchAll(/<w:r(?:\s[^<>]*)?>((?:(?!<w:r[\s/>])[\s\S])*?)<\/w:r>/g)) {
     const inner = run[1] ?? '';
-    const text = [...inner.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((t) => decodeXml(t[1] ?? '')).join('');
+    const text = [...inner.matchAll(/<w:t(?:\s[^<>]*)?>([^<]*)<\/w:t>/g)].map((t) => decodeXml(t[1] ?? '')).join('');
     if (!text) continue;
-    const rPr = /<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(inner)?.[1] ?? '';
+    const rPr = RPR.exec(inner)?.[1] ?? '';
     const direct = runStyle(rPr);
     const style = merge(styles.defaults, paragraphStyle, styles.resolve(attr(rPr, 'w:rStyle')), direct);
 
