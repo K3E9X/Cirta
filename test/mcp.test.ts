@@ -14,7 +14,8 @@ import { makeDocx } from './fixtures.js';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 async function session(messages: object[]): Promise<Array<Record<string, any>>> {
-  const child = spawn(process.execPath, ['node_modules/vite-node/vite-node.mjs', 'src/cli/index.ts', 'mcp'], { cwd: ROOT, env: { ...process.env, NO_COLOR: '1' } });
+  // [R4] The files are written under the system's temporary folder: that is the root.
+  const child = spawn(process.execPath, ['node_modules/vite-node/vite-node.mjs', 'src/cli/index.ts', 'mcp', '--root', tmpdir()], { cwd: ROOT, env: { ...process.env, NO_COLOR: '1' } });
   let out = '';
   child.stdout.on('data', (chunk) => (out += chunk));
   for (const message of messages) child.stdin.write(`${JSON.stringify(message)}\n`);

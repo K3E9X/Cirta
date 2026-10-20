@@ -956,14 +956,21 @@ cirta sanitize-for-llm --json --fail-on-instructions entree/*.pdf
 
 **`cirta mcp`** lance un serveur Model Context Protocol sur stdio, pour qu'un agent vérifie un
 document avant de le lire. Ses outils sont `inspect_file`, `redact_file` (écrit `<nom>.clean.<ext>`
-à côté de l'original, sans jamais écraser sauf demande), `sanitize_for_llm` et `scan_text`. Il lit et
-écrit des fichiers locaux et n'ouvre aucune connexion.
+à côté de l'original, sans jamais écraser sauf demande, ou à `output`), `sanitize_for_llm` et `scan_text`.
+Il lit et écrit des fichiers locaux et n'ouvre aucune connexion.
+
+Il ne lit et n'écrit **que dans ses racines** : chaque `--root <dossier>` donné, sinon le dossier où il a
+été lancé. Un chemin est résolu liens symboliques suivis : `..` ou un lien qui, depuis une racine, mène
+ailleurs est refusé, tout comme un `output` dont le dossier est dehors ; le refus est une erreur JSON-RPC
+(`-32602`), pas un résultat d'outil. Un agent lit des documents écrits par d'autres, et une consigne
+cachée dans l'un d'eux pourrait sinon lui faire inspecter `~/.ssh/id_rsa` ou écraser un fichier
+n'importe où. Donnez les racines explicitement : un client de bureau peut lancer le serveur dans `/`.
 
 ```
-claude mcp add cirta -- node /chemin/vers/Cirta/dist/cli/index.js mcp      # Claude Code
+claude mcp add cirta -- node /chemin/vers/Cirta/dist/cli/index.js mcp --root ~/Documents      # Claude Code
 ```
 ```json
-{ "mcpServers": { "cirta": { "command": "node", "args": ["/chemin/vers/Cirta/dist/cli/index.js", "mcp"] } } }
+{ "mcpServers": { "cirta": { "command": "node", "args": ["/chemin/vers/Cirta/dist/cli/index.js", "mcp", "--root", "/home/moi/Documents"] } } }
 ```
 
 ### Données personnelles et règles de l'organisation — sur demande
@@ -1405,7 +1412,12 @@ page `403` qui liste ses constats par libellé. Ce qu'il ne sait pas lire — un
 au-delà de `--max-size` (50 Mo par défaut), un encodage qu'il ne sait pas défaire — passe et est journalisé
 `skipped`.
 
-Il écoute sur la boucle locale sauf si `--host` dit autre chose, et n'ouvre aucune connexion vers quoi que
+Il écoute sur la boucle locale sauf si `--host` dit autre chose. Là, l'API HTTP ne répond qu'à une
+requête dont le `Host` est un nom de la boucle locale — `127.0.0.1`, `localhost`, `[::1]`, quel que soit le
+port —, le `--host` donné, ou un nom passé par `--allowed-host` (répétable) ; tout autre reçoit `421
+Misdirected Request`, si bien qu'une page web ne peut pas l'atteindre en faisant pointer un nom qu'elle
+contrôle vers 127.0.0.1 (DNS rebinding). Au-delà de la boucle locale, il répond à tout nom sauf si
+`--allowed-host` les énumère. Il n'ouvre aucune connexion vers quoi que
 ce soit (`test/no-network.test.ts` vérifie que `serve.ts` ne prend que `createServer` aux modules réseau de
 Node). Essayé à la main derrière Squid 6.14 et avec `c-icap-client` : un fichier Word qui porte son auteur
 bloqué au téléchargement comme à l'envoi, un fichier propre qui passe, le journal de Squid qui porte

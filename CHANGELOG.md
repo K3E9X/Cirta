@@ -10,12 +10,17 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Changed
+
+- **`cirta mcp` stays inside its roots.** It reads and writes only in the folders given with `--root` (repeatable), the current one otherwise, links followed; a path elsewhere — through `..` or a link — and an `output` outside are refused with a JSON-RPC error. A configuration that named files outside the folder the server starts in needs a `--root`. `redact_file` takes `output` (`output_path` is still read).
+
 ### Fixed
 
 - **French reports of nested files.** A lookalike link or dash in a mail part, an attached message, a text attachment or a file inside a zip kept its explanation in English: the translation looked for the location « links » and found « part 1 (text/plain) → links ». It now reads the last step. A finding the text and HTML versions of a mail share is reported once, with both places.
 
 ### Security
 
+- **`cirta serve` answers only its own names on the loopback.** A web page could point a name it controls at 127.0.0.1 and read the HTTP API from its own origin (DNS rebinding). On the loopback, a `Host` other than `127.0.0.1`, `localhost`, `[::1]`, the `--host` given or an `--allowed-host` now gets 421.
 - **What runs in a page, a picture or a mail's HTML.** HTML, SVG, Markdown and the HTML parts of a mail reported a `javascript:` link and nothing else. Now named: `<script>` inline or from a file, `on…` attributes, `javascript:`, `vbscript:` and `data:` page addresses wherever one is followed (src, action, formaction, xlink:href, SVG animations), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, and a form that sends to another address. `--strip-active` takes them out of these formats, a mail's HTML parts and HTML or SVG attachments included, each encoded again as it was; a link keeps its text. « Run again with --strip-active » is no longer offered for what the option would leave — remote pictures are `--strip-remote-resources`' business.
 - **A rules file can no longer hold Cirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
 

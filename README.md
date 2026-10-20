@@ -898,14 +898,21 @@ cirta sanitize-for-llm --json --fail-on-instructions inbox/*.pdf
 
 **`cirta mcp`** runs a Model Context Protocol server on stdio, so an agent can check a document before
 reading it. Its tools are `inspect_file`, `redact_file` (writes `<name>.clean.<ext>` beside the
-original, never overwriting unless asked), `sanitize_for_llm` and `scan_text`. It reads and writes
-local files and opens no connection.
+original, never overwriting unless asked, or at `output`), `sanitize_for_llm` and `scan_text`. It reads and
+writes local files and opens no connection.
+
+It reads and writes **only inside its roots**: each `--root <folder>` given, the folder it was started in
+otherwise. A path is resolved with its symbolic links followed, so `..` or a link inside a root that
+leads elsewhere is refused, and so is an `output` whose folder lies outside; the refusal is a JSON-RPC
+error (`-32602`), not a tool result. An agent reads documents written by others, and a prompt hidden
+in one could otherwise have it inspect `~/.ssh/id_rsa` or write over a file anywhere. Give the roots
+explicitly: a desktop client may start the server in `/`.
 
 ```
-claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp      # Claude Code
+claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp --root ~/Documents      # Claude Code
 ```
 ```json
-{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp"] } } }
+{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp", "--root", "/home/me/Documents"] } } }
 ```
 
 ### Personal data and the organisation's rules — on request
@@ -1321,7 +1328,11 @@ format, the size, the SHA-256, the count per level and the labels; **never a val
 findings by label. What it cannot read — a format it does not know, a body past `--max-size` (50 MB by
 default), an encoding it cannot undo — goes through and is logged as `skipped`.
 
-It listens on the loopback unless `--host` says otherwise, and it opens no connection to anything
+It listens on the loopback unless `--host` says otherwise. There, the HTTP API answers only a request
+whose `Host` is the loopback's own — `127.0.0.1`, `localhost`, `[::1]`, any port — the `--host` given, or
+a name passed with `--allowed-host` (repeatable); anything else gets `421 Misdirected Request`, so a web
+page cannot reach it by pointing a name it controls at 127.0.0.1 (DNS rebinding). Listening beyond the
+loopback, it answers any name unless `--allowed-host` lists them. It opens no connection to anything
 (`test/no-network.test.ts` checks that `serve.ts` takes nothing but `createServer` from Node's network
 modules). Tried by hand behind Squid 6.14 and with `c-icap-client`: a Word file carrying its author
 blocked on download and on upload, a clean file let through, Squid's log carrying `X-Cirta-Verdict`.
