@@ -31,6 +31,7 @@ import { cleanBatch } from '../shared/batch.js';
 import { reportHtml, reportMarkdown } from '../shared/report-export.js';
 import { isSupportedFile, isWalkedDirectory } from '../shared/files.js';
 import { matchHash } from '../shared/site.js';
+import { parsePreset } from '../shared/preset.js';
 import { FIXED_PICTURES, LEGACY, READ_ONLY_ARCHIVES } from '../shared/read-only.js';
 import {
   preview,
@@ -403,7 +404,9 @@ function setupTabs(): void {
     });
   });
 
-  select(tabs.findIndex((tab) => tab.button.getAttribute('aria-selected') === 'true') || 0);
+  // [P1-3] A link may ask for the text tab; otherwise the markup's choice.
+  const asked = preset.tab === 'text' ? 1 : preset.tab === 'files' ? 0 : undefined;
+  select(asked ?? (tabs.findIndex((tab) => tab.button.getAttribute('aria-selected') === 'true') || 0));
 }
 
 /* ------------------------------------------------------------------ motion -- */
@@ -1434,6 +1437,12 @@ function setupTheme(): void {
   });
   document.addEventListener('cirta:language', () => apply(current()));
 }
+
+// [P1-3] What a link asked the page to open on, from the fragment the server never sees.
+const fileInput = must<HTMLInputElement>('#file-input');
+const preset = parsePreset(location.hash, fileInput.accept.split(','));
+if (preset.lang) setLang(preset.lang);
+if (preset.accept) fileInput.accept = preset.accept.join(',');
 
 setupLanguage();
 setupTheme();
