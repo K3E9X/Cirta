@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { makeDocx, makeXlsx } from './fixtures.js';
@@ -112,4 +113,18 @@ describe('[P0-1] ReDoS: a hostile file is read in time', () => {
   it('a PDF whose content stream is a run of escaped parentheses (literal strings: quadratic)', async () => {
     await expectQuick(incrementalPdf('a) ' + '(\\'.repeat(60_000)), 'piege.pdf');
   }, 30_000);
+});
+
+describe('[P0-1] ReDoS: the check that keeps it so', () => {
+  it('runs in CI, and every allowance says why its input is bounded', () => {
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const job = ci.slice(ci.indexOf('\n  redos:'));
+    expect(job).toMatch(/runs-on: ubuntu-latest/);
+    expect(job.slice(0, job.indexOf('\n\n'))).toMatch(/run: node scripts\/redos\.mjs/);
+    const allow = JSON.parse(readFileSync('scripts/redos-allow.json', 'utf8')) as Array<{ file: string; source: string; reason: string }>;
+    for (const entry of allow) {
+      expect(readFileSync(entry.file, 'utf8'), `${entry.file} no longer holds /${entry.source}/`).toContain(entry.source.slice(0, 20));
+      expect(entry.reason.length, entry.source).toBeGreaterThan(30);
+    }
+  });
 });

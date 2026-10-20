@@ -52,6 +52,20 @@ jobs:
       - run: npm run build
       - run: node scripts/perf.mjs
 
+  # [P0-1] No regular expression backtracks on input a file can give it:
+  # recheck flags, a measurement confirms, scripts/redos-allow.json says why
+  # the few that remain see bounded input. A minute or two, so not in npm test.
+  redos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/redos.mjs
+
   # [F-P2 2.8] The single-file binary, built and run on each system it is
   # released for, so a release does not find out first.
   sea:

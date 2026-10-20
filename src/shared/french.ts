@@ -1090,6 +1090,7 @@ const RULES_DETAIL: Array<[RegExp, (m: RegExpExecArray) => string]> = [
 ];
 
 const translateRulesDetail = (detail: string): string => {
+  if (detail.length > MAX_TRANSLATED) return detail;
   for (const [pattern, render] of RULES_DETAIL) {
     const m = pattern.exec(detail);
     if (m) return render(m);
