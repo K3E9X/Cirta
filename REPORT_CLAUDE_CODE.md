@@ -2011,9 +2011,61 @@ Vérification :
 
 Le plan demande trois tâches avant tout service. Mes questions sur le brief R2, le dépôt `cirta-cloud` et npm ont été refusées ; j'ai donc pris les choix par défaut : P0-2 en entier, P0-3 préparé sans publier, P0-1 et `cirta-cloud` en attente.
 
-### P0-1 — Corrections R1 à R8 : **bloqué**
+### P0-1 — Corrections R1 à R8 : **ReDoS fait ; R2 à R8 bloqués**
 
-Le brief `CIRTA_CLAUDE_CODE_R2.md` n'est ni dans le dépôt ni dans la conversation. Je n'invente pas huit corrections, ReDoS (R1) compris, sans leur énoncé. Il faut fournir le brief.
+Le brief `CIRTA_CLAUDE_CODE_R2.md` n'est ni dans le dépôt ni dans la conversation. Je n'invente pas R2 à R8 sans leur énoncé. Le plan nomme R1 (« ReDoS, bloquant avant toute API hébergée ») : j'ai donc fait un audit ReDoS indépendant du cœur. Ses repros ne sont pas celles du brief ; il faudra les rejouer quand il sera fourni.
+
+| Élément | Commit | Fichiers |
+|---|---|---|
+| Le motif exponentiel : la racine d'une partie Office | `06767fe` | `src/core/comments.ts`, `test/redos.test.ts` (nouveau), `test/helpers/redos.ts` (nouveau) |
+| Word : runs, propriétés, styles | `dc6853f` | `src/core/hidden-text.ts`, `src/core/tracked-changes.ts` |
+| PowerPoint : formes, runs, remplissages, contours | `e2c68a7` | `src/core/hidden-pptx.ts` |
+| Excel, objets incorporés, relations, Visio, outils XML | `a93d6c4` | `src/core/{ooxml,ooxml-active,xlsx-active,content-options,sanitize,comments,visio,xml}.ts`, `src/core/linear.ts` (nouveau) |
+| HTML, Markdown, e-mail, EPUB, ODF, PDF, texte | `7c94e81` | 30 fichiers de `src/core`, `src/cli/{index,serve}.ts`, `src/shared/french.ts`, `test/linear.test.ts` (nouveau) |
+| Motifs construits à l'exécution | `fea024f` | `src/core/{c2pa,content-options,ooxml,ooxml-active,xlsx-active,epub,markup,latex,linear}.ts` |
+| Contrôle en CI : recheck puis mesure | `543d376` | `scripts/redos.mjs` (nouveau), `scripts/redos-allow.json` (nouveau), `.github/workflows/ci.yml`, `package.json` (`recheck` en dépendance de développement) |
+| Documentation | voir `git log` | `README.md`, `README.fr.md`, `CHANGELOG.md` |
+
+Ce qui a été trouvé, avec [recheck](https://makenowjust-labs.github.io/recheck/) sur les 1 181 motifs des sources :
+- **1 exponentiel.** `rootOf` sautait le prologue d'une partie Office avec un seul motif. 195 octets de commentaires cassés en tête de n'importe quelle partie d'un DOCX, XLSX ou PPTX prenaient 9 s, et quelques octets de plus, des heures.
+- **190 quadratiques**, presque tous du même type :
+  - `<x>([\s\S]*?)</x>` relancé depuis chaque ouverture sans fermeture ;
+  - `[^>]*` qui traverse les `<` ;
+  - deux attributs lus par un même motif.
+
+  Exemple : un DOCX de 1,4 Ko contenant 200 Ko de `<w:r>` dans un paragraphe prenait 8 s.
+
+Les corrections :
+- **Balises :** une balise s'arrête à `<`, et le corps d'un élément à la prochaine ouverture du même élément.
+- **Attributs :** on trouve la balise d'abord, ses attributs ensuite ; un identifiant est comparé, il n'est plus inséré dans un motif.
+- **Parcours avec `indexOf` :**
+  - commentaires, CDATA, sections CMap, chaînes PDF (`src/core/linear.ts`, `literalStrings`) ;
+  - en-têtes MIME découpés en comptant les guillemets.
+- **Fins de chaîne :** les suites finales (`\0+$`, etc.) partent du début de la suite.
+- **Bornes :**
+  - les noms d'hôte sont limités à 16 étiquettes ;
+  - les termes de plus de 40 lettres ne sont pas testés comme technologies ;
+  - les valeurs de plus de 4 000 caractères ne sont pas traduites.
+- **Correctif connexe :** `elements()` ne recherchait plus la fermeture après chaque ouverture imbriquée, une source quadratique de plus.
+
+Tests :
+- **`test/redos.test.ts` :** un fichier hostile par famille (Word, PowerPoint, Excel, HTML, Markdown, e-mail, EPUB, ODT, PDF). Chacun est analysé, nettoyé et préparé pour un modèle dans un fil de travail arrêté au bout de 10 s.
+  - Avant les correctifs, chacun dépassait les 10 s ; je l'ai vérifié en rejouant les tests sur le code d'origine (`git stash`).
+  - Après, chacun finit en moins de 3 s.
+  - Le temps double quand la taille double (vérifié jusqu'à 6 Mo).
+- **`test/linear.test.ts` :** chaque parcours est comparé au motif qu'il remplace sur 20 000 chaînes aléatoires, sans aucune différence.
+- **`scripts/redos.mjs` (job CI `redos`) :**
+  - recheck vérifie chaque motif, y compris ceux construits avec `new RegExp(`…${x}…`)`.
+  - Son fuzzer est aléatoire et signale aussi des motifs linéaires. Chaque verdict est donc mesuré sur la chaîne d'attaque quatre fois plus longue : au-delà de 8×, le motif revient en arrière.
+  - 18 motifs le font encore, tous sur une entrée bornée. `scripts/redos-allow.json` dit pourquoi pour chacun : traductions plafonnées à 4 000 caractères, texte de lien de 300 caractères au plus, termes de 40 lettres au plus, 4 096 premiers caractères, coupe au dernier `<`.
+
+Vérification :
+- `npm run verify` passe : 106 fichiers, 1 106 tests.
+- `node scripts/real-files.mjs` passe.
+- `node scripts/perf.mjs` reste dans le budget sur les neuf formats de 50 Mo.
+- `npm run redos` passe.
+
+Écart : ce n'est pas le R1 du brief, mais un audit fait sans lui. Les sorties de `cirta serve` (HTTP/ICAP) passent par le même cœur ; l'en-tête `Encapsulated` est corrigé aussi.
 
 ### P0-2 — Bourrage de mots-clés caché : **fait**
 
@@ -2044,7 +2096,7 @@ Résultats :
 
 Ce que Cirta ne prétend pas : il ne détecte aucun filigrane statistique. Le bourrage est du texte caché, et c'est ce qu'il nomme.
 
-### P0-3 — API stable, cirta 0.3.0 : **préparé, non publié**
+### P0-3 — API stable, cirta 0.3.0 : **prêt à taguer, non publié**
 
 | Élément | Commit | Fichiers |
 |---|---|---|
@@ -2058,9 +2110,12 @@ Ce qui change :
   - sur les sources, par `test/library-api.test.ts` ;
   - sur le paquet empaqueté et installé dans un projet vide, par `scripts/try-package.mjs`, que le workflow de release lance avant de publier. C'est le critère « `npm i` dans un projet neuf, l'exemple tourne », sans le registre.
 
+Suite, après la fusion de la PR #44 :
+- **Tag `v0.2.0` :** le propriétaire l'a posé sur `a0d5e61`. Le workflow Release a réussi : 11 fichiers publiés, et le job npm ignoré comme prévu.
+- **Version 0.3.0 (`c962951`) :** `package.json`, `package-lock.json` et l'extension VS Code passent en 0.3.0. La section *Unreleased* du CHANGELOG devient `[0.3.0] — 2026-10-20`. `node scripts/check-release.mjs v0.3.0` répond « ready », et `scripts/try-package.mjs` exécute l'exemple du README depuis le paquet installé.
+
 Ce qui reste au propriétaire :
-- **Tag `v0.2.0` absent du dépôt distant** (`git ls-remote --tags` ne renvoie rien ; le proxy de la session refuse les tags). À lancer : `git tag -a v0.2.0 a0d5e61 -m "Cirta 0.2.0" && git push origin v0.2.0`.
-- **Le passage en 0.3.0 attend ce tag**, pour que 0.2.0 reste ce qui a été décrit.
+- **Taguer `v0.3.0` sur `main`** une fois cette PR fusionnée : `git tag -a v0.3.0 origin/main -m "Cirta 0.3.0" && git push origin v0.3.0` (le proxy de la session refuse les tags).
 - **La publication npm** demande deux réglages côté npm et GitHub :
   - la publication de confiance npm, ou le secret `NPM_TOKEN` ;
   - la variable de dépôt `PUBLISH_NPM=true`.
