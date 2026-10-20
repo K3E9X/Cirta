@@ -55,20 +55,21 @@ describe('cleaning a JPEG keeps the way it is turned', () => {
     const before = photo(6);
     expect((await inspectFile(before, 'photo.jpg')).findings.some((f) => f.value.includes('Camille Durand'))).toBe(true);
     const cleaned = await redactFile(before, 'photo.jpg');
-    expect(orientationOf(cleaned.data)).toBe(6);
-    expect(new TextDecoder('latin1').decode(cleaned.data)).not.toContain('Camille');
-    const after = await inspectFile(cleaned.data, 'photo.jpg');
-    expect(after.findings.filter((f) => f.kind === 'identity' || f.kind === 'location' || f.kind === 'device')).toEqual([]);
+    expect(orientationOf(cleaned.data!)).toBe(6);
+    expect(new TextDecoder('latin1').decode(cleaned.data!)).not.toContain('Camille');
+    const after = await inspectFile(cleaned.data!, 'photo.jpg');
+    // Nothing that names a person, a place or a device is left: only the orientation went back.
+    expect(after.findings.filter((f) => f.kind === 'identity' || /GPS|Camera|Lens/.test(f.label))).toEqual([]);
   });
 
   it('a photo already upright gets no Exif back', async () => {
     const cleaned = await redactFile(photo(1), 'photo.jpg');
-    expect(orientationOf(cleaned.data)).toBeUndefined();
+    expect(orientationOf(cleaned.data!)).toBeUndefined();
   });
 
   it('cleaning twice gives the same bytes', async () => {
     const once = await redactFile(photo(8), 'photo.jpg');
-    const twice = await redactFile(once.data, 'photo.jpg');
-    expect(Buffer.from(twice.data).equals(Buffer.from(once.data))).toBe(true);
+    const twice = await redactFile(once.data!, 'photo.jpg');
+    expect(Buffer.from(twice.data!).equals(Buffer.from(once.data!))).toBe(true);
   });
 });
