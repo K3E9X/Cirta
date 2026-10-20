@@ -600,8 +600,6 @@ const measure = (text: string): string =>
   text.replace(/of unknown size/, 'de taille inconnue').replace(/ bytes/, ' octets');
 
 const VALUE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string]> = [
-  // [R6] A library's default value, named.
-  [/^([\s\S]*) — the default value of (.+)$/, (m) => `${m[1]} — valeur par défaut de ${m[2]}`],
   [
     /^(.+) — a second copy of the picture, which not every editor regenerates when the original is cropped or retouched$/,
     (m) =>
@@ -1070,6 +1068,9 @@ export function translateValue(finding: Finding, lang: Lang): string {
       }
     }
   }
+  // [R6] A library's default value, named. Cut at the marker, not matched: the value is the file's.
+  const library = finding.value.lastIndexOf(' — the default value of ');
+  if (library >= 0) return `${finding.value.slice(0, library)} — valeur par défaut de ${finding.value.slice(library + ' — the default value of '.length)}`;
   if (isAt(finding, 'hyphen lookalikes')) {
     const hyphens = translateHyphens(finding.value);
     if (hyphens) return hyphens;
