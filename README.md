@@ -965,6 +965,11 @@ The interface is **bilingual**. It follows the browser's language, a toggle in t
 and the choice is remembered. French mode is French throughout — field names, character names,
 values, the way a passage is hidden, parser refusals, a missing file, the CLI's verdict line — and a
 test inspects and cleans a corpus that exercises every check to hold it there.
+
+**A link can preset it.** `#tab=text`, `#lang=en` and `#format=pdf` (or `#format=docx,odt,rtf`) in the
+address open the page on the text tab, in English, with the file picker set to those types. They
+sit in the fragment, which the browser never sends, so the server does not learn what the visitor
+came for; an unknown value is ignored (`test/web-preset.test.ts`).
  Drop several files and a summary bar appears — the same tally as the
 CLI's `Summary` line — with a JSON export of the report. That export has exactly the shape
 `cirta inspect --json` emits, so a report produced from the page and one produced on the command line

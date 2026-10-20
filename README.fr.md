@@ -1028,6 +1028,11 @@ et des caractères, valeurs, manière dont un passage est caché, refus des anal
 introuvable, ligne de bilan du CLI —, et un test inspecte et nettoie un corpus qui exerce chaque
 contrôle pour l'y maintenir.
 
+**Un lien peut la prérégler.** `#tab=text`, `#lang=en` et `#format=pdf` (ou `#format=docx,odt,rtf`)
+dans l'adresse ouvrent la page sur l'onglet texte, en anglais, avec le sélecteur de fichiers limité à
+ces types. Ces réglages sont dans le fragment, que le navigateur n'envoie jamais : le serveur ne sait
+pas ce que le visiteur venait faire. Une valeur inconnue est ignorée (`test/web-preset.test.ts`).
+
 Déposez-en plusieurs et un bandeau récapitulatif s'affiche — le même décompte que la ligne
 `Summary` du CLI — avec un export JSON du rapport. Cet export a exactement la forme qu'émet
 `cirta inspect --json`, donc un rapport produit depuis la page et un rapport produit en ligne de

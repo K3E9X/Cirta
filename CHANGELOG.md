@@ -10,6 +10,10 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.
+
 ## [0.3.0] — 2026-10-20
 
 The library's four entry points, stable; readers that a hostile file can no longer hold. Published to
