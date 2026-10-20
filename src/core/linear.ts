@@ -6,6 +6,14 @@
  * no later opening has one either.
  */
 
+/** The text without the first match of a global pattern that `drop` accepts: a tag found first, its attribute read after. */
+export function removeFirst(text: string, pattern: RegExp, drop: (match: string) => boolean): string {
+  for (const m of text.matchAll(pattern)) {
+    if (drop(m[0])) return text.slice(0, m.index) + text.slice(m.index + m[0].length);
+  }
+  return text;
+}
+
 /** Every `open … close` span, the first closing after each opening, as the lazy pattern takes them. */
 export function spans(text: string, open: string, close: string): Array<[number, number]> {
   const out: Array<[number, number]> = [];

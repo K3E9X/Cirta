@@ -119,8 +119,9 @@ function role(opf: string, element: DcElement): string | undefined {
   const own = attr(element.attrs, 'opf:role');
   if (own) return own;
   if (!element.id) return undefined;
-  const refine = new RegExp(`<meta\\b[^<>]*\\srefines\\s*=\\s*"#${element.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^<>]*\\sproperty\\s*=\\s*"role"[^<>]*>([^<]*)</meta>`).exec(opf);
-  return refine?.[1]?.trim();
+  // [P0-1] Each <meta>, then its attributes: two in one pattern backtracked across a long tag.
+  const refine = [...opf.matchAll(/<meta\b([^<>]*)>([^<]*)<\/meta>/g)].find((m) => attr(m[1]!, 'refines') === `#${element.id}` && attr(m[1]!, 'property') === 'role');
+  return refine?.[2]?.trim();
 }
 
 function opfFindings(opf: string, path: string, derived: string): Finding[] {
@@ -229,10 +230,9 @@ function cleanOpf(opf: string, uid: string): string {
     if (id) removedIds.push(id);
     return '';
   });
-  for (const id of removedIds) {
-    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(`<meta\\b[^<>]*\\srefines\\s*=\\s*"#${escaped}"[^<>]*(?:/>|>[^<]*</meta>)`, 'g'), '');
-  }
+  // [P0-1] Each <meta> once, its target looked up: a pattern per id, with the id between two runs, backtracked across a long tag.
+  const refined = new Set([...removedIds].map((id) => `#${id}`));
+  out = out.replace(/<meta\b([^<>]*?)(?:\/>|>[^<]*<\/meta>)/g, (full, attrs: string) => (refined.has(attr(attrs, 'refines') ?? '') ? '' : full));
   let dated = false;
   out = out.replace(/(<meta\b([^<>]*)>)[^<]*(<\/meta>)/g, (full, open: string, attrs: string, close: string) => {
     if (dated || !MODIFIED.test(attrs)) return full;

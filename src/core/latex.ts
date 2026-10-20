@@ -113,7 +113,7 @@ function scan(text: string): Scan {
 /** The text of a command's first braced argument, nested braces included. */
 function argumentsOf(text: string, command: string): string[] {
   const out: string[] = [];
-  const pattern = new RegExp(`\\\\${command}\\*?\\s*(?:\\[[^\\]]*\\]\\s*)?\\{`, 'g');
+  const pattern = new RegExp(`\\\\${command}\\*?\\s*(?:\\[[^\\][]*\\]\\s*)?\\{`, 'g');
   for (let m = pattern.exec(text); m; m = pattern.exec(text)) {
     let depth = 1;
     let at = m.index + m[0].length;

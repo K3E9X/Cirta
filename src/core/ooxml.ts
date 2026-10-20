@@ -30,6 +30,7 @@ import { activeOfficeFindings, stripActiveOffice, stripTrackingOffice } from './
 import { workbookActiveFindings } from './xlsx-active.js';
 import { anonymizeVisio, visioFindings } from './visio.js';
 import { removeHiddenSheets, removeHiddenSlides, removeNotes } from './content-options.js';
+import { removeFirst } from './linear.js';
 import {
   getElementText,
   setElementText,
@@ -691,7 +692,6 @@ export interface RedactOoxmlOptions {
   stripTracking?: boolean;
 }
 
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Resolve an OPC relationship target against the part that declares it.
@@ -753,7 +753,7 @@ function removeAllComments(parts: Parts): number {
       } else {
         removePart(parts, vmlPath);
         const sheet = readText(parts, sheetPath);
-        if (sheet) parts[sheetPath] = strToU8(sheet.replace(new RegExp(`<legacyDrawing\\b[^<>]*\\br:id="${escapeRegExp(id)}"[^<>]*/>`), ''));
+        if (sheet) parts[sheetPath] = strToU8(removeFirst(sheet, /<legacyDrawing\b[^<>]*\/>/g, (tag) => /\br:id="([^"]*)"/.exec(tag)?.[1] === id));
       }
     }
   }
@@ -777,7 +777,7 @@ function removePart(parts: Parts, path: string): void {
   const types = readText(parts, '[Content_Types].xml');
   if (types) {
     parts['[Content_Types].xml'] = strToU8(
-      types.replace(new RegExp(`<Override[^<>]*PartName="/${escapeRegExp(path)}"[^<>]*/>`, 'g'), ''),
+      types.replace(/<Override[^<>]*\/>/g, (tag) => (/PartName="([^"]*)"/.exec(tag)?.[1] === `/${path}` ? '' : tag)),
     );
   }
 

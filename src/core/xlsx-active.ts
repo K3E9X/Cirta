@@ -105,7 +105,9 @@ export function sheets(parts: Parts): Array<{ name: string; path: string; hidden
   for (const [index, m] of [...workbook.matchAll(/<sheet\b[^<>]*>/g)].entries()) {
     const name = attr(m[0], 'name') ?? `sheet${index + 1}`;
     const id = attr(m[0], 'r:id');
-    const target = id ? new RegExp(`<Relationship\\b[^<>]*Id="${id}"[^<>]*Target="([^"]+)"`).exec(rels)?.[1] : undefined;
+    // [P0-1] Each relationship, then its id: two attributes in one pattern backtracked across a long tag.
+    const relationship = id ? [...rels.matchAll(/<Relationship\b[^<>]*/g)].find((r) => /Id="([^"]*)"/.exec(r[0])?.[1] === id)?.[0] : undefined;
+    const target = relationship ? /Target="([^"]+)"/.exec(relationship)?.[1] : undefined;
     const path = target ? (target.startsWith('/') ? target.slice(1) : `xl/${target}`) : `xl/worksheets/sheet${index + 1}.xml`;
     if (parts[path]) out.push({ name, path, hidden: /\sstate="(hidden|veryHidden)"/.test(m[0]) });
   }

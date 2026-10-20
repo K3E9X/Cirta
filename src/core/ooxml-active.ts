@@ -21,6 +21,7 @@ import { preview } from './types.js';
 import { readVbaProject, summariseVba } from './vba.js';
 import { cleanUrl, trackingFinding } from './tracking.js';
 import { linkFindings } from './links.js';
+import { removeFirst } from './linear.js';
 
 type Parts = Record<string, Uint8Array>;
 
@@ -189,10 +190,11 @@ export function stripActiveOffice(parts: Parts, removePart: (parts: Parts, path:
   for (const rel of relationships(parts)) {
     if (rel.type !== 'attachedTemplate' || !rel.external) continue;
     const xml = strFromU8(parts[rel.rels]!);
-    parts[rel.rels] = strToU8(xml.replace(new RegExp(`<Relationship\\b[^<>]*\\sId="${rel.id}"[^<>]*/>`), ''));
+    // [P0-1] Tags first, then their id: an attribute between two runs in one pattern backtracked across a long tag.
+    parts[rel.rels] = strToU8(removeFirst(xml, /<Relationship\b[^<>]*\/>/g, (tag) => /\sId="([^"]*)"/.exec(tag)?.[1] === rel.id));
     const owner = ownerOf(rel.rels);
     if (parts[owner]) {
-      parts[owner] = strToU8(strFromU8(parts[owner]!).replace(new RegExp(`<w:attachedTemplate\\b[^<>]*r:id="${rel.id}"[^<>]*/>`), ''));
+      parts[owner] = strToU8(removeFirst(strFromU8(parts[owner]!), /<w:attachedTemplate\b[^<>]*\/>/g, (tag) => /r:id="([^"]*)"/.exec(tag)?.[1] === rel.id));
     }
     removed++;
   }

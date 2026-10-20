@@ -55,12 +55,14 @@ export function removeHiddenSlides(parts: Parts, removePart: RemovePart): number
     for (const { target } of targets(parts, relsOf(slide), 'notesSlide')) dropPart(parts, resolve(slide, target), removePart);
     const rel = presRels.find((r) => resolve('ppt/presentation.xml', r.target) === slide);
     if (rel) {
-      const entry = new RegExp(`<p:sldId\\b[^<>]*\\sr:id="${rel.id}"[^<>]*/>`).exec(presentation)?.[0];
+      // [P0-1] Tags first, then their attribute: an attribute between two runs in one pattern backtracked across a long tag.
+      const relId = (tag: string) => /\sr:id="([^"]*)"/.exec(tag)?.[1];
+      const entry = [...presentation.matchAll(/<p:sldId\b[^<>]*\/>/g)].find((m) => relId(m[0]) === rel.id)?.[0];
       const numeric = entry ? /\sid="(\d+)"/.exec(entry)?.[1] : undefined;
       if (entry) presentation = presentation.replace(entry, '');
       // Custom shows and sections name the slide too.
-      presentation = presentation.replace(new RegExp(`<p:sld\\b[^<>]*\\sr:id="${rel.id}"[^<>]*/>`, 'g'), '');
-      if (numeric) presentation = presentation.replace(new RegExp(`<p14:sldId\\b[^<>]*\\sid="${numeric}"[^<>]*/>`, 'g'), '');
+      presentation = presentation.replace(/<p:sld\b[^<>]*\/>/g, (tag) => (relId(tag) === rel.id ? '' : tag));
+      if (numeric) presentation = presentation.replace(/<p14:sldId\b[^<>]*\/>/g, (tag) => (/\sid="(\d+)"/.exec(tag)?.[1] === numeric ? '' : tag));
     }
     dropPart(parts, slide, removePart);
   }

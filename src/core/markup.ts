@@ -90,7 +90,7 @@ function inspectSvg(text: string): Finding[] {
   }
 
   for (const tag of ['title', 'desc'] as const) {
-    const match = new RegExp(`<${tag}[^<>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(text);
+    const match = new RegExp(`<${tag}[^<>]*>((?:(?!<${tag})[\\s\\S])*?)</${tag}>`, 'i').exec(text);
     const value = match?.[1]?.trim();
     if (value) {
       findings.push({
@@ -113,7 +113,12 @@ function redactSvg(text: string): string {
     out = out.replace(new RegExp(`\\sxmlns:${namespace}="[^"]*"`, 'gi'), '');
     out = out.replace(new RegExp(`\\s${namespace}:[a-z-]+="[^"]*"`, 'gi'), '');
     out = out.replace(new RegExp(`<${namespace}:[^<>]*/>`, 'gi'), '');
-    out = out.replace(new RegExp(`<${namespace}:([a-z-]+)[^<>]*>[\\s\\S]*?</${namespace}:\\1>`, 'gi'), '');
+    // [P0-1] Innermost first, again until none is left: a body that stops at the namespace's next tag cannot rescan to the end.
+    const element = new RegExp(`<${namespace}:([a-z-]+)(?![a-z-])[^<>]*>(?:(?!</?${namespace}:)[\\s\\S])*?</${namespace}:\\1>`, 'gi');
+    for (let pass = 0, before = ''; pass < 16 && before !== out; pass++) {
+      before = out;
+      out = out.replace(element, '');
+    }
   }
   // <title> and <desc> stay: they are what a screen reader reads out.
   return out;
