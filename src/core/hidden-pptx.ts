@@ -67,7 +67,7 @@ function related(parts: Parts, path: string, type: string): string | undefined {
   const dir = path.slice(0, slash + 1);
   const rels = read(parts, `${dir}_rels/${path.slice(slash + 1)}.rels`);
   if (!rels) return undefined;
-  for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+  for (const m of rels.matchAll(/<Relationship\b[^<>]*>/g)) {
     const tag = m[0];
     if (!new RegExp(`Type="[^"]*/${type}"`).test(tag)) continue;
     const target = /Target="([^"]+)"/.exec(tag)?.[1];
@@ -85,6 +85,9 @@ function related(parts: Parts, path: string, type: string): string | undefined {
 
 /* ------------------------------------------------------------ colours -- */
 
+/** An outline, whose colour is not the shape's: [P0-1] its body stops at the next <a:ln, so an unclosed one is not rescanned to the end. */
+const LINE = /<a:ln\b(?:(?!<a:ln\b)[\s\S])*?<\/a:ln>|<a:ln\b[^<>]*\/>/g;
+
 const PRESET: Record<string, Rgb> = { white: [255, 255, 255], black: [0, 0, 0] };
 
 function hexColour(value: string | undefined): Rgb | undefined {
@@ -98,7 +101,7 @@ function hexColour(value: string | undefined): Rgb | undefined {
  * rather than approximated.
  */
 function colourIn(fragment: string, theme: Theme): Rgb | 'unknown' | undefined {
-  const m = /<a:(srgbClr|sysClr|schemeClr|prstClr)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/a:\1>)/.exec(fragment);
+  const m = /<a:(srgbClr|sysClr|schemeClr|prstClr)\b([^<>]*?)(?:\/>|>((?:(?!<a:\1\b)[\s\S])*?)<\/a:\1>)/.exec(fragment);
   if (!m) return undefined;
   if ((m[3] ?? '').trim()) return 'unknown';
   const attrs = m[2] ?? '';
@@ -121,10 +124,10 @@ function colourIn(fragment: string, theme: Theme): Rgb | 'unknown' | undefined {
 function readTheme(parts: Parts, master: string | undefined): Theme {
   const colours = new Map<string, Rgb>();
   const themePath = master ? related(parts, master, 'theme') : undefined;
-  const scheme = /<a:clrScheme\b[^>]*>([\s\S]*?)<\/a:clrScheme>/.exec((themePath && read(parts, themePath)) ?? '')?.[1] ?? '';
-  for (const m of scheme.matchAll(/<a:(\w+)>([\s\S]*?)<\/a:\1>/g)) {
+  const scheme = /<a:clrScheme\b[^<>]*>((?:(?!<a:clrScheme\b)[\s\S])*?)<\/a:clrScheme>/.exec((themePath && read(parts, themePath)) ?? '')?.[1] ?? '';
+  for (const m of scheme.matchAll(/<a:(dk[12]|lt[12]|accent[1-6]|hlink|folHlink)>((?:(?!<a:\1\b)[\s\S])*?)<\/a:\1>/g)) {
     const inner = m[2] ?? '';
-    const colour = hexColour(/<a:srgbClr val="([^"]+)"/.exec(inner)?.[1] ?? /<a:sysClr\b[^>]*lastClr="([^"]+)"/.exec(inner)?.[1]);
+    const colour = hexColour(/<a:srgbClr val="([^"]+)"/.exec(inner)?.[1] ?? /<a:sysClr\b[^<>]*lastClr="([^"]+)"/.exec(inner)?.[1]);
     if (colour) colours.set(m[1]!, colour);
   }
   const clrMap = new Map<string, string>([
@@ -133,30 +136,30 @@ function readTheme(parts: Parts, master: string | undefined): Theme {
     ['bg2', 'lt2'],
     ['tx2', 'dk2'],
   ]);
-  const declared = /<p:clrMap\b([^>]*)\/?>/.exec((master && read(parts, master)) ?? '')?.[1] ?? '';
-  for (const m of declared.matchAll(/(\w+)="(\w+)"/g)) clrMap.set(m[1]!, m[2]!);
+  const declared = /<p:clrMap\b([^<>]*)\/?>/.exec((master && read(parts, master)) ?? '')?.[1] ?? '';
+  for (const m of declared.matchAll(/\b(\w+)="(\w+)"/g)) clrMap.set(m[1]!, m[2]!);
   return { colours, clrMap };
 }
 
 /** A shape's own fill from its properties, or from its style when it sets none. */
 function fillOf(spPr: string, style: string, theme: Theme): Fill {
-  const own = spPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>|<a:ln\b[^>]*\/>/g, '').replace(/<a:effectLst\b[\s\S]*?<\/a:effectLst>/g, '');
+  const own = spPr.replace(LINE, '').replace(/<a:effectLst\b(?:(?!<a:effectLst\b)[\s\S])*?<\/a:effectLst>/g, '');
   const kind = /<a:(solidFill|gradFill|blipFill|pattFill|grpFill|noFill)\b/.exec(own)?.[1];
   if (kind === 'noFill') return undefined;
-  if (kind === 'solidFill') return colourIn(/<a:solidFill>([\s\S]*?)<\/a:solidFill>/.exec(own)?.[1] ?? '', theme) ?? 'unknown';
+  if (kind === 'solidFill') return colourIn(/<a:solidFill>((?:(?!<a:solidFill\b)[\s\S])*?)<\/a:solidFill>/.exec(own)?.[1] ?? '', theme) ?? 'unknown';
   if (kind) return 'unknown';
-  const ref = /<a:fillRef idx="(\d+)"[^>]*>([\s\S]*?)<\/a:fillRef>/.exec(style);
+  const ref = /<a:fillRef idx="(\d+)"[^<>]*>((?:(?!<a:fillRef\b)[\s\S])*?)<\/a:fillRef>/.exec(style);
   if (!ref || ref[1] === '0') return undefined;
   // The first fill style of a theme is the flat one; the others are usually gradients.
   return ref[1] === '1' ? (colourIn(ref[2] ?? '', theme) ?? 'unknown') : 'unknown';
 }
 
 function backgroundOf(xml: string, theme: Theme): Fill {
-  const bg = /<p:bg>([\s\S]*?)<\/p:bg>/.exec(xml)?.[1];
+  const bg = /<p:bg>((?:(?!<p:bg\b)[\s\S])*?)<\/p:bg>/.exec(xml)?.[1];
   if (!bg) return undefined;
-  const pr = /<p:bgPr\b[^>]*>([\s\S]*?)<\/p:bgPr>/.exec(bg)?.[1];
+  const pr = /<p:bgPr\b[^<>]*>((?:(?!<p:bgPr\b)[\s\S])*?)<\/p:bgPr>/.exec(bg)?.[1];
   if (pr !== undefined) return fillOf(pr, '', theme) ?? 'unknown';
-  const ref = /<p:bgRef idx="(\d+)"[^>]*>([\s\S]*?)<\/p:bgRef>/.exec(bg);
+  const ref = /<p:bgRef idx="(\d+)"[^<>]*>((?:(?!<p:bgRef\b)[\s\S])*?)<\/p:bgRef>/.exec(bg);
   if (ref?.[1] === '1001') return colourIn(ref[2] ?? '', theme) ?? 'unknown';
   return 'unknown';
 }
@@ -208,7 +211,7 @@ function shapes(xml: string): Shape[] {
   const hiddenGroups: boolean[] = [];
   const open: Array<{ kind: Shape['kind']; start: number }> = [];
 
-  for (const m of xml.matchAll(/<(\/?)p:(sp|grpSp|pic|graphicFrame|cxnSp)\b[^>]*?(\/?)>/g)) {
+  for (const m of xml.matchAll(/<(\/?)p:(sp|grpSp|pic|graphicFrame|cxnSp)\b[^<>]*?(\/?)>/g)) {
     const [tag, closing, kind, selfClosing] = m;
     const at = m.index!;
     if (kind === 'grpSp') {
@@ -217,14 +220,14 @@ function shapes(xml: string): Shape[] {
         hiddenGroups.pop();
         continue;
       }
-      const head = /<p:grpSpPr\b[^>]*>([\s\S]*?)<\/p:grpSpPr>/.exec(xml.slice(at, at + 4000));
+      const head = /<p:grpSpPr\b[^<>]*>((?:(?!<p:grpSpPr\b)[\s\S])*?)<\/p:grpSpPr>/.exec(xml.slice(at, at + 4000));
       const off = offsetAndExtent(head?.[1] ?? '');
       const chOff = /<a:chOff x="(-?\d+)" y="(-?\d+)"\s*\/>/.exec(head?.[1] ?? '');
       const chExt = /<a:chExt cx="(\d+)" cy="(\d+)"\s*\/>/.exec(head?.[1] ?? '');
       groups.push(
         off && chOff && chExt ? { off, child: { x: +chOff[1]!, y: +chOff[2]!, w: +chExt[1]!, h: +chExt[2]! } } : undefined,
       );
-      const nv = /<p:cNvPr\b[^>]*>/.exec(xml.slice(at, at + 2000))?.[0] ?? '';
+      const nv = /<p:cNvPr\b[^<>]*>/.exec(xml.slice(at, at + 2000))?.[0] ?? '';
       hiddenGroups.push(/\shidden="(?:1|true)"/.test(nv));
       continue;
     }
@@ -237,12 +240,12 @@ function shapes(xml: string): Shape[] {
     if (!begun) continue;
     const end = at + tag!.length;
     const body = xml.slice(begun.start, end);
-    const nv = /<p:cNvPr\b[^>]*>/.exec(body)?.[0] ?? '';
-    const ph = /<p:ph\b([^>]*)\/?>/.exec(body)?.[1];
+    const nv = /<p:cNvPr\b[^<>]*>/.exec(body)?.[0] ?? '';
+    const ph = /<p:ph\b([^<>]*)\/?>/.exec(body)?.[1];
     const placement =
       begun.kind === 'graphicFrame'
-        ? /<p:xfrm\b[^>]*>([\s\S]*?)<\/p:xfrm>/.exec(body)?.[1]
-        : /<a:xfrm\b[^>]*>([\s\S]*?)<\/a:xfrm>/.exec(/<p:spPr\b[^>]*>([\s\S]*?)<\/p:spPr>/.exec(body)?.[1] ?? '')?.[1];
+        ? /<p:xfrm\b[^<>]*>((?:(?!<p:xfrm\b)[\s\S])*?)<\/p:xfrm>/.exec(body)?.[1]
+        : /<a:xfrm\b[^<>]*>((?:(?!<a:xfrm\b)[\s\S])*?)<\/a:xfrm>/.exec(/<p:spPr\b[^<>]*>((?:(?!<p:spPr\b)[\s\S])*?)<\/p:spPr>/.exec(body)?.[1] ?? '')?.[1];
     const local = placement ? offsetAndExtent(placement) : undefined;
     const known = groups.every((g) => g !== undefined);
     out.push({
@@ -264,8 +267,8 @@ function shapes(xml: string): Shape[] {
 function shapeFill(shape: Shape, theme: Theme): Fill {
   if (shape.kind === 'pic' || shape.kind === 'graphicFrame') return 'unknown';
   if (shape.kind === 'cxnSp') return undefined;
-  const spPr = /<p:spPr\b[^>]*>([\s\S]*?)<\/p:spPr>/.exec(shape.body)?.[1] ?? '';
-  const style = /<p:style>([\s\S]*?)<\/p:style>/.exec(shape.body)?.[1] ?? '';
+  const spPr = /<p:spPr\b[^<>]*>((?:(?!<p:spPr\b)[\s\S])*?)<\/p:spPr>/.exec(shape.body)?.[1] ?? '';
+  const style = /<p:style>((?:(?!<p:style\b)[\s\S])*?)<\/p:style>/.exec(shape.body)?.[1] ?? '';
   return fillOf(spPr, style, theme);
 }
 
@@ -318,14 +321,14 @@ interface Run {
 
 function paragraphs(shape: Shape): Run[][] {
   const out: Run[][] = [];
-  for (const p of shape.body.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)) {
+  for (const p of shape.body.matchAll(/<a:p>((?:(?!<a:p\b)[\s\S])*?)<\/a:p>/g)) {
     const base = shape.start + p.index! + '<a:p>'.length;
     const runs: Run[] = [];
-    for (const r of (p[1] ?? '').matchAll(/<a:r>([\s\S]*?)<\/a:r>/g)) {
+    for (const r of (p[1] ?? '').matchAll(/<a:r>((?:(?!<a:r\b)[\s\S])*?)<\/a:r>/g)) {
       const inner = r[1] ?? '';
       const text = [...inner.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((t) => decodeXml(t[1] ?? '')).join('');
       if (!text) continue;
-      const rPr = /<a:rPr\b([^>]*?)(?:\/>|>([\s\S]*?)<\/a:rPr>)/.exec(inner);
+      const rPr = /<a:rPr\b([^<>]*?)(?:\/>|>((?:(?!<a:rPr\b)[\s\S])*?)<\/a:rPr>)/.exec(inner);
       runs.push({ text, start: base + r.index!, end: base + r.index! + r[0].length, rPrAttrs: rPr?.[1] ?? '', rPr: rPr?.[2] ?? '' });
     }
     if (runs.length) out.push(runs);
@@ -393,12 +396,12 @@ function scanSlide(xml: string, size: Box | undefined, under: Underlay): Hidden[
 function classify(run: Run, behind: Fill, theme: Theme): Omit<Hidden, 'text'> | undefined {
   const size = /\ssz="(\d+)"/.exec(run.rPrAttrs)?.[1];
   // The outline and the highlight carry fills of their own; the text's is what is left.
-  const own = run.rPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>|<a:ln\b[^>]*\/>/g, '');
-  const highlight = /<a:highlight>([\s\S]*?)<\/a:highlight>/.exec(own)?.[1];
-  const paint = own.replace(/<a:highlight>[\s\S]*?<\/a:highlight>/, '');
+  const own = run.rPr.replace(LINE, '');
+  const highlight = /<a:highlight>((?:(?!<a:highlight\b)[\s\S])*?)<\/a:highlight>/.exec(own)?.[1];
+  const paint = own.replace(/<a:highlight>(?:(?!<a:highlight\b)[\s\S])*?<\/a:highlight>/, '');
   if (/<a:noFill\s*\/>/.test(paint)) return { how: 'invisible', why: 'a:noFill' };
   if (size !== undefined && +size > 0 && +size / 100 < TINY_PT) return { how: 'tiny', why: `sz ${+size / 100} pt` };
-  const solid = /<a:solidFill>([\s\S]*?)<\/a:solidFill>/.exec(paint)?.[1];
+  const solid = /<a:solidFill>((?:(?!<a:solidFill\b)[\s\S])*?)<\/a:solidFill>/.exec(paint)?.[1];
   const colour = solid ? colourIn(solid, theme) : undefined;
   if (!colour || colour === 'unknown') return undefined;
   const background = highlight ? colourIn(highlight, theme) : behind;
@@ -416,12 +419,15 @@ function classify(run: Run, behind: Fill, theme: Theme): Omit<Hidden, 'text'> | 
 function slides(parts: Parts): string[] {
   return Object.keys(parts)
     .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .sort((a, b) => Number(/(\d+)\.xml$/.exec(a)![1]) - Number(/(\d+)\.xml$/.exec(b)![1]));
+    .sort((a, b) => Number(/(?<!\d)(\d+)\.xml$/.exec(a)![1]) - Number(/(?<!\d)(\d+)\.xml$/.exec(b)![1]));
 }
 
 function scan(parts: Parts): Map<string, Hidden[]> {
-  const sz = /<p:sldSz\b[^>]*\scx="(\d+)"[^>]*\scy="(\d+)"/.exec(read(parts, 'ppt/presentation.xml') ?? '');
-  const size = sz ? { x: 0, y: 0, w: +sz[1]!, h: +sz[2]! } : undefined;
+  // [P0-1] The tag first, then each attribute: two attributes in one pattern backtracked across a long tag.
+  const tag = /<p:sldSz\b[^<>]*/.exec(read(parts, 'ppt/presentation.xml') ?? '')?.[0] ?? '';
+  const cx = /\scx="(\d+)"/.exec(tag)?.[1];
+  const cy = /\scy="(\d+)"/.exec(tag)?.[1];
+  const size = cx && cy ? { x: 0, y: 0, w: +cx, h: +cy } : undefined;
   const out = new Map<string, Hidden[]>();
   for (const path of slides(parts)) {
     const xml = read(parts, path)!;

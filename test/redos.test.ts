@@ -2,6 +2,7 @@ import { strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { makeDocx } from './fixtures.js';
 import { corpus } from './helpers/cv-corpus.js';
+import { deck } from './helpers/deck.js';
 import { bundleCore, timed } from './helpers/redos.js';
 
 /*
@@ -53,5 +54,12 @@ describe('[P0-1] ReDoS: a hostile file is read in time', () => {
   it('Word styles that never close, nested or not (w:style, elements(): quadratic)', async () => {
     const docx = withPart(await cv('mots-cles-1pt.docx'), 'word/styles.xml', '<w:styles>' + '<w:style w:styleId="a">'.repeat(30_000) + '<w:rPr>'.repeat(30_000) + '</w:style></w:styles>');
     await expectQuick(docx, 'piege.docx');
+  }, 30_000);
+
+  it('a slide of runs and outlines that never close (a:r, a:rPr, a:ln, a:effectLst: quadratic)', async () => {
+    const pptx = rewrite(deck([{ words: 'Bonjour' }]), 'ppt/slides/slide1.xml', (xml) =>
+      xml.replace('<p:spPr/>', '<p:spPr>' + '<a:ln w="1">'.repeat(20_000) + '<a:effectLst>'.repeat(20_000) + '</p:spPr>').replace('</a:p>', '<a:r>'.repeat(40_000) + '<a:rPr b="1">'.repeat(30_000) + '</a:p>'),
+    );
+    await expectQuick(pptx, 'piege.pptx');
   }, 30_000);
 });
