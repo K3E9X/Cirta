@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { makeDocx } from './fixtures.js';
 
 /*
- * [F-2.5] `cirta mcp`: a Model Context Protocol server on stdio, spoken to
+ * [F-2.5] `ciirta mcp`: a Model Context Protocol server on stdio, spoken to
  * the way an agent speaks to it — initialize, list the tools, call them.
  */
 
@@ -32,13 +32,13 @@ describe('[F-2.5] the MCP server', () => {
       { jsonrpc: '2.0', id: 2, method: 'tools/list' },
       { jsonrpc: '2.0', id: 3, method: 'ping' },
     ]);
-    expect(init!.result).toMatchObject({ protocolVersion: '2025-06-18', serverInfo: { name: 'cirta' }, capabilities: { tools: {} } });
+    expect(init!.result).toMatchObject({ protocolVersion: '2025-06-18', serverInfo: { name: 'ciirta' }, capabilities: { tools: {} } });
     expect(list!.result.tools.map((t: { name: string }) => t.name)).toEqual(['inspect_file', 'redact_file', 'sanitize_for_llm', 'scan_text']);
     expect(ping).toEqual({ jsonrpc: '2.0', id: 3, result: {} });
   }, 30_000);
 
   it('inspects, sanitizes and cleans a local file, and scans text', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-mcp-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-mcp-'));
     const docx = join(dir, 'lettre.docx');
     writeFileSync(docx, makeDocx());
     const page = join(dir, 'offre.html');

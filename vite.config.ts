@@ -23,7 +23,7 @@ function thirdPartyLicences(): Plugin {
     ['fflate — MIT', 'fflate/LICENSE'],
   ];
   return {
-    name: 'cirta-third-party-licences',
+    name: 'ciirta-third-party-licences',
     apply: 'build',
     generateBundle() {
       const text = parts
@@ -49,7 +49,7 @@ function thirdPartyLicences(): Plugin {
  */
 function contentSecurityPolicy(): Plugin {
   return {
-    name: 'cirta-csp',
+    name: 'ciirta-csp',
     apply: 'build',
     transformIndexHtml: {
       order: 'post',
@@ -93,7 +93,7 @@ function progressiveApp(): Plugin {
   let base = '/';
   let outDir = '';
   return {
-    name: 'cirta-progressive-app',
+    name: 'ciirta-progressive-app',
     apply: 'build',
     configResolved(config) {
       base = config.base;
@@ -112,7 +112,7 @@ function progressiveApp(): Plugin {
         const files = listFiles(outDir).filter((file) => file !== 'sw.js').sort();
         const digest = createHash('sha256');
         for (const file of files) digest.update(`${file}\0`).update(readFileSync(join(outDir, file)));
-        writeFileSync(join(outDir, 'sw.js'), serviceWorkerSource(files, `cirta-${digest.digest('hex').slice(0, 16)}`));
+        writeFileSync(join(outDir, 'sw.js'), serviceWorkerSource(files, `ciirta-${digest.digest('hex').slice(0, 16)}`));
         writeIntegrity(outDir);
       },
     },
@@ -131,8 +131,8 @@ function writeIntegrity(outDir: string): void {
   const others = listFiles(outDir).filter((file) => file !== 'index.html' && file !== 'SHA256SUMS');
   const hashes = others.map((file): [string, string] => [file, sha256(readFileSync(join(outDir, file)))]);
   const page = readFileSync(join(outDir, 'index.html'), 'utf8');
-  if (!page.includes('<!--cirta:site-hashes-->')) throw new Error('index.html has no place for the site hashes');
-  const final = page.replace('<!--cirta:site-hashes-->', hashRows(hashes));
+  if (!page.includes('<!--ciirta:site-hashes-->')) throw new Error('index.html has no place for the site hashes');
+  const final = page.replace('<!--ciirta:site-hashes-->', hashRows(hashes));
   writeFileSync(join(outDir, 'index.html'), final);
   writeFileSync(join(outDir, 'SHA256SUMS'), sha256Sums([...hashes, ['index.html', sha256(Buffer.from(final))]]));
 }
@@ -149,21 +149,21 @@ function commit(): string {
 
 /**
  * The site is served from https://<user>.github.io/Cirta/, so assets need that
- * base path. Override with CIRTA_BASE when deploying elsewhere (a custom
- * domain or the repository root) — e.g. `CIRTA_BASE=/ npm run build:web`.
+ * base path. Override with CIIRTA_BASE when deploying elsewhere (a custom
+ * domain or the repository root) — e.g. `CIIRTA_BASE=/ npm run build:web`.
  */
 export default defineConfig({
   root: 'src/web',
   // The mark lives at the repository root so the README, the site and the CLI
   // transcription all refer to one file.
   publicDir: '../../assets',
-  base: process.env['CIRTA_BASE'] ?? '/Cirta/',
+  base: process.env['CIIRTA_BASE'] ?? '/Cirta/',
   plugins: [contentSecurityPolicy(), thirdPartyLicences(), progressiveApp()],
   // [F-P2 2.7] The version a batch manifest records.
   define: {
-    __CIRTA_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version),
+    __CIIRTA_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version),
     // [F-P2 2.7] Shown in the « verify » box, to match against the attestation.
-    __CIRTA_COMMIT__: JSON.stringify(commit()),
+    __CIIRTA_COMMIT__: JSON.stringify(commit()),
   },
   // ES modules, so the worker can load PDF.js as its own chunk instead of
   // making every file wait for it.

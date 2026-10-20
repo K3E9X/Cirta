@@ -1,5 +1,5 @@
 /**
- * Browser front-end for Cirta.
+ * Browser front-end for Ciirta.
  *
  * Every operation runs against the local File object — in a worker for
  * documents, on the main thread for pasted text. There is no fetch, XHR or
@@ -81,7 +81,7 @@ function ensureWorker(): Worker {
  * this browser only. Storage can be refused (private browsing, blocked site
  * data); the choices then last for the visit, and nothing breaks.
  */
-const STORE = { pii: 'cirta.pii', rules: 'cirta.rules', rulesName: 'cirta.rules.name', theme: 'cirta.theme' };
+const STORE = { pii: 'ciirta.pii', rules: 'ciirta.rules', rulesName: 'ciirta.rules.name', theme: 'ciirta.theme' };
 const stored = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
@@ -101,7 +101,7 @@ const scanState = { pii: stored(STORE.pii) === '1', rules: stored(STORE.rules) ?
 const scanChoices = (): ScanChoices => ({ pii: scanState.pii, rules: scanState.rules });
 
 /** [F-2.7] The advanced cleaning options: what each file's own choices start from. */
-const CLEAN_STORE = 'cirta.clean';
+const CLEAN_STORE = 'ciirta.clean';
 const cleanState: CleanChoices = (() => {
   try {
     const parsed: unknown = JSON.parse(stored(CLEAN_STORE) ?? '{}');
@@ -755,7 +755,7 @@ function cleanName(name: string): string {
  * Every file analysed this session, in the order they were dropped.
  *
  * Kept in the same shape the CLI's `--json` emits, so a report exported from
- * the page and one produced by `cirta inspect --json` can be compared or fed to
+ * the page and one produced by `ciirta inspect --json` can be compared or fed to
  * the same script without a translation step.
  */
 interface SessionEntry {
@@ -809,17 +809,17 @@ function renderSummary(anchor: HTMLElement): void {
   const button = el('button', 'button button-small', t().exportReport);
   button.addEventListener('click', () => {
     const json = JSON.stringify(done.map(({ file, path, result, error }) => ({ file: path === file ? file : path, result, error })), null, 2);
-    download(new TextEncoder().encode(json), 'cirta-rapport.json', 'application/json');
+    download(new TextEncoder().encode(json), 'ciirta-rapport.json', 'application/json');
   });
 
   // [F-P2 2.7] The same report as a page or as Markdown, in the page's language.
   const reportEntries = () => done.map((entry) => ({ file: entry.path, result: entry.result, error: entry.error }));
   const html = el('button', 'button button-small', t().exportHtml);
   html.title = t().exportTitle;
-  html.addEventListener('click', () => download(new TextEncoder().encode(reportHtml(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.html', 'text/html'));
+  html.addEventListener('click', () => download(new TextEncoder().encode(reportHtml(reportEntries(), lang(), { version: __CIIRTA_VERSION__ })), 'ciirta-rapport.html', 'text/html'));
   const markdown = el('button', 'button button-small', t().exportMarkdown);
   markdown.title = t().exportTitle;
-  markdown.addEventListener('click', () => download(new TextEncoder().encode(reportMarkdown(reportEntries(), lang(), { version: __CIRTA_VERSION__ })), 'cirta-rapport.md', 'text/markdown'));
+  markdown.addEventListener('click', () => download(new TextEncoder().encode(reportMarkdown(reportEntries(), lang(), { version: __CIIRTA_VERSION__ })), 'ciirta-rapport.md', 'text/markdown'));
 
   node.append(text, button, html, markdown);
   // [F-P2 2.7] Every file of the session through one clean, into one ZIP with its manifest.
@@ -853,9 +853,9 @@ async function cleanSession(entries: SessionEntry[], button: HTMLButtonElement, 
           return result;
         },
       },
-      { version: __CIRTA_VERSION__, options: choices },
+      { version: __CIIRTA_VERSION__, options: choices },
     );
-    download(outcome.zip, 'cirta-nettoye.zip', 'application/zip');
+    download(outcome.zip, 'ciirta-nettoye.zip', 'application/zip');
     const refusals = outcome.refused.map((r) => `${r.file} — ${errorText(r.error, lang())}`);
     batchStatus = { text: [t().cleanedAll(outcome.manifest.files.length, outcome.refused.length), ...refusals].join('\n') };
   } catch (error) {
@@ -1190,7 +1190,7 @@ function setupScanOptions(): void {
     show();
   });
   show();
-  document.addEventListener('cirta:language', show);
+  document.addEventListener('ciirta:language', show);
 }
 
 /* ------------------------------------------------------------------ text -- */
@@ -1401,7 +1401,7 @@ function setupLanguage(): void {
     document.querySelector('#file-summary')?.remove();
     session.length = 0;
     // Text written by a handler rather than the markup follows the language too.
-    document.dispatchEvent(new Event('cirta:language'));
+    document.dispatchEvent(new Event('ciirta:language'));
   });
 }
 
@@ -1435,7 +1435,7 @@ function setupTheme(): void {
     apply(theme);
     store(STORE.theme, theme === 'auto' ? null : theme);
   });
-  document.addEventListener('cirta:language', () => apply(current()));
+  document.addEventListener('ciirta:language', () => apply(current()));
 }
 
 // [P1-3] What a link asked the page to open on, from the fragment the server never sees.
@@ -1463,17 +1463,17 @@ else addEventListener('load', warmWorker, { once: true });
 function setupVerify(): void {
   // Not in the browser extension, whose build leaves the box out (scripts/build-browser-extension.mjs).
   if (!document.querySelector('#verify-site')) return;
-  must<HTMLElement>('#site-version').textContent = __CIRTA_VERSION__;
+  must<HTMLElement>('#site-version').textContent = __CIIRTA_VERSION__;
   const link = must<HTMLAnchorElement>('#site-commit');
-  link.href = `https://github.com/K3E9X/Cirta/commit/${encodeURIComponent(__CIRTA_COMMIT__)}`;
-  link.querySelector('code')!.textContent = __CIRTA_COMMIT__.slice(0, 12);
+  link.href = `https://github.com/K3E9X/Cirta/commit/${encodeURIComponent(__CIIRTA_COMMIT__)}`;
+  link.querySelector('code')!.textContent = __CIIRTA_COMMIT__.slice(0, 12);
   const hashes = [...document.querySelectorAll<HTMLTableRowElement>('#site-hashes tr')].map((row): [string, string] => [row.cells[0]?.textContent ?? '', row.cells[1]?.textContent ?? '']);
   const result = must<HTMLElement>('#verify-result');
   // Written again when the language changes.
   let say = (): string => (hashes.length ? '' : t().verifyDevBuild);
   const show = () => (result.textContent = say());
   show();
-  document.addEventListener('cirta:language', show);
+  document.addEventListener('ciirta:language', show);
   const input = must<HTMLInputElement>('#verify-input');
   input.addEventListener('change', async () => {
     const file = input.files?.[0];

@@ -37,17 +37,17 @@ describe('[F-P2 2.6] the GitHub Action', () => {
     const sarif = {
       runs: [
         {
-          tool: { driver: { rules: [{ id: 'cirta/author', name: 'Author' }] } },
+          tool: { driver: { rules: [{ id: 'ciirta/author', name: 'Author' }] } },
           results: [
-            { ruleId: 'cirta/author', level: 'error', message: { text: 'Author: Jeanne, 100%\n::error::forged' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'docs/a,b.docx' } } }] },
-            { ruleId: 'cirta/author', level: 'note', message: { text: 'x' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'c.txt' } } }] },
+            { ruleId: 'ciirta/author', level: 'error', message: { text: 'Author: Jeanne, 100%\n::error::forged' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'docs/a,b.docx' } } }] },
+            { ruleId: 'ciirta/author', level: 'note', message: { text: 'x' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'c.txt' } } }] },
           ],
         },
       ],
     };
     expect(annotations(sarif)).toEqual([
-      '::error file=docs/a%2Cb.docx,title=Cirta%3A Author::Author: Jeanne, 100%25%0A::error::forged',
-      '::notice file=c.txt,title=Cirta%3A Author::x',
+      '::error file=docs/a%2Cb.docx,title=Ciirta%3A Author::Author: Jeanne, 100%25%0A::error::forged',
+      '::notice file=c.txt,title=Ciirta%3A Author::x',
     ]);
     expect(escapeData('a\r\nb')).toBe('a%0D%0Ab');
     expect(summary(sarif)).toContain('| error | `docs/a,b.docx` | `Author` |');
@@ -55,7 +55,7 @@ describe('[F-P2 2.6] the GitHub Action', () => {
   });
 
   it('run against a pull request’s branch, finds what it changed and only that', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-action-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-action-'));
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
     git('init', '-q', '-b', 'main');
     git('config', 'user.email', 't@e.com');

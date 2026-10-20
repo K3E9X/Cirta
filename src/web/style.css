@@ -1,5 +1,5 @@
 /*
- * Cirta — stylesheet.
+ * Ciirta — stylesheet.
  *
  * The direction, so that later edits do not drift away from it:
  *
@@ -1462,7 +1462,7 @@ tr.flagged td.value::after {
  * Two gestures carry the product, and both come from what it does:
  *
  *   The reading line. One pixel of accent sweeping left to right, the way text
- *   is read, with a short trail of light behind it. It appears where Cirta is
+ *   is read, with a short trail of light behind it. It appears where Ciirta is
  *   actually reading: across a card being analysed or cleaned, and once across
  *   the hero sentence, where it is the thing that makes the hidden characters
  *   appear. The stylesheet bans gradients at rest; a light in motion is allowed
@@ -1487,27 +1487,27 @@ tr.flagged td.value::after {
   --trail: 120px;
 }
 
-@keyframes cirta-enter {
+@keyframes ciirta-enter {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
 }
 
-@keyframes cirta-row {
+@keyframes ciirta-row {
   from {
     opacity: 0;
     transform: translateY(4px);
   }
 }
 
-@keyframes cirta-appear {
+@keyframes ciirta-appear {
   to {
     opacity: 1;
   }
 }
 
-@keyframes cirta-sweep {
+@keyframes ciirta-sweep {
   from {
     left: calc(-1 * var(--trail));
   }
@@ -1520,7 +1520,7 @@ tr.flagged td.value::after {
 
 .results > .card,
 .results > .summary {
-  animation: cirta-enter var(--t-enter) var(--ease-out) both;
+  animation: ciirta-enter var(--t-enter) var(--ease-out) both;
 }
 
 /*
@@ -1528,7 +1528,7 @@ tr.flagged td.value::after {
  * finishes arriving in about a third of a second instead of over one.
  */
 .results tbody tr {
-  animation: cirta-row 240ms var(--ease-out) both;
+  animation: ciirta-row 240ms var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 28ms + 60ms);
 }
 
@@ -1564,13 +1564,13 @@ tbody tr:has(.confidence-confirmed) td:first-child {
   pointer-events: none;
   opacity: 0;
   animation:
-    cirta-sweep 1.5s var(--ease-in-out) var(--show-after) infinite,
-    cirta-appear 160ms ease-out var(--show-after) forwards;
+    ciirta-sweep 1.5s var(--ease-in-out) var(--show-after) infinite,
+    ciirta-appear 160ms ease-out var(--show-after) forwards;
 }
 
 /* ---- the strike ---- */
 
-@keyframes cirta-strike {
+@keyframes ciirta-strike {
   to {
     background-size: 100% 1px;
   }
@@ -1582,7 +1582,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
  * the cell, so the confidence red and amber recede too — a struck finding is
  * no longer a warning.
  */
-@keyframes cirta-recede {
+@keyframes ciirta-recede {
   to {
     color: color-mix(in srgb, var(--ink-2) 72%, transparent);
     /* The red edge of a confirmed finding goes out with it. */
@@ -1609,7 +1609,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
   background-size: 0% 1px;
   box-decoration-break: slice;
   -webkit-box-decoration-break: slice;
-  animation: cirta-strike 240ms var(--ease-in-out) forwards;
+  animation: ciirta-strike 240ms var(--ease-in-out) forwards;
   animation-delay: calc(var(--strike-base, 120ms) + var(--r, 0) * 70ms + var(--c, 0) * 60ms);
 }
 
@@ -1639,7 +1639,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
 }
 
 .results tr.is-removed td {
-  animation: cirta-recede 320ms ease-out forwards;
+  animation: ciirta-recede 320ms ease-out forwards;
   animation-delay: calc(var(--strike-base, 120ms) + var(--r, 0) * 70ms + 360ms);
 }
 
@@ -1650,7 +1650,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
 
 /* ---- confirmation ---- */
 
-@keyframes cirta-draw {
+@keyframes ciirta-draw {
   to {
     stroke-dashoffset: 0;
   }
@@ -1667,7 +1667,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
   stroke-linejoin: round;
   stroke-dasharray: 22;
   stroke-dashoffset: 22;
-  animation: cirta-draw 380ms var(--ease-out) forwards;
+  animation: ciirta-draw 380ms var(--ease-out) forwards;
   animation-delay: var(--draw-after, 0ms);
 }
 
@@ -1679,7 +1679,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
   font: 0.8125rem var(--mono);
   color: var(--ink-2);
   opacity: 0;
-  animation: cirta-appear 240ms ease-out forwards;
+  animation: ciirta-appear 240ms ease-out forwards;
   animation-delay: var(--draw-after, 0ms);
 }
 
@@ -1694,7 +1694,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
 
 /* ---- the text panel, after a clean ---- */
 
-@keyframes cirta-cleaned {
+@keyframes ciirta-cleaned {
   from {
     border-color: var(--ok);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
@@ -1702,7 +1702,7 @@ tbody tr:has(.confidence-confirmed) td:first-child {
 }
 
 textarea.is-cleaned {
-  animation: cirta-cleaned 900ms var(--ease-out);
+  animation: ciirta-cleaned 900ms var(--ease-out);
 }
 
 /* ---- dropping a file ---- */
@@ -1769,7 +1769,7 @@ textarea.is-cleaned {
  * the hidden character takes up no room until it is read, then makes room,
  * pushing the rest of the sentence along: the space it was occupying all along.
  */
-@keyframes cirta-chip {
+@keyframes ciirta-chip {
   from {
     opacity: 0;
     max-width: 0;
@@ -1788,7 +1788,7 @@ textarea.is-cleaned {
   }
 }
 
-@keyframes cirta-underline {
+@keyframes ciirta-underline {
   from {
     text-decoration-color: transparent;
   }
@@ -1824,11 +1824,11 @@ textarea.is-cleaned {
  * the selector stops matching and the timed version is discarded.
  */
 .motion .reveal-row.is-revealed:not(.is-scanning) .cp {
-  animation: cirta-chip 300ms var(--ease-out) 2.5s both;
+  animation: ciirta-chip 300ms var(--ease-out) 2.5s both;
 }
 
 .motion .reveal-row.is-revealed:not(.is-scanning) .glyph {
-  animation: cirta-underline 300ms ease-out 2.5s both;
+  animation: ciirta-underline 300ms ease-out 2.5s both;
 }
 
 /*
@@ -1874,21 +1874,21 @@ textarea.is-cleaned {
   );
   border-right: 1px solid var(--accent);
   pointer-events: none;
-  animation: cirta-sweep var(--reveal-ms, 1600ms) linear 300ms forwards;
+  animation: ciirta-sweep var(--reveal-ms, 1600ms) linear 300ms forwards;
 }
 
 .reveal-row.is-revealed.is-scanning .cp {
-  animation: cirta-chip 340ms var(--ease-out) both;
+  animation: ciirta-chip 340ms var(--ease-out) both;
   animation-delay: var(--at, 0ms);
 }
 
 .reveal-row.is-revealed.is-scanning .glyph {
-  animation: cirta-underline 400ms ease-out both;
+  animation: ciirta-underline 400ms ease-out both;
   animation-delay: var(--at, 0ms);
 }
 
 /* The local-only dot breathes, slowly: it is a status, and statuses are live. */
-@keyframes cirta-ping {
+@keyframes ciirta-ping {
   0% {
     transform: scale(1);
     opacity: 0.45;
@@ -1910,7 +1910,7 @@ textarea.is-cleaned {
   inset: 0;
   border-radius: 50%;
   background: var(--ok);
-  animation: cirta-ping 2.8s var(--ease-out) infinite;
+  animation: ciirta-ping 2.8s var(--ease-out) infinite;
 }
 
 /*

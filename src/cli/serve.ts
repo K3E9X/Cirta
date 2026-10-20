@@ -1,5 +1,5 @@
 /**
- * [F-P3 2.5] Cirta as a service, for the machines that cannot run the
+ * [F-P3 2.5] Ciirta as a service, for the machines that cannot run the
  * command line on each file: a web proxy, a mail gateway, an upload service.
  *
  *   ICAP (RFC 3507)   RESPMOD /respmod — what is downloaded through a proxy
@@ -8,7 +8,7 @@
  *
  * Inspection only, by default: every file is let through untouched (ICAP 204,
  * or the message sent back as it came) and what it carries is reported — in
- * X-Cirta-* headers the proxy can log, and as one JSON line per file on
+ * X-Ciirta-* headers the proxy can log, and as one JSON line per file on
  * stdout. With --block-on <level>, a file carrying a finding at that level is
  * replaced by a 403 page that names the findings, never their values.
  *
@@ -21,7 +21,7 @@
  * every interface of its container.
  *
  * What it does not inspect, it lets through and says so (outcome "skipped"):
- * a format Cirta does not read, a body larger than --max-size, an encoding it
+ * a format Ciirta does not read, a body larger than --max-size, an encoding it
  * cannot undo. A gateway that blocked whatever it could not read would block
  * most of the web; the log is there to see what went by unread.
  */
@@ -357,8 +357,8 @@ function icapResponse(status: string, headers: Array<[string, string]>, encapsul
 
 async function handleIcap(socket: Socket, options: ServeOptions): Promise<void> {
   const reader = new SocketReader(socket);
-  const tag = `"cirta-${options.version}-${options.blockOn ?? 'inspect'}"`.slice(0, 34);
-  const common: Array<[string, string]> = [['ISTag', tag], ['Service', `Cirta ${options.version}`]];
+  const tag = `"ciirta-${options.version}-${options.blockOn ?? 'inspect'}"`.slice(0, 34);
+  const common: Array<[string, string]> = [['ISTag', tag], ['Service', `Ciirta ${options.version}`]];
   socket.setTimeout(120_000, () => socket.destroy());
 
   while (!reader.done) {
@@ -479,8 +479,8 @@ async function handleIcap(socket: Socket, options: ServeOptions): Promise<void> 
     const blocked = verdicts.some((v) => v.outcome === 'block');
     const summary: Array<[string, string]> = [
       ...common,
-      ['X-Cirta-Verdict', blocked ? 'block' : verdicts.length && verdicts.every((v) => v.outcome === 'skipped') ? 'skipped' : 'pass'],
-      ['X-Cirta-Findings', findingsHeader(verdicts)],
+      ['X-Ciirta-Verdict', blocked ? 'block' : verdicts.length && verdicts.every((v) => v.outcome === 'skipped') ? 'skipped' : 'pass'],
+      ['X-Ciirta-Findings', findingsHeader(verdicts)],
     ];
     if (blocked) {
       const page = blockedPage(verdicts, options);
@@ -490,7 +490,7 @@ async function handleIcap(socket: Socket, options: ServeOptions): Promise<void> 
       socket.write(icapResponse('204 No Content', summary));
     } else if (oversize) {
       // Neither inspected nor kept: the client's bypass policy decides.
-      socket.write(icapResponse('500 Server Error', [...summary, ['X-Cirta-Reason', 'too-large']]));
+      socket.write(icapResponse('500 Server Error', [...summary, ['X-Ciirta-Reason', 'too-large']]));
     } else {
       socket.write(icapResponse('200 OK', summary, { http: message ?? Buffer.alloc(0), kind, body: hasBody ? raw : undefined }));
     }
@@ -602,8 +602,8 @@ async function handleHttp(request: IncomingMessage, response: ServerResponse, op
       'Content-Type': 'application/octet-stream',
       'Content-Length': out.length,
       'Content-Disposition': `attachment; filename="${cleanName(name).replace(/["\\\r\n]/g, '_')}"`,
-      'X-Cirta-Removed': String(result.removed.length),
-      'X-Cirta-Kept': String(result.kept?.length ?? 0),
+      'X-Ciirta-Removed': String(result.removed.length),
+      'X-Ciirta-Kept': String(result.kept?.length ?? 0),
       'Cache-Control': 'no-store',
     });
     response.end(out);

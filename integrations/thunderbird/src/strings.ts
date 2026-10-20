@@ -1,5 +1,5 @@
 /**
- * [F-P3 2.6] The add-in's own words, in the two languages Cirta speaks. What
+ * [F-P3 2.6] The add-in's own words, in the two languages Ciirta speaks. What
  * comes from a document — a field's name, a refusal — is translated by
  * src/shared/french.ts, as everywhere else.
  */
@@ -18,10 +18,10 @@ const FR = {
   level: { confirmed: 'confirmé', probable: 'probable', informational: 'informatif' },
   cleaned: (n: number) => `Nettoyée dans le message : ${n} élément${n > 1 ? 's' : ''} retiré${n > 1 ? 's' : ''}.`,
   tooLarge: (mb: number) => `Non lue : au-delà de ${mb} Mo.`,
-  unreadable: 'Non lue. Cirta ne dit rien d’un fichier qu’il n’a pas lu.',
+  unreadable: 'Non lue. Ciirta ne dit rien d’un fichier qu’il n’a pas lu.',
   readOnly: 'Inspectée seulement : ce format n’est pas réécrit.',
-  unknownFormat: 'Format que Cirta ne lit pas.',
-  scope: 'Cirta lit ce que les fichiers disent de leur fabrication : propriétés, comptes, chemins, texte caché, caractères invisibles. Il ne prétend pas détecter un filigrane statistique dans la formulation.',
+  unknownFormat: 'Format que Ciirta ne lit pas.',
+  scope: 'Ciirta lit ce que les fichiers disent de leur fabrication : propriétés, comptes, chemins, texte caché, caractères invisibles. Il ne prétend pas détecter un filigrane statistique dans la formulation.',
 };
 
 const EN: typeof FR = {
@@ -36,10 +36,10 @@ const EN: typeof FR = {
   level: { confirmed: 'confirmed', probable: 'probable', informational: 'informational' },
   cleaned: (n: number) => `Cleaned in the message: ${n} item${n > 1 ? 's' : ''} removed.`,
   tooLarge: (mb: number) => `Not read: larger than ${mb} MB.`,
-  unreadable: 'Not read. Cirta says nothing about a file it has not read.',
+  unreadable: 'Not read. Ciirta says nothing about a file it has not read.',
   readOnly: 'Inspected only: this format is not rewritten.',
-  unknownFormat: 'A format Cirta does not read.',
-  scope: 'Cirta reads what files say about their making: properties, accounts, paths, hidden text, invisible characters. It does not claim to detect a statistical watermark in the wording.',
+  unknownFormat: 'A format Ciirta does not read.',
+  scope: 'Ciirta reads what files say about their making: properties, accounts, paths, hidden text, invisible characters. It does not claim to detect a statistical watermark in the wording.',
 };
 
 export const strings = (lang: Lang): typeof FR => (lang === 'fr' ? FR : EN);

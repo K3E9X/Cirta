@@ -1,10 +1,10 @@
-# [F-P2 2.6] Cirta as a GitHub Action: the files a pull request changes,
+# [F-P2 2.6] Ciirta as a GitHub Action: the files a pull request changes,
 # inspected in the runner — nothing leaves it —, each finding annotated on the
 # pull request, and the job failed at the level asked for. The SARIF it writes
 # can also go to code scanning (upload-sarif: true), which on a private
 # repository needs GitHub Advanced Security; the annotations do not.
 # A complete workflow: examples/github-action.yml.
-name: Cirta
+name: Ciirta
 description: Inspect the documents a pull request changes for metadata, hidden text, active content and invisible characters, locally in the runner.
 author: K3E9X
 branding:
@@ -31,7 +31,7 @@ inputs:
   sarif-file:
     description: Where to write the SARIF.
     required: false
-    default: cirta.sarif
+    default: ciirta.sarif
 
 outputs:
   sarif-file:
@@ -46,7 +46,7 @@ runs:
         node-version: 22
 
     # npm ci builds the package (prepare), from the action's own checkout.
-    - name: Install Cirta
+    - name: Install Ciirta
       shell: bash
       run: npm ci --prefix "$GITHUB_ACTION_PATH" --no-audit --no-fund --loglevel=error
 
@@ -74,7 +74,7 @@ runs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: ${{ inputs.sarif-file }}
-        category: cirta
+        category: ciirta
 
     - name: Verdict
       shell: bash

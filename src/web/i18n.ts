@@ -29,7 +29,7 @@ const FR = {
   themePrefix: 'Thème : ',
   themeLabel: { auto: 'auto', light: 'clair', dark: 'sombre' },
   themeTitle: 'Changer de thème — auto suit le réglage du système',
-  docTitle: 'Cirta — nettoyage des métadonnées de documents',
+  docTitle: 'Ciirta — nettoyage des métadonnées de documents',
   docDescription:
     'Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères ' +
     'Unicode invisibles dans le texte. Tout s’exécute dans le navigateur.',
@@ -65,7 +65,7 @@ const FR = {
   folderSkipped: (n: number) => `${n} fichier${n > 1 ? 's' : ''} du dossier ignoré${n > 1 ? 's' : ''} : format non pris en charge, ou dans un répertoire d’outil (.git, node_modules…)`,
   cleanAll: (n: number) => `Tout nettoyer (${n}) — un ZIP et son manifeste`,
   cleaningAll: (done: number, total: number) => `Nettoyage ${done}/${total}…`,
-  cleanedAll: (n: number, refused: number) => `${n} fichier${n > 1 ? 's' : ''} nettoyé${n > 1 ? 's' : ''}${refused ? `, ${refused} refusé${refused > 1 ? 's' : ''} et laissé${refused > 1 ? 's' : ''} hors de l’archive` : ''}. Le manifeste (cirta-manifest.json) donne pour chacun les empreintes SHA-256 avant et après et ce qui reste, sans aucune valeur.`,
+  cleanedAll: (n: number, refused: number) => `${n} fichier${n > 1 ? 's' : ''} nettoyé${n > 1 ? 's' : ''}${refused ? `, ${refused} refusé${refused > 1 ? 's' : ''} et laissé${refused > 1 ? 's' : ''} hors de l’archive` : ''}. Le manifeste (ciirta-manifest.json) donne pour chacun les empreintes SHA-256 avant et après et ce qui reste, sans aucune valeur.`,
   cleanAllOptions: 'Avec les options avancées ci-dessous ; un fichier impossible à nettoyer est nommé, pas glissé tel quel dans l’archive.',
 
   /* ---------------------------------------------------------------- table */
@@ -165,7 +165,7 @@ const FR = {
     'SynthID-Text (DeepMind) — au titre du code de transparence européen en vigueur depuis le ' +
     '2 août 2026 ; les modèles antérieurs suivront dans les mois à venir. Une API de détection ' +
     'est annoncée mais pas publiée, et lire la marque suppose leur clé. Les fichiers reçoivent ' +
-    'à la place un « content credential » C2PA signé — celui-là, Cirta le lit et le signale.',
+    'à la place un « content credential » C2PA signé — celui-là, Ciirta le lit et le signale.',
   exposureRowNotThis: 'ce n’est pas ça',
   exposureNotThis:
     '« Rien n’est ajouté au texte et il n’y a aucun caractère caché. » Le filigrane statistique ' +
@@ -180,7 +180,7 @@ const FR = {
     'autre clé. Et elle ne distingue pas « Claude a écrit ça » de « Claude a beaucoup remanié ' +
     'ça » : une simple relecture ne lui laisse presque aucune prise.',
   exposureNote:
-    'Cirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut : il faut ' +
+    'Ciirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut : il faut ' +
     'la clé secrète de l’éditeur. Le nombre de tokens est estimé, pas tokenisé.',
 
   /* ----------------------------------------------------------------- text */
@@ -280,7 +280,7 @@ const EN: Strings = {
   themePrefix: 'Theme: ',
   themeLabel: { auto: 'auto', light: 'light', dark: 'dark' },
   themeTitle: 'Change the theme — auto follows the system setting',
-  docTitle: 'Cirta — strip metadata from your documents',
+  docTitle: 'Ciirta — strip metadata from your documents',
   docDescription:
     'Inspects and strips provenance metadata from PDF, PPTX and DOCX, and the invisible Unicode ' +
     'in text. Everything runs in the browser.',
@@ -313,7 +313,7 @@ const EN: Strings = {
   folderSkipped: (n) => `${n} file${n > 1 ? 's' : ''} in the folder skipped: format not supported, or inside a tool directory (.git, node_modules…)`,
   cleanAll: (n) => `Clean all (${n}) — one ZIP and its manifest`,
   cleaningAll: (done, total) => `Cleaning ${done}/${total}…`,
-  cleanedAll: (n, refused) => `${n} file${n > 1 ? 's' : ''} cleaned${refused ? `, ${refused} refused and left out of the archive` : ''}. The manifest (cirta-manifest.json) gives each one's SHA-256 before and after and what is left, without any value.`,
+  cleanedAll: (n, refused) => `${n} file${n > 1 ? 's' : ''} cleaned${refused ? `, ${refused} refused and left out of the archive` : ''}. The manifest (ciirta-manifest.json) gives each one's SHA-256 before and after and what is left, without any value.`,
   cleanAllOptions: 'With the advanced options below; a file that cannot be cleaned is named, not slipped into the archive as it was.',
 
   columns: ['Level', 'Kind', 'Field', 'Value', 'Location'],
@@ -407,7 +407,7 @@ const EN: Strings = {
     'Anthropic states that future Claude models carry a watermark — a version of DeepMind’s ' +
     'SynthID-Text — under the EU transparency code in force since 2 August 2026; earlier models ' +
     'follow over the coming months. A detection API is announced but not published, and reading ' +
-    'the mark needs their key. Files instead get a signed C2PA content credential, which Cirta ' +
+    'the mark needs their key. Files instead get a signed C2PA content credential, which Ciirta ' +
     'does read and report.',
   exposureRowNotThis: 'not this',
   exposureNotThis:
@@ -422,7 +422,7 @@ const EN: Strings = {
     'it cannot separate “Claude wrote this” from “Claude heavily edited this”: a light proofread ' +
     'leaves it almost nothing to hold on to.',
   exposureNote:
-    'Cirta cannot read this class of mark, and neither can any other local tool: it needs the ' +
+    'Ciirta cannot read this class of mark, and neither can any other local tool: it needs the ' +
     'vendor’s secret key. Token counts are estimated, not tokenized.',
 
   textNothing: 'Nothing found in this text.',
@@ -501,7 +501,7 @@ const EN: Strings = {
   removeHiddenOption: (n) => (n > 1 ? `Also remove the ${n} hidden passages` : 'Also remove the hidden passage'),
 };
 
-const STORAGE_KEY = 'cirta:lang';
+const STORAGE_KEY = 'ciirta:lang';
 
 /**
  * French unless the visitor's browser says otherwise, and their explicit choice

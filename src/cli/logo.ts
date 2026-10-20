@@ -1,5 +1,5 @@
 /**
- * The Cirta mark, transcribed for a terminal.
+ * The Ciirta mark, transcribed for a terminal.
  *
  * A terminal cannot render SVG, so this is a character-cell version of
  * `assets/logo.svg`: the same C held inside a rounded square. The SVG stays the

@@ -7,7 +7,7 @@ import { inspectFile } from '../src/core/index.js';
 import { makeDocx } from './fixtures.js';
 
 /*
- * [F-P3 2.5] Cirta as a service: ICAP (RFC 3507), for a proxy or a mail
+ * [F-P3 2.5] Ciirta as a service: ICAP (RFC 3507), for a proxy or a mail
  * gateway, and an HTTP API. Inspection only unless told otherwise; values
  * never logged; nothing contacted.
  */
@@ -67,7 +67,7 @@ function talk(port: number, requests: Array<Buffer | ((received: string) => Buff
   });
 }
 
-describe('[F-P3 2.5] cirta serve', () => {
+describe('[F-P3 2.5] ciirta serve', () => {
   const logs: string[] = [];
   let inspecting: Service;
   let blocking: Service;
@@ -103,8 +103,8 @@ describe('[F-P3 2.5] cirta serve', () => {
     logs.length = 0;
     const [response] = await talk(icap(inspecting), [respmod(Buffer.from(makeDocx()))]);
     expect(response).toMatch(/^ICAP\/1\.0 204 No Content\r\n/);
-    expect(response).toMatch(/^X-Cirta-Verdict: pass\r$/m);
-    expect(response).toMatch(/^X-Cirta-Findings: confirmed=[1-9]\d*, probable=\d+, informational=\d+\r$/m);
+    expect(response).toMatch(/^X-Ciirta-Verdict: pass\r$/m);
+    expect(response).toMatch(/^X-Ciirta-Findings: confirmed=[1-9]\d*, probable=\d+, informational=\d+\r$/m);
     const entry = JSON.parse(logs.at(-1)!);
     expect(entry).toMatchObject({ via: 'icap', service: 'respmod', name: 'rapport.docx', format: 'docx', outcome: 'pass' });
     expect(entry.labels).toContain('Author');
@@ -126,7 +126,7 @@ describe('[F-P3 2.5] cirta serve', () => {
   it('blocks with --block-on, naming what it found but not the values', async () => {
     const [response] = await talk(icap(blocking), [respmod(Buffer.from(makeDocx()))]);
     expect(response).toMatch(/^ICAP\/1\.0 200 OK\r\n/);
-    expect(response).toMatch(/^X-Cirta-Verdict: block\r$/m);
+    expect(response).toMatch(/^X-Ciirta-Verdict: block\r$/m);
     expect(response).toMatch(/\r\n\r\nHTTP\/1\.1 403 Forbidden\r\n/);
     expect(response).toMatch(/at least one confirmed finding[\s\S]*rapport\.docx: Author/);
     expect(response).not.toMatch(/Lotfi/);
@@ -145,7 +145,7 @@ describe('[F-P3 2.5] cirta serve', () => {
     const rest = chunked(body.subarray(4));
     const [proceed, verdict] = await talk(icap(blocking), [first, (received) => (/^ICAP\/1\.0 100 Continue/.test(received) ? rest : undefined)], 2);
     expect(proceed).toMatch(/^ICAP\/1\.0 100 Continue\r\n\r\n$/);
-    expect(verdict).toMatch(/^X-Cirta-Verdict: block\r$/m);
+    expect(verdict).toMatch(/^X-Ciirta-Verdict: block\r$/m);
   });
 
   it.each([
@@ -154,7 +154,7 @@ describe('[F-P3 2.5] cirta serve', () => {
     ['br', brotliCompressSync],
   ] as const)('reads a download compressed with %s as the browser would', async (coding, compress) => {
     const [response] = await talk(icap(blocking), [respmod(compress(makeDocx()), { httpHeaders: `Content-Type: application/octet-stream\r\nContent-Encoding: ${coding}` })]);
-    expect(response).toMatch(/^X-Cirta-Verdict: block\r$/m);
+    expect(response).toMatch(/^X-Ciirta-Verdict: block\r$/m);
   });
 
   it('lets through what it will not read whole, and says so: a body past --max-size, a body that inflates past it', async () => {
@@ -166,15 +166,15 @@ describe('[F-P3 2.5] cirta serve', () => {
       respmod(gzipSync(Buffer.alloc(8 * 1024 * 1024)), { httpHeaders: 'Content-Type: text/plain\r\nContent-Encoding: gzip' }),
     ]);
     expect(skipped).toMatch(/^ICAP\/1\.0 204 /);
-    expect(skipped).toMatch(/^X-Cirta-Verdict: skipped\r$/m);
+    expect(skipped).toMatch(/^X-Ciirta-Verdict: skipped\r$/m);
     // Neither inspected nor kept: the client's own bypass setting decides.
     expect(refused).toMatch(/^ICAP\/1\.0 500 /);
-    expect(bomb).toMatch(/^X-Cirta-Verdict: skipped\r$/m);
+    expect(bomb).toMatch(/^X-Ciirta-Verdict: skipped\r$/m);
     expect(logs.map((line) => JSON.parse(line).reason)).toEqual(['too-large', 'too-large', 'content-encoding']);
   });
 
   it('inspects each file of an upload (REQMOD, multipart), and keeps the connection for the next request', async () => {
-    const boundary = '----cirta';
+    const boundary = '----ciirta';
     const form = Buffer.concat([
       Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="subject"${CRLF}${CRLF}Rapport${CRLF}`),
       Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="rapport.docx"${CRLF}Content-Type: application/octet-stream${CRLF}${CRLF}`),
@@ -200,11 +200,11 @@ describe('[F-P3 2.5] cirta serve', () => {
     const inspected = await fetch(`${http(inspecting)}/inspect?name=rapport.docx`, { method: 'POST', body: new Uint8Array(makeDocx()) });
     expect(inspected.status).toBe(200);
     const report = await inspected.json();
-    expect(report).toMatchObject({ schema: 'cirta.report/1', file: 'rapport.docx', result: { format: 'docx' } });
+    expect(report).toMatchObject({ schema: 'ciirta.report/1', file: 'rapport.docx', result: { format: 'docx' } });
 
     const unreadable = await fetch(`${http(inspecting)}/inspect?name=x.bin`, { method: 'POST', body: new Blob([new Uint8Array([0, 1, 2, 3, 0xff, 0xfe, 0, 0])]) });
     expect(unreadable.status).toBe(422);
-    expect(await unreadable.json()).toMatchObject({ schema: 'cirta.report/1', file: 'x.bin' });
+    expect(await unreadable.json()).toMatchObject({ schema: 'ciirta.report/1', file: 'x.bin' });
 
     const tooLarge = await fetch(`${http(inspecting)}/inspect`, { method: 'POST', body: new Blob([new Uint8Array(1024 * 1024 + 1)]) });
     expect(tooLarge.status).toBe(413);
@@ -215,7 +215,7 @@ describe('[F-P3 2.5] cirta serve', () => {
     const cleaned = await fetch(`${http(cleaning)}/clean?name=rapport.docx`, { method: 'POST', body: new Uint8Array(makeDocx()) });
     expect(cleaned.status).toBe(200);
     expect(cleaned.headers.get('content-disposition')).toBe('attachment; filename="rapport.clean.docx"');
-    expect(Number(cleaned.headers.get('x-cirta-removed'))).toBeGreaterThan(0);
+    expect(Number(cleaned.headers.get('x-ciirta-removed'))).toBeGreaterThan(0);
     const after = await inspectFile(new Uint8Array(await cleaned.arrayBuffer()), 'rapport.clean.docx');
     expect(after.findings.some((f) => /Lotfi Zakaria/.test(f.value))).toBe(false);
 
@@ -224,7 +224,7 @@ describe('[F-P3 2.5] cirta serve', () => {
   });
 });
 
-describe('[F-P3 2.5] cirta serve from the command line', () => {
+describe('[F-P3 2.5] ciirta serve from the command line', () => {
   it('listens on the loopback only unless told otherwise, says where, and stops cleanly on SIGTERM', async () => {
     const child = spawn(process.execPath, ['node_modules/vite-node/vite-node.mjs', '--root', '.', 'src/cli/index.ts', 'serve', '--http', '0', '--icap', '0', '--lang', 'en'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';

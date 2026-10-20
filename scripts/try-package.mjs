@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const dir = mkdtempSync(join(tmpdir(), 'cirta-package-'));
+const dir = mkdtempSync(join(tmpdir(), 'ciirta-package-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const run = (cmd, args, cwd = dir) => execFileSync(cmd, args, { cwd, encoding: 'utf8', shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
 let failures = 0;
@@ -31,18 +31,18 @@ try {
   run(npm, ['install', '--no-audit', '--no-fund', join(dir, tarball)]);
 
   writeFileSync(join(dir, 'note.txt'), 'Bon​jour');
-  const help = run(npm, ['exec', '--', 'cirta', '--help']);
-  check('the cirta command runs from the installed package', help.includes('cirta inspect'));
-  const json = JSON.parse(run(npm, ['exec', '--', 'cirta', 'inspect', '--json', 'note.txt']));
+  const help = run(npm, ['exec', '--', 'ciirta', '--help']);
+  check('the ciirta command runs from the installed package', help.includes('ciirta inspect'));
+  const json = JSON.parse(run(npm, ['exec', '--', 'ciirta', 'inspect', '--json', 'note.txt']));
   check('it inspects a file', json[0]?.result?.findings?.some((f) => f.kind === 'invisible-character'), JSON.stringify(json).slice(0, 200));
 
   writeFileSync(
     join(dir, 'use.mjs'),
-    "import { inspectFile, REPORT_SCHEMA } from 'cirta';\nimport { nodeXrayEngine } from 'cirta/node';\nimport schema from 'cirta/schema/report.v1.json' with { type: 'json' };\n" +
+    "import { inspectFile, REPORT_SCHEMA } from 'ciirta';\nimport { nodeXrayEngine } from 'ciirta/node';\nimport schema from 'ciirta/schema/report.v1.json' with { type: 'json' };\n" +
       "const r = await inspectFile(new TextEncoder().encode('a\\u200bb'), 'a.txt');\nconsole.log(JSON.stringify({ format: r.format, schema: REPORT_SCHEMA, id: schema.$id, engine: typeof nodeXrayEngine }));\n",
   );
   const used = JSON.parse(run(process.execPath, ['use.mjs']));
-  check('the library, cirta/node and the schema import from it', used.format === 'text' && used.schema === 'cirta.report/1' && used.engine === 'function' && Boolean(used.id), JSON.stringify(used));
+  check('the library, ciirta/node and the schema import from it', used.format === 'text' && used.schema === 'ciirta.report/1' && used.engine === 'function' && Boolean(used.id), JSON.stringify(used));
   // [P0-3] The README's example, as printed, against the installed package: only the file it reads changes.
   const readme = readFileSync(join(root, 'README.md'), 'utf8');
   const example = /```js\n([\s\S]*?)```/.exec(readme.slice(readme.indexOf('## As a library')))?.[1] ?? '';
@@ -54,7 +54,7 @@ try {
   } catch (error) {
     check("the README's example runs", false, String(error.stderr ?? error).slice(0, 300));
   }
-  writeFileSync(join(dir, 'use.ts'), "import { inspectFile, type InspectResult } from 'cirta';\nconst r: Promise<InspectResult> = inspectFile(new Uint8Array(), 'a');\nvoid r;\n");
+  writeFileSync(join(dir, 'use.ts'), "import { inspectFile, type InspectResult } from 'ciirta';\nconst r: Promise<InspectResult> = inspectFile(new Uint8Array(), 'a');\nvoid r;\n");
   try {
     run(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--skipLibCheck', 'use.ts']);
     check('its types resolve for a TypeScript user', true);

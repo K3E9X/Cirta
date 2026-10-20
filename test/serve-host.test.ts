@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serve, type Service } from '../src/cli/serve.js';
 
 /*
- * [R5] `cirta serve` on the loopback answered any Host. A web page the user
+ * [R5] `ciirta serve` on the loopback answered any Host. A web page the user
  * opens can point a name it controls at 127.0.0.1 (DNS rebinding) and then
  * read the API from its own origin. On the loopback only the loopback's own
  * names are answered — 127.0.0.1, localhost, [::1], with any port — plus the
@@ -30,7 +30,7 @@ describe('[R5] the HTTP API checks the Host it is asked for', () => {
 
   beforeAll(async () => {
     loopback = await serve({ ...common, host: '127.0.0.1' });
-    allowed = await serve({ ...common, host: '127.0.0.1', allowedHosts: ['cirta.internal'] });
+    allowed = await serve({ ...common, host: '127.0.0.1', allowedHosts: ['ciirta.internal'] });
     open = await serve({ ...common, host: '0.0.0.0' });
   });
   afterAll(async () => {
@@ -53,13 +53,13 @@ describe('[R5] the HTTP API checks the Host it is asked for', () => {
 
   it('answers a name given with --allowed-host, and still refuses the others', async () => {
     const port = allowed.http!.port;
-    expect(await get(port, 'cirta.internal')).toBe(200);
-    expect(await get(port, `cirta.internal:${port}`)).toBe(200);
+    expect(await get(port, 'ciirta.internal')).toBe(200);
+    expect(await get(port, `ciirta.internal:${port}`)).toBe(200);
     expect(await get(port, 'localhost')).toBe(200);
     expect(await get(port, 'evil.example')).toBe(421);
   });
 
   it('listening beyond the loopback, it answers the names it is reached by', async () => {
-    expect(await get(open.http!.port, 'cirta.lan')).toBe(200);
+    expect(await get(open.http!.port, 'ciirta.lan')).toBe(200);
   });
 });

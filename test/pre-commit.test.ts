@@ -12,9 +12,9 @@ const hooks = readFileSync('.pre-commit-hooks.yaml', 'utf8');
 const pattern = new RegExp(/^ {2}files: \(\?i\)(.+)$/m.exec(hooks)![1]!, 'i');
 
 describe('[F-P2 2.6] the pre-commit hook', () => {
-  it('runs the installed cirta verify; installed from git, the package builds itself', () => {
-    expect(hooks).toMatch(/^- id: cirta$/m);
-    expect(hooks).toMatch(/^ {2}entry: cirta verify$/m);
+  it('runs the installed ciirta verify; installed from git, the package builds itself', () => {
+    expect(hooks).toMatch(/^- id: ciirta$/m);
+    expect(hooks).toMatch(/^ {2}entry: ciirta verify$/m);
     expect(hooks).toMatch(/^ {2}language: system$/m);
     // npm install git+https://… prepares a git dependency: the package builds itself then.
     expect(JSON.parse(readFileSync('package.json', 'utf8')).scripts.prepare).toBe('npm run build');

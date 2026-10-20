@@ -14,7 +14,7 @@ import { makeDocx } from './fixtures.js';
  */
 
 function repository(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'cirta-changed-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ciirta-changed-'));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'test@example.com');
@@ -74,7 +74,7 @@ describe('[F-P2 2.6] --changed-only', () => {
     // answers C:/Users/runneradmin/…: two spellings of one folder. A symbolic
     // link (a junction on Windows) gives the same situation everywhere.
     const dir = repository();
-    const link = join(mkdtempSync(join(tmpdir(), 'cirta-link-')), 'depot');
+    const link = join(mkdtempSync(join(tmpdir(), 'ciirta-link-')), 'depot');
     symlinkSync(dir, link, 'junction');
     expect(changedFiles('main', [], link).sort()).toEqual(['docs/lettre.docx', 'propre.txt']);
     expect(changedFiles('main', ['docs'], join(link, 'docs'))).toEqual([]);
@@ -83,7 +83,7 @@ describe('[F-P2 2.6] --changed-only', () => {
   });
 
   it('refuses outside a repository, and an unknown base, saying why', () => {
-    const outside = mkdtempSync(join(tmpdir(), 'cirta-nogit-'));
+    const outside = mkdtempSync(join(tmpdir(), 'ciirta-nogit-'));
     const run = runCli(['inspect', '--lang', 'fr', '--changed-only'], undefined, { cwd: outside });
     expect(run.status).toBe(2);
     expect(run.stderr.toString()).toContain('--changed-only demande un dépôt git');

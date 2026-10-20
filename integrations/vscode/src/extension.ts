@@ -1,10 +1,10 @@
 /**
- * [F-P2 2.6] Cirta in VS Code.
+ * [F-P2 2.6] Ciirta in VS Code.
  *
  *   - A text file is inspected when it is opened and saved: invisible
  *     characters underlined where they are, the rest in the Problems panel.
  *   - Any file — a .docx, a PDF — from the Explorer's context menu or the
- *     command palette: "Cirta: Inspect this file", "Cirta: Write a cleaned
+ *     command palette: "Ciirta: Inspect this file", "Ciirta: Write a cleaned
  *     copy" (name.clean.ext beside it, the original untouched).
  *
  * Everything runs in the extension host, on the machine: the library is
@@ -29,7 +29,7 @@ const lang = (): Lang => (vscode.env.language.toLowerCase().startsWith('fr') ? '
 function toVscode(plain: PlainDiagnostic): vscode.Diagnostic {
   const { line, character, endLine, endCharacter } = plain.range;
   const diagnostic = new vscode.Diagnostic(new vscode.Range(line, character, endLine, endCharacter), plain.message, SEVERITY[plain.severity]);
-  diagnostic.source = 'Cirta';
+  diagnostic.source = 'Ciirta';
   diagnostic.code = plain.code;
   return diagnostic;
 }
@@ -42,7 +42,7 @@ const cleanedUri = (uri: vscode.Uri) => {
 };
 
 export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection('cirta');
+  const diagnostics = vscode.languages.createDiagnosticCollection('ciirta');
   context.subscriptions.push(diagnostics);
 
   const inspect = async (uri: vscode.Uri, text?: string): Promise<number> => {
@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const onText = (document: vscode.TextDocument) => {
-    if (document.uri.scheme !== 'file' || !vscode.workspace.getConfiguration('cirta').get<boolean>('inspectTextFiles', true)) return;
+    if (document.uri.scheme !== 'file' || !vscode.workspace.getConfiguration('ciirta').get<boolean>('inspectTextFiles', true)) return;
     void inspect(document.uri, document.getText());
   };
 
@@ -69,13 +69,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidOpenTextDocument(onText),
     vscode.workspace.onDidSaveTextDocument(onText),
     vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri)),
-    vscode.commands.registerCommand('cirta.inspect', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand('ciirta.inspect', async (uri?: vscode.Uri) => {
       const file = target(uri);
       if (!file) return;
       const count = await inspect(file);
-      void vscode.window.showInformationMessage(lang() === 'fr' ? `Cirta : ${count} constat${count > 1 ? 's' : ''} — voir le panneau Problèmes.` : `Cirta: ${count} finding${count === 1 ? '' : 's'} — see the Problems panel.`);
+      void vscode.window.showInformationMessage(lang() === 'fr' ? `Ciirta : ${count} constat${count > 1 ? 's' : ''} — voir le panneau Problèmes.` : `Ciirta: ${count} finding${count === 1 ? '' : 's'} — see the Problems panel.`);
     }),
-    vscode.commands.registerCommand('cirta.clean', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand('ciirta.clean', async (uri?: vscode.Uri) => {
       const file = target(uri);
       if (!file) return;
       try {
@@ -86,11 +86,11 @@ export function activate(context: vscode.ExtensionContext): void {
         const left = result.kept?.length ?? 0;
         void vscode.window.showInformationMessage(
           lang() === 'fr'
-            ? `Cirta : ${result.removed.length} retiré${result.removed.length > 1 ? 's' : ''}${left ? `, ${left} toujours présent${left > 1 ? 's' : ''}` : ''} → ${destination.path.slice(destination.path.lastIndexOf('/') + 1)}`
-            : `Cirta: ${result.removed.length} removed${left ? `, ${left} still there` : ''} → ${destination.path.slice(destination.path.lastIndexOf('/') + 1)}`,
+            ? `Ciirta : ${result.removed.length} retiré${result.removed.length > 1 ? 's' : ''}${left ? `, ${left} toujours présent${left > 1 ? 's' : ''}` : ''} → ${destination.path.slice(destination.path.lastIndexOf('/') + 1)}`
+            : `Ciirta: ${result.removed.length} removed${left ? `, ${left} still there` : ''} → ${destination.path.slice(destination.path.lastIndexOf('/') + 1)}`,
         );
       } catch (error) {
-        void vscode.window.showWarningMessage(`Cirta: ${errorText(error, lang())}`);
+        void vscode.window.showWarningMessage(`Ciirta: ${errorText(error, lang())}`);
       }
     }),
   );

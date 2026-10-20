@@ -59,7 +59,7 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(releaseProblems({ tag: `v${pkg.version}`, pkg, changelog: readFileSync('CHANGELOG.md', 'utf8'), licence, packed })).toEqual([]);
   }, 60_000);
 
-  // [Release 0.2.0] Every place that names Cirta's version names package.json's.
+  // [Release 0.2.0] Every place that names Ciirta's version names package.json's.
   it('states one version everywhere: the editor extension, the MCP server, the SARIF report', () => {
     expect(JSON.parse(readFileSync('integrations/vscode/package.json', 'utf8')).version).toBe(pkg.version);
     expect(readFileSync('src/cli/mcp.ts', 'utf8')).not.toMatch(/'\d+\.\d+\.\d+'/);
@@ -83,7 +83,7 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
   it('says which version it is, as a binary must', () => {
     const run = runCli(['--version']);
     expect(run.status).toBe(0);
-    expect(run.stdout.toString().trim()).toBe(`cirta ${pkg.version}`);
+    expect(run.stdout.toString().trim()).toBe(`ciirta ${pkg.version}`);
   });
 
   it('releases single-file binaries for three systems, each built, run and attested, and builds them in CI too', () => {
@@ -92,7 +92,7 @@ describe('[F-P2 2.8] what a release must be before it is published', () => {
     expect(binaries).toMatch(/needs: check/);
     expect(binaries).toMatch(/os: \[ubuntu-latest, windows-latest, macos-latest\]/);
     expect(binaries.indexOf('node scripts/build-sea.mjs')).toBeLessThan(binaries.indexOf('attest-build-provenance'));
-    expect(binaries).toMatch(/subject-path: 'build\/sea\/cirta-\*'/);
+    expect(binaries).toMatch(/subject-path: 'build\/sea\/ciirta-\*'/);
     // [Release 0.2.0] The GitHub release does not wait on npm, which may not be set up.
     const release = workflow.slice(workflow.indexOf('\n  github-release:'));
     expect(release).toMatch(/needs: \[binaries, extensions, single-file\][\s\S]*contents: write/);

@@ -3,19 +3,19 @@
  * [F-P2 2.6] The site as a browser extension (Manifest V3, Chrome and
  * Firefox): the toolbar button opens the same page, served from the
  * extension itself. The site is built again for it, with relative paths
- * (CIRTA_BASE=./) instead of the /Cirta/ of GitHub Pages.
+ * (CIIRTA_BASE=./) instead of the /Cirta/ of GitHub Pages.
  *
  * What changes from the site:
  *   - the one inline script moves to a file, which an extension page requires;
  *   - what only makes sense on the web goes: the service worker, the web app
  *     manifest, SHA256SUMS and the « Check this site » box (between
- *     <!--cirta:site-only--> markers), whose hashes describe the site;
+ *     <!--ciirta:site-only--> markers), whose hashes describe the site;
  *   - the extension asks for no permission and no host, and its policy
  *     forbids every connection (connect-src 'none') on all its pages and
  *     their workers. 'wasm-unsafe-eval' lets PDF.js run its image decoders.
  *
  * Output: build/browser-extension/ (load it unpacked) and
- * build/cirta-browser-extension-<version>.zip, the same files, deterministic.
+ * build/ciirta-browser-extension-<version>.zip, the same files, deterministic.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -38,16 +38,16 @@ export const POLICY = "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; 
 export function extensionManifest(version) {
   return {
     manifest_version: 3,
-    name: 'Cirta',
+    name: 'Ciirta',
     version,
     description: 'What a document says about its making — metadata, hidden text, invisible characters — found and removed in the browser. Nothing is sent.',
     homepage_url: 'https://github.com/K3E9X/Cirta',
-    action: { default_title: 'Cirta', default_icon: { 16: 'icons/16.png', 32: 'icons/32.png' } },
+    action: { default_title: 'Ciirta', default_icon: { 16: 'icons/16.png', 32: 'icons/32.png' } },
     // Chrome runs the service worker, Firefox the script; each ignores the other.
     background: { service_worker: 'background.js', scripts: ['background.js'] },
     icons: { 16: 'icons/16.png', 32: 'icons/32.png', 48: 'icons/48.png', 128: 'icons/128.png' },
     content_security_policy: { extension_pages: POLICY },
-    browser_specific_settings: { gecko: { id: 'cirta@k3e9x.github.io', strict_min_version: '121.0' } },
+    browser_specific_settings: { gecko: { id: 'ciirta@k3e9x.github.io', strict_min_version: '121.0' } },
   };
 }
 
@@ -55,8 +55,8 @@ export function extensionManifest(version) {
 export function extensionPage(html) {
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   if (inline.length !== 1) throw new Error(`expected the page's one inline script, found ${inline.length}`);
-  const marked = /\s*<!--cirta:site-only-->[\s\S]*?<!--\/cirta:site-only-->/g;
-  if (!marked.test(html)) throw new Error('the page has no <!--cirta:site-only--> block');
+  const marked = /\s*<!--ciirta:site-only-->[\s\S]*?<!--\/ciirta:site-only-->/g;
+  if (!marked.test(html)) throw new Error('the page has no <!--ciirta:site-only--> block');
   const page = html
     .replace(inline[0][0], '<script src="./motion.js"></script>')
     .replace(/\s*<link rel="manifest"[^>]*>/, '')
@@ -64,7 +64,7 @@ export function extensionPage(html) {
   return { page, script: `${inline[0][1].trim()}\n` };
 }
 
-const BACKGROUND = `// Cirta: the toolbar button opens the page, which the extension carries.
+const BACKGROUND = `// Ciirta: the toolbar button opens the page, which the extension carries.
 chrome.action.onClicked.addListener(() => chrome.tabs.create({ url: chrome.runtime.getURL('index.html') }));
 `;
 
@@ -87,7 +87,7 @@ async function icons() {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   execFileSync(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--outDir', site, '--emptyOutDir', '--logLevel', 'warn'], {
     cwd: root,
-    env: { ...process.env, CIRTA_BASE: './' },
+    env: { ...process.env, CIIRTA_BASE: './' },
     stdio: 'inherit',
   });
   if (!existsSync(join(site, 'index.html'))) throw new Error(`${site}/index.html is missing`);
@@ -110,7 +110,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mkdirSync(dirname(join(out, name)), { recursive: true });
     writeFileSync(join(out, name), files[name]);
   }
-  const zip = join(root, 'build', `cirta-browser-extension-${pkg.version}.zip`);
+  const zip = join(root, 'build', `ciirta-browser-extension-${pkg.version}.zip`);
   // A fixed date, so the same build gives the same bytes.
   const mtime = new Date('1980-01-01T00:00:00Z');
   writeFileSync(zip, zipSync(Object.fromEntries(names.map((name) => [name, [new Uint8Array(files[name]), { mtime }]])), { level: 9 }));

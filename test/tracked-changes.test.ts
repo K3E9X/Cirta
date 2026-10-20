@@ -86,7 +86,7 @@ describe('[C5] cleaning with accepted changes', () => {
   });
 
   it('is offered from the command line as --accept-changes', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-c5-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-c5-'));
     writeFileSync(join(dir, 'in.docx'), docx());
     const run = runCli(['redact', join(dir, 'in.docx'), '-o', join(dir, 'out.docx'), '--accept-changes']);
     expect(run.status).toBe(0);

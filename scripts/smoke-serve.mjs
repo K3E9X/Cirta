@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * [F-P3 2.5] A running `cirta serve`, tried as a client would: the health
+ * [F-P3 2.5] A running `ciirta serve`, tried as a client would: the health
  * route, an inspection over HTTP, ICAP OPTIONS, and a RESPMOD of a Word file
  * carrying its author — let through and reported, the default.
  *
@@ -71,7 +71,7 @@ export async function smokeServe({ http = 'http://127.0.0.1:8080', icap = { host
     const body = Buffer.concat([Buffer.from(head + res + `${file.length.toString(16)}\r\n`), Buffer.from(file), Buffer.from('\r\n0\r\n\r\n')]);
     const response = await icapExchange(icap, body);
     if (!/^ICAP\/1\.0 204 No Content\r\n/.test(response)) return JSON.stringify(response.slice(0, 80));
-    if (!/\r\nX-Cirta-Verdict: pass\r\n/.test(response) || !/\r\nX-Cirta-Findings: confirmed=[1-9]/.test(response)) return 'the author was not reported';
+    if (!/\r\nX-Ciirta-Verdict: pass\r\n/.test(response) || !/\r\nX-Ciirta-Findings: confirmed=[1-9]/.test(response)) return 'the author was not reported';
   });
   return problems;
 }
@@ -83,5 +83,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const problems = await smokeServe({ http: option('--http') ?? 'http://127.0.0.1:8080', icap: { host, port: Number(port) } });
   for (const problem of problems) console.error(`FAIL  ${problem}`);
   if (problems.length) process.exit(1);
-  console.log('cirta serve answers: health, inspect, ICAP OPTIONS, RESPMOD');
+  console.log('ciirta serve answers: health, inspect, ICAP OPTIONS, RESPMOD');
 }

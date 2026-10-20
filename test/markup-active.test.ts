@@ -149,7 +149,7 @@ describe('[R3] every label in French', () => {
 });
 
 describe('[R3] « Run again with --strip-active » only where it would act', () => {
-  const dir = () => mkdtempSync(join(tmpdir(), 'cirta-r3-'));
+  const dir = () => mkdtempSync(join(tmpdir(), 'ciirta-r3-'));
 
   it('offered for a page with a script, and the second run takes it out', () => {
     const d = dir();

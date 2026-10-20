@@ -70,7 +70,7 @@ describe('[F-2.1] --strip-active from the command line', () => {
     const { mkdtempSync, writeFileSync, readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const { tmpdir } = await import('node:os');
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-active-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-active-'));
     const file = join(dir, 'facture.pdf');
     writeFileSync(file, await activePdf());
     const plain = runCli(['redact', '--lang', 'en', file, '-o', join(dir, 'a.pdf')]);

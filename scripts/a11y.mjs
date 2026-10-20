@@ -6,9 +6,9 @@
  *   npx playwright install chromium
  *   node scripts/a11y.mjs
  *
- * Neither package is a dependency of Cirta: the audit is run on demand and in
+ * Neither package is a dependency of Ciirta: the audit is run on demand and in
  * CI, at the versions above, and nothing it loads reaches the published files.
- * CIRTA_CHROMIUM names a Chromium to use instead of Playwright's own.
+ * CIIRTA_CHROMIUM names a Chromium to use instead of Playwright's own.
  *
  * What it checks, for both languages and for each theme — the system's light
  * and dark, and a forced choice against the system's —, with results on screen
@@ -79,14 +79,14 @@ const SAMPLES = [
   { name: 'drawing.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:export-filename="/home/jeanne/plan.png"><metadata><title>Plan</title></metadata><rect width="10" height="10"/></svg>') },
 ];
 
-const browser = await chromium.launch(process.env['CIRTA_CHROMIUM'] ? { executablePath: process.env['CIRTA_CHROMIUM'] } : {});
+const browser = await chromium.launch(process.env['CIIRTA_CHROMIUM'] ? { executablePath: process.env['CIIRTA_CHROMIUM'] } : {});
 
 console.log('axe-core, with results on screen');
 for (const [system, forced] of [['light', null], ['dark', null], ['dark', 'light'], ['light', 'dark']]) {
   for (const locale of ['fr-FR', 'en-US']) {
     // The page forbids inline scripts it did not hash; axe is injected, so this context alone bypasses the policy.
     const context = await browser.newContext({ locale, colorScheme: system, reducedMotion: 'reduce', bypassCSP: true });
-    if (forced) await context.addInitScript((theme) => localStorage.setItem('cirta.theme', theme), forced);
+    if (forced) await context.addInitScript((theme) => localStorage.setItem('ciirta.theme', theme), forced);
     const page = await context.newPage();
     await page.goto(url);
     await page.locator('#file-input').setInputFiles(SAMPLES);
@@ -178,7 +178,7 @@ console.log('theme');
   const context = await browser.newContext({ colorScheme: 'dark' });
   await context.addInitScript(() => {
     if (!sessionStorage.getItem('seeded')) {
-      localStorage.setItem('cirta.theme', 'light');
+      localStorage.setItem('ciirta.theme', 'light');
       sessionStorage.setItem('seeded', '1');
     }
   });
@@ -196,7 +196,7 @@ console.log('theme');
   const seen = [];
   for (let i = 0; i < 3; i++) {
     await page.locator('#theme-toggle').click();
-    seen.push(await page.evaluate(() => `${document.documentElement.dataset.theme ?? 'auto'}/${localStorage.getItem('cirta.theme') ?? '-'}`));
+    seen.push(await page.evaluate(() => `${document.documentElement.dataset.theme ?? 'auto'}/${localStorage.getItem('ciirta.theme') ?? '-'}`));
   }
   check('the switch cycles light → dark → auto → light, and stores it', seen.join(' ') === 'dark/dark auto/- light/light', seen.join(' '));
   await context.close();

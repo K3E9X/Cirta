@@ -1,5 +1,5 @@
 {
-  "name": { "message": "Cirta — attachments checked before sending" },
+  "name": { "message": "Ciirta — attachments checked before sending" },
   "description": { "message": "Reads each attachment before a message leaves: author, account, paths, hidden text. Holds back what names you, cleans it on request. Nothing is sent anywhere." },
-  "actionTitle": { "message": "Cirta: what the attachments say" }
+  "actionTitle": { "message": "Ciirta: what the attachments say" }
 }

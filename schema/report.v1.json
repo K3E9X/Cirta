@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/K3E9X/Cirta/schema/report.v1.json",
-  "title": "Cirta report, version 1",
-  "description": "What `cirta inspect --json` prints: one entry per file. Version 1 is additive: new formats, finding kinds and note codes may appear within it, so a reader must accept values it does not know. A change that removes or renames a field is a new version, with a new schema tag.",
+  "title": "Ciirta report, version 1",
+  "description": "What `ciirta inspect --json` prints: one entry per file. Version 1 is additive: new formats, finding kinds and note codes may appear within it, so a reader must accept values it does not know. A change that removes or renames a field is a new version, with a new schema tag.",
   "type": "array",
   "items": { "$ref": "#/$defs/entry" },
   "$defs": {
@@ -10,7 +10,7 @@
       "type": "object",
       "required": ["schema", "file"],
       "properties": {
-        "schema": { "const": "cirta.report/1" },
+        "schema": { "const": "ciirta.report/1" },
         "file": { "type": "string", "description": "The path as given on the command line." },
         "result": { "$ref": "#/$defs/result" },
         "error": { "type": "string", "description": "Why the file was not inspected, in the report's language." },

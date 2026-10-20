@@ -78,7 +78,7 @@ describe('[R1] a rule that is merely slow is stopped at its time budget', () => 
 
 describe('[R1] from the command line', () => {
   const dir = (files: Record<string, string>) => {
-    const d = mkdtempSync(join(tmpdir(), 'cirta-r1-'));
+    const d = mkdtempSync(join(tmpdir(), 'ciirta-r1-'));
     for (const [name, text] of Object.entries(files)) writeFileSync(join(d, name), text);
     return d;
   };

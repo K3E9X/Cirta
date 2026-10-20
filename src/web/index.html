@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cirta — ce que vos documents disent de vous</title>
+    <title>Ciirta — ce que vos documents disent de vous</title>
     <meta
       name="description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
@@ -17,7 +17,7 @@
       follow the toggle, and the title and description that a reader sees do.
     -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cirta — ce que vos documents disent de vous" />
+    <meta property="og:title" content="Ciirta — ce que vos documents disent de vous" />
     <meta
       property="og:description"
       content="Inspecte et retire les métadonnées de provenance des PDF, PPTX et DOCX, et les caractères Unicode invisibles dans le texte. Tout s'exécute dans le navigateur."
@@ -43,7 +43,15 @@
         document.documentElement.classList.add('motion');
       }
       try {
-        var theme = localStorage.getItem('cirta.theme');
+        // Ciirta was called Cirta: what this browser kept under the old name moves to the new one, once.
+        ['pii', 'rules', 'rules.name', 'theme', 'clean'].forEach(function (key) {
+          var kept = localStorage.getItem('cirta.' + key);
+          if (kept !== null && localStorage.getItem('ciirta.' + key) === null) localStorage.setItem('ciirta.' + key, kept);
+          if (kept !== null) localStorage.removeItem('cirta.' + key);
+        });
+      } catch (refused) {}
+      try {
+        var theme = localStorage.getItem('ciirta.theme');
         if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
       } catch (refused) {}
     </script>
@@ -64,7 +72,7 @@
       <div class="shell">
         <a class="brand" href="#top">
           <img src="./logo.svg" alt="" width="26" height="26" />
-          Cirta
+          Ciirta
         </a>
         <nav class="nav-links">
           <a href="#outil"><span data-lang="fr">Outil</span><span data-lang="en">Tool</span></a>
@@ -99,12 +107,12 @@
 
         <p class="lead" data-lang="fr">
           Le nom du compte sous lequel il a été écrit. L’outil qui l’a produit. Le texte que
-          l’application affiche comme supprimé et qui est toujours dans les octets. Cirta vous
+          l’application affiche comme supprimé et qui est toujours dans les octets. Ciirta vous
           montre tout cela, puis l’enlève — dans cet onglet, sans rien envoyer nulle part.
         </p>
         <p class="lead" data-lang="en">
           The account it was written under. The tool that produced it. The text the application
-          shows as deleted and that is still in the bytes. Cirta shows you all of it, then takes
+          shows as deleted and that is still in the bytes. Ciirta shows you all of it, then takes
           it out — in this tab, without sending anything anywhere.
         </p>
 
@@ -622,7 +630,7 @@
                 <span data-lang="fr">transcription réelle, abrégée</span>
                 <span data-lang="en">real transcript, abridged</span>
               </div>
-              <pre data-lang="fr"><code><span class="prompt">$ </span>cirta inspect rapport.pdf
+              <pre data-lang="fr"><code><span class="prompt">$ </span>ciirta inspect rapport.pdf
 <span class="out">rapport.pdf (pdf)
   Produit par   pdf-lib — rien ne nomme d’assistant
   confirmé      provenance  Des versions antérieures sont encore dans le fichier
@@ -630,10 +638,10 @@
   probable      horodatage  Créé le                            D:20261015200053Z
   informatif    provenance  Application de création            pdf-lib</span>
 
-<span class="prompt">$ </span>cirta redact rapport.pdf -o rapport-propre.pdf
+<span class="prompt">$ </span>ciirta redact rapport.pdf -o rapport-propre.pdf
 <span class="out">rapport.pdf → rapport-propre.pdf
   7 champs retirés</span></code></pre>
-              <pre data-lang="en"><code><span class="prompt">$ </span>cirta inspect report.pdf
+              <pre data-lang="en"><code><span class="prompt">$ </span>ciirta inspect report.pdf
 <span class="out">report.pdf (pdf)
   Produced by   pdf-lib — nothing names an assistant
   confirmed     provenance  Earlier versions are still in the file
@@ -641,7 +649,7 @@
   probable      timestamp   Created                              D:20261015200053Z
   informational provenance  Creating application                 pdf-lib</span>
 
-<span class="prompt">$ </span>cirta redact report.pdf -o report-clean.pdf
+<span class="prompt">$ </span>ciirta redact report.pdf -o report-clean.pdf
 <span class="out">report.pdf → report-clean.pdf
   7 fields removed</span></code></pre>
             </div>
@@ -653,13 +661,13 @@
     <footer class="site-foot">
       <div class="shell">
         <p data-lang="fr">
-          Cirta — traitement entièrement local, aucun compte, aucune mesure d’audience. Sous
+          Ciirta — traitement entièrement local, aucun compte, aucune mesure d’audience. Sous
           licence MIT.
         </p>
         <p data-lang="en">
-          Cirta — everything runs locally, no account, no analytics. MIT licensed.
+          Ciirta — everything runs locally, no account, no analytics. MIT licensed.
         </p>
-        <!--cirta:site-only-->
+        <!--ciirta:site-only-->
         <p class="foot-offline" data-lang="fr">
           Hors ligne : une fois ouverte, la page reste disponible sans réseau. Son service worker ne garde
           que les fichiers de ce site et ne répond qu’à ses adresses (<code>worker-src 'self'</code>) ; vos
@@ -703,11 +711,11 @@ curl -s https://k3e9x.github.io/Cirta/sw.js | sha256sum</code></pre>
           <div class="table-scroll">
             <table class="verify-hashes">
               <thead><tr><th><span data-lang="fr">Fichier</span><span data-lang="en">File</span></th><th>SHA-256</th></tr></thead>
-              <tbody id="site-hashes"><!--cirta:site-hashes--></tbody>
+              <tbody id="site-hashes"><!--ciirta:site-hashes--></tbody>
             </table>
           </div>
         </details>
-        <!--/cirta:site-only-->
+        <!--/ciirta:site-only-->
         <div class="foot-links">
           <a href="https://github.com/k3e9x/Cirta">
             <span data-lang="fr">Code source</span><span data-lang="en">Source</span>

@@ -39,7 +39,7 @@ export function terminalSafe(text: string): string {
  * DEL, the C1 block and the bidi controls as they are, which a terminal can
  * still act on when the report is printed rather than piped. Escaping them is
  * the same JSON, read back to the same strings. An indent of 0 gives one line,
- * as a stream of reports (cirta watch --json) needs.
+ * as a stream of reports (ciirta watch --json) needs.
  */
 export function terminalJson(value: unknown, indent = 2): string {
   return JSON.stringify(value, null, indent).replace(

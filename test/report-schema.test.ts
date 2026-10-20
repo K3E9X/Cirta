@@ -23,7 +23,7 @@ const validateResult = ajv.compile({ $ref: 'https://github.com/K3E9X/Cirta/schem
 
 describe('[F-P2 2.5] the versioned JSON report', () => {
   it('validates what inspect --json prints, results and refusals alike', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-schema-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-schema-'));
     const files = {
       'offre.pdf': await makePdf(),
       'lettre.docx': makeDocx(),
@@ -39,7 +39,7 @@ describe('[F-P2 2.5] the versioned JSON report', () => {
     const ok = validate(report);
     expect(ajv.errorsText(validate.errors), 'schema errors').toBe('No errors');
     expect(ok).toBe(true);
-    expect(report.every((entry: { schema: string }) => entry.schema === 'cirta.report/1')).toBe(true);
+    expect(report.every((entry: { schema: string }) => entry.schema === 'ciirta.report/1')).toBe(true);
     const empty = report.find((entry: { file: string }) => entry.file.endsWith('vide.pdf'));
     expect(empty.code).toBe('empty-file');
   });

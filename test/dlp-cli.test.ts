@@ -7,7 +7,7 @@ import { runCli } from './helpers/cli.js';
 /* [F-2.3] --pii and --rules from the command line, and a rules file that does not read. */
 
 function dir(files: Record<string, string>): string {
-  const d = mkdtempSync(join(tmpdir(), 'cirta-dlp-'));
+  const d = mkdtempSync(join(tmpdir(), 'ciirta-dlp-'));
   for (const [name, content] of Object.entries(files)) writeFileSync(join(d, name), content);
   return d;
 }

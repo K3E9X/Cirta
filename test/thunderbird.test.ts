@@ -138,10 +138,10 @@ describe('[F-P3 2.6] Thunderbird: before a message is sent', () => {
     expect(thunderbird.popups).toBe(0);
     const view = await thunderbird.ask<View>({ type: 'report', tabId: TAB });
     expect(view.held).toBe(false);
-    // A format Cirta does not read is said to be unread, not passed as clean.
+    // A format Ciirta does not read is said to be unread, not passed as clean.
     expect(item(view, 'setup.exe').status).toBe('unread');
     expect(item(view, 'setup.exe').note).toMatch(/ne lit pas/);
-    // What Cirta reads, and the watermark it does not claim to see: said once, not under every file.
+    // What Ciirta reads, and the watermark it does not claim to see: said once, not under every file.
     expect(view.scope).toMatch(/filigrane statistique/);
     expect(view.items.some((entry) => entry.note?.includes('filigrane'))).toBe(false);
   });
@@ -222,12 +222,12 @@ describe('[F-P3 2.6] Thunderbird: the package', () => {
     for (const step of ['node scripts/build-thunderbird.mjs', 'npx tsc -p integrations/thunderbird/tsconfig.json', 'lint --source-dir build/thunderbird']) expect(ci).toContain(step);
     const release = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
     expect(release).toContain('node scripts/build-thunderbird.mjs');
-    expect(release).toMatch(/cp [^\n]*build\/cirta-thunderbird-\*\.xpi build\/extensions\//);
+    expect(release).toMatch(/cp [^\n]*build\/ciirta-thunderbird-\*\.xpi build\/extensions\//);
   });
 
   it('builds into a package whose background script holds a message back, in Thunderbird’s place', async () => {
     const { buildThunderbird } = await import('../scripts/build-thunderbird.mjs');
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-thunderbird-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-thunderbird-'));
     try {
       const { out, names } = await buildThunderbird(join(dir, 'thunderbird'));
       expect(names).toEqual(expect.arrayContaining(['manifest.json', 'background.js', 'popup.js', 'popup.html', 'popup.css', '_locales/en/messages.json', '_locales/fr/messages.json', 'icons/16.png', 'icons/128.png']));

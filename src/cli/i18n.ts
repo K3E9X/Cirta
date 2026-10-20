@@ -48,7 +48,7 @@ const FR = {
   watchBadInterval: (value: string) => `Intervalle invalide : ${value} (un nombre de secondes, 0,05 au moins)`,
   watchStopped: 'Arrêté.',
   serveListening: (what: string, where: string) => `${what} : ${where}`,
-  serveModeInspect: 'Inspection seule : tout passe, les constats vont dans les en-têtes X-Cirta-* et le journal (stdout).',
+  serveModeInspect: 'Inspection seule : tout passe, les constats vont dans les en-têtes X-Ciirta-* et le journal (stdout).',
   serveModeBlock: (level: string) => `Blocage : un fichier qui porte un constat ${level} ou plus est remplacé par une page 403.`,
   serveModeClean: 'POST /clean est ouvert.',
   serveStopped: 'Arrêté.',
@@ -56,15 +56,15 @@ const FR = {
   serveBadSize: (value: string) => `Taille invalide : ${value} (un nombre de mégaoctets)`,
   serveNothing: 'Ni HTTP ni ICAP : rien à servir.',
   serveUnnamed: '(sans nom)',
-  serveBlocked: (level: string) => `Cirta a bloqué ce fichier : il porte au moins un constat de niveau ${level}. Ce qu’il porte, par fichier (les valeurs ne sont pas reproduites) :`,
+  serveBlocked: (level: string) => `Ciirta a bloqué ce fichier : il porte au moins un constat de niveau ${level}. Ce qu’il porte, par fichier (les valeurs ne sont pas reproduites) :`,
   serveNotFound: 'Introuvable : /health, /inspect, /clean',
   serveMisdirected: 'Nom d’hôte non accepté par ce service.',
   serveMethod: 'Méthode non prise en charge ici',
   serveCleanDisabled: 'Le nettoyage n’est pas ouvert sur ce service : lancez-le avec --allow-clean.',
   serveTooLarge: (mb: number) => `Trop volumineux : au-delà de ${mb} Mo, rien n’est inspecté (--max-size).`,
-  sanitizeHidden: (n: number) => `cirta : ${n} passage${n > 1 ? 's' : ''} caché${n > 1 ? 's' : ''} laissé${n > 1 ? 's' : ''} hors du texte`,
-  sanitizeInstruction: (where: string, text: string) => `cirta : consigne cachée destinée à une IA (${where}) — ${text}`,
-  sanitizeDeceptive: (shown: string, target: string) => `cirta : lien trompeur — affiche ${shown}, mène à ${target}`,
+  sanitizeHidden: (n: number) => `ciirta : ${n} passage${n > 1 ? 's' : ''} caché${n > 1 ? 's' : ''} laissé${n > 1 ? 's' : ''} hors du texte`,
+  sanitizeInstruction: (where: string, text: string) => `ciirta : consigne cachée destinée à une IA (${where}) — ${text}`,
+  sanitizeDeceptive: (shown: string, target: string) => `ciirta : lien trompeur — affiche ${shown}, mène à ${target}`,
   verifyPass: 'CONFORME',
   verifyFail: 'ÉCHEC',
   verifyNothing: (level: string) => `aucun constat ${level} ou au-dessus`,
@@ -163,26 +163,26 @@ const FR = {
   },
   binaryRefused:
     'Nettoyer un document comme s’il s’agissait de texte le corrompt. Utilisez plutôt\n' +
-    '`cirta redact <fichier>`, ou passez --force-text si vous êtes certain que ces octets\n' +
+    '`ciirta redact <fichier>`, ou passez --force-text si vous êtes certain que ces octets\n' +
     'sont du texte.',
-  removedTypes: (n: number) => `\ncirta : ${n} type(s) de caractère invisible retiré(s)`,
+  removedTypes: (n: number) => `\nciirta : ${n} type(s) de caractère invisible retiré(s)`,
   fieldsRemoved: (n: number) => `${n} champ${n === 1 ? '' : 's'} retiré${n === 1 ? '' : 's'}`,
   originalKept: (path: string) => `original conservé sous ${path}`,
-  nothingRemoved: '\ncirta : rien à retirer',
+  nothingRemoved: '\nciirta : rien à retirer',
   spacesKept: (n: number) =>
-    `cirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} conservée${n > 1 ? 's' : ''} (insécable, fine…) — --normalize-spaces les remplace par des espaces ordinaires`,
-  spacesReplaced: (n: number) => `cirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} remplacée${n > 1 ? 's' : ''} par une espace ordinaire`,
-  recomposed: (n: number) => `cirta : ${n} lettre${n > 1 ? 's' : ''} accentuée${n > 1 ? 's' : ''} recomposée${n > 1 ? 's' : ''} (NFC), les deux formes étant mêlées`,
-  stillInCleaned: 'cirta : toujours dans le texte nettoyé —',
+    `ciirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} conservée${n > 1 ? 's' : ''} (insécable, fine…) — --normalize-spaces les remplace par des espaces ordinaires`,
+  spacesReplaced: (n: number) => `ciirta : ${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} remplacée${n > 1 ? 's' : ''} par une espace ordinaire`,
+  recomposed: (n: number) => `ciirta : ${n} lettre${n > 1 ? 's' : ''} accentuée${n > 1 ? 's' : ''} recomposée${n > 1 ? 's' : ''} (NFC), les deux formes étant mêlées`,
+  stillInCleaned: 'ciirta : toujours dans le texte nettoyé —',
   summaryTitle: 'Bilan',
   summaryFiles: (n: number) => `${n} fichier${n > 1 ? 's' : ''}`,
   summaryFlagged: (n: number) => `${n} porte${n > 1 ? 'nt' : ''} des données d’identification confirmées`,
   summaryClean: 'aucun ne porte de données d’identification confirmées',
   summaryUnreadable: (n: number) => `${n} illisible${n > 1 ? 's' : ''}`,
   survivor: (label: string, where: string, value: string) => `  ${label} (${where}) : ${value}`,
-  headersRemoved: (names: string) => `cirta : en-têtes d’outil retirés — ${names}`,
-  markdownRemoved: (symbols: string) => `cirta : Markdown retiré — ${symbols}`,
-  markdownKept: 'cirta : Markdown laissé en place — le texte se lit comme un document Markdown, pas comme un e-mail',
+  headersRemoved: (names: string) => `ciirta : en-têtes d’outil retirés — ${names}`,
+  markdownRemoved: (symbols: string) => `ciirta : Markdown retiré — ${symbols}`,
+  markdownKept: 'ciirta : Markdown laissé en place — le texte se lit comme un document Markdown, pas comme un e-mail',
 
   producedBy: 'Produit par',
   provDeclared: 'un modèle génératif — le fichier le déclare',
@@ -275,7 +275,7 @@ const FR = {
     '« Claude a écrit ça » de « Claude a beaucoup remanié ça » : une simple relecture ne lui ' +
     'laisse presque aucune prise.',
   exposureNote:
-    'Cirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut. Le ' +
+    'Ciirta ne sait pas lire cette classe de marquage, et aucun outil local ne le peut. Le ' +
     'nombre de tokens est estimé, pas tokenisé.',
 } as const;
 
@@ -316,7 +316,7 @@ const EN: Strings = {
   watchBadInterval: (value: string) => `Invalid interval: ${value} (a number of seconds, 0.05 at least)`,
   watchStopped: 'Stopped.',
   serveListening: (what: string, where: string) => `${what}: ${where}`,
-  serveModeInspect: 'Inspection only: everything goes through; findings go to the X-Cirta-* headers and the log (stdout).',
+  serveModeInspect: 'Inspection only: everything goes through; findings go to the X-Ciirta-* headers and the log (stdout).',
   serveModeBlock: (level: string) => `Blocking: a file carrying a ${level} finding or above is replaced with a 403 page.`,
   serveModeClean: 'POST /clean is open.',
   serveStopped: 'Stopped.',
@@ -324,15 +324,15 @@ const EN: Strings = {
   serveBadSize: (value: string) => `Invalid size: ${value} (a number of megabytes)`,
   serveNothing: 'Neither HTTP nor ICAP: nothing to serve.',
   serveUnnamed: '(unnamed)',
-  serveBlocked: (level: string) => `Cirta blocked this file: it carries at least one ${level} finding. What it carries, file by file (the values are not repeated):`,
+  serveBlocked: (level: string) => `Ciirta blocked this file: it carries at least one ${level} finding. What it carries, file by file (the values are not repeated):`,
   serveNotFound: 'Not found: /health, /inspect, /clean',
   serveMisdirected: 'Host name not accepted by this service.',
   serveMethod: 'Method not supported here',
   serveCleanDisabled: 'Cleaning is not open on this service: start it with --allow-clean.',
   serveTooLarge: (mb: number) => `Too large: past ${mb} MB nothing is inspected (--max-size).`,
-  sanitizeHidden: (n) => `cirta: ${n} hidden passage${n > 1 ? 's' : ''} left out of the text`,
-  sanitizeInstruction: (where, text) => `cirta: hidden instruction aimed at an AI (${where}) — ${text}`,
-  sanitizeDeceptive: (shown, target) => `cirta: deceptive link — shows ${shown}, goes to ${target}`,
+  sanitizeHidden: (n) => `ciirta: ${n} hidden passage${n > 1 ? 's' : ''} left out of the text`,
+  sanitizeInstruction: (where, text) => `ciirta: hidden instruction aimed at an AI (${where}) — ${text}`,
+  sanitizeDeceptive: (shown, target) => `ciirta: deceptive link — shows ${shown}, goes to ${target}`,
   verifyPass: 'PASS',
   verifyFail: 'FAIL',
   verifyNothing: (level) => `no ${level} finding or above`,
@@ -430,26 +430,26 @@ const EN: Strings = {
     'not-utf8': 'the input is not valid UTF-8',
   },
   binaryRefused:
-    'Cleaning a document as if it were text corrupts it. Use `cirta redact <file>` instead,\n' +
+    'Cleaning a document as if it were text corrupts it. Use `ciirta redact <file>` instead,\n' +
     'or pass --force-text if you are certain these bytes are text.',
-  removedTypes: (n) => `\ncirta: removed ${n} invisible character type(s)`,
+  removedTypes: (n) => `\nciirta: removed ${n} invisible character type(s)`,
   fieldsRemoved: (n) => `${n} field${n === 1 ? '' : 's'} removed`,
   originalKept: (path) => `original kept as ${path}`,
-  nothingRemoved: '\ncirta: nothing to remove',
+  nothingRemoved: '\nciirta: nothing to remove',
   spacesKept: (n) =>
-    `cirta: ${n} typographic space${n > 1 ? 's' : ''} kept (no-break, narrow…) — --normalize-spaces replaces them with ordinary spaces`,
-  spacesReplaced: (n) => `cirta: ${n} typographic space${n > 1 ? 's' : ''} replaced with an ordinary space`,
-  recomposed: (n) => `cirta: ${n} accented letter${n > 1 ? 's' : ''} recomposed (NFC), both forms being mixed`,
-  stillInCleaned: 'cirta: still in the cleaned text —',
+    `ciirta: ${n} typographic space${n > 1 ? 's' : ''} kept (no-break, narrow…) — --normalize-spaces replaces them with ordinary spaces`,
+  spacesReplaced: (n) => `ciirta: ${n} typographic space${n > 1 ? 's' : ''} replaced with an ordinary space`,
+  recomposed: (n) => `ciirta: ${n} accented letter${n > 1 ? 's' : ''} recomposed (NFC), both forms being mixed`,
+  stillInCleaned: 'ciirta: still in the cleaned text —',
   summaryTitle: 'Summary',
   summaryFiles: (n) => `${n} file${n > 1 ? 's' : ''}`,
   summaryFlagged: (n) => `${n} carrying confirmed identifying data`,
   summaryClean: 'none carrying confirmed identifying data',
   summaryUnreadable: (n) => `${n} unreadable`,
   survivor: (label, where, value) => `  ${label} (${where}): ${value}`,
-  headersRemoved: (names) => `cirta: tool headers removed — ${names}`,
-  markdownRemoved: (symbols) => `cirta: Markdown removed — ${symbols}`,
-  markdownKept: 'cirta: Markdown left in place — the text reads as a Markdown document, not as an email',
+  headersRemoved: (names) => `ciirta: tool headers removed — ${names}`,
+  markdownRemoved: (symbols) => `ciirta: Markdown removed — ${symbols}`,
+  markdownKept: 'ciirta: Markdown left in place — the text reads as a Markdown document, not as an email',
 
   producedBy: 'Produced by',
   provDeclared: 'a generative model — the file declares it',
@@ -539,7 +539,7 @@ const EN: Strings = {
     'not whether some other model did. It cannot separate "Claude wrote this" from "Claude ' +
     'heavily edited this"; light proofreading leaves it almost nothing.',
   exposureNote:
-    'Cirta cannot read this class of mark, and neither can any other local tool. Token counts ' +
+    'Ciirta cannot read this class of mark, and neither can any other local tool. Token counts ' +
     'are estimated, not tokenized.',
 };
 

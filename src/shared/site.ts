@@ -13,7 +13,7 @@
 
 /** The worker's source: the files to keep, the cache they go in. */
 export function serviceWorkerSource(files: string[], cache: string): string {
-  return `// Cirta's service worker, written by the build. It keeps this site's files and nothing else.
+  return `// Ciirta's service worker, written by the build. It keeps this site's files and nothing else.
 const CACHE = ${JSON.stringify(cache)};
 const FILES = ${JSON.stringify(['./', ...files])};
 const SCOPE = new URL('./', self.location).href;
@@ -25,7 +25,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('cirta-') && key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('ciirta-') && key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });
@@ -45,8 +45,8 @@ self.addEventListener('fetch', (event) => {
 export function webManifest(): string {
   return `${JSON.stringify(
     {
-      name: 'Cirta',
-      short_name: 'Cirta',
+      name: 'Ciirta',
+      short_name: 'Ciirta',
       description: 'Inspect and remove what documents say about where they came from — locally, nothing leaves the machine.',
       start_url: './',
       scope: './',

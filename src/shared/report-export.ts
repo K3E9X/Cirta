@@ -29,8 +29,8 @@ export interface ReportEntry {
 
 const TEXT = {
   fr: {
-    title: 'Rapport Cirta',
-    generated: (version: string, at: string) => `Établi par Cirta ${version} le ${at}, localement : aucun fichier n’a quitté la machine.`,
+    title: 'Rapport Ciirta',
+    generated: (version: string, at: string) => `Établi par Ciirta ${version} le ${at}, localement : aucun fichier n’a quitté la machine.`,
     columns: ['Niveau', 'Type', 'Champ', 'Valeur', 'Emplacement'],
     nothing: 'Aucune métadonnée identifiante trouvée.',
     format: 'Format :',
@@ -49,8 +49,8 @@ const TEXT = {
     caveat: 'Un filigrane statistique dans la formulation d’un texte généré n’apparaîtrait pas ici : il ne se lit pas sans la clé de son fournisseur.',
   },
   en: {
-    title: 'Cirta report',
-    generated: (version: string, at: string) => `Produced by Cirta ${version} on ${at}, locally: no file left the machine.`,
+    title: 'Ciirta report',
+    generated: (version: string, at: string) => `Produced by Ciirta ${version} on ${at}, locally: no file left the machine.`,
     columns: ['Level', 'Kind', 'Field', 'Value', 'Location'],
     nothing: 'No identifying metadata found.',
     format: 'Format:',

@@ -87,7 +87,7 @@ function makePptx() {
   );
 }
 
-const dir = await mkdtemp(join(tmpdir(), 'cirta-smoke-'));
+const dir = await mkdtemp(join(tmpdir(), 'ciirta-smoke-'));
 const nested = join(dir, 'nested');
 await mkdir(nested);
 
@@ -96,7 +96,7 @@ const pptxPath = join(nested, 'sample.pptx');
 await writeFile(pdfPath, await makePdf());
 await writeFile(pptxPath, makePptx());
 
-console.log(`cirta smoke test — ${process.platform} node ${process.versions.node}`);
+console.log(`ciirta smoke test — ${process.platform} node ${process.versions.node}`);
 
 try {
   // --- help ---------------------------------------------------------------
@@ -163,12 +163,12 @@ try {
   check('text writes nothing when refusing', binary.stdout === '', JSON.stringify(binary.stdout));
 
   // --- [F-P2 2.5] the library, as a dependent imports it -------------------
-  // `import { inspectFile } from 'cirta'` resolves through the package's own
+  // `import { inspectFile } from 'ciirta'` resolves through the package's own
   // "exports", as it will in a project that depends on it.
   try {
     const example = execFileSync(process.execPath, ['examples/library.mjs', pdfPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const entry = JSON.parse(example);
-    check('the library example imports from "cirta" and "cirta/node"', entry.schema === 'cirta.report/1' && entry.result.format === 'pdf');
+    check('the library example imports from "ciirta" and "ciirta/node"', entry.schema === 'ciirta.report/1' && entry.result.format === 'pdf');
     check('the library reports the author', entry.result.findings.some((f) => f.label === 'Author'));
   } catch (error) {
     check('the library example runs', false, String(error).slice(0, 300));

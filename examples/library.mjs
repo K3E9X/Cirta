@@ -1,14 +1,14 @@
-// [F-P2 2.5] Cirta as a library, from Node.
+// [F-P2 2.5] Ciirta as a library, from Node.
 //
 //   node examples/library.mjs document.pdf
 //
 // inspectFile() reports, redactFile() cleans and says what was removed and
-// what is still there. The engines from 'cirta/node' let the core render PDF
+// what is still there. The engines from 'ciirta/node' let the core render PDF
 // pages (hidden text); without them it says it could not check.
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { inspectFile, redactFile, REPORT_SCHEMA } from 'cirta';
-import { nodeXrayEngine } from 'cirta/node';
+import { inspectFile, redactFile, REPORT_SCHEMA } from 'ciirta';
+import { nodeXrayEngine } from 'ciirta/node';
 
 const path = process.argv[2];
 if (!path) {

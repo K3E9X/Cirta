@@ -1,5 +1,5 @@
 /**
- * [F-P3 2.6] Cirta in Thunderbird: the attachments of a message, read before
+ * [F-P3 2.6] Ciirta in Thunderbird: the attachments of a message, read before
  * it leaves.
  *
  *   - On Send, each attachment is inspected. If one carries a confirmed
@@ -7,9 +7,9 @@
  *     is held back, the compose button shows « ! » and its panel opens.
  *   - The panel lists every attachment with what it carries, in Thunderbird's
  *     language. « Clean » replaces the attachment in the message with a copy
- *     Cirta wrote and read back; « Send as is » lets this message go with its
+ *     Ciirta wrote and read back; « Send as is » lets this message go with its
  *     attachments as they are, until they change.
- *   - A format Cirta reads but does not rewrite is never offered for
+ *   - A format Ciirta reads but does not rewrite is never offered for
  *     cleaning, and one it does not read is said to be unread — never passed
  *     off as clean.
  *
@@ -78,7 +78,7 @@ export interface View {
   held: boolean;
   explanation: string;
   sendAsIs?: string;
-  /** What Cirta reads, and what it does not claim to: once, under the list. */
+  /** What Ciirta reads, and what it does not claim to: once, under the list. */
   scope: string;
   items: ViewItem[];
 }
@@ -142,7 +142,7 @@ export function createAddin(messenger: Messenger, { engine = { inspectFile, reda
       const item: ViewItem = { id: attachment.id, name: attachment.name, status: 'unread', lines: [], ...outcome };
       if (reading.tooLarge) item.note = text.tooLarge(Math.round(maxBytes / MB));
       else if (reading.error !== undefined) {
-        // An unknown format in full would list every format Cirta reads, under each such attachment.
+        // An unknown format in full would list every format Ciirta reads, under each such attachment.
         const unknown = (reading.error as { code?: unknown } | null)?.code === 'unsupported';
         item.note = `${unknown ? text.unknownFormat : errorText(reading.error, lang())} ${text.unreadable}`;
       }
@@ -157,7 +157,7 @@ export function createAddin(messenger: Messenger, { engine = { inspectFile, reda
         item.status = flagged(reading) ? 'flagged' : findings.length ? 'findings' : 'clean';
         if (findings.length && !isReadOnly(format)) item.clean = text.clean;
         if (isReadOnly(format)) item.note ??= text.readOnly;
-        // What limited the reading of this file; what Cirta reads at all is said once, under the list.
+        // What limited the reading of this file; what Ciirta reads at all is said once, under the list.
         const limits = notes.filter((note: Note) => note.code.startsWith('limit:'));
         if (!item.note && limits.length) item.note = limits.map((note: Note) => noteText(note, lang())).join(' ');
         if (item.status === 'clean') item.note ??= text.nothing;

@@ -30,7 +30,7 @@ async function pdfWithAuthor(author: string): Promise<string> {
   doc.addPage([200, 200]);
   doc.setAuthor(author);
   doc.setTitle(`titre ${author}`);
-  const dir = mkdtempSync(join(tmpdir(), 'cirta-c2-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ciirta-c2-'));
   const path = join(dir, 'inject.pdf');
   writeFileSync(path, await doc.save());
   return path;
@@ -72,7 +72,7 @@ describe('[C2] the command line', () => {
   });
 
   it('shows a file name with controls in it without obeying them', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-c2-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-c2-'));
     const path = join(dir, 'a‮fdp.txt');
     writeFileSync(path, 'texte');
     const run = runCli(['inspect', path]);

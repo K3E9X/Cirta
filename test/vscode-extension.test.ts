@@ -114,7 +114,7 @@ function fakeVscode(language: string) {
 }
 
 describe('[F-P2 2.6] VS Code: the bundled extension', () => {
-  const work = mkdtempSync(join(tmpdir(), 'cirta-vscode-'));
+  const work = mkdtempSync(join(tmpdir(), 'ciirta-vscode-'));
   const bundle = join(work, 'extension.js');
   const manifest = JSON.parse(readFileSync('integrations/vscode/package.json', 'utf8'));
 
@@ -127,7 +127,7 @@ describe('[F-P2 2.6] VS Code: the bundled extension', () => {
       format: 'cjs',
       target: 'node20',
       external: ['vscode'],
-      define: { CIRTA_VERSION: '"test"' },
+      define: { CIIRTA_VERSION: '"test"' },
       logLevel: 'error',
     });
   }, 60_000);
@@ -163,7 +163,7 @@ describe('[F-P2 2.6] VS Code: the bundled extension', () => {
     for (const listener of vscode.listeners.open!) listener({ uri, getText: () => text });
     await expect.poll(() => vscode.collections.get(uri.toString())?.length).toBeGreaterThan(0);
     const [diagnostic] = vscode.collections.get(uri.toString()) as Array<{ range: { startLine: number; startCharacter: number }; source: string; severity: number }>;
-    expect(diagnostic).toMatchObject({ range: { startLine: 0, startCharacter: 3 }, source: 'Cirta', severity: 0 });
+    expect(diagnostic).toMatchObject({ range: { startLine: 0, startCharacter: 3 }, source: 'Ciirta', severity: 0 });
   });
 
   it('inspects a Word file from the Explorer, then writes a cleaned copy beside it', async () => {
@@ -173,17 +173,17 @@ describe('[F-P2 2.6] VS Code: the bundled extension', () => {
     const original = makeDocx();
     writeFileSync(path, original);
     const uri = vscode.api.Uri.file(path);
-    await vscode.commands.get('cirta.inspect')!(uri);
+    await vscode.commands.get('ciirta.inspect')!(uri);
     const found = vscode.collections.get(uri.toString()) as Array<{ message: string }>;
     expect(found.some((d) => /Lotfi Zakaria/.test(d.message))).toBe(true);
-    expect(vscode.messages.at(-1)).toMatch(/^Cirta : \d+ constats? — voir le panneau Problèmes\.$/);
+    expect(vscode.messages.at(-1)).toMatch(/^Ciirta : \d+ constats? — voir le panneau Problèmes\.$/);
 
-    await vscode.commands.get('cirta.clean')!(uri);
+    await vscode.commands.get('ciirta.clean')!(uri);
     const cleaned = join(work, 'rapport.clean.docx');
     expect(existsSync(cleaned)).toBe(true);
     const after = await inspectFile(new Uint8Array(readFileSync(cleaned)), 'rapport.clean.docx');
     expect(after.findings.some((f) => /Lotfi Zakaria/.test(f.value))).toBe(false);
-    expect(vscode.messages.at(-1)).toMatch(/^Cirta : \d+ retirés? → rapport\.clean\.docx$/);
+    expect(vscode.messages.at(-1)).toMatch(/^Ciirta : \d+ retirés? → rapport\.clean\.docx$/);
     // The original is untouched.
     expect(new Uint8Array(readFileSync(path))).toEqual(original);
   });

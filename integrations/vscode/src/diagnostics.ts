@@ -1,5 +1,5 @@
 /**
- * [F-P2 2.6] What Cirta finds, as editor diagnostics — without the editor, so
+ * [F-P2 2.6] What Ciirta finds, as editor diagnostics — without the editor, so
  * it can be tested on its own. extension.ts turns these into VS Code's types.
  *
  * An invisible character is placed where it is: its location ends with its

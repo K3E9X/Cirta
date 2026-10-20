@@ -6,8 +6,8 @@
  * Deno, Bun, a browser, a worker — given the standard TextDecoder, Web Crypto
  * and structuredClone those all provide.
  *
- *   build/single/cirta.mjs        an ES module: import { inspectFile } from './cirta.mjs'
- *   build/single/cirta.global.js  a classic script: window.Cirta.inspectFile(…)
+ *   build/single/ciirta.mjs        an ES module: import { inspectFile } from './ciirta.mjs'
+ *   build/single/ciirta.global.js  a classic script: window.Ciirta.inspectFile(…)
  *
  * What it leaves out is what the core leaves out: the PDF page renderer, which
  * a host plugs in (InspectOptions.xray), and the command line.
@@ -35,13 +35,13 @@ export async function buildSingle(out = join(root, 'build', 'single')) {
     mainFields: ['module', 'main'],
     target: 'es2022',
     legalComments: 'eof',
-    banner: { js: `/* Cirta ${pkg.version} — ${pkg.homepage} — MIT. Licences of the bundled libraries at the end of this file. */` },
+    banner: { js: `/* Ciirta ${pkg.version} — ${pkg.homepage} — MIT. Licences of the bundled libraries at the end of this file. */` },
     logLevel: 'warning',
   };
-  const module = join(out, 'cirta.mjs');
-  const script = join(out, 'cirta.global.js');
+  const module = join(out, 'ciirta.mjs');
+  const script = join(out, 'ciirta.global.js');
   await build({ ...common, format: 'esm', outfile: module });
-  await build({ ...common, format: 'iife', globalName: 'Cirta', outfile: script });
+  await build({ ...common, format: 'iife', globalName: 'Ciirta', outfile: script });
   return { module, script };
 }
 

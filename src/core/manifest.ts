@@ -10,7 +10,7 @@
 
 import type { Finding, Format, InspectOptions } from './types.js';
 
-export const MANIFEST_SCHEMA = 'cirta.manifest/1';
+export const MANIFEST_SCHEMA = 'ciirta.manifest/1';
 
 export interface ManifestFinding {
   label: string;
@@ -36,7 +36,7 @@ export interface ManifestEntry {
 
 export interface Manifest {
   schema: typeof MANIFEST_SCHEMA;
-  tool: { name: 'cirta'; version: string };
+  tool: { name: 'ciirta'; version: string };
   createdAt: string;
   /** The cleaning options as given: booleans and the names of rules, no rule content. */
   options: Record<string, boolean | string | string[]>;
@@ -82,5 +82,5 @@ export function manifestOptions(options: InspectOptions): Manifest['options'] {
 }
 
 export function manifest(version: string, options: InspectOptions, files: ManifestEntry[], at = new Date()): Manifest {
-  return { schema: MANIFEST_SCHEMA, tool: { name: 'cirta', version }, createdAt: at.toISOString(), options: manifestOptions(options), files };
+  return { schema: MANIFEST_SCHEMA, tool: { name: 'ciirta', version }, createdAt: at.toISOString(), options: manifestOptions(options), files };
 }

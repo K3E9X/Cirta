@@ -219,7 +219,7 @@ describe('SARIF output', () => {
   it('produces a 2.1.0 log naming the tool', () => {
     const log = toSarif(entries) as { version: string; runs: Array<{ tool: { driver: { name: string } } }> };
     expect(log.version).toBe('2.1.0');
-    expect(log.runs[0]?.tool.driver.name).toBe('Cirta');
+    expect(log.runs[0]?.tool.driver.name).toBe('Ciirta');
   });
 
   it('maps confidence onto the three SARIF levels', () => {
@@ -231,13 +231,13 @@ describe('SARIF output', () => {
 
   it('keeps an unreadable file as a result rather than dropping it', () => {
     const log = toSarif(entries) as { runs: Array<{ results: Array<{ ruleId: string }> }> };
-    expect(log.runs[0]!.results.map((r) => r.ruleId)).toContain('cirta/unreadable');
+    expect(log.runs[0]!.results.map((r) => r.ruleId)).toContain('ciirta/unreadable');
   });
 
   it('gives each label a stable rule id', () => {
-    expect(ruleId('Annotation authors')).toBe('cirta/annotation-authors');
+    expect(ruleId('Annotation authors')).toBe('ciirta/annotation-authors');
     expect(ruleId('Hostname written entirely in a lookalike alphabet'))
-      .toBe('cirta/hostname-written-entirely-in-a-lookalike-alphabet');
+      .toBe('ciirta/hostname-written-entirely-in-a-lookalike-alphabet');
   });
 
   it('declares every rule its results use', () => {

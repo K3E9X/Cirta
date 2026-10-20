@@ -130,7 +130,7 @@ describe('[F-2.2] notebooks from the command line', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const { runCli } = await import('./helpers/cli.js');
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-nb-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-nb-'));
     const input = join(dir, 'rapport.ipynb');
     writeFileSync(input, enc(notebook()));
     const inspect = runCli(['inspect', '--lang', 'fr', input]);

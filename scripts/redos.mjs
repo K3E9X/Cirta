@@ -3,7 +3,7 @@
  * [P0-1] Every regular expression in the sources, checked for catastrophic
  * backtracking by recheck (https://makenowjust-labs.github.io/recheck/).
  *
- * Cirta reads files from people the user has no reason to trust, and a
+ * Ciirta reads files from people the user has no reason to trust, and a
  * pattern that backtracks lets a few kilobytes hold a thread for minutes —
  * in the command line, in the browser, and in any service that embeds the
  * library. The first audit found one exponential pattern (9 s for 195 bytes

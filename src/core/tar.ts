@@ -15,9 +15,9 @@
  * or a document.
  *
  * Neither is rewritten. Rebuilding a TAR means choosing owners, dates and
- * modes for every member, and Cirta would rather refuse than decide those
+ * modes for every member, and Ciirta would rather refuse than decide those
  * for the user. Extract, clean the files, archive them again — or as a ZIP,
- * which Cirta cleans.
+ * which Ciirta cleans.
  */
 
 import { Gunzip } from 'fflate';

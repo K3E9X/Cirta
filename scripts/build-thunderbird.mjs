@@ -10,7 +10,7 @@
  * every connection.
  *
  * Output: build/thunderbird/ (load it from Thunderbird's « Debug Add-ons »
- * page) and build/cirta-thunderbird-<version>.xpi, the same files,
+ * page) and build/ciirta-thunderbird-<version>.xpi, the same files,
  * deterministic.
  */
 
@@ -34,7 +34,7 @@ export function thunderbirdManifest(version) {
     version,
     default_locale: 'en',
     homepage_url: 'https://github.com/K3E9X/Cirta',
-    browser_specific_settings: { gecko: { id: 'cirta-thunderbird@k3e9x.github.io', strict_min_version: '128.0' } },
+    browser_specific_settings: { gecko: { id: 'ciirta-thunderbird@k3e9x.github.io', strict_min_version: '128.0' } },
     permissions: ['compose'],
     background: { scripts: ['background.js'] },
     compose_action: {
@@ -94,7 +94,7 @@ export async function buildThunderbird(out = join(root, 'build', 'thunderbird'))
     mkdirSync(dirname(join(out, name)), { recursive: true });
     writeFileSync(join(out, name), files[name]);
   }
-  const xpi = join(dirname(out), `cirta-thunderbird-${pkg.version}.xpi`);
+  const xpi = join(dirname(out), `ciirta-thunderbird-${pkg.version}.xpi`);
   // A fixed date, so the same build gives the same bytes.
   const mtime = new Date('1980-01-01T00:00:00Z');
   writeFileSync(xpi, zipSync(Object.fromEntries(names.map((name) => [name, [new Uint8Array(files[name]), { mtime }]])), { level: 9 }));
