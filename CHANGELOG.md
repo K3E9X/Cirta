@@ -10,6 +10,9 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.
 ### Changed
 
 - **Cirta is now Ciirta.** The npm package and the command are `ciirta` (`ciirta/node` for the Node engines), the report schema `ciirta.report/1` and the manifest `ciirta.manifest/1`, the service's headers `X-Ciirta-Verdict` and `X-Ciirta-Findings`, the variables `CIIRTA_*`, the browser's keys `ciirta.*` — moved from `cirta.*` on the first visit, nothing lost. The repository and the site keep their addresses until the repository is renamed.
@@ -25,13 +28,13 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 - **Character names begin with a capital** in the report, the page and the MCP tools, in both languages (« Espace sans chasse »); the core's label, in JSON and the library, is unchanged. `--help`'s Scope paragraph says what Ciirta reads today, in four lines, in English and with `--lang fr`.
 - **Three things reported as someone's identity that are not.** The `AppVersion` of a `.doc` or `.xls` property set (and Office's other bookkeeping properties, in every format with custom properties) is informational provenance. A library's default values — python-docx's author "python-docx", python-pptx's, openpyxl's, ReportLab's "anonymous", "untitled", "unspecified" — are named as *the default value of* that library. A field whose value is only unresolved XML entities (`&xxe;`, `&lol9;`) is no longer an author or a title; the DTD that declared them is reported as *DTD with entities in an XML part (unresolved)*, probable, with the file an external entity names.
 - **French reports of nested files.** A lookalike link or dash in a mail part, an attached message, a text attachment or a file inside a zip kept its explanation in English: the translation looked for the location « links » and found « part 1 (text/plain) → links ». It now reads the last step. A finding the text and HTML versions of a mail share is reported once, with both places.
+- **A cleaned phone photo keeps its orientation.** Cleaning a JPEG took the whole Exif block, so a portrait came out on its side; an Exif holding the orientation alone is written back, and not reported.
 
 ### Security
 
 - **`sanitize-for-llm` says where a deceptive link goes.** A link showing `https://paypal.com/login` on the way to a lookalike domain reached the model as that address. The text now reads `https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, for link text naming another site (HTML, Markdown, a mail's HTML) and addresses in lookalike letters; `--json` and the library carry `deceptiveLinks`, stderr says so, and `--fail-on-deceptive-links` exits 1.
 - **`ciirta serve` answers only its own names on the loopback.** A web page could point a name it controls at 127.0.0.1 and read the HTTP API from its own origin (DNS rebinding). On the loopback, a `Host` other than `127.0.0.1`, `localhost`, `[::1]`, the `--host` given or an `--allowed-host` now gets 421.
 - **What runs in a page, a picture or a mail's HTML.** HTML, SVG, Markdown and the HTML parts of a mail reported a `javascript:` link and nothing else. Now named: `<script>` inline or from a file, `on…` attributes, `javascript:`, `vbscript:` and `data:` page addresses wherever one is followed (src, action, formaction, xlink:href, SVG animations), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, and a form that sends to another address. `--strip-active` takes them out of these formats, a mail's HTML parts and HTML or SVG attachments included, each encoded again as it was; a link keeps its text. « Run again with --strip-active » is no longer offered for what the option would leave — remote pictures are `--strip-remote-resources`' business.
-- **A rules file can no longer hold Ciirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
 
 ## [0.3.0] — 2026-10-20
 
