@@ -1,6 +1,6 @@
 <img src="assets/logo.svg" alt="" width="72" align="left" hspace="12" />
 
-# Cirta
+# Ciirta
 
 Inspects and strips provenance metadata from **PDF, Office and OpenDocument files, SVG, HTML and
 Markdown**, the **Exif in embedded pictures**, and the **invisible Unicode** in text. It also
