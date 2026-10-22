@@ -49,7 +49,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | **TAR / gzip / 7z** (inspection only) | TAR: **the owner account and group** of the members, their dates, the extended attributes a pax header carries — macOS's `com.apple.quarantine` and **the address a file was downloaded from** (`kMDItemWhereFroms`, Linux's `user.xdg.origin.url`), the same in AppleDouble `._` members —, links to an absolute path or out of the archive. gzip: the original file name, its date, the system. 7z: the dates, links; its LZMA or LZMA2 header and content are decoded here. In all three, **each member's name is checked and its content inspected** as it would be on its own |
 | ZIP | Recursive traversal: every member goes through the normal detection path, and members no parser claims are scanned for credentials and provider identifiers. A nested archive is read once, its members located as `nested.zip → photo.jpg`, and a finding appears once |
 | Text | Invisible characters (zero-width, variation selectors, tag characters, bidi controls, exotic spaces), with steganographic payloads decoded — tag characters and variation selectors are reported as one line per family, with the total and what they read, and variation selectors are decoded in the common scheme (`U+FE00+b`, `U+E0100+b−16`) and in the variant that writes `U+E0100+b`; **plus a generic net over the Unicode `Cf` category**, so the list does not fall behind the standard |
-| **Email** | The RFC 5322 header block: `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, and **any unknown `X-` header** — that is where a pipeline signs itself. Tool headers are removed on cleaning; `From`, `Subject`, `Date` and `Message-ID` stay, they are the message. A `.eml` — or any file opening with such a header block — is read as a mail, whatever its body: each MIME part decoded (quoted-printable, base64, its charset) and read by its type, plain text by the text pass and HTML by the HTML pass, **links included**: a lookalike domain in an `href`, and link text showing one address on a link to another. Attachments are inspected like the members of an archive |
+| **Email** | The RFC 5322 header block: `X-Mailer`, `User-Agent`, `X-Generated-By`, `Message-ID`, `Received`, `X-Originating-IP`, and **any unknown `X-` header** — that is where a pipeline signs itself. Tool headers are removed on cleaning; `From`, `Subject`, `Date` and `Message-ID` stay, they are the message. A `.eml` — or any file opening with such a header block — is read as a mail, whatever its body: each MIME part decoded (quoted-printable, base64, its charset) and read by its type, plain text by the text pass and HTML by the HTML pass, **links included**: a lookalike domain in an `href`, and link text showing one address on a link to another. A finding the text and HTML versions share is reported once, with both places (`part 1 (text/plain) → links · part 2 (text/html) → links`). Attachments are inspected like the members of an archive |
 | **Outlook .msg** (inspection only) | The sender and **the Exchange account behind it** (an X.500 address names the organisation and the mailbox), who it was sent on behalf of, **blind copies** a sent message keeps, who last changed it, when it was created, sent and received, the subject, and **the Internet headers Outlook stored** — read as a mail's: the client, each relay, the originating IP. The body gets the text pass (the HTML body the HTML pass). Each attachment is inspected like an archive member, **an attached message in turn**, three levels down; what lies deeper is named, not dropped |
 | **Jupyter notebooks** | The notebook's metadata — kernel, **authors**, and whatever an extension added (papermill's input and output paths, Colab's file name, VS Code's interpreter) — and each cell's: **when it ran**, to the millisecond. **The outputs**: local paths and the account names they hold, in printed text and in **tracebacks** (colour codes stripped), credentials a cell echoed, and **the pictures** (`image/png`, `image/jpeg`) with their Exif and GPS, attached pictures of Markdown cells included. The sources are read for credentials and invisible characters. `sanitize-for-llm` gives the sources and what the outputs printed |
 | Text and source files | `.txt`, `.csv`, `.json`, `.yaml`, `.py`, `.js`, `.ts`, `.go`, `.rs`, `.sh`… and dotfiles (`.env`, `.npmrc`, `.netrc`) — same checks, same removal. A bidirectional control in source is the **Trojan Source** case (CVE-2021-42574) |
@@ -763,12 +763,12 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | PDF | **Every** `/Info` key (custom included), the XMP `/Metadata` stream, C2PA manifests, the author and timestamps of every annotation; with `--strip-active`, scripts, actions, launches, form submissions, rich media, XFA and embedded files — and the objects they leave unreferenced, so no script stays in the bytes. The trailer `/ID` the producer wrote — a pair of hashes that ties every copy to the original — is replaced by a hash of the cleaned pages' content, which inspection recognises and does not report | Page content, what annotations say, and plain web links |
 | PPTX / DOCX / XLSX | With `--strip-active`: the VBA project, a remote template, the instructions of DDE and remote INCLUDE fields (the field's last result stays as text). Always: `core.xml`, `app.xml`, custom properties, thumbnail, `rsid`, comment author names (`w:author` attribute, `<author>` element, `displayName`), Exif in embedded pictures, C2PA manifests | Local links, hidden slides, speaker notes, defined names and links between workbooks — removing them would turn live cells into `#REF!`. Embedded objects and ActiveX controls, anchored in the layout: removing them would damage it, so they stay and are named |
 | ODT / ODS / ODP | `meta.xml`, user-defined properties, statistics, thumbnail, picture Exif, C2PA manifests | The content |
-| SVG | The `<metadata>` block, editor attributes and namespaces, generator comments | `<title>` and `<desc>` — what a screen reader announces |
-| HTML | `generator`/`author`/`creator`/`copyright`/`date` tags, generator comments | JSON-LD — what a search engine indexes |
-| Markdown | Identifying front-matter keys; delimiters removed if nothing is left inside | The body, other keys, attribution lines |
+| SVG | The `<metadata>` block, editor attributes and namespaces, generator comments; with `--strip-active`, scripts, `on…` attributes, `javascript:` addresses and animations that set one | `<title>` and `<desc>` — what a screen reader announces |
+| HTML | `generator`/`author`/`creator`/`copyright`/`date` tags, generator comments; with `--strip-active`, `<script>` (inline or from a file), `on…` attributes, `javascript:`, `vbscript:` and `data:` page addresses (a link keeps its text), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, and the action of a form that sends to another address | JSON-LD — what a search engine indexes |
+| Markdown | Identifying front-matter keys; delimiters removed if nothing is left inside; with `--strip-active`, the same as HTML in its inline HTML, and a `[text](javascript:…)` link becomes its text | The body, other keys, attribution lines |
 | JPEG | Exif, XMP, IPTC/Photoshop, comments, C2PA JUMBF, **data after the end of the image** (an archive glued on, a vendor trailer). With `--reencode-images`, the picture is rebuilt from its pixels: whatever is not pixels goes, the orientation is applied | JFIF and the ICC profile — removing them would change the rendering — and, for a photo that must be turned, an Exif holding the **orientation alone**, so a portrait does not come out on its side (`test/jpeg-orientation.test.ts`) |
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX`, data after `IEND`; with `--reencode-images`, every chunk but the picture and its profile | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
-| Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
+| Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value; with `--strip-active`, the HTML parts and HTML or SVG attachments cleaned as HTML, each encoded again as it was (base64, quoted-printable) | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
 | WebP / GIF | WebP: `EXIF`, `XMP ` and private chunks, the `VP8X` flags that announced them, data past the RIFF size. GIF: comments, XMP and other application blocks, data after the trailer | The picture, its animation, the loop count (`NETSCAPE2.0`) and the colour profile |
 | TIFF / HEIC / AVIF | **Nothing** — refused (`image-not-rewritable`), with what to do: export it as JPEG or PNG and clean that copy | Every value sits at an absolute offset; taking one out means rewriting the structure, and Cirta would rather refuse than damage the picture |
 | RTF | The `\info` group, the generator, custom properties, the template path, the revision identifiers (the table and every `\…rsid` word); the names in the revision table and on comments become `Author`; pictures lose their metadata; with `--strip-active`, each object is replaced by the picture shown in its place. The file is rewritten group by group, never by a pattern over the text | The text, its formatting, the fields — a link is the document's own, and is named as still there |
@@ -856,7 +856,7 @@ report says what it changed — or why it did not.
 | `--remove-hidden-sheets` | Removes hidden sheets **that nothing reads**; if a formula, a chart or a defined name reads one, nothing goes and the report says which and why (`#REF!` otherwise) | XLSX |
 | `--remove-attachments` | Removes embedded files, and the bytes they held | PDF |
 | `--flatten-annotations` | Draws each annotation into its page as it appeared, then removes it with its author; links and form fields stay | PDF |
-| `--strip-active` | Removes scripts, actions, macros, remote templates, DDE and remote INCLUDE fields, embedded files | PDF, DOCX, XLSX, PPTX |
+| `--strip-active` | Removes scripts, actions, macros, remote templates, DDE and remote INCLUDE fields, embedded files; in a page, event handlers, `javascript:` addresses, refreshes and plug-in objects | PDF, DOCX, XLSX, PPTX, RTF, Visio, HTML, SVG, Markdown, email |
 | `--strip-tracking-params` | Removes `utm_*`, `fbclid`, `gclid`, `mc_eid`… from links, the rest of each address unchanged | HTML, Markdown, Office, PDF |
 | `--strip-remote-resources` | Removes pictures, styles, scripts and frames loaded from the network, tracking pixels included | HTML, Markdown |
 | `--burn-redactions` | Removes text covered by a shape for good: each page that holds some becomes a picture of itself, so it loses its selectable text — the report names those pages. Needs the PDF renderer; without it the clean is refused | PDF |
@@ -898,14 +898,21 @@ cirta sanitize-for-llm --json --fail-on-instructions inbox/*.pdf
 
 **`cirta mcp`** runs a Model Context Protocol server on stdio, so an agent can check a document before
 reading it. Its tools are `inspect_file`, `redact_file` (writes `<name>.clean.<ext>` beside the
-original, never overwriting unless asked), `sanitize_for_llm` and `scan_text`. It reads and writes
-local files and opens no connection.
+original, never overwriting unless asked, or at `output`), `sanitize_for_llm` and `scan_text`. It reads and
+writes local files and opens no connection.
+
+It reads and writes **only inside its roots**: each `--root <folder>` given, the folder it was started in
+otherwise. A path is resolved with its symbolic links followed, so `..` or a link inside a root that
+leads elsewhere is refused, and so is an `output` whose folder lies outside; the refusal is a JSON-RPC
+error (`-32602`), not a tool result. An agent reads documents written by others, and a prompt hidden
+in one could otherwise have it inspect `~/.ssh/id_rsa` or write over a file anywhere. Give the roots
+explicitly: a desktop client may start the server in `/`.
 
 ```
-claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp      # Claude Code
+claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp --root ~/Documents      # Claude Code
 ```
 ```json
-{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp"] } } }
+{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp", "--root", "/home/me/Documents"] } } }
 ```
 
 ### Personal data and the organisation's rules — on request
@@ -1326,7 +1333,11 @@ format, the size, the SHA-256, the count per level and the labels; **never a val
 findings by label. What it cannot read — a format it does not know, a body past `--max-size` (50 MB by
 default), an encoding it cannot undo — goes through and is logged as `skipped`.
 
-It listens on the loopback unless `--host` says otherwise, and it opens no connection to anything
+It listens on the loopback unless `--host` says otherwise. There, the HTTP API answers only a request
+whose `Host` is the loopback's own — `127.0.0.1`, `localhost`, `[::1]`, any port — the `--host` given, or
+a name passed with `--allowed-host` (repeatable); anything else gets `421 Misdirected Request`, so a web
+page cannot reach it by pointing a name it controls at 127.0.0.1 (DNS rebinding). Listening beyond the
+loopback, it answers any name unless `--allowed-host` lists them. It opens no connection to anything
 (`test/no-network.test.ts` checks that `serve.ts` takes nothing but `createServer` from Node's network
 modules). Tried by hand behind Squid 6.14 and with `c-icap-client`: a Word file carrying its author
 blocked on download and on upload, a clean file let through, Squid's log carrying `X-Cirta-Verdict`.

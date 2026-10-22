@@ -10,9 +10,10 @@
  */
 
 import type { Finding, InspectResult, Note, RedactResult } from './types.js';
-import { byConfidence } from './types.js';
+import { byConfidence, PLACES } from './types.js';
 import { emailHeaders, stripToolHeaders } from './email.js';
-import { decodeWords, parseMail, type MailPart } from './mime.js';
+import { bytesOf, decodeTransfer, decodeWords, encodeTransfer, latin1, parseMail, type MailPart } from './mime.js';
+import { stripActiveMarkup } from './markup-active.js';
 import { inspectPlainText } from './plaintext.js';
 import { inspectMarkup } from './markup.js';
 import { findHtmlLinks } from './url.js';
@@ -29,6 +30,22 @@ export type InspectMember = (data: Uint8Array, name: string) => Promise<InspectR
 
 const prefix = (findings: Finding[], where: string): Finding[] =>
   findings.map((finding) => ({ ...finding, location: `${where} → ${finding.location}` }));
+
+/**
+ * [R2] A message usually comes as text and as HTML, the same words twice: a
+ * lookalike link was reported once per version. A finding the body parts
+ * share — same label, same value — is reported once, at each of its places.
+ */
+function samePlaces(findings: Finding[]): Finding[] {
+  const merged = new Map<string, Finding>();
+  for (const finding of findings) {
+    const key = `${finding.label}\u0000${finding.value}`;
+    const first = merged.get(key);
+    if (!first) merged.set(key, { ...finding });
+    else if (!first.location.split(PLACES).includes(finding.location)) first.location += `${PLACES}${finding.location}`;
+  }
+  return [...merged.values()];
+}
 
 const BLOCKS = /^\/?(?:p|div|br|li|tr|td|th|h[1-6]|table|ul|ol|blockquote|section|article|header|footer|pre|hr)\b/i;
 
@@ -98,6 +115,7 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
   const notes: Note[] = [{ code: 'scope:email' }];
 
   const bodies = mail.parts.filter((part) => !part.attachment);
+  const bodyFindings: Finding[] = [];
   for (const [index, part] of mail.parts.entries()) {
     if (part.attachment) {
       const name = part.filename ?? `part ${index + 1}`;
@@ -118,8 +136,10 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
       continue;
     }
     const found = partFindings(part);
-    findings.push(...(bodies.length > 1 ? prefix(found, `part ${index + 1} (${part.type})`) : found));
+    if (bodies.length > 1) bodyFindings.push(...prefix(found, `part ${index + 1} (${part.type})`));
+    else findings.push(...found);
   }
+  findings.push(...samePlaces(bodyFindings));
 
   const seen = new Set<string>();
   const unique = findings.filter((f) => {
@@ -137,9 +157,38 @@ export async function inspectEml(data: Uint8Array, inspectMember: InspectMember)
  * left as they are — re-encoding them is not a clean, it is a rewrite — and
  * whatever survives is measured by re-inspection and named.
  */
-export async function redactEml(data: Uint8Array, inspectMember: InspectMember): Promise<RedactResult> {
+/** A part a browser would run: an HTML body, an HTML or SVG attachment. */
+const runnable = (part: MailPart) =>
+  part.type === 'text/html' || part.type === 'image/svg+xml' || /\.(?:html?|xhtml|svg)$/i.test(part.filename ?? '');
+
+/**
+ * [R3] --strip-active on a mail: each HTML or SVG part decoded, its scripts,
+ * handlers and running addresses taken out, and encoded again as it was. The
+ * markup is ASCII, so the part is worked on byte for byte, whatever its
+ * charset; the other parts and the headers are left as they are.
+ */
+function stripActiveParts(data: Uint8Array): { data: Uint8Array; removed: number } {
+  const raw = latin1(data);
+  let out = '';
+  let cursor = 0;
+  let removed = 0;
+  for (const part of parseMail(data).parts) {
+    if (!runnable(part) || !part.encoded) continue;
+    const at = raw.indexOf(part.encoded, cursor);
+    if (at < 0) continue;
+    const stripped = stripActiveMarkup(latin1(decodeTransfer(part.encoded, part.transferEncoding)), part.type === 'image/svg+xml' || /\.svg$/i.test(part.filename ?? ''));
+    if (!stripped.removed) continue;
+    out += raw.slice(cursor, at) + encodeTransfer(stripped.text, part.transferEncoding);
+    cursor = at + part.encoded.length;
+    removed += stripped.removed;
+  }
+  return removed ? { data: bytesOf(out + raw.slice(cursor)), removed } : { data, removed: 0 };
+}
+
+export async function redactEml(data: Uint8Array, inspectMember: InspectMember, { stripActive = false }: { stripActive?: boolean } = {}): Promise<RedactResult> {
   const before = await inspectEml(data, inspectMember);
-  const text = decodeTextInput(data, { allowBinary: true });
+  const active = stripActive ? stripActiveParts(data) : { data, removed: 0 };
+  const text = decodeTextInput(active.data, { allowBinary: true });
   const stripped = stripToolHeaders(cleanText(text, { normalizeSpaces: false }).text);
   return {
     format: 'eml',
@@ -148,6 +197,6 @@ export async function redactEml(data: Uint8Array, inspectMember: InspectMember):
     // Measured, not assumed: noteSurvivors() keeps only what re-inspection no
     // longer finds, so the count is what really went.
     removed: before.findings,
-    notes: [{ code: 'scope:email' }],
+    notes: [{ code: 'scope:email' }, ...(active.removed ? [{ code: 'removed:active-content' as const, detail: String(active.removed) }] : [])],
   };
 }

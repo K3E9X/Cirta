@@ -40,6 +40,7 @@ import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
 import { parseRules, type Rule } from '../core/rules.js';
+import { STRIP_ACTIVE_FORMATS, strippedByActive } from '../shared/clean-plan.js';
 import { nodeRulesRunner } from './rules-worker.js';
 
 /** [R1] The rules run in a worker thread, each within its time budget. */
@@ -139,6 +140,8 @@ ${bold(t().options)}
       --sarif           ${t().optSarif}
       --fail-on <level> ${t().optFailOn}
       --host <address>  ${t().optHost}
+      --allowed-host <name>  ${t().optAllowedHost}
+      --root <folder>   ${t().optRoot}
       --http <port|off> ${t().optHttpPort}
       --icap <port|off> ${t().optIcapPort}
       --block-on <level> ${t().optBlockOn}
@@ -216,6 +219,10 @@ interface Args {
   failOn?: string;
   /** [F-P3 2.5] cirta serve. */
   host: string;
+  /** [R5] serve: other Host names the HTTP API answers. */
+  allowedHosts: string[];
+  /** [R4] mcp: the folders the server may read and write in. */
+  roots: string[];
   httpPort?: string;
   icapPort?: string;
   blockOn?: string;
@@ -257,6 +264,8 @@ function parseArgs(argv: string[]): Args {
     skip: [],
     sarif: false,
     host: '127.0.0.1',
+    allowedHosts: [],
+    roots: [],
     allowClean: false,
     newOnly: false,
   };
@@ -363,6 +372,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case '--host':
         args.host = argv[++i] ?? args.host;
+        break;
+      case '--allowed-host':
+        if (argv[i + 1] !== undefined) args.allowedHosts.push(argv[++i]!);
+        break;
+      case '--root':
+        if (argv[i + 1] !== undefined) args.roots.push(argv[++i]!);
         break;
       case '--http':
         args.httpPort = argv[++i];
@@ -732,6 +747,7 @@ async function runServe(args: Args): Promise<number> {
   }
   const service = await serve({
     host: args.host,
+    allowedHosts: args.allowedHosts,
     http: http ?? undefined,
     icap: icap ?? undefined,
     blockOn: blockOn as Confidence | undefined,
@@ -930,8 +946,8 @@ async function runRedact(args: Args): Promise<number> {
         const comments = (result.kept ?? []).some((f) => f.label === 'Comment text');
         if (!args.removeComments && comments) console.log(`  ${dim(t().removeCommentsHint)}`);
         // [F-2.1] Scripts, actions, macros and embedded files left in place.
-        const active = (result.kept ?? []).some((f) => f.kind === 'active-content' && f.confidence !== 'informational');
-        if (!args.stripActive && active) console.log(`  ${dim(t().stripActiveHint)}`);
+        const active = (result.kept ?? []).some(strippedByActive);
+        if (!args.stripActive && active && STRIP_ACTIVE_FORMATS.has(result.format)) console.log(`  ${dim(t().stripActiveHint)}`);
         const remote = (result.kept ?? []).some((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening');
         if (!args.stripRemote && remote && ['html', 'markdown'].includes(result.format)) console.log(`  ${dim(t().stripRemoteHint)}`);
       }
@@ -1220,7 +1236,7 @@ async function main(): Promise<number> {
       if (!args.files.length) return 1;
       return runSanitize(args);
     case 'mcp':
-      return runMcp();
+      return runMcp(args.roots);
     case 'serve':
       return runServe(args);
     case 'watch':
