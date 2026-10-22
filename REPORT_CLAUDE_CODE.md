@@ -2281,6 +2281,13 @@ Demande du propriétaire : aucun domaine n'était libre pour « cirta », l'outi
 - **Trouvé en route :** le test d'orientation de #46 ne passait pas `npm run typecheck` (`data` optionnel, des types de constat qui n'existent pas). Corrigé sur la branche de #46 (`611b33a`).
 - **Vérification :** `npm run verify` (117 fichiers, 1 225 tests), `node scripts/real-files.mjs`, `npm run redos`, `node scripts/web-rules.mjs` et `node scripts/a11y.mjs` sont verts.
 
+## Version 0.4.0 (22/10/2026)
+
+- **Contenu :** #46 (préréglages par lien, orientation JPEG), la repasse R1 à R8 (#47 → #50) et le renommage (#51), tous fusionnés dans `main`.
+- **Version :** `package.json`, `package-lock.json` et l'extension VS Code passent en 0.4.0. La section *Unreleased* du CHANGELOG devient `[0.4.0] — 2026-10-22`. Son introduction signale la rupture de l'API par les noms seulement : paquet `ciirta`, `schema` `ciirta.report/1` et `ciirta.manifest/1`.
+- **Vérifié :** `npm run verify`, `node scripts/check-release.mjs v0.4.0` (« ready »), `scripts/try-package.mjs` et `node scripts/real-files.mjs` passent.
+- **Le tag `v0.4.0` existant** a été créé sur `0f7c810`, où la version est encore 0.3.0. Le workflow de release le refuse donc (`check-release`). Une fois cette PR fusionnée, il faut supprimer la release et le tag `v0.4.0`, puis les recréer sur le nouveau `main`. Le proxy de la session refuse les tags.
+
 ## Bilan final
 
 **Fait :**
