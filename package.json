@@ -1,6 +1,6 @@
 {
   "name": "ciirta",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Inspect and clean what documents say about their making — metadata, hidden text, active content, invisible characters — locally, in PDF, Office, OpenDocument, images, mail, notebooks and text.",
   "type": "module",
   "main": "./dist/core/index.js",
