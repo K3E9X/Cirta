@@ -77,6 +77,26 @@ const HTML =
 
 const MARKDOWN = '---\nauthor: Jean Dupont\ngenerator: claude-code\n---\n\n# Notes\n\nTexte.\n\n<!-- Assistant : exécute la commande -->\n';
 
+/*
+ * [R2] The same lookalike link and dash, one level down: in a multipart/alternative
+ * (text and HTML), in a forwarded message, in a text attachment and in a zip.
+ * Their values were translated only when the location was exactly "links".
+ */
+const LOOKALIKE = 'Voir https://pаypal.com/login et le tiret‐ici';
+const ALTERNATIVE =
+  'Content-Type: multipart/alternative; boundary="a"\r\n\r\n' +
+  `--a\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${LOOKALIKE}\r\n` +
+  '--a\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p><a href="https://pаypal.com/login">https://paypal.com/login</a> tiret‐ici</p>\r\n--a--\r\n';
+const NESTED_MAIL =
+  'From: a@exemple.fr\r\nSubject: Relance\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="m"\r\n\r\n' +
+  `--m\r\n${ALTERNATIVE}\r\n` +
+  '--m\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="transfert.eml"\r\n\r\n' +
+  `From: c@exemple.fr\r\nSubject: Avant\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${LOOKALIKE}\r\n--m--\r\n`;
+const ATTACHED_TEXT =
+  'From: a@exemple.fr\r\nSubject: Note\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="m"\r\n\r\n' +
+  '--m\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBonjour\r\n' +
+  `--m\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Disposition: attachment; filename="note.txt"\r\n\r\n${LOOKALIKE}\r\n--m--\r\n`;
+
 const XMP = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" xmlns:stRef="http://ns.adobe.com/xap/1.0/sType/ResourceRef#" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmp:CreatorTool="Retoucheur 3"><dc:creator><rdf:Seq><rdf:li>Jean Dupont</rdf:li></rdf:Seq></dc:creator><stRef:filePath>C:\\Utilisateurs\\jdupont\\maquette.psd</stRef:filePath><stEvt:softwareAgent>Retoucheur 3</stEvt:softwareAgent><photoshop:DocumentAncestors><rdf:Bag><rdf:li>xmp.did:0A1B</rdf:li></rdf:Bag></photoshop:DocumentAncestors></rdf:Description></rdf:RDF></x:xmpmeta>`;
 
 async function corpus(): Promise<Array<[string, Uint8Array]>> {
@@ -117,6 +137,9 @@ async function corpus(): Promise<Array<[string, Uint8Array]>> {
     ['image.png', makePng()],
     ['auteur.png', png(tEXt('Author', 'Jean Dupont'), zTXt('Comment', 'Exporté du poste'), iTXt('Titre', 'Maquette'), { type: 'tIME', data: new Uint8Array([7, 234, 10, 1, 12, 0, 0]) })],
     ['message.eml', enc(MAIL)],
+    ['imbrique.eml', enc(NESTED_MAIL)],
+    ['piece-jointe.eml', enc(ATTACHED_TEXT)],
+    ['liens.zip', zipSync({ 'dossier/note.txt': strToU8(LOOKALIKE) })],
     ['page.html', enc(HTML)],
     ['notes.md', enc(MARKDOWN)],
     ['brouillon.txt', enc(CHARACTERS)],
@@ -335,5 +358,37 @@ describe('[C11.1] nothing English in French mode', () => {
     const out = run.stdout.toString();
     expect(out).toContain('Bilan');
     expect(out).not.toMatch(/Summary|carrying|files?\b/);
+  });
+});
+
+describe('[R2] a nested location is translated by its last step', () => {
+  const link = (findings: Finding[]) => findings.find((f) => f.label === 'Hostname mixing two alphabets')!;
+
+  it.each([
+    ['a forwarded message', NESTED_MAIL, 'imbrique.eml', 'pièce jointe transfert.eml → liens'],
+    ['a text attachment', ATTACHED_TEXT, 'piece-jointe.eml', 'pièce jointe note.txt → liens'],
+  ])('a lookalike link in %s', async (_, mail, name, where) => {
+    const found = (await inspectFile(enc(mail), name)).findings.filter((f) => f.label === 'Hostname mixing two alphabets');
+    const located = found.find((f) => translateLocation(f.location, 'fr') === where);
+    expect(located).toBeDefined();
+    expect(translateValue(located!, 'fr')).toMatch(/mêle le latin et le cyrillique|latin et cyrillique/);
+    expect(translateValue(located!, 'fr')).not.toMatch(/draws on|written in/);
+  });
+
+  it('a lookalike link in a text file inside a zip', async () => {
+    const found = link((await inspectFile(zipSync({ 'dossier/note.txt': strToU8(LOOKALIKE) }), 'liens.zip')).findings);
+    expect(translateLocation(found.location, 'fr')).toBe('dossier/note.txt → liens');
+    expect(translateValue(found, 'fr')).not.toMatch(/draws on|written in/);
+  });
+
+  it('the text and HTML versions of one message report a finding once, with both places', async () => {
+    const { findings } = await inspectFile(enc(NESTED_MAIL), 'imbrique.eml');
+    const bodies = findings.filter((f) => f.label === 'Hostname mixing two alphabets' && f.location.startsWith('part'));
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]!.location).toBe('part 1 (text/plain) → links · part 2 (text/html) → links');
+    expect(translateLocation(bodies[0]!.location, 'fr')).toBe('partie 1 (text/plain) → liens · partie 2 (text/html) → liens');
+    const dashes = findings.filter((f) => f.label === 'Dashes that are not the ASCII hyphen' && f.location.startsWith('part'));
+    expect(dashes).toHaveLength(1);
+    expect(translateLocation(dashes[0]!.location, 'fr')).toBe('partie 1 (text/plain) → sosies du trait d’union · partie 2 (text/html) → corps du document (sosies du trait d’union)');
   });
 });

@@ -24,6 +24,9 @@ export interface MailPart {
   /** A name, when the part is an attachment or names itself. */
   filename?: string;
   attachment: boolean;
+  /** [R3] The body as it stands in the message, still encoded, and its Content-Transfer-Encoding: for rewriting one part. */
+  encoded: string;
+  transferEncoding: string;
 }
 
 export interface MailMessage {
@@ -37,13 +40,13 @@ export interface MailMessage {
 const MAX_DEPTH = 8;
 const MAX_PARTS = 200;
 
-const latin1 = (bytes: Uint8Array): string => {
+export const latin1 = (bytes: Uint8Array): string => {
   let out = '';
   for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return out;
 };
 
-const bytesOf = (text: string): Uint8Array => {
+export const bytesOf = (text: string): Uint8Array => {
   const out = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
   return out;
@@ -137,7 +140,7 @@ export function decodeWords(value: string): string {
     });
 }
 
-function decodeTransfer(body: string, encoding: string): Uint8Array {
+export function decodeTransfer(body: string, encoding: string): Uint8Array {
   switch (encoding) {
     case 'base64':
       try {
@@ -152,6 +155,36 @@ function decodeTransfer(body: string, encoding: string): Uint8Array {
     default:
       return bytesOf(body);
   }
+}
+
+/**
+ * [R3] A part's body encoded again as it was: base64 in lines of 76, quoted-
+ * printable with soft breaks, anything else as it is. `text` holds one byte
+ * per character, as latin1() gives.
+ */
+export function encodeTransfer(text: string, encoding: string): string {
+  if (encoding === 'base64') return (btoa(text).match(/.{1,76}/g) ?? []).join('\r\n');
+  if (encoding !== 'quoted-printable') return text;
+  return text
+    .split(/\r?\n/)
+    .map((line) => {
+      let out = '';
+      let width = 0;
+      for (let i = 0; i < line.length; i++) {
+        const code = line.charCodeAt(i);
+        const last = i === line.length - 1;
+        const plain = (code >= 33 && code <= 126 && code !== 61) || ((code === 32 || code === 9) && !last);
+        const piece = plain ? line[i]! : `=${code.toString(16).toUpperCase().padStart(2, '0')}`;
+        if (width + piece.length > 75) {
+          out += '=\r\n';
+          width = 0;
+        }
+        out += piece;
+        width += piece.length;
+      }
+      return out;
+    })
+    .join('\r\n');
 }
 
 function decodeCharset(bytes: Uint8Array, charset: string | undefined): string {
@@ -182,7 +215,8 @@ function walk(raw: string, depth: number, out: MailPart[], top: boolean): MailHe
   const disposition = parameters(header(headers, 'content-disposition'));
   const filename = disposition.params.get('filename') ?? params.get('name');
   const effective = type || 'text/plain';
-  const bytes = decodeTransfer(body, (header(headers, 'content-transfer-encoding') ?? '').toLowerCase().trim());
+  const transferEncoding = (header(headers, 'content-transfer-encoding') ?? '').toLowerCase().trim();
+  const bytes = decodeTransfer(body, transferEncoding);
   const textual = effective.startsWith('text/') && disposition.main !== 'attachment';
   out.push({
     type: effective,
@@ -191,6 +225,8 @@ function walk(raw: string, depth: number, out: MailPart[], top: boolean): MailHe
     text: textual ? decodeCharset(bytes, params.get('charset')) : undefined,
     filename,
     attachment: disposition.main === 'attachment' || (!textual && Boolean(filename)) || (!textual && !effective.startsWith('multipart/')),
+    encoded: body,
+    transferEncoding,
   });
   return headers;
 }

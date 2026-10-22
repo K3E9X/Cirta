@@ -40,6 +40,7 @@ import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
 import { parseRules, type Rule } from '../core/rules.js';
+import { STRIP_ACTIVE_FORMATS, strippedByActive } from '../shared/clean-plan.js';
 import { nodeRulesRunner } from './rules-worker.js';
 
 /** [R1] The rules run in a worker thread, each within its time budget. */
@@ -930,8 +931,8 @@ async function runRedact(args: Args): Promise<number> {
         const comments = (result.kept ?? []).some((f) => f.label === 'Comment text');
         if (!args.removeComments && comments) console.log(`  ${dim(t().removeCommentsHint)}`);
         // [F-2.1] Scripts, actions, macros and embedded files left in place.
-        const active = (result.kept ?? []).some((f) => f.kind === 'active-content' && f.confidence !== 'informational');
-        if (!args.stripActive && active) console.log(`  ${dim(t().stripActiveHint)}`);
+        const active = (result.kept ?? []).some(strippedByActive);
+        if (!args.stripActive && active && STRIP_ACTIVE_FORMATS.has(result.format)) console.log(`  ${dim(t().stripActiveHint)}`);
         const remote = (result.kept ?? []).some((f) => f.label === 'Tracking pixel' || f.label === 'Remote resource loaded on opening');
         if (!args.stripRemote && remote && ['html', 'markdown'].includes(result.format)) console.log(`  ${dim(t().stripRemoteHint)}`);
       }

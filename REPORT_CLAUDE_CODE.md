@@ -2137,6 +2137,8 @@ Branche `fix/retest-2026-10-19` depuis `main` (`e93b8fc`), puis une branche par 
 | Élément | Statut | Commit | Tests | Vérification |
 |---|---|---|---|---|
 | R1 [P1] ReDoS dans `--rules` | **fait** | `f618486` | `test/rules-redos.test.ts` (26), `scripts/web-rules.mjs` (8 contrôles dans Chromium) | `npx vitest run test/rules-redos.test.ts` ; `npm run build:web && node scripts/web-rules.mjs` |
+| R2 [P2] i18n des emplacements imbriqués, doublons multipart | **fait** | `c05cb1c` | `test/i18n-fr.test.ts` (corpus + 4 tests) | `npx vitest run test/i18n-fr.test.ts` |
+| R3 [P2] contenu actif HTML/SVG/Markdown/e-mail | **fait** | `35b152a` | `test/markup-active.test.ts` (35) | `npx vitest run test/markup-active.test.ts` |
 
 ### R1 — ReDoS dans `--rules`
 
@@ -2157,6 +2159,42 @@ Branche `fix/retest-2026-10-19` depuis `main` (`e93b8fc`), puis une branche par 
 **Règles gardées dans le navigateur.** Un fichier mémorisé par une version antérieure et refusé maintenant aurait bloqué chaque analyse. Il est oublié à l'ouverture de la page, avec la raison affichée.
 
 **Ce qui n'est pas couvert.** La bibliothèque appelée sans `rulesRunner` exécute les règles dans son propre fil : seul le refus à la lecture la protège. Le README le dit et indique `budgetedRules`. Un motif polynomial de degré élevé sur un texte court peut rester sous le budget et passer ; c'est voulu.
+
+### R2 — Emplacements imbriqués en français, doublons d'un multipart
+
+**Repro.** Un lien sosie dans un mail donnait, en français, l'emplacement « partie 1 (text/plain) → liens » mais l'explication restait en anglais (« draws on Latin and Cyrillic at once… »). Même chose dans une pièce jointe texte, un message transféré ou un `.txt` dans un zip. `french.ts` comparait l'emplacement entier à `'links'` et `'hyphen lookalikes'`.
+
+**Correction.** Chaque comparaison lit maintenant le dernier segment (`split(' → ').at(-1)`), y compris à l'intérieur de « document body (…) », qui est désormais traduit aussi.
+
+**Inventaire des `location ===` dans `src`.**
+- `french.ts` (`links`, `hyphen lookalikes`, le suffixe `structure`) : corrigé.
+- `text.ts` (« Unicode normalisation ») et `clean-plan.ts` (`cells[…]`) : ils ne s'appliquent qu'à un texte ou un notebook de premier niveau. Rien à changer.
+
+**Doublons.** Un constat que partagent les parties d'un message (même libellé, même valeur), typiquement les versions texte et HTML d'un multipart/alternative, est signalé une fois, avec ses emplacements joints par « · » : `part 1 (text/plain) → links · part 2 (text/html) → links`. Le français traduit chaque emplacement.
+
+**Tests.** Trois fichiers ajoutés au corpus « rien d'anglais en mode français » : `imbrique.eml` (alternative + message transféré), `piece-jointe.eml` (pièce jointe texte) et `liens.zip` (texte avec lien sosie). S'y ajoutent quatre tests ciblés. Ils échouaient avant la correction (5 échecs) et passent après.
+
+### R3 — Contenu actif HTML, SVG, Markdown et e-mail
+
+**Repro.** Une page avec `<script>`, `<img onerror>`, `<meta http-equiv="refresh">` ou `<object>` ne donnait aucun constat. Seul un lien `javascript:` était signalé, et `--strip-active`, proposé par « Relancez avec … », ne faisait rien sur ces formats.
+
+**Correction : `src/core/markup-active.ts`**, un parcours des balises à l'`indexOf`, linéaire, qui ignore commentaires et CDATA.
+- **Constats :**
+  - « Script dans la page » et « Script chargé depuis un fichier ». Les blocs de données comme JSON-LD restent.
+  - « Attribut qui exécute du code sur un événement » (`on…`).
+  - « Adresse qui exécute un script ou ouvre une page » : `javascript:`, `vbscript:`, `data:text/html` et apparentés, dans src, action, formaction, xlink:href, data, et dans les animations SVG `animate`/`set`. Les schémas encodés (`&colon;`, tabulations) sont reconnus.
+  - « Redirection automatique » (meta refresh) et « Objet intégré » (object, embed, applet).
+  - « Formulaire envoyé à une adresse » (action absolue, la forme d'une pièce jointe d'hameçonnage).
+- **`--strip-active`** retire tout ce qui précède. Un lien garde son texte et perd son adresse, un formulaire perd son action, et en Markdown `[texte](javascript:…)` devient son texte. La note `removed:active-content` donne le nombre retiré.
+- **E-mail.** Chaque partie HTML et chaque pièce jointe HTML ou SVG est décodée, nettoyée octet par octet (le balisage est ASCII, quel que soit le jeu de caractères), puis réencodée comme elle l'était : 8bit, quoted-printable ou base64. Les autres parties et les en-têtes ne bougent pas.
+- **Message « Relancez avec --strip-active ».** Il compte les mêmes constats que l'option (`strippedByActive` dans `clean-plan.ts`) et ne s'affiche que pour les formats qu'elle réécrit. Une image distante relève de `--strip-remote-resources`, qui a son propre message. La page web propose l'option pour HTML, SVG, Markdown et e-mail.
+- **Ce qui reste.** Les autres pièces jointes d'un mail (un .docm, un message transféré) sont lues, pas réécrites, et ne déclenchent plus le message. Une balise ouverte jusqu'à la fin du fichier avale la suite, comme dans un navigateur : rien après elle ne s'exécute, donc rien n'est signalé.
+
+**Tests (35).**
+- Un test par vecteur : constat, présent sans l'option, absent avec, page relue sans contenu actif.
+- SVG, Markdown, et un mail en 8bit, quoted-printable et base64.
+- Libellés en français ; le message de relance, présent puis absent, et absent pour une image distante.
+- Cinq entrées hostiles lues en moins de 1,5 s.
 
 ## Bilan final
 

@@ -76,6 +76,7 @@ import { stripTracking } from './tracking.js';
 import { bodyText } from './body-text.js';
 import { piiFindings } from './pii.js';
 import { inThreadRules } from './rules.js';
+import { stripActiveMarkup } from './markup-active.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -673,7 +674,7 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
   if (isRtf(data)) return noteSurvivors(await redactRtf(data, { stripActive: options.stripActive }), hint, options);
 
   if (isMail(data, hint)) {
-    return noteSurvivors(await redactEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray })), hint, options);
+    return noteSurvivors(await redactEml(data, (bytes, name) => inspectFile(bytes, name, { xray: options.xray }), { stripActive: options.stripActive }), hint, options);
   }
 
   const format = detectFormat(data, hint);
@@ -688,8 +689,11 @@ async function redact(data: Uint8Array, hint?: string, options: InspectOptions =
     const counted = redactMarkupCounted(text, format, { removeHidden: options.removeHidden });
     const notes: Note[] = [{ code: 'scope:markup-metadata-only' }];
     if (counted.hiddenRemoved) notes.push({ code: 'removed:hidden-text', detail: String(counted.hiddenRemoved) });
+    // [R3] Scripts, event handlers, addresses that run, refreshes and objects, on request.
+    const active = options.stripActive ? stripActiveMarkup(counted.text, format === 'svg', format === 'markdown') : { text: counted.text, removed: 0 };
+    if (active.removed) notes.push({ code: 'removed:active-content', detail: String(active.removed) });
     // [F-2.1] Remote pictures, styles, scripts and frames, on request.
-    const remote = options.stripRemote && format !== 'svg' ? stripRemoteResources(counted.text, format === 'markdown') : { text: counted.text, removed: 0 };
+    const remote = options.stripRemote && format !== 'svg' ? stripRemoteResources(active.text, format === 'markdown') : { text: active.text, removed: 0 };
     if (remote.removed) notes.push({ code: 'removed:remote-resources', detail: String(remote.removed) });
     // [F-2.4] Tracking parameters out of every link, on request.
     const tracking = options.stripTracking ? stripTracking(remote.text) : { text: remote.text, removed: 0 };
