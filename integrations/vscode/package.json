@@ -1,6 +1,6 @@
 {
-  "name": "cirta-vscode",
-  "displayName": "Cirta",
+  "name": "ciirta-vscode",
+  "displayName": "Ciirta",
   "description": "What a document says about its making — metadata, hidden text, active content, invisible characters — found in the editor, locally.",
   "version": "0.3.0",
   "publisher": "k3e9x",
@@ -12,19 +12,19 @@
   "activationEvents": ["onStartupFinished"],
   "contributes": {
     "commands": [
-      { "command": "cirta.inspect", "title": "Inspect this file", "category": "Cirta" },
-      { "command": "cirta.clean", "title": "Write a cleaned copy", "category": "Cirta" }
+      { "command": "ciirta.inspect", "title": "Inspect this file", "category": "Ciirta" },
+      { "command": "ciirta.clean", "title": "Write a cleaned copy", "category": "Ciirta" }
     ],
     "menus": {
       "explorer/context": [
-        { "command": "cirta.inspect", "when": "!explorerResourceIsFolder", "group": "7_modification@1" },
-        { "command": "cirta.clean", "when": "!explorerResourceIsFolder", "group": "7_modification@2" }
+        { "command": "ciirta.inspect", "when": "!explorerResourceIsFolder", "group": "7_modification@1" },
+        { "command": "ciirta.clean", "when": "!explorerResourceIsFolder", "group": "7_modification@2" }
       ]
     },
     "configuration": {
-      "title": "Cirta",
+      "title": "Ciirta",
       "properties": {
-        "cirta.inspectTextFiles": {
+        "ciirta.inspectTextFiles": {
           "type": "boolean",
           "default": true,
           "description": "Inspect text files when they are opened and saved: invisible characters underlined where they are."

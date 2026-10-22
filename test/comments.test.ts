@@ -133,7 +133,7 @@ describe('[C6] cleaning', () => {
   });
 
   it('is offered from the command line as --remove-comments', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-c6-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-c6-'));
     writeFileSync(join(dir, 'in.docx'), docx());
     const run = runCli(['redact', join(dir, 'in.docx'), '-o', join(dir, 'out.docx'), '--remove-comments']);
     expect(run.status).toBe(0);

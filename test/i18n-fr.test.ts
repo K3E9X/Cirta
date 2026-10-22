@@ -344,14 +344,14 @@ describe('[C11.1] nothing English in French mode', () => {
   }, 120_000);
 
   it('a missing file, from the command line', () => {
-    const run = runCli(['inspect', '--lang', 'fr', join(tmpdir(), 'cirta-absent-0e74.pdf')]);
+    const run = runCli(['inspect', '--lang', 'fr', join(tmpdir(), 'ciirta-absent-0e74.pdf')]);
     const out = run.stdout.toString() + run.stderr.toString();
     expect(out).toContain('introuvable');
     expect(out).not.toMatch(/ENOENT|no such file/);
   });
 
   it('the summary of a run over several files', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-fr-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-fr-'));
     writeFileSync(join(dir, 'a.txt'), 'Bon\u200bjour');
     writeFileSync(join(dir, 'b.txt'), 'Bonjour');
     const run = runCli(['inspect', '--lang', 'fr', join(dir, 'a.txt'), join(dir, 'b.txt')]);

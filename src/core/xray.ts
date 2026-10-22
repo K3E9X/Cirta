@@ -524,7 +524,7 @@ function openDocument(engine: XrayEngine, data: Uint8Array): XrayLoadingTask {
     useWasm: true,
     useWorkerFetch: false,
     BinaryDataFactory: InMemory,
-    standardFontDataUrl: 'cirta-fonts/',
+    standardFontDataUrl: 'ciirta-fonts/',
     // Read only if a decoder fails to instantiate: PDF.js then imports a
     // JavaScript fallback from this base. A data URL holding a comment makes
     // that import an inert module rather than a request.

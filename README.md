@@ -1,6 +1,8 @@
 <img src="assets/logo.svg" alt="" width="72" align="left" hspace="12" />
 
-# Cirta
+# Ciirta
+
+> **Ciirta was called Cirta until October 2026.** The package and the command are now `ciirta`, the report schema `ciirta.report/1`, the service's headers `X-Ciirta-*`, the variables `CIIRTA_*`. The page keeps what your browser stored under the old name. The repository keeps its address until it is renamed.
 
 Inspects and strips provenance metadata from **PDF, Office and OpenDocument files, SVG, HTML and
 Markdown**, the **Exif in embedded pictures**, and the **invisible Unicode** in text. It also
@@ -66,7 +68,7 @@ Prefer a terminal, or a whole folder at once? [Jump to the command line](#comman
 | **What the clipboard carries** | Pasting into the Text tab also reads the HTML version the clipboard offered next to the text: the class names and `data-` attributes of the page it was copied from, the fonts and inline styles, a `generator` it names, and the page's address when the clipboard records it. A rich mail editor keeps part of that markup when you paste into it directly; the tab keeps only the text, and "Copy the cleaned text" puts only text back on the clipboard. Nothing names an application unless the HTML itself does — a class name is shown, not interpreted |
 | **Mathematical alphanumerics** | 𝘂𝗿𝗴𝗲𝗻𝘁 reads as "urgent" to a person and matches nothing for a filter or a search. Reported with what it folds back to, never rewritten — in a formula the notation is the meaning |
 | **Deceptive links** | Hostnames written in a lookalike alphabet — `аррӏе.com` in Cyrillic renders pixel-for-pixel as `apple.com` and mixes no scripts at all, which is how it got past every browser in 2017. Also mixed-alphabet hostnames, invisible characters inside a domain, and the `@` trick where the recognisable part of a URL is a username the browser discards. **Links that run or bounce**: `javascript:` links, `data:` links that carry a whole page, and **open redirectors** — `google.com/url`, `l.facebook.com`, Outlook safelinks and nine others, the destination decoded and named; any other site passing an address to another host in `url=`, `next=`, `redirect=`… is reported as probable. Link text showing one address on a link to another, in HTML pages and Markdown as in mail. **Reported, never rewritten** |
-| **File names that lie** | In archives, mail and Outlook attachments, PDF attachments and embedded packages: a **right-to-left override** (`invoice‮fdp.exe` displays as `invoiceexe.pdf` — the report says what it shows and what it really ends in), a **double extension** hiding a program (`facture.pdf.exe`, or spaces before `.scr`), invisible characters and mixed alphabets in a name, and **archive members that climb out of their folder** (`../`, `/etc/`, `C:\` — zip slip). Cirta never extracts; the names are reported for whoever will |
+| **File names that lie** | In archives, mail and Outlook attachments, PDF attachments and embedded packages: a **right-to-left override** (`invoice‮fdp.exe` displays as `invoiceexe.pdf` — the report says what it shows and what it really ends in), a **double extension** hiding a program (`facture.pdf.exe`, or spaces before `.scr`), invisible characters and mixed alphabets in a name, and **archive members that climb out of their folder** (`../`, `/etc/`, `C:\` — zip slip). Ciirta never extracts; the names are reported for whoever will |
 | Lookalike letters | Words mixing two scripts (`pаssword` with a Cyrillic `а`) or two widths (`Ａdmin`) — **reported, never replaced** |
 | Unicode normalisation | A document containing both `é` (U+00E9) and `e`+U+0301 — same rendering, two encodings, **one free bit per accented letter** |
 | Hyphen lookalikes | U+2010, U+2011, U+2012, U+2212 — indistinguishable from `-` on screen. Em and en dashes are excluded: they are visible and correct in typography. The minus sign U+2212 is not reported where it is arithmetic — between spaced operands (`x − y`) or before a number (`−5 °C`) — only where a hyphen would be, inside a word |
@@ -147,7 +149,7 @@ scheme — the one every "invisible watermark" library on npm implements — use
 binary digits. A `KGX-2026` hidden behind a signature is 64 invisible characters that look like
 nothing until you read them back as bits.
 
-Cirta tries **both polarities** (no standard says which of the two means 1) and additionally reads a
+Ciirta tries **both polarities** (no standard says which of the two means 1) and additionally reads a
 four-symbol alphabet as base-4. Two guards, both of which came from a failing test:
 
 - The threshold counts **bits, not characters**. A 24-character floor silently discarded a five-byte
@@ -166,7 +168,7 @@ the IPTC vocabulary. It is what C2PA carries in its `c2pa.actions` assertion, an
 AI Act's transparency obligations are written around. An honest tool writes there that it generated
 the content — a URI, in the metadata, meant to be read.
 
-Cirta reads it in the XMP packet, in the C2PA assertion, in OOXML and ODF parts, and in the body of
+Ciirta reads it in the XMP packet, in the C2PA assertion, in OOXML and ODF parts, and in the body of
 text and markup. The vocabulary is distinguished term by term, because the terms do not mean the same
 thing: `trainedAlgorithmicMedia` is a generative model, `algorithmicMedia` is a program that is not
 necessarily a model, `digitalCapture` is a camera.
@@ -224,13 +226,13 @@ The same reasoning applies to the other two containers, each in its own vocabula
   *"… despite meta:generator naming LibreOffice/7.5"*.
 
 These **structural** findings survive cleaning by definition: they describe how the file is built,
-and a cleaning tool does not rebuild the file. A file cleaned by Cirta therefore keeps reporting
+and a cleaning tool does not rebuild the file. A file cleaned by Ciirta therefore keeps reporting
 them — that is the honest state of the file, not a failure of the cleaning. The only way to change a
 document's shape is to remake it in the application whose shape you want.
 
 And the cleaning is held to the same standard: emptying metadata without removing it would leave a
 trace nobody else produces — a present-but-empty `/Info` in a PDF, an empty `<meta:generator/>` in an
-ODF. Cirta **removes** those elements rather than blanking them, and reports the "cleaned by somebody
+ODF. Ciirta **removes** those elements rather than blanking them, and reports the "cleaned by somebody
 else" shape when it meets it:
 
 ```
@@ -285,7 +287,7 @@ It leaks in pieces: a producer string naming the library, a template path carryi
 system and the account name, a working directory under a session identifier. Individually these look
 innocuous; cross-referenced, they describe the machine the file was built on.
 
-Cirta does that cross-referencing and says explicitly where each inference came from:
+Ciirta does that cross-referencing and says explicitly where each inference came from:
 
 ```
 confirmed  provenance   Document generated programmatically  python-pptx
@@ -322,7 +324,7 @@ mean whatever the font says they mean. And as soon as text carries an accent, th
 flux" then appears in the stream as `<000100020003…>`, and looking for a zero-width space there never
 finds anything.
 
-The reverse mapping is in the file: every such font carries a `/ToUnicode` table. Cirta reads it,
+The reverse mapping is in the file: every such font carries a `/ToUnicode` table. Ciirta reads it,
 follows the `Tf` operator to know which font is active at each moment, and decodes. Measured on a
 stealth corpus rendered to PDF with an embedded font: **2067 characters out of 2088 recovered**, and
 the 21 missing had never been written — the font had no glyph for them, so they were lost at
@@ -377,7 +379,7 @@ Emoji joiners and Persian and Indic non-joiners are preserved in bodies as every
 
 **Typographic spaces are kept, everywhere.** A no-break space before a colon is correct French
 typography: normalising it would degrade the text. It is reported as `informational` and left in
-place — in documents, in text files, and in the Text tab and `cirta text --clean` too, which say how
+place — in documents, in text files, and in the Text tab and `ciirta text --clean` too, which say how
 many they kept. Replacing them is a choice: `--normalize-spaces`, or the checkbox next to "Clean".
 
 **The PDF case is weaker, and structurally so.** A PDF string operand contains glyph codes, not
@@ -403,7 +405,7 @@ invisible text mode, at half a point or past the edge of the page is absent for 
 there for all of those. That is how instructions to AI reviewers were hidden in research preprints in
 2025, how a CV slips a line to an automated screener, and how a redaction fails.
 
-**PDF — the page is rendered and looked at.** Cirta renders each page with
+**PDF — the page is rendered and looked at.** Ciirta renders each page with
 [PDF.js](https://github.com/mozilla/pdf.js) and asks, letter by letter, whether there is any ink where
 the text layer says there is text. It is the method of Free Law Project's
 [x-ray](https://github.com/freelawproject/x-ray), which looks for bad redactions, applied to every way
@@ -542,7 +544,7 @@ nothing at all.
 
 **The C2PA manifest is read, not verified.** Its presence is a fact about the bytes, hence
 `confirmed`. The `claim_generator` inside it is, however, the producer's *assertion*: checking that
-it is authentic would mean walking a certificate chain up to the C2PA trust list, which Cirta does
+it is authentic would mean walking a certificate chain up to the C2PA trust list, which Ciirta does
 not do. Anyone can write a manifest crediting anyone — hence the `probable` level and the explicit
 mention in the value.
 
@@ -580,7 +582,7 @@ Each item therefore carries its own level, and reports are sorted accordingly.
 |---|---|
 | Invisible characters | **Yes** — detection, payload decoding, removal |
 | C2PA metadata in files | **Yes** for *hard binding* (the manifest in the container). *Soft binding* — a mark in the content itself — is neither detected nor removed |
-| Bias in token selection | **No**, and structurally so. Anthropic states that future Claude models carry one (a version of SynthID-Text), under the EU transparency code in force since 2 August 2026; earlier models follow over the coming months. Reading it needs their key, and the announced detection API is not published. Cirta instead reports what a silent report is worth at this length — see below |
+| Bias in token selection | **No**, and structurally so. Anthropic states that future Claude models carry one (a version of SynthID-Text), under the EU transparency code in force since 2 August 2026; earlier models follow over the coming months. Reading it needs their key, and the announced detection API is not published. Ciirta instead reports what a silent report is worth at this length — see below |
 
 ## What it does not do, and why
 
@@ -615,7 +617,7 @@ production use"*. Anthropic, for their part, write: *"We will soon be offering a
 API. We're in the process of working out the details of its implementation."*
 
 **2. The tokens.** The g-values are computed over token identifiers, not characters. That would mean
-shipping the model's exact tokenizer — and Cirta is TypeScript running in a tab with no network
+shipping the model's exact tokenizer — and Ciirta is TypeScript running in a tab with no network
 calls.
 
 #### A statistical watermark is *not* an invisible character
@@ -646,7 +648,7 @@ one right answer. Code is the systematic case: *"code—which in very many cases
 generally less watermarking"*, though the **comments** inside it are ordinary prose and can carry it.
 
 A text's factual density cannot be measured without a model, and inventing a number would be exactly
-what this project refuses. **Code can be.** Cirta therefore recognises source and counts:
+what this project refuses. **Code can be.** Ciirta therefore recognises source and counts:
 
 ```
 room        Reads as source: 153 non-blank lines, 109 of them comment (71%).
@@ -685,7 +687,7 @@ Anthropic announce their own drop-a-file C2PA checker. That is exactly the prope
 to give up.
 
 Consequently, a local tool — this one included — can neither confirm the presence of such a watermark
-nor prove its absence after processing. Cirta does not claim to. Be wary of services that do: without
+nor prove its absence after processing. Ciirta does not claim to. Be wary of services that do: without
 the key they have no way to verify what they announce, in either direction.
 
 Cleaning the invisible characters out of a text **has no effect** on a statistical watermark.
@@ -697,7 +699,7 @@ sets out three explicit limits, and none of them goes the way you would expect:
 
 1. **A detected mark does not prove authorship.** It indicates the content *may have been processed*
    by the model — not that the model wrote it.
-2. **The absence of a mark does not prove human origin.** This is exactly what Cirta's "statistical
+2. **The absence of a mark does not prove human origin.** This is exactly what Ciirta's "statistical
    watermark" block exists to say: a silent report on a short text means almost nothing.
 3. **Translation and summarising do stamp text of human origin; proofreading barely does.** The
    distinction is fine and I had it inverted before reading the source. A translation is fully
@@ -720,7 +722,7 @@ human paraphrasing still left the watermark detectable after roughly **800 obser
 Reliability is a function of length: a short excerpt looks clean, a long document accumulates
 residual n-grams.
 
-That is why Cirta offers no rewriting layer. It could only produce an unverifiable claim, and the
+That is why Ciirta offers no rewriting layer. It could only produce an unverifiable claim, and the
 literature indicates the claim would be false on long documents. For an email you read over and sign,
 length is already on your side without any tooling.
 
@@ -731,7 +733,7 @@ paraphrase becomes markedly harder.
 
 ### What can still be said about token bias
 
-No local verdict is possible, and Cirta gives none. But it reports the variable that actually governs
+No local verdict is possible, and Ciirta gives none. But it reports the variable that actually governs
 whether such a mark is readable: **length**. Detection is a hypothesis test over token choices, and
 its statistical power grows with the number of tokens observed. "We found nothing" therefore does not
 mean the same thing at 80 tokens and at 8000 — and a report that does not say which invites the
@@ -773,7 +775,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | PNG | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, C2PA `caBX`, data after `IEND`; with `--reencode-images`, every chunk but the picture and its profile | `IHDR`, `PLTE`, `IDAT`, `IEND`, `iCCP` |
 | Email | Header lines that name a tool: `X-Mailer`, `User-Agent`, `X-Generated-By`, and unknown `X-` headers — the whole line, not its value; with `--strip-active`, the HTML parts and HTML or SVG attachments cleaned as HTML, each encoded again as it was (base64, quoted-printable) | `From`, `To`, `Subject`, `Date`, `Message-ID` — they are the message, and threading breaks without them |
 | WebP / GIF | WebP: `EXIF`, `XMP ` and private chunks, the `VP8X` flags that announced them, data past the RIFF size. GIF: comments, XMP and other application blocks, data after the trailer | The picture, its animation, the loop count (`NETSCAPE2.0`) and the colour profile |
-| TIFF / HEIC / AVIF | **Nothing** — refused (`image-not-rewritable`), with what to do: export it as JPEG or PNG and clean that copy | Every value sits at an absolute offset; taking one out means rewriting the structure, and Cirta would rather refuse than damage the picture |
+| TIFF / HEIC / AVIF | **Nothing** — refused (`image-not-rewritable`), with what to do: export it as JPEG or PNG and clean that copy | Every value sits at an absolute offset; taking one out means rewriting the structure, and Ciirta would rather refuse than damage the picture |
 | RTF | The `\info` group, the generator, custom properties, the template path, the revision identifiers (the table and every `\…rsid` word); the names in the revision table and on comments become `Author`; pictures lose their metadata; with `--strip-active`, each object is replaced by the picture shown in its place. The file is rewritten group by group, never by a pattern over the text | The text, its formatting, the fields — a link is the document's own, and is named as still there |
 | EPUB | Creator, contributors, publisher, date, calibre's metas and the generator, the metas refining what was removed, the NCX author, calibre's bookmarks and Apple's purchase record; every page through the HTML clean, every picture stripped. The unique identifier becomes a UUID derived from the cleaned content, mirrored in the NCX; `dcterms:modified` is dated 1980-01-01; repacked with the `mimetype` first and stored. **A book under DRM is refused** (`epub-encrypted`): its pages cannot be read, so they cannot be cleaned | The title, the language and an ISBN — what a reader and a library need |
 | Visio | As for Word: the package properties, the comment authors (`Author`) and their accounts, the pictures, invisible characters in the shapes' text | Linked data and shape hyperlinks: the drawing's content, named as still there |
@@ -783,7 +785,7 @@ density, not tokenized — no tokenizer ships with the package — so the count 
 | MP4 / QuickTime / M4A | `udta`, `meta` and the XMP `uuid` become **`free` boxes of the same size**, zero-filled, and the header dates are set to zero ("unknown"): **no byte of the media moves**, every chunk offset stays right, the copy is the same length | The picture, the sound, the tracks; the compressor's name, part of the track description (informational); and what an encoder wrote **inside the video stream** — x264 puts its version and settings in an SEI message of the first frame: picture data, neither read nor touched |
 | MP3 | Every ID3v2 tag in front, APEv2 and ID3v1 behind | **The audio frames, byte for byte**, and the encoder's LAME/Xing header — part of the stream, a player reads it for gapless playback (informational) |
 | WAV | `LIST INFO`, `LIST adtl`, `bext`, `iXML`, `_PMX`, `id3`, `cart`; the RIFF size written again. **An RF64 file** (past 4 GB, sizes in 64 bits) **is refused** (`media-not-rewritable`) | The format, **the samples**, the cue points (positions, not words) |
-| TAR / gzip / 7z | **Nothing** — refused (`archive-inspect-only`): rebuilding one means choosing owners, dates and modes for each file, which Cirta will not decide for you | Extract it, clean the files, and archive them again — or as a ZIP, which Cirta cleans |
+| TAR / gzip / 7z | **Nothing** — refused (`archive-inspect-only`): rebuilding one means choosing owners, dates and modes for each file, which Ciirta will not decide for you | Extract it, clean the files, and archive them again — or as a ZIP, which Ciirta cleans |
 | ZIP | **Each member** it supports, with the same options, an archive inside it in turn; repacked in its order, every member dated 1980-01-01. **One member it cannot clean — a program, a legacy Office file, an encrypted PDF — and the archive is refused**, naming each | The members' order and names |
 | DOC / XLS / PPT / MSG | **Nothing** — refused, with the reason and what to do: save it as `.docx`/`.xlsx`/`.pptx` (a message as `.eml`) and clean that copy | Rebuilding a compound file (its sector table, its directory, and for Word the offsets that point between streams) is not something this tool can verify it did without damage |
 | Jupyter notebook | The notebook's metadata but for the kernel and language (Jupyter needs them to run it), cell metadata but for what changes how a cell shows (`tags`, `collapsed`, `jupyter`…), the metadata of every picture in the outputs and attachments; with `--clear-outputs`, the outputs and execution counts | The outputs, by default: they are what the author computed, and what they still say — a path, an account — is named as still there |
@@ -824,10 +826,10 @@ deciding what to clean:
 | Where | In the choice of words | In the file's metadata — *"Nothing in the file changes"* |
 | Survives copy-paste | **Yes** | No: copied text leaves the file behind |
 | Survives a re-save | Yes | **No** — conversion, resizing, a screenshot strip it without a trace |
-| Cirta can read it | No (key) | **Yes** |
-| Cirta can remove it | No | **Yes** |
+| Ciirta can read it | No (key) | **Yes** |
+| Ciirta can remove it | No | **Yes** |
 
-The consequence, which Cirta now states when it removes a manifest: **its absence from a file proves
+The consequence, which Ciirta now states when it removes a manifest: **its absence from a file proves
 nothing**. Any pass through an editor erased it, without intent. A check reading "no credential,
 therefore not AI" would be wrong about most files in the world.
 
@@ -836,12 +838,12 @@ therefore not AI" would be wrong about most files in the world.
 Removing a C2PA manifest does not make a file "clean" — it makes it **unknown**. A verifier
 distinguishes three states: valid manifest (provenance proven), altered manifest (verification fails,
 tampering visible), absent manifest (no conclusion). Where C2PA becomes common, absence becomes a
-signal in itself. Cirta reports every manifest removal explicitly rather than doing it silently.
+signal in itself. Ciirta reports every manifest removal explicitly rather than doing it silently.
 
 A second point, more rarely said: C2PA defines two binding modes. *Hard binding* is the signed
-manifest in the container — that is the one Cirta removes, and the removal is verifiable. *Soft
+manifest in the container — that is the one Ciirta removes, and the removal is verifiable. *Soft
 binding* is an imperceptible mark in the content itself, letting a verifier fetch the manifest
-remotely. **A removed manifest therefore does not mean no provenance remains.** Cirta says so in its
+remotely. **A removed manifest therefore does not mean no provenance remains.** Ciirta says so in its
 cleaning report.
 
 ### Content options — opt-in, each one announced
@@ -867,12 +869,12 @@ report says what it changed — or why it did not.
 | `--profile <name>` | Sets the options and the `--fail-on` threshold in one word. `minimal`: metadata only, the document reads as before; fails on confirmed. `balanced`: also what the file does or fetches — `--strip-active`, `--strip-remote-resources`, `--strip-tracking-params`; fails on confirmed. `strict`: every option above; fails on probable — it needs the renderer and the image codec. Options given explicitly are added; an explicit `--fail-on` wins. The page offers the same three under "Advanced options" | All |
 | `--reencode-images` | Rebuilds the picture from its decoded pixels: data after the end, private segments and chunks, comments and thumbnails go; the EXIF orientation is applied to the pixels and the ICC profile kept. Needs the native canvas (the page uses the browser's); without it the clean is refused. A lossless PNG keeps every pixel value, so a message in their low bits survives | JPEG, PNG |
 | `--report <file>` | Writes the report as an HTML page (`.html`) or Markdown (`.md`), in the reader's language, **values included**; any other extension is refused | `inspect` |
-| `--manifest <file>` | Writes a chain-of-custody manifest: SHA-256 and size before and after, the findings before and after **by label and location, never by value**, the options, Cirta's version and the time | All |
+| `--manifest <file>` | Writes a chain-of-custody manifest: SHA-256 and size before and after, the findings before and after **by label and location, never by value**, the options, Ciirta's version and the time | All |
 
 ```
-cirta redact deck.pptx --remove-notes --remove-hidden-slides
-cirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attachments
-cirta verify contrat.clean.pdf
+ciirta redact deck.pptx --remove-notes --remove-hidden-slides
+ciirta redact contrat.pdf --burn-redactions --flatten-annotations --remove-attachments
+ciirta verify contrat.clean.pdf
 ```
 
 On the page, the same options sit under **"Advanced options"**, off by default and remembered in that
@@ -884,7 +886,7 @@ code point** (`Bonjour⟨U+200B⟩`), since what a clean removes is mostly what 
 
 ### For pipelines and agents
 
-**`cirta sanitize-for-llm <file>`** puts Cirta in front of a RAG, an automatic summary or a CV screener.
+**`ciirta sanitize-for-llm <file>`** puts Ciirta in front of a RAG, an automatic summary or a CV screener.
 It prints the text of the document **as a person reading it sees it** — hidden runs, text under a
 shape, comments, `<noscript>` and `<template>`, speaker notes, hidden slides, sheets and rows, tracked
 deletions and invisible characters left out — and lists, on stderr, the instructions to an AI it found
@@ -898,11 +900,11 @@ not every page could be rendered in time, no text is produced rather than text t
 hidden.
 
 ```
-cirta sanitize-for-llm cv.docx > cv.txt              # the text, on stdout
-cirta sanitize-for-llm --json --fail-on-instructions inbox/*.pdf
+ciirta sanitize-for-llm cv.docx > cv.txt              # the text, on stdout
+ciirta sanitize-for-llm --json --fail-on-instructions inbox/*.pdf
 ```
 
-**`cirta mcp`** runs a Model Context Protocol server on stdio, so an agent can check a document before
+**`ciirta mcp`** runs a Model Context Protocol server on stdio, so an agent can check a document before
 reading it. Its tools are `inspect_file`, `redact_file` (writes `<name>.clean.<ext>` beside the
 original, never overwriting unless asked, or at `output`), `sanitize_for_llm` and `scan_text`. It reads and
 writes local files and opens no connection.
@@ -915,10 +917,10 @@ in one could otherwise have it inspect `~/.ssh/id_rsa` or write over a file anyw
 explicitly: a desktop client may start the server in `/`.
 
 ```
-claude mcp add cirta -- node /path/to/Cirta/dist/cli/index.js mcp --root ~/Documents      # Claude Code
+claude mcp add ciirta -- node /path/to/Cirta/dist/cli/index.js mcp --root ~/Documents      # Claude Code
 ```
 ```json
-{ "mcpServers": { "cirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp", "--root", "/home/me/Documents"] } } }
+{ "mcpServers": { "ciirta": { "command": "node", "args": ["/path/to/Cirta/dist/cli/index.js", "mcp", "--root", "/home/me/Documents"] } } }
 ```
 
 ### Personal data and the organisation's rules — on request
@@ -971,8 +973,8 @@ A program that calls the library runs the rules in its own thread unless it pass
 (`budgetedRules` over its own workers): the refusal at reading applies either way.
 
 ```
-cirta inspect --pii --rules regles.yaml dossier/
-cirta verify --rules regles.yaml rapport.clean.pdf
+ciirta inspect --pii --rules regles.yaml dossier/
+ciirta verify --rules regles.yaml rapport.clean.pdf
 ```
 
 ## Web interface
@@ -993,7 +995,7 @@ sit in the fragment, which the browser never sends, so the server does not learn
 came for; an unknown value is ignored (`test/web-preset.test.ts`).
  Drop several files and a summary bar appears — the same tally as the
 CLI's `Summary` line — with a JSON export of the report. That export has exactly the shape
-`cirta inspect --json` emits, so a report produced from the page and one produced on the command line
+`ciirta inspect --json` emits, so a report produced from the page and one produced on the command line
 compare without translation. Analysis runs in a *worker*: a large PDF does not freeze the tab, and a
 worker is another thread of the same page, not another machine.
 
@@ -1001,7 +1003,7 @@ worker is another thread of the same page, not another machine.
 command line would take from it — the same extensions, the same tool directories skipped
 (`node_modules`, `.git`…) — and says how many it left out. **Clean all** runs every file through the
 cleaner with the advanced options and downloads one ZIP: the folder's paths kept, every member dated
-1980-01-01, and `cirta-manifest.json` — each file's SHA-256 and findings before and after, by label and
+1980-01-01, and `ciirta-manifest.json` — each file's SHA-256 and findings before and after, by label and
 never by value. **A file that cannot be cleaned is left out of the archive** and named, in the manifest
 with its refusal code and on the page with the reason.
 
@@ -1037,7 +1039,7 @@ and every hash in `SHA256SUMS` and in the page.
 "No network requests" is enforced, not promised. The built page carries a Content-Security-Policy
 with `connect-src 'none'`, so the browser refuses any fetch, XHR, WebSocket or beacon from it. A
 worker does not inherit a page's policy, and the worker runs PDF.js, which has network code of its
-own that Cirta never calls; so before loading anything the worker removes `fetch`, `XMLHttpRequest`,
+own that Ciirta never calls; so before loading anything the worker removes `fetch`, `XMLHttpRequest`,
 `WebSocket`, `EventSource` and `WebTransport` from its own scope. The PDF renderer is a separate
 chunk the worker requests as soon as it starts, while the page is idle — disconnect after that and
 everything still works. The service worker is the one piece that fetches, and only the site's own
@@ -1058,7 +1060,7 @@ script the policy allows by its hash, so a page set to light does not flash dark
 `scripts/a11y.mjs` audits the built site: axe-core in Chromium, both languages, light and dark from the
 system and each one forced against it, with results on screen and every section open; then the
 keyboard walk, the announcements, the theme and the 320px width. CI runs it on every push. It needs two
-packages Cirta does not depend on, installed for the run only:
+packages Ciirta does not depend on, installed for the run only:
 
 ```bash
 npm run build:web
@@ -1088,10 +1090,10 @@ else works and the report says the pages were not rendered.
 ```bash
 npm install
 npm run build
-npm link          # makes the `cirta` command available
+npm link          # makes the `ciirta` command available
 ```
 
-Or a single file with no Node to install: [`node scripts/build-sea.mjs`](#releases-binaries-and-the-performance-budget) builds one for the system it runs on. `cirta --version` says which version you have.
+Or a single file with no Node to install: [`node scripts/build-sea.mjs`](#releases-binaries-and-the-performance-budget) builds one for the system it runs on. `ciirta --version` says which version you have.
 
 Output is **bilingual**: it follows `LC_ALL`/`LC_MESSAGES`/`LANG`, and `--lang fr|en` overrides. The
 default is English, unlike the web page's — a terminal with no locale set is a server or a CI runner,
@@ -1103,48 +1105,48 @@ equivalents rather than producing mojibake.
 
 ```bash
 # Report the metadata carried by files
-cirta inspect report.pdf presentation.pptx
+ciirta inspect report.pdf presentation.pptx
 
 # Audit a whole folder before sending — recursive, with a verdict at the end
-cirta inspect ./deliverables
+ciirta inspect ./deliverables
 
 # Dependency and build directories are skipped (node_modules, .git, dist, target,
 # .venv…), otherwise an ordinary repository drowns the report: on this one,
 # 118 of the 125 files found came from node_modules.
-cirta inspect . --skip fixtures,vendor
+ciirta inspect . --skip fixtures,vendor
 
 # Text and source files go through the same path
-cirta inspect src/
+ciirta inspect src/
 
 # Write a cleaned copy (report.clean.pdf by default)
-cirta redact report.pdf
-cirta redact report.pdf -o cleaned.pdf
-cirta redact ./deliverables --in-place      # keeps a .bak
-cirta redact cv.docx --remove-hidden        # also takes out text a reader cannot see
-cirta redact contrat.docx --accept-changes  # accepts tracked changes: deleted text leaves the file
-cirta redact classeur.xlsx --remove-comments # removes every comment, its author and its thread
+ciirta redact report.pdf
+ciirta redact report.pdf -o cleaned.pdf
+ciirta redact ./deliverables --in-place      # keeps a .bak
+ciirta redact cv.docx --remove-hidden        # also takes out text a reader cannot see
+ciirta redact contrat.docx --accept-changes  # accepts tracked changes: deleted text leaves the file
+ciirta redact classeur.xlsx --remove-comments # removes every comment, its author and its thread
 
 # Machine-readable output
-cirta inspect report.pdf --json
+ciirta inspect report.pdf --json
 
 # Text on standard input
-cirta text < draft.txt
-cirta text --clean < draft.txt > clean.txt
+ciirta text < draft.txt
+ciirta text --clean < draft.txt > clean.txt
 
 # The gate before a file goes out: inspect again, exit 1 if anything confirmed is left
-cirta verify rapport.clean.docx                 # PASS / FAIL, the findings left listed
-cirta verify --fail-on probable --json outbox/   # stricter, machine-readable
-cirta text --clean --normalize-spaces < draft.txt   # also replaces no-break and narrow spaces
-cirta text --lang fr < draft.txt
+ciirta verify rapport.clean.docx                 # PASS / FAIL, the findings left listed
+ciirta verify --fail-on probable --json outbox/   # stricter, machine-readable
+ciirta text --clean --normalize-spaces < draft.txt   # also replaces no-break and narrow spaces
+ciirta text --lang fr < draft.txt
 
 # The binary guard refuses a document; --force-text overrides it if you know
 # what you are doing (it is deliberately coarse, therefore fallible)
-cirta text --force-text < odd.bin
+ciirta text --force-text < odd.bin
 
 # Clipboard, depending on the system
-pbpaste | cirta text --clean | pbcopy                    # macOS
-xclip -o -sel clip | cirta text --clean | xclip -i -sel clip   # Linux
-Get-Clipboard | cirta text --clean | Set-Clipboard        # Windows
+pbpaste | ciirta text --clean | pbcopy                    # macOS
+xclip -o -sel clip | ciirta text --clean | xclip -i -sel clip   # Linux
+Get-Clipboard | ciirta text --clean | Set-Clipboard        # Windows
 ```
 
 ### Running it in a pipeline
@@ -1155,8 +1157,8 @@ rather than in a report nobody opens. `--fail-on <level>` turns them into a
 gate.
 
 ```bash
-cirta inspect . --sarif > cirta.sarif
-cirta inspect . --fail-on confirmed    # exit 1 if any verbatim identifying data
+ciirta inspect . --sarif > ciirta.sarif
+ciirta inspect . --fail-on confirmed    # exit 1 if any verbatim identifying data
 ```
 
 Without `--fail-on` a scan reports and still succeeds: scanning is not the same
@@ -1174,13 +1176,13 @@ output (`[]` in JSON, an empty run in SARIF). Outside a repository, or with a
 ref git does not know, it says so and exits 2.
 
 ```bash
-cirta inspect --changed-only --fail-on confirmed           # the staged files
-cirta inspect docs --changed-only --base origin/main --sarif
+ciirta inspect --changed-only --fail-on confirmed           # the staged files
+ciirta inspect docs --changed-only --base origin/main --sarif
 ```
 
 **pre-commit.** The repository is a [pre-commit](https://pre-commit.com) hook
 repository: the commit is refused while a staged file carries confirmed
-identifying data. The hook runs the `cirta` on the `PATH` (npm, or a release
+identifying data. The hook runs the `ciirta` on the `PATH` (npm, or a release
 binary), so it is declared `language: system`:
 
 ```yaml
@@ -1189,7 +1191,7 @@ repos:
   - repo: https://github.com/K3E9X/Cirta
     rev: main            # a release tag once there is one
     hooks:
-      - id: cirta
+      - id: ciirta
 ```
 
 **GitHub Action.** `uses: K3E9X/Cirta@main` inspects the files a pull request
@@ -1201,15 +1203,15 @@ Inputs: `base`, `paths`, `fail-on`, `upload-sarif`, `sarif-file`. A complete
 workflow: [`examples/github-action.yml`](examples/github-action.yml) — it needs
 `fetch-depth: 0`, to tell what the pull request changed.
 
-### A folder watched: `cirta watch`
+### A folder watched: `ciirta watch`
 
 For an outbox, a shared drop folder, a scanner's output: every file that arrives is inspected as it
 arrives.
 
 ```bash
-cirta watch ./outbox                     # inspection only: the files are not changed
-cirta watch ./outbox --json              # one line of JSON per file, the same report as inspect --json
-cirta watch ./outbox --clean -o ./ready  # a cleaned copy of each file in ./ready, under its path
+ciirta watch ./outbox                     # inspection only: the files are not changed
+ciirta watch ./outbox --json              # one line of JSON per file, the same report as inspect --json
+ciirta watch ./outbox --clean -o ./ready  # a cleaned copy of each file in ./ready, under its path
 ```
 
 - The folder is looked at again every second (`--interval <seconds>`) rather than through file-system
@@ -1218,7 +1220,7 @@ cirta watch ./outbox --clean -o ./ready  # a cleaned copy of each file in ./read
   changed later, it is read again.
 - **Never in place.** `--clean` needs `--output`, a folder of its own (left out of the watch if it is
   inside), and `--in-place` is refused: the original may be the very file someone is about to send. A
-  file Cirta does not rewrite — a gzip, a TIFF — is named with the reason and not copied.
+  file Ciirta does not rewrite — a gzip, a TIFF — is named with the reason and not copied.
 - Left out: downloads in progress (`.part`, `.crdownload`…), lock and swap files (`~$…`, `.swp`), hidden
   files but not `.env` and the like, and the folders the command line skips (`node_modules`, `.git`…).
   `--new-only` leaves out what was there when it started. The cleaning options of `redact` apply.
@@ -1229,7 +1231,7 @@ cirta watch ./outbox --clean -o ./ready  # a cleaned copy of each file in ./read
 
 **VS Code** ([`integrations/vscode/`](integrations/vscode/)). A text file is
 inspected when it is opened and saved, and each invisible character is
-underlined at its own line and column; the rest of what Cirta finds goes to the
+underlined at its own line and column; the rest of what Ciirta finds goes to the
 Problems panel. From the Explorer's context menu or the palette, any file — a
 `.docx`, a PDF — can be inspected, or written as `name.clean.ext` beside it,
 the original untouched. French or English after the editor's language. The
@@ -1249,10 +1251,10 @@ attaches it. It is not in the browser stores.
 
 **Thunderbird** (128 or later, [`integrations/thunderbird/`](integrations/thunderbird/)). When a message
 is sent, each attachment is read first. If one carries a confirmed finding — an author, an account, a
-path on the sender's disk — sending is held back and the panel of Cirta's button in the compose window
+path on the sender's disk — sending is held back and the panel of Ciirta's button in the compose window
 opens: every attachment with what it carries, in Thunderbird's language. **Clean** replaces the
 attachment in the message with the copy the library wrote and read back; **Send as is** lets this
-message go as it is, until its attachments change. A format Cirta reads but does not rewrite is never
+message go as it is, until its attachments change. A format Ciirta reads but does not rewrite is never
 offered for cleaning; one it does not read is said to be unread, not passed as clean; an attachment
 over 50 MB is not read, and the panel says so. One permission, `compose`, and a policy that forbids
 every connection. `node scripts/build-thunderbird.mjs` writes `build/thunderbird/` (load it from
@@ -1268,13 +1270,13 @@ in Thunderbird itself is still to be done.
 ## As a library
 
 ```bash
-npm install /path/to/Cirta   # a built clone; `npm install cirta` once a release is published (see Releases)
+npm install /path/to/Ciirta   # a built clone; `npm install ciirta` once a release is published (see Releases)
 ```
 
 ```js
 import { readFile } from 'node:fs/promises';
-import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'cirta';
-import { nodeXrayEngine } from 'cirta/node'; // optional: renders PDF pages for the hidden-text check
+import { inspectFile, redactFile, sanitizeForLlm, scanText } from 'ciirta';
+import { nodeXrayEngine } from 'ciirta/node'; // optional: renders PDF pages for the hidden-text check
 
 const bytes = new Uint8Array(await readFile('cv.pdf'));
 const xray = await nodeXrayEngine();
@@ -1290,9 +1292,9 @@ line has is an option of `redactFile`. Refusals are `UnsupportedFormatError`s wi
 (`unsupported`, `encrypted-pdf`, `legacy-not-rewritable`, `archive-not-rewritable`…), never a bare
 `Error`.
 
-**Versioning.** The package follows semver from 1.0; before it, a minor version may change the API. The JSON report is versioned on its own: every entry of `cirta inspect --json`
-carries `"schema": "cirta.report/1"`, described by [`schema/report.v1.json`](schema/report.v1.json)
-(JSON Schema 2020-12, also exported as `cirta/schema/report.v1.json`), which the test suite validates
+**Versioning.** The package follows semver from 1.0; before it, a minor version may change the API. The JSON report is versioned on its own: every entry of `ciirta inspect --json`
+carries `"schema": "ciirta.report/1"`, described by [`schema/report.v1.json`](schema/report.v1.json)
+(JSON Schema 2020-12, also exported as `ciirta/schema/report.v1.json`), which the test suite validates
 both the command line's output and the library's results against. Version 1 is additive: new formats,
 finding kinds and note codes can appear in it, so a reader must accept values it does not know; a field
 removed or renamed would make it version 2.
@@ -1300,8 +1302,8 @@ removed or renamed would make it version 2.
 ### One file, for the tools that embed it
 
 `node scripts/build-single.mjs` writes the library as one file with every dependency inside and nothing
-of Node's: `build/single/cirta.mjs`, an ES module, and `build/single/cirta.global.js`, a classic script
-that defines `Cirta`. Each release attaches both, attested. The tests load the module from a folder with
+of Node's: `build/single/ciirta.mjs`, an ES module, and `build/single/ciirta.global.js`, a classic script
+that defines `Ciirta`. Each release attaches both, attested. The tests load the module from a folder with
 no `node_modules` and the script in a context holding only what a browser provides (`TextDecoder`, Web
 Crypto, `structuredClone`); it has also been tried by hand in Bun and in Chromium. About 1.3 MB, not
 minified, so it can be read. What it leaves out is what the library leaves out: the PDF page renderer,
@@ -1315,12 +1317,12 @@ below.
 
 ## As a service: ICAP, HTTP, Docker
 
-`cirta serve` puts the same inspection in front of a web proxy, a mail gateway or an upload service.
+`ciirta serve` puts the same inspection in front of a web proxy, a mail gateway or an upload service.
 
 ```bash
-cirta serve                                  # ICAP on 127.0.0.1:1344, HTTP on 127.0.0.1:8080, inspection only
-cirta serve --block-on confirmed             # refuse a file carrying confirmed identifying data
-cirta serve --host 0.0.0.0 --http off        # ICAP only, on every interface
+ciirta serve                                  # ICAP on 127.0.0.1:1344, HTTP on 127.0.0.1:8080, inspection only
+ciirta serve --block-on confirmed             # refuse a file carrying confirmed identifying data
+ciirta serve --host 0.0.0.0 --http off        # ICAP only, on every interface
 ```
 
 - **ICAP** (RFC 3507), for Squid, a mail gateway, anything that speaks it: `icap://host:1344/respmod` for
@@ -1332,7 +1334,7 @@ cirta serve --host 0.0.0.0 --http off        # ICAP only, on every interface
   started with `--allow-clean`, answered with the cleaned file.
 
 **Inspection only, by default.** Every file goes through untouched — ICAP `204`, or the message sent back
-as it came — and what it carries is reported twice: in `X-Cirta-Verdict` and `X-Cirta-Findings` headers,
+as it came — and what it carries is reported twice: in `X-Ciirta-Verdict` and `X-Ciirta-Findings` headers,
 which a proxy can log, and as one JSON line per file on standard output. That line holds the name, the
 format, the size, the SHA-256, the count per level and the labels; **never a value, never the URL**. With
 `--block-on <level>`, a file carrying a finding at that level is replaced by a `403` page that lists its
@@ -1346,14 +1348,14 @@ page cannot reach it by pointing a name it controls at 127.0.0.1 (DNS rebinding)
 loopback, it answers any name unless `--allowed-host` lists them. It opens no connection to anything
 (`test/no-network.test.ts` checks that `serve.ts` takes nothing but `createServer` from Node's network
 modules). Tried by hand behind Squid 6.14 and with `c-icap-client`: a Word file carrying its author
-blocked on download and on upload, a clean file let through, Squid's log carrying `X-Cirta-Verdict`.
+blocked on download and on upload, a clean file let through, Squid's log carrying `X-Ciirta-Verdict`.
 
 ```squid
 icap_enable on
-icap_service cirta_resp respmod_precache icap://127.0.0.1:1344/respmod bypass=on
-adaptation_access cirta_resp allow all
-icap_service cirta_req reqmod_precache icap://127.0.0.1:1344/reqmod bypass=on
-adaptation_access cirta_req allow all
+icap_service ciirta_resp respmod_precache icap://127.0.0.1:1344/respmod bypass=on
+adaptation_access ciirta_resp allow all
+icap_service ciirta_req reqmod_precache icap://127.0.0.1:1344/reqmod bypass=on
+adaptation_access ciirta_req allow all
 ```
 
 **Docker.** The [`Dockerfile`](Dockerfile) builds a small image of the service: the npm package and its
@@ -1363,10 +1365,10 @@ rest. CI builds it, runs it read-only with every capability dropped, and runs
 [`scripts/smoke-serve.mjs`](scripts/smoke-serve.mjs) against it.
 
 ```bash
-docker build -t cirta .
+docker build -t ciirta .
 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
-  -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 cirta
-docker run … cirta serve --host 0.0.0.0 --block-on confirmed     # with other options
+  -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 ciirta
+docker run … ciirta serve --host 0.0.0.0 --block-on confirmed     # with other options
 ```
 
 ## Processing detail
@@ -1486,7 +1488,7 @@ does not come back as a document is refused rather than written.
 to have been found.
 
 **The libraries keep quiet.** pdf-lib reports a damaged object on the console ("Trying to parse
-invalid object"); those messages are captured, so stderr carries only Cirta's report.
+invalid object"); those messages are captured, so stderr carries only Ciirta's report.
 
 **A file cannot drive the terminal.** A terminal obeys escape sequences, and a document's /Author can
 hold one: retitle the window, erase the line above — a confirmed finding printed and wiped — open a
@@ -1548,7 +1550,7 @@ the project does not hold — so macOS and Windows warn on first launch. What pr
 from is its attestation:
 
 ```bash
-gh attestation verify cirta-linux-x64 -R K3E9X/Cirta
+gh attestation verify ciirta-linux-x64 -R K3E9X/Cirta
 ```
 
 **Performance budget.** `node scripts/perf.mjs` builds, for each of PDF, DOCX, ODT, EPUB, JPEG, PNG,
@@ -1566,7 +1568,7 @@ the README shows it above, and `src/cli/logo.ts` is a transcription of it into c
 terminal cannot display SVG:
 
 ```
-  ╭───────╮   cirta
+  ╭───────╮   ciirta
   │  ╭──  │   inspect and strip provenance metadata from documents
   │  ╰──  │
   ╰───────╯   everything runs locally; no network calls are made
@@ -1581,7 +1583,7 @@ offset either way.
 
 The threat model, and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
-Cirta is pointed at files from people the user has no reason to trust. That is
+Ciirta is pointed at files from people the user has no reason to trust. That is
 the threat model in which a parser bug stops being a crash and becomes a
 vulnerability, and nine modules here take hostile bytes: PDF, ZIP, OOXML, ODF,
 CBOR, JUMBF, image containers, XML and punycode.
@@ -1676,7 +1678,7 @@ assumptions of the parser that reads it back. The one genuinely signed image in 
 (`test/fixtures/signed.jpg`, from c2pa-rs) is what caught the CBOR reader out, when it assumed a
 manifest contains no indefinite-length items.
 
-`scripts/real-files.mjs` goes further: LibreOffice produces a document, Cirta cleans it, LibreOffice
+`scripts/real-files.mjs` goes further: LibreOffice produces a document, Ciirta cleans it, LibreOffice
 reopens the result. Corrupting a Word file is the worst failure available here, and nothing else in
 the suite would notice. The first conversion acts as a control — if LibreOffice cannot even produce
 the input, the script stops and says so rather than failing, because that proves nothing about the
@@ -1686,7 +1688,7 @@ The corpus: `.docx` and `.odt`, tracked changes, comments, active content, a dec
 hidden slide, `.xlsx`, `.ods`, `.pptx`, `.odp` and a PDF — each with an author that must be found, then
 gone from the cleaned copy, which LibreOffice (poppler for the PDF, when installed) must reopen —, a
 `.doc` and a `.ppt` whose clean must be refused, and two notebooks validated by `nbformat` when
-`CIRTA_PYTHON` names a Python that has it. Then LibreOffice's own RTF (reopened with its text), its
+`CIIRTA_PYTHON` names a Python that has it. Then LibreOffice's own RTF (reopened with its text), its
 EPUB (every XML part checked by `xmllint`), a Visio drawing (reopened with its shape text), a GIF and a
 TIFF written by ImageMagick (the GIF decoded again, the TIFF refused), and a LaTeX source compiled by
 `pdflatex` before and after the clean, the typeset text compared. Then ffmpeg's own MP4, QuickTime,
@@ -1699,7 +1701,7 @@ each read as far as it can be and what is not read named. A missing tool is repo
 node scripts/real-files.mjs
 ```
 
-The site's base URL is `/Cirta/` for GitHub Pages; use `CIRTA_BASE=/ npm run build:web` for a custom
+The site's base URL is `/Cirta/` for GitHub Pages; use `CIIRTA_BASE=/ npm run build:web` for a custom
 domain.
 
 ## References

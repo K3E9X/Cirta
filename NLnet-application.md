@@ -1,4 +1,4 @@
-# NLnet / NGI Zero — application draft for Cirta
+# NLnet / NGI Zero — application draft for Ciirta
 
 **Deadline: 3 November 2026, 12:00 CEST.** Grants run roughly €5,000–€50,000.
 
@@ -12,7 +12,7 @@
 
 ## 1. Project name
 
-Cirta
+Ciirta
 
 ## 2. Website / wiki
 
@@ -30,7 +30,7 @@ application presents as deleted while the bytes remain — earlier revisions ins
 a PDF, the uncropped original of a cropped photograph, the source rows cached by
 a pivot table.
 
-Cirta inspects and removes these, entirely on the user's own machine. The web
+Ciirta inspects and removes these, entirely on the user's own machine. The web
 interface makes no network request of any kind; nothing is uploaded. It handles
 PDF, Office Open XML, OpenDocument, SVG, HTML, Markdown, email, archives and
 images, and reports in English and French.
@@ -55,7 +55,7 @@ write.]** Mention, with specifics:
   architecture) and how long;
 - any CVE, advisory, public talk, training, CERT/CSIRT involvement or
   contribution to another open-source project;
-- that Cirta is yours and the full development history is public in the
+- that Ciirta is yours and the full development history is public in the
   repository.
 
 NLnet weighs whether the applicant can actually deliver. Concrete evidence of
@@ -102,7 +102,7 @@ re-inspection of the output, and no account of what was deliberately left alone.
 **AI-detection services** claim what no local tool can support. OpenAI withdrew
 its own text classifier at 26% true positives; Liang et al. (2023) found
 detectors flagging 61% of TOEFL essays by non-native writers as machine-written.
-Cirta deliberately produces no authorship verdict and documents why.
+Ciirta deliberately produces no authorship verdict and documents why.
 
 What is new here is the combination: local-only, honest about its limits by
 construction, and willing to look at the places a document keeps what it claims
@@ -139,7 +139,7 @@ to have removed.
 - Packaging for Debian and Flathub so installation is not a Node toolchain.
 - Write-ups of each finding class, since the most useful outcome is that other
   tools adopt the checks — earlier PDF revisions and cropped-image retention
-  are not Cirta-specific problems.
+  are not Ciirta-specific problems.
 
 ---
 

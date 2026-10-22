@@ -10,7 +10,7 @@
  *   - Invisible characters, and a word mixing two alphabets ("pаypal" with a
  *     Cyrillic "а"), make a name look like another.
  *   - An archive member named "../../x" or "/etc/x" is written outside the
- *     folder it is extracted to ("zip slip"). Cirta never extracts; the name
+ *     folder it is extracted to ("zip slip"). Ciirta never extracts; the name
  *     is reported for whoever will.
  */
 

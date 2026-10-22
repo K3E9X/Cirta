@@ -12,11 +12,11 @@ import { serve, type Service } from '../src/cli/serve.js';
 describe('[F-P3 2.5] the Docker image', () => {
   const dockerfile = readFileSync('Dockerfile', 'utf8');
 
-  it('runs cirta serve as an unprivileged user, inspection only, on every interface of its container', () => {
+  it('runs ciirta serve as an unprivileged user, inspection only, on every interface of its container', () => {
     expect(dockerfile).toMatch(/^FROM node:22[.\d]*-alpine AS build$/m);
     expect(dockerfile).toMatch(/^USER node$/m);
     expect(dockerfile).toMatch(/^EXPOSE 1344 8080$/m);
-    expect(dockerfile).toMatch(/^ENTRYPOINT \["cirta"\]$/m);
+    expect(dockerfile).toMatch(/^ENTRYPOINT \["ciirta"\]$/m);
     expect(dockerfile).toMatch(/^CMD \["serve", "--host", "0\.0\.0\.0"\]$/m);
     // The comments say how to change it; the instructions do not.
     expect(dockerfile.replace(/^#.*$/gm, '')).not.toMatch(/--allow-clean|--block-on/);
@@ -31,8 +31,8 @@ describe('[F-P3 2.5] the Docker image', () => {
   it('is built and smoke-tested in CI', () => {
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
     const job = ci.slice(ci.indexOf('\n  docker:'));
-    expect(job).toMatch(/docker build -t cirta:ci \./);
-    expect(job).toMatch(/docker run -d --name cirta --read-only --cap-drop ALL --security-opt no-new-privileges/);
+    expect(job).toMatch(/docker build -t ciirta:ci \./);
+    expect(job).toMatch(/docker run -d --name ciirta --read-only --cap-drop ALL --security-opt no-new-privileges/);
     expect(job).toMatch(/node scripts\/smoke-serve\.mjs/);
   });
 

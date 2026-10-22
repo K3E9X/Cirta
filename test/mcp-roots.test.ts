@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /*
- * [R4] `cirta mcp` read and wrote any path an agent named: a prompt injected
+ * [R4] `ciirta mcp` read and wrote any path an agent named: a prompt injected
  * into a document could have it clean ~/.ssh/id_rsa into a copy beside it, or
  * write over a file anywhere. Now it answers only inside its roots — the
  * folders given with --root, the current one by default — after following
@@ -28,7 +28,7 @@ async function session(args: string[], calls: Array<Record<string, unknown>>, cw
 
 function layout() {
   // The native call, as the server's: on Windows the plain one keeps the 8.3 short name (RUNNER~1).
-  const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'cirta-r4-')));
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'ciirta-r4-')));
   const inside = join(base, 'dossier');
   const outside = join(base, 'ailleurs');
   mkdirSync(inside);

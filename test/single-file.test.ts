@@ -16,7 +16,7 @@ import { makeDocx } from './fixtures.js';
  */
 
 describe('[F-P3 2.5] the single-file build', () => {
-  const out = mkdtempSync(join(tmpdir(), 'cirta-single-'));
+  const out = mkdtempSync(join(tmpdir(), 'ciirta-single-'));
   let files: { module: string; script: string };
 
   beforeAll(async () => {
@@ -34,30 +34,30 @@ describe('[F-P3 2.5] the single-file build', () => {
 
   it('as a module, from a folder with no node_modules, inspects and cleans a document', () => {
     // Imported by a Node of its own, natively: no test runner resolving anything for it.
-    const alone = mkdtempSync(join(tmpdir(), 'cirta-alone-'));
-    copyFileSync(files.module, join(alone, 'cirta.mjs'));
+    const alone = mkdtempSync(join(tmpdir(), 'ciirta-alone-'));
+    copyFileSync(files.module, join(alone, 'ciirta.mjs'));
     writeFileSync(join(alone, 'rapport.docx'), makeDocx());
     const script = `
       import { readFileSync } from 'node:fs';
-      const cirta = await import(${JSON.stringify(pathToFileURL(join(alone, 'cirta.mjs')).href)});
+      const ciirta = await import(${JSON.stringify(pathToFileURL(join(alone, 'ciirta.mjs')).href)});
       const bytes = new Uint8Array(readFileSync(${JSON.stringify(join(alone, 'rapport.docx'))}));
-      const report = await cirta.inspectFile(bytes, 'rapport.docx');
-      const cleaned = await cirta.redactFile(bytes, 'rapport.docx');
-      console.log(JSON.stringify({ values: report.findings.map((f) => f.value), removed: cleaned.removed.length, schema: cirta.REPORT_SCHEMA }));
+      const report = await ciirta.inspectFile(bytes, 'rapport.docx');
+      const cleaned = await ciirta.redactFile(bytes, 'rapport.docx');
+      console.log(JSON.stringify({ values: report.findings.map((f) => f.value), removed: cleaned.removed.length, schema: ciirta.REPORT_SCHEMA }));
     `;
     const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: alone, encoding: 'utf8' }));
     expect(out.values.some((value: string) => /Lotfi Zakaria/.test(value))).toBe(true);
     expect(out.removed).toBeGreaterThan(0);
-    expect(out.schema).toBe('cirta.report/1');
+    expect(out.schema).toBe('ciirta.report/1');
   });
 
   it('as a classic script, in a context with only what a browser offers', async () => {
     const context = createContext({ TextDecoder, TextEncoder, crypto: globalThis.crypto, atob, btoa, structuredClone, console });
     runInContext(readFileSync(files.script, 'utf8'), context);
-    const cirta = (context as { Cirta: { inspectFile: (data: Uint8Array, hint?: string) => Promise<{ findings: Array<{ value: string }> }> } }).Cirta;
-    const report = await cirta.inspectFile(makeDocx(), 'rapport.docx');
+    const ciirta = (context as { Ciirta: { inspectFile: (data: Uint8Array, hint?: string) => Promise<{ findings: Array<{ value: string }> }> } }).Ciirta;
+    const report = await ciirta.inspectFile(makeDocx(), 'rapport.docx');
     expect(report.findings.some((f) => /Lotfi Zakaria/.test(f.value))).toBe(true);
-    const text = await cirta.inspectFile(new TextEncoder().encode('Bon​jour'), 'note.txt');
+    const text = await ciirta.inspectFile(new TextEncoder().encode('Bon​jour'), 'note.txt');
     expect(text.findings.length).toBeGreaterThan(0);
   });
 

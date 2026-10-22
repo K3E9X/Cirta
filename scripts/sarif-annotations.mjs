@@ -6,7 +6,7 @@
  * reads the SARIF itself, needs Advanced Security on a private repository.
  * A table of the results goes to the run's summary page too.
  *
- *   node scripts/sarif-annotations.mjs cirta.sarif
+ *   node scripts/sarif-annotations.mjs ciirta.sarif
  *
  * The messages come from the documents inspected, so they are escaped as
  * workflow commands require: a value cannot end the command or start another.
@@ -28,7 +28,7 @@ export function annotations(sarif) {
     for (const result of run.results ?? []) {
       const file = result.locations?.[0]?.physicalLocation?.artifactLocation?.uri;
       const command = COMMAND[result.level ?? 'warning'] ?? 'warning';
-      const properties = [file ? `file=${escapeProperty(file)}` : undefined, `title=${escapeProperty(`Cirta: ${names.get(result.ruleId) ?? result.ruleId}`)}`].filter(Boolean).join(',');
+      const properties = [file ? `file=${escapeProperty(file)}` : undefined, `title=${escapeProperty(`Ciirta: ${names.get(result.ruleId) ?? result.ruleId}`)}`].filter(Boolean).join(',');
       lines.push(`::${command} ${properties}::${escapeData(result.message?.text ?? '')}`);
     }
   }
@@ -45,8 +45,8 @@ export function summary(sarif) {
       rows.push(`| ${result.level ?? 'warning'} | ${cell(result.locations?.[0]?.physicalLocation?.artifactLocation?.uri ?? '')} | ${cell(names.get(result.ruleId) ?? result.ruleId)} | ${cell(result.message?.text ?? '')} |`);
     }
   }
-  if (!rows.length) return '### Cirta\n\nNothing found in the files this change touches.\n';
-  return ['### Cirta', '', `${rows.length} finding${rows.length > 1 ? 's' : ''} in the files this change touches.`, '', '| Level | File | Finding | Detail |', '|---|---|---|---|', ...rows, ''].join('\n');
+  if (!rows.length) return '### Ciirta\n\nNothing found in the files this change touches.\n';
+  return ['### Ciirta', '', `${rows.length} finding${rows.length > 1 ? 's' : ''} in the files this change touches.`, '', '| Level | File | Finding | Detail |', '|---|---|---|---|', ...rows, ''].join('\n');
 }
 
 if (process.argv[2]) {

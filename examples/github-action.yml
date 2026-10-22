@@ -1,8 +1,8 @@
-# [F-P2 2.6] Copy to .github/workflows/cirta.yml: every pull request has the
+# [F-P2 2.6] Copy to .github/workflows/ciirta.yml: every pull request has the
 # documents it changes inspected — metadata, hidden text, active content,
 # invisible characters —, each finding annotated on the pull request, and the
 # check fails while a confirmed one is left. Everything runs in the runner.
-name: Cirta
+name: Ciirta
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
   security-events: write
 
 jobs:
-  cirta:
+  ciirta:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

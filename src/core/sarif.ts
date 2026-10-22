@@ -33,7 +33,7 @@ export function ruleId(label: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 60);
-  return `cirta/${slug || 'finding'}`;
+  return `ciirta/${slug || 'finding'}`;
 }
 
 export interface SarifInput {
@@ -88,7 +88,7 @@ export function toSarif(entries: SarifInput[], version?: string): object {
 
   for (const entry of entries) {
     if (entry.error) {
-      const id = 'cirta/unreadable';
+      const id = 'ciirta/unreadable';
       if (!rules.has(id)) {
         rules.set(id, {
           id,
@@ -117,9 +117,9 @@ export function toSarif(entries: SarifInput[], version?: string): object {
       {
         tool: {
           driver: {
-            name: 'Cirta',
+            name: 'Ciirta',
             informationUri: 'https://github.com/k3e9x/Cirta',
-            // The caller's version: the library cannot know which Cirta embeds it.
+            // The caller's version: the library cannot know which Ciirta embeds it.
             ...(version ? { version } : {}),
             rules: [...rules.values()],
           },

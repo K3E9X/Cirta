@@ -28,7 +28,7 @@ await build({
   format: 'cjs',
   target: 'node20',
   external: ['vscode'],
-  define: { CIRTA_VERSION: JSON.stringify(pkg.version) },
+  define: { CIIRTA_VERSION: JSON.stringify(pkg.version) },
   legalComments: 'none',
   logLevel: 'warning',
 });

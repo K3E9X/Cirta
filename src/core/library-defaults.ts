@@ -10,7 +10,7 @@
  * library is otherwise seen in the same file.
  *
  * [R6] An XML entity left unresolved — `&xxe;`, `&lol9;` — is not a name
- * either. Cirta never expands entities (that is the attack); a field whose
+ * either. Ciirta never expands entities (that is the attack); a field whose
  * value is nothing but references is not reported as identity. The DTD that
  * declared them is reported on its own (xml.ts dtdFindings).
  */

@@ -2,7 +2,7 @@
 /**
  * A mutation fuzzer for the parsers that consume untrusted files.
  *
- * Cirta is pointed at documents from people the user has no reason to trust —
+ * Ciirta is pointed at documents from people the user has no reason to trust —
  * an attachment, a download, a file recovered from a compromised share. That is
  * precisely the threat model in which a parser bug stops being a crash and
  * becomes a vulnerability, and nine modules here take hostile bytes: PDF, ZIP,

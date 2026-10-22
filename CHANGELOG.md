@@ -16,11 +16,12 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ### Changed
 
-- **`cirta mcp` stays inside its roots.** It reads and writes only in the folders given with `--root` (repeatable), the current one otherwise, links followed; a path elsewhere — through `..` or a link — and an `output` outside are refused with a JSON-RPC error. A configuration that named files outside the folder the server starts in needs a `--root`. `redact_file` takes `output` (`output_path` is still read).
+- **Cirta is now Ciirta.** The npm package and the command are `ciirta` (`ciirta/node` for the Node engines), the report schema `ciirta.report/1` and the manifest `ciirta.manifest/1`, the service's headers `X-Ciirta-Verdict` and `X-Ciirta-Findings`, the variables `CIIRTA_*`, the browser's keys `ciirta.*` — moved from `cirta.*` on the first visit, nothing lost. The repository and the site keep their addresses until the repository is renamed.
+- **`ciirta mcp` stays inside its roots.** It reads and writes only in the folders given with `--root` (repeatable), the current one otherwise, links followed; a path elsewhere — through `..` or a link — and an `output` outside are refused with a JSON-RPC error. A configuration that named files outside the folder the server starts in needs a `--root`. `redact_file` takes `output` (`output_path` is still read).
 
 ### Fixed
 
-- **Character names begin with a capital** in the report, the page and the MCP tools, in both languages (« Espace sans chasse »); the core's label, in JSON and the library, is unchanged. `--help`'s Scope paragraph says what Cirta reads today, in four lines, in English and with `--lang fr`.
+- **Character names begin with a capital** in the report, the page and the MCP tools, in both languages (« Espace sans chasse »); the core's label, in JSON and the library, is unchanged. `--help`'s Scope paragraph says what Ciirta reads today, in four lines, in English and with `--lang fr`.
 - **Three things reported as someone's identity that are not.** The `AppVersion` of a `.doc` or `.xls` property set (and Office's other bookkeeping properties, in every format with custom properties) is informational provenance. A library's default values — python-docx's author "python-docx", python-pptx's, openpyxl's, ReportLab's "anonymous", "untitled", "unspecified" — are named as *the default value of* that library. A field whose value is only unresolved XML entities (`&xxe;`, `&lol9;`) is no longer an author or a title; the DTD that declared them is reported as *DTD with entities in an XML part (unresolved)*, probable, with the file an external entity names.
 - **French reports of nested files.** A lookalike link or dash in a mail part, an attached message, a text attachment or a file inside a zip kept its explanation in English: the translation looked for the location « links » and found « part 1 (text/plain) → links ». It now reads the last step. A finding the text and HTML versions of a mail share is reported once, with both places.
 - **A cleaned phone photo keeps its orientation.** Cleaning a JPEG took the whole Exif block, so a portrait came out on its side; an Exif holding the orientation alone is written back, and not reported.
@@ -28,9 +29,9 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 ### Security
 
 - **`sanitize-for-llm` says where a deceptive link goes.** A link showing `https://paypal.com/login` on the way to a lookalike domain reached the model as that address. The text now reads `https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, for link text naming another site (HTML, Markdown, a mail's HTML) and addresses in lookalike letters; `--json` and the library carry `deceptiveLinks`, stderr says so, and `--fail-on-deceptive-links` exits 1.
-- **`cirta serve` answers only its own names on the loopback.** A web page could point a name it controls at 127.0.0.1 and read the HTTP API from its own origin (DNS rebinding). On the loopback, a `Host` other than `127.0.0.1`, `localhost`, `[::1]`, the `--host` given or an `--allowed-host` now gets 421.
+- **`ciirta serve` answers only its own names on the loopback.** A web page could point a name it controls at 127.0.0.1 and read the HTTP API from its own origin (DNS rebinding). On the loopback, a `Host` other than `127.0.0.1`, `localhost`, `[::1]`, the `--host` given or an `--allowed-host` now gets 421.
 - **What runs in a page, a picture or a mail's HTML.** HTML, SVG, Markdown and the HTML parts of a mail reported a `javascript:` link and nothing else. Now named: `<script>` inline or from a file, `on…` attributes, `javascript:`, `vbscript:` and `data:` page addresses wherever one is followed (src, action, formaction, xlink:href, SVG animations), `<meta http-equiv="refresh">`, `<object>`, `<embed>`, `<applet>`, and a form that sends to another address. `--strip-active` takes them out of these formats, a mail's HTML parts and HTML or SVG attachments included, each encoded again as it was; a link keeps its text. « Run again with --strip-active » is no longer offered for what the option would leave — remote pictures are `--strip-remote-resources`' business.
-- **A rules file can no longer hold Cirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
+- **A rules file can no longer hold Ciirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
 
 ## [0.3.0] — 2026-10-20
 
@@ -45,7 +46,7 @@ npm with provenance by the release workflow once the repository variable `PUBLIS
 
 ### Security
 
-- **Regular expressions that a hostile file could make backtrack.** One was exponential: 195 bytes of broken comments at the head of any part of a DOCX, XLSX or PPTX held Cirta for 9 s, a few more for hours. 190 were quadratic, in the Office, OpenDocument, EPUB, HTML, SVG, Markdown, mail, PDF and plain-text readers: a DOCX of 1.4 KB took 8 s. They read their input in linear time now, and the few still quadratic see only bounded input; `test/redos.test.ts` keeps one hostile file per family, and a CI job checks every pattern (`npm run redos`).
+- **Regular expressions that a hostile file could make backtrack.** One was exponential: 195 bytes of broken comments at the head of any part of a DOCX, XLSX or PPTX held Ciirta for 9 s, a few more for hours. 190 were quadratic, in the Office, OpenDocument, EPUB, HTML, SVG, Markdown, mail, PDF and plain-text readers: a DOCX of 1.4 KB took 8 s. They read their input in linear time now, and the few still quadratic see only bounded input; `test/redos.test.ts` keeps one hostile file per family, and a CI job checks every pattern (`npm run redos`).
 
 ### Fixed
 
@@ -83,11 +84,11 @@ extensions, each attested — and not published to npm.
 - **Text a reader cannot see, which a model reads.** PDF pages rendered and checked letter by letter; hidden runs in Word, PowerPoint, HTML and mail; orders aimed at a model flagged.
 - **DLP.** Personal data (`--pii`) and an organisation's own rules (`--rules`).
 - **For pipelines and agents.**
-  - `cirta verify` and `--fail-on`.
-  - `cirta sanitize-for-llm`.
-  - A local MCP server (`cirta mcp`).
+  - `ciirta verify` and `--fail-on`.
+  - `ciirta sanitize-for-llm`.
+  - A local MCP server (`ciirta mcp`).
   - SARIF output.
-- **As a service.** `cirta serve`: ICAP (RESPMOD, REQMOD) for a proxy or a mail gateway, and an HTTP API; inspection only unless `--block-on` or `--allow-clean`. A Docker image of it.
+- **As a service.** `ciirta serve`: ICAP (RESPMOD, REQMOD) for a proxy or a mail gateway, and an HTTP API; inspection only unless `--block-on` or `--allow-clean`. A Docker image of it.
 - **One file.** The library as a single ES module and a classic script, for the tools that embed it.
 - **Integrations.**
   - `--changed-only` and `--base <ref>`: only the files a commit or a pull request changes.
@@ -96,7 +97,7 @@ extensions, each attested — and not published to npm.
   - A VS Code extension: invisible characters underlined where they are, any file inspected or cleaned from the Explorer.
   - A browser extension for Chrome and Firefox: the page, with no permission and no connection allowed.
   - A Thunderbird add-in: attachments read before a message is sent, the message held back when one names its sender, cleaned in the message on request. Not yet run in Thunderbird itself.
-  - `cirta watch <folder>`: each file inspected as it arrives; `--clean -o <folder>` writes cleaned copies elsewhere, never in place.
+  - `ciirta watch <folder>`: each file inspected as it arrives; `--clean -o <folder>` writes cleaned copies elsewhere, never in place.
 - **Profiles.** `--profile minimal|balanced|strict`.
 - **Chain of custody.**
   - Deterministic output: the same file cleaned twice gives the same bytes.
@@ -104,7 +105,7 @@ extensions, each attested — and not published to npm.
   - Archives cleaned member by member; an archive is refused, and each member it cannot clean named.
 - **Reports.** `inspect --report` writes an HTML page or Markdown, in French or English.
 - **Library.**
-  - A documented API (`cirta`, `cirta/node`) with its types.
+  - A documented API (`ciirta`, `ciirta/node`) with its types.
   - A versioned JSON report, `schema/report.v1.json`.
 - **Site.**
   - Whole folders, cleaned at once into a ZIP with its manifest.
@@ -118,7 +119,7 @@ extensions, each attested — and not published to npm.
 - **Distribution.**
   - Single-file binaries for Linux, macOS and Windows, built and run in CI, attested at release.
   - npm publication with provenance from a version tag, after the release checks.
-  - `cirta --version`.
+  - `ciirta --version`.
 
 ### Changed
 

@@ -19,7 +19,7 @@ describe('[C10.6] an empty file', () => {
   });
 
   it('says so from the command line, in French too', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-empty-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-empty-'));
     const file = join(dir, 'vide.pdf');
     writeFileSync(file, new Uint8Array(0));
     const run = runCli(['inspect', '--lang', 'fr', file]);

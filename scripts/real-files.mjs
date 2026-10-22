@@ -52,12 +52,12 @@ const skip = (reason) => {
 async function soffice(args, tag) {
   return run(
     'soffice',
-    [`-env:UserInstallation=file://${join(tmpdir(), `cirta-lo-${tag}`)}`, '--headless', ...args],
+    [`-env:UserInstallation=file://${join(tmpdir(), `ciirta-lo-${tag}`)}`, '--headless', ...args],
     { timeout: 180_000 },
   );
 }
 
-const dir = await mkdtemp(join(tmpdir(), 'cirta-real-'));
+const dir = await mkdtemp(join(tmpdir(), 'ciirta-real-'));
 console.log(`real-file round trip — ${process.platform}`);
 
 try {
@@ -308,9 +308,9 @@ try {
     }
   }
   // [F-2.2] A cleaned notebook must still be a notebook, as Jupyter's own validator reads it.
-  // Needs Python with nbformat (CIRTA_PYTHON names the interpreter); without it, says so and moves on.
+  // Needs Python with nbformat (CIIRTA_PYTHON names the interpreter); without it, says so and moves on.
   {
-    const python = process.env.CIRTA_PYTHON ?? 'python3';
+    const python = process.env.CIIRTA_PYTHON ?? 'python3';
     let available = true;
     try {
       await run(python, ['-I', '-c', 'import nbformat'], { timeout: 60_000 });

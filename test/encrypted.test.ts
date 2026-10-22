@@ -56,7 +56,7 @@ describe('[C1] cleaning an encrypted PDF', () => {
   });
 
   it('exits non-zero from the command line and writes no output file', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-c1-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-c1-'));
     const input = join(dir, 'protected.pdf');
     const output = join(dir, 'out.pdf');
     writeFileSync(input, open);

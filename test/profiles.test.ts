@@ -25,7 +25,7 @@ describe('[F-P2 2.3] profiles', () => {
   });
 
   it('sets the cleaning options in one word: strict removes comments, minimal keeps them', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-profile-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-profile-'));
     const input = join(dir, 'lettre.docx');
     writeFileSync(input, commented());
     expect(runCli(['redact', '--profile', 'minimal', input, '-o', join(dir, 'min.docx')]).status).toBe(0);
@@ -36,7 +36,7 @@ describe('[F-P2 2.3] profiles', () => {
   });
 
   it('sets the --fail-on threshold, which an explicit --fail-on overrides', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-profile-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-profile-'));
     // A title and a date: probable findings, nothing confirmed.
     const file = join(dir, 'titre.docx');
     writeFileSync(

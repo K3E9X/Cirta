@@ -14,7 +14,7 @@ import { runCli } from './helpers/cli.js';
 
 describe('[F-2.4] content options from the command line', () => {
   it('removes notes and hidden slides, and says so in French', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-opts-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-opts-'));
     const input = join(dir, 'deck.pptx');
     writeFileSync(input, deck([{ words: 'Un', notes: 'note' }, { words: 'Deux', hidden: true }, { words: 'Trois' }]));
     const output = join(dir, 'out.pptx');
@@ -28,7 +28,7 @@ describe('[F-2.4] content options from the command line', () => {
   });
 
   it('removes attachments and flattens annotations in a PDF, and says so', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cirta-opts-'));
+    const dir = mkdtempSync(join(tmpdir(), 'ciirta-opts-'));
     const input = join(dir, 'facture.pdf');
     writeFileSync(input, await activePdf());
     const run = runCli(['redact', '--lang', 'en', '--remove-attachments', '--flatten-annotations', input, '-o', join(dir, 'out.pdf')]);

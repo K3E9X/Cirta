@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cirta command line interface.
+ * Ciirta command line interface.
  *
  * Everything runs locally; the process makes no network requests.
  */
@@ -93,18 +93,18 @@ const help = () =>
 ${banner({
   unicode: useUnicode,
   paint: accent,
-  lines: [bold('cirta'), t().tagline, '', dim(t().taglineLocal)],
+  lines: [bold('ciirta'), t().tagline, '', dim(t().taglineLocal)],
 })}
 
 ${bold(t().usage)}
-  cirta inspect <path...>            ${t().usageInspect}
-  cirta redact  <path...> [options]  ${t().usageRedact}
-  cirta text [--clean]               ${t().usageText}
-  cirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
-  cirta sanitize-for-llm <path...> [--json] [--fail-on-instructions] [--fail-on-deceptive-links]  ${t().usageSanitize}
-  cirta mcp                          ${t().usageMcp}
-  cirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ${t().usageServe}
-  cirta watch <folder> [--clean -o <folder>] [--json]  ${t().usageWatch}
+  ciirta inspect <path...>            ${t().usageInspect}
+  ciirta redact  <path...> [options]  ${t().usageRedact}
+  ciirta text [--clean]               ${t().usageText}
+  ciirta verify  <path...> [--fail-on <level>]  ${t().usageVerify}
+  ciirta sanitize-for-llm <path...> [--json] [--fail-on-instructions] [--fail-on-deceptive-links]  ${t().usageSanitize}
+  ciirta mcp                          ${t().usageMcp}
+  ciirta serve [--http <port>] [--icap <port>] [--block-on <level>]  ${t().usageServe}
+  ciirta watch <folder> [--clean -o <folder>] [--json]  ${t().usageWatch}
 
 ${t().paths}
 
@@ -219,7 +219,7 @@ interface Args {
   lang?: string;
   sarif: boolean;
   failOn?: string;
-  /** [F-P3 2.5] cirta serve. */
+  /** [F-P3 2.5] ciirta serve. */
   host: string;
   /** [R5] serve: other Host names the HTTP API answers. */
   allowedHosts: string[];
@@ -230,7 +230,7 @@ interface Args {
   blockOn?: string;
   allowClean: boolean;
   maxSize?: string;
-  /** [F-P3 2.6] cirta watch. */
+  /** [F-P3 2.6] ciirta watch. */
   interval?: string;
   newOnly: boolean;
 }
@@ -476,7 +476,7 @@ async function walkDirectory(root: string, skip: Set<string>): Promise<string[]>
 
 /**
  * Expand directory arguments into the supported files they contain, so that
- * `cirta inspect ./contrats` audits a whole folder before it is sent out.
+ * `ciirta inspect ./contrats` audits a whole folder before it is sent out.
  * Explicit file arguments are kept regardless of extension: naming a file is a
  * deliberate act, and format detection reads magic bytes rather than the name.
  */
@@ -721,7 +721,7 @@ async function runSanitize(args: Args): Promise<number> {
 const LEVELS = ['informational', 'probable', 'confirmed'] as const;
 
 /**
- * [F-P3 2.5] Cirta as a service (src/cli/serve.ts): ICAP and an HTTP API,
+ * [F-P3 2.5] Ciirta as a service (src/cli/serve.ts): ICAP and an HTTP API,
  * inspection only unless --block-on or --allow-clean says otherwise. Stays up
  * until SIGTERM or SIGINT — which a container's PID 1 must handle itself.
  */
@@ -979,7 +979,7 @@ async function runRedact(args: Args): Promise<number> {
  * [F-P3 2.6] A folder watched (src/cli/watch.ts): each file that arrives or
  * changes is inspected, and with --clean a cleaned copy is written to another
  * folder — never over the original, which may be the very file someone is
- * about to send. A file Cirta refuses to clean is named with the reason and
+ * about to send. A file Ciirta refuses to clean is named with the reason and
  * not copied. One line of JSON per file with --json.
  */
 async function runWatch(args: Args): Promise<number> {
@@ -1076,7 +1076,7 @@ async function runText(args: Args): Promise<number> {
     input = decodeTextInput(raw, { allowBinary: args.forceText });
   } catch (error) {
     if (!(error instanceof BinaryInputError)) throw error;
-    console.error(red(`cirta text: ${t().binaryReasons[error.reason]}.`));
+    console.error(red(`ciirta text: ${t().binaryReasons[error.reason]}.`));
     console.error(dim(t().binaryRefused));
     return 2;
   }
@@ -1157,7 +1157,7 @@ async function main(): Promise<number> {
   if (args.lang === 'fr' || args.lang === 'en') setLang(args.lang);
 
   if (args.version) {
-    console.log(`cirta ${version()}`);
+    console.log(`ciirta ${version()}`);
     return 0;
   }
 

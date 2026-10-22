@@ -8,7 +8,7 @@ import { inspectFile } from '../src/core/index.js';
 import { makeDocx } from './fixtures.js';
 
 /*
- * [F-P3 2.6] cirta watch: a folder looked at again and again, each file read
+ * [F-P3 2.6] ciirta watch: a folder looked at again and again, each file read
  * once it has stopped changing. Polling rather than file-system events, which
  * do not arrive from a network share or a container's mounted volume.
  */
@@ -16,7 +16,7 @@ import { makeDocx } from './fixtures.js';
 let dir: string;
 let watcher: Watcher | undefined;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'cirta-watch-'));
+  dir = await mkdtemp(join(tmpdir(), 'ciirta-watch-'));
 });
 afterEach(async () => {
   await watcher?.stop();
@@ -130,7 +130,7 @@ async function stopped(child: ReturnType<typeof cli>): Promise<number | null> {
   return exit;
 }
 
-describe('[F-P3 2.6] cirta watch from the command line', () => {
+describe('[F-P3 2.6] ciirta watch from the command line', () => {
   it('inspects only by default: one JSON line per file, and the folder left as it was', async () => {
     const child = cli([dir, '--interval', '0.05', '--json']);
     let stdout = '';

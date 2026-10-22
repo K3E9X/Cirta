@@ -23,7 +23,7 @@ describe('[F-2.8] no network', () => {
       .filter((file) => file !== join('src', 'web', 'worker.ts'))
       // [F-P2 2.7] The service worker fetches the site's own files, the ones the browser loads anyway; checked below.
       .filter((file) => file !== join('src', 'shared', 'site.ts'))
-      // [F-P3 2.5] cirta serve listens; checked below that it does nothing else.
+      // [F-P3 2.5] ciirta serve listens; checked below that it does nothing else.
       .filter((file) => file !== join('src', 'cli', 'serve.ts'))
       .filter((file) => NETWORK.test(readFileSync(file, 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '')));
     expect(offenders).toEqual([]);
@@ -37,7 +37,7 @@ describe('[F-2.8] no network', () => {
     expect(guard).toBeLessThan(source.indexOf('fetch(request)'));
   });
 
-  it('[F-P3 2.5] cirta serve listens and never connects: servers only, nothing that opens a connection', () => {
+  it('[F-P3 2.5] ciirta serve listens and never connects: servers only, nothing that opens a connection', () => {
     const source = readFileSync(join('src', 'cli', 'serve.ts'), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
     const imports = [...source.matchAll(/import \{([^}]*)\} from ['"]node:(http|https|net|tls|dgram|dns)['"]/g)];
     expect(imports.map(([, , module]) => module).sort()).toEqual(['http', 'net']);

@@ -42,7 +42,7 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
   'scope:markup-metadata-only': () =>
     'Markup metadata, plus a scan of the body for invisible characters. What is not analysed is the wording: a statistical model watermark lives there and would not show up here.',
   'scope:archive-inspect-only': () =>
-    'Archive read but not rewritten: its headers — owners, dates, the attributes macOS keeps, links, the original name — and each member, inspected as it would be on its own. To clean, extract it, clean the files and archive them again, or as a ZIP, which Cirta cleans.',
+    'Archive read but not rewritten: its headers — owners, dates, the attributes macOS keeps, links, the original name — and each member, inspected as it would be on its own. To clean, extract it, clean the files and archive them again, or as a ZIP, which Ciirta cleans.',
   'scope:media': () =>
     'Video or audio: the container’s metadata — dates, place, device, software, tags, embedded pictures. The picture and the sound themselves are not analysed: a watermark carried in them would not show up here. Cleaning removes the metadata and leaves the picture and the sound byte for byte as they were.',
   'scope:image-metadata-only': () =>
@@ -52,7 +52,7 @@ export const NOTE_TEXT_EN: Record<Note['code'], (detail?: string) => string> = {
   'scope:archive': () =>
     'Archive report. Every member was dispatched through the normal detection path; members no parser recognises at all were scanned for credentials and provider identifiers only.',
   'limit:archive-unread': (detail) =>
-    `Not read: the content of the files behind a coder Cirta does not decode, or encrypted (AES) — ${detail ?? ''}. Their names are checked; what they contain is not.`,
+    `Not read: the content of the files behind a coder Ciirta does not decode, or encrypted (AES) — ${detail ?? ''}. Their names are checked; what they contain is not.`,
   'limit:archive-encrypted': () =>
     'The archive’s header is encrypted: without the password, not even the names of its files can be read. Nothing in it was inspected.',
   'limit:archive-truncated': (detail) =>
@@ -140,7 +140,7 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
   'scope:markup-metadata-only': () =>
     "Métadonnées du balisage, plus un scan du corps à la recherche de caractères invisibles. Ce qui n'est pas analysé, c'est la formulation : c'est là que réside un filigrane statistique, et il n'apparaîtrait pas ici.",
   'scope:archive-inspect-only': () =>
-    'Archive lue mais pas réécrite : ses en-têtes — propriétaires, dates, attributs que garde macOS, liens, nom d’origine — et chacun de ses fichiers, inspecté comme il le serait seul. Pour la nettoyer, extrayez-la, nettoyez les fichiers et archivez-les de nouveau, ou en ZIP, que Cirta nettoie.',
+    'Archive lue mais pas réécrite : ses en-têtes — propriétaires, dates, attributs que garde macOS, liens, nom d’origine — et chacun de ses fichiers, inspecté comme il le serait seul. Pour la nettoyer, extrayez-la, nettoyez les fichiers et archivez-les de nouveau, ou en ZIP, que Ciirta nettoie.',
   'scope:media': () =>
     'Vidéo ou audio : les métadonnées du conteneur — dates, lieu, appareil, logiciel, étiquettes, images intégrées. L’image et le son eux-mêmes ne sont pas analysés : un filigrane qu’ils porteraient n’apparaîtrait pas ici. Le nettoyage retire les métadonnées et laisse l’image et le son octet pour octet tels qu’ils étaient.',
   'scope:image-metadata-only': () =>
@@ -150,7 +150,7 @@ export const NOTE_TEXT_FR: Record<Note['code'], (detail?: string) => string> = {
   'scope:archive': () =>
     "Rapport d'archive. Chaque membre est passé par la détection normale ; ceux qu'aucun analyseur ne reconnaît du tout ont été scannés uniquement à la recherche de secrets et d'identifiants de fournisseur.",
   'limit:archive-unread': (detail) =>
-    `Non lus : le contenu des fichiers placés derrière un codeur que Cirta ne décode pas, ou chiffrés (AES) — ${detail ?? ''}. Leurs noms sont vérifiés ; ce qu’ils contiennent ne l’est pas.`,
+    `Non lus : le contenu des fichiers placés derrière un codeur que Ciirta ne décode pas, ou chiffrés (AES) — ${detail ?? ''}. Leurs noms sont vérifiés ; ce qu’ils contiennent ne l’est pas.`,
   'limit:archive-encrypted': () =>
     'L’en-tête de l’archive est chiffré : sans le mot de passe, même les noms de ses fichiers ne se lisent pas. Rien n’y a été inspecté.',
   'limit:archive-truncated': (detail) =>

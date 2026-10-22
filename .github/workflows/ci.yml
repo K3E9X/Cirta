@@ -83,7 +83,7 @@ jobs:
       - run: npm ci
       - run: node scripts/build-sea.mjs
 
-  # [F-P3 2.5] The image cirta serve runs in, built and tried as it would run:
+  # [F-P3 2.5] The image ciirta serve runs in, built and tried as it would run:
   # read-only, no capability, the smoke test against its two ports.
   docker:
     runs-on: ubuntu-latest
@@ -94,13 +94,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: docker build -t cirta:ci .
-      - run: docker run -d --name cirta --read-only --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 cirta:ci
+      - run: docker build -t ciirta:ci .
+      - run: docker run -d --name ciirta --read-only --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:1344:1344 -p 127.0.0.1:8080:8080 ciirta:ci
       - run: |
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
           node scripts/smoke-serve.mjs --http http://127.0.0.1:8080 --icap 127.0.0.1:1344
       - if: always()
-        run: docker logs cirta
+        run: docker logs ciirta
 
   # [F-P3 2.7] The accessibility audit of the built site: axe-core in Chromium,
   # both languages, every theme, a keyboard walk and a 320px screen. The two

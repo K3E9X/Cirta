@@ -25,7 +25,7 @@ function runInline(stored: string | null, throws = false): { theme: string | und
   const localStorage = {
     getItem: (key: string) => {
       if (throws) throw new Error('SecurityError');
-      return key === 'cirta.theme' ? stored : null;
+      return key === 'ciirta.theme' ? stored : null;
     },
   };
   const matchMedia = () => ({ matches: false });
@@ -67,6 +67,6 @@ describe('[F-P3 2.7] light and dark themes', () => {
   it('a control in the header chooses it, and the choice is kept in this browser', () => {
     expect(openingTag('theme-toggle')).toMatch(/<button\b[^>]*type="button"/);
     expect(main).toMatch(/store\(STORE\.theme,/);
-    expect(main).toMatch(/theme: 'cirta\.theme'/);
+    expect(main).toMatch(/theme: 'ciirta\.theme'/);
   });
 });

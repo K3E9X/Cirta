@@ -46,7 +46,7 @@ describe('[R7] deceptive links in the text for a model', () => {
 
 describe('[R7] from the command line', () => {
   const file = () => {
-    const d = mkdtempSync(join(tmpdir(), 'cirta-r7-'));
+    const d = mkdtempSync(join(tmpdir(), 'ciirta-r7-'));
     writeFileSync(join(d, 'page.html'), PAGE);
     return join(d, 'page.html');
   };

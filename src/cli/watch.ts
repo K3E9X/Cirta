@@ -1,5 +1,5 @@
 /**
- * [F-P3 2.6] `cirta watch <folder>`: the folder is looked at again every
+ * [F-P3 2.6] `ciirta watch <folder>`: the folder is looked at again every
  * interval, and each file is handed over once it has stopped changing.
  *
  * Polling, not file-system events. Events do not arrive from a network share,

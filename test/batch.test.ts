@@ -19,17 +19,17 @@ describe('[F-P2 2.7] cleaning a folder at once', () => {
     ];
     const out = await cleanBatch(files, deps, { version: '9.9.9', options: { removeComments: true }, at });
     const zip = unzipSync(out.zip);
-    expect(Object.keys(zip).sort()).toEqual(['cirta-manifest.json', 'dossier/lettre.docx', 'dossier/notes.txt', 'dossier/photos/plage.jpg']);
+    expect(Object.keys(zip).sort()).toEqual(['ciirta-manifest.json', 'dossier/lettre.docx', 'dossier/notes.txt', 'dossier/photos/plage.jpg']);
     expect(strFromU8(zip['dossier/notes.txt']!)).toBe('Bonjour');
     expect((await inspectFile(zip['dossier/photos/plage.jpg']!, 'plage.jpg')).findings.filter((f) => f.confidence === 'confirmed')).toEqual([]);
 
-    const manifest = JSON.parse(strFromU8(zip['cirta-manifest.json']!));
-    expect(manifest).toMatchObject({ schema: 'cirta.manifest/1', tool: { name: 'cirta', version: '9.9.9' }, createdAt: '2026-10-19T08:00:00.000Z', options: { removeComments: true } });
+    const manifest = JSON.parse(strFromU8(zip['ciirta-manifest.json']!));
+    expect(manifest).toMatchObject({ schema: 'ciirta.manifest/1', tool: { name: 'ciirta', version: '9.9.9' }, createdAt: '2026-10-19T08:00:00.000Z', options: { removeComments: true } });
     expect(manifest.files.map((f: { file: string }) => f.file)).toEqual(['dossier/lettre.docx', 'dossier/photos/plage.jpg', 'dossier/notes.txt']);
     expect(manifest.refused).toEqual([{ file: 'dossier/ancien.doc', code: 'legacy-not-rewritable' }]);
     expect(out.refused.map((r) => r.file)).toEqual(['dossier/ancien.doc']);
     // The manifest never carries a value the clean removed.
-    expect(strFromU8(zip['cirta-manifest.json']!)).not.toContain('Jeanne');
+    expect(strFromU8(zip['ciirta-manifest.json']!)).not.toContain('Jeanne');
   });
 
   it('gives the same archive twice for the same files, and does not let a name climb out of the folder', async () => {
@@ -41,7 +41,7 @@ describe('[F-P2 2.7] cleaning a folder at once', () => {
     expect(batchPath('/abs/a.txt')).toBe('abs/a.txt');
     expect(batchPath('C:\\Users\\j\\a.txt')).toBe('Users/j/a.txt');
     const twice = await cleanBatch([{ path: 'a.txt', data: strToU8('x') }, { path: 'a.txt', data: strToU8('y') }], deps, { version: '1', options: {}, at });
-    expect(Object.keys(unzipSync(twice.zip)).sort()).toEqual(['a (2).txt', 'a.txt', 'cirta-manifest.json']);
+    expect(Object.keys(unzipSync(twice.zip)).sort()).toEqual(['a (2).txt', 'a.txt', 'ciirta-manifest.json']);
   });
 
   it('takes from a folder the files the command line would, and skips what is never the user’s own', () => {

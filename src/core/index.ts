@@ -1,5 +1,5 @@
 /**
- * Cirta — local inspection and redaction of document provenance metadata.
+ * Ciirta — local inspection and redaction of document provenance metadata.
  *
  * Scope, stated plainly because most tools in this space are vague about it:
  *
@@ -181,7 +181,7 @@ async function inspectArchive(data: Uint8Array, options: InspectOptions): Promis
 }
 
 /**
- * [F-P3 2.2] The members of an archive Cirta reads but does not rewrite (TAR,
+ * [F-P3 2.2] The members of an archive Ciirta reads but does not rewrite (TAR,
  * gzip, 7z): each name checked, each content inspected as it would be on
  * its own — one level deeper, so an archive inside an archive inside an
  * archive stops at the nesting limit — and what no parser claims scanned for
@@ -582,7 +582,7 @@ async function redactArchive(data: Uint8Array, options: InspectOptions, depth: n
   if (unsupported.length) {
     const shown = unsupported.slice(0, 20).join(', ') + (unsupported.length > 20 ? `, +${unsupported.length - 20}` : '');
     throw new UnsupportedFormatError(
-      `This archive holds files Cirta cannot clean: ${shown}. It is not rewritten.`,
+      `This archive holds files Ciirta cannot clean: ${shown}. It is not rewritten.`,
       'archive-not-rewritable',
       shown,
     );

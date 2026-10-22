@@ -8,7 +8,7 @@ const runCli = (args: string[], { input }: { input: string }) => {
 };
 
 /*
- * [C8] `cirta text --clean` and the page's "Clean" button turned every
+ * [C8] `ciirta text --clean` and the page's "Clean" button turned every
  * no-break space into an ordinary one — "14 h :" lost the spaces French
  * typography puts there, though they were only ever reported as
  * informational. Content changes went unannounced, and nothing was said of

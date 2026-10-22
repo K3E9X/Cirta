@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { zipSync, strToU8 } from 'fflate';
 
-/** A PDF carrying every /Info field Cirta knows about, plus a real page. */
+/** A PDF carrying every /Info field Ciirta knows about, plus a real page. */
 export async function makePdf(): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.addPage([200, 200]).drawText('contenu');
@@ -115,7 +115,7 @@ export function makeJpeg({ gps = true }: { gps?: boolean } = {}): Uint8Array {
 
 function pngChunk(type: string, body: Uint8Array): Uint8Array {
   const length = body.length;
-  // CRC bytes are left zero: nothing in Cirta validates them, and the
+  // CRC bytes are left zero: nothing in Ciirta validates them, and the
   // assertions here concern which chunks survive, not checksum correctness.
   return Uint8Array.from([
     (length >>> 24) & 0xff, (length >>> 16) & 0xff, (length >>> 8) & 0xff, length & 0xff,

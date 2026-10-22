@@ -21,7 +21,7 @@ import type { XrayEngine, XrayRegion } from '../core/xray.js';
 /*
  * This worker runs PDF.js, a large third-party library with network code of
  * its own: it can fetch a document by URL, and load fonts and decoders from a
- * server. Cirta never asks it to — every byte it needs is handed over from
+ * server. Ciirta never asks it to — every byte it needs is handed over from
  * memory — but "never asks" is a claim about how it is called. Removing the
  * means makes it a fact about what it can do: from here on, nothing in this
  * thread can open a connection. The page's own Content-Security-Policy says

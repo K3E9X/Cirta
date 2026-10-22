@@ -1,5 +1,5 @@
 /**
- * [P0-1] Running Cirta on a hostile file with a stopwatch that can stop it.
+ * [P0-1] Running Ciirta on a hostile file with a stopwatch that can stop it.
  * A regular expression that backtracks blocks its thread: no timer inside it
  * fires. So the core is bundled once, and each file goes to a worker thread
  * that is terminated when the budget runs out — the test then fails, instead
@@ -14,7 +14,7 @@ import { Worker } from 'node:worker_threads';
 import { build } from 'esbuild';
 
 export async function bundleCore(): Promise<string> {
-  const outfile = join(mkdtempSync(join(tmpdir(), 'cirta-redos-')), 'core.mjs');
+  const outfile = join(mkdtempSync(join(tmpdir(), 'ciirta-redos-')), 'core.mjs');
   await build({ entryPoints: ['src/core/index.ts'], outfile, bundle: true, platform: 'node', format: 'esm', target: 'node22', logLevel: 'error' });
   return pathToFileURL(outfile).href;
 }

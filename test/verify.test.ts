@@ -7,13 +7,13 @@ import { makeDocx, makeJpeg } from './fixtures.js';
 import { runCli } from './helpers/cli.js';
 
 /*
- * [F-2.4] `cirta verify`: the gate before a file goes out. It inspects again
+ * [F-2.4] `ciirta verify`: the gate before a file goes out. It inspects again
  * and fails when anything at or above a level is still there — confirmed by
  * default, stricter with --fail-on.
  */
 
 async function files() {
-  const dir = mkdtempSync(join(tmpdir(), 'cirta-verify-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ciirta-verify-'));
   const dirty = join(dir, 'lettre.docx');
   const clean = join(dir, 'lettre.clean.docx');
   writeFileSync(dirty, makeDocx());
@@ -21,7 +21,7 @@ async function files() {
   return { dir, dirty, clean };
 }
 
-describe('[F-2.4] cirta verify', () => {
+describe('[F-2.4] ciirta verify', () => {
   it('passes a cleaned file, exit 0', async () => {
     const { clean } = await files();
     const run = runCli(['verify', '--lang', 'en', clean]);
@@ -58,7 +58,7 @@ describe('[F-2.4] cirta verify', () => {
   });
 
   it('fails a file it cannot read', () => {
-    const run = runCli(['verify', join(tmpdir(), 'cirta-absent-verify.pdf')]);
+    const run = runCli(['verify', join(tmpdir(), 'ciirta-absent-verify.pdf')]);
     expect(run.status).toBe(1);
   });
 });

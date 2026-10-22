@@ -75,7 +75,7 @@ Signature:`;
   });
 
   it('ignores YAML, which is field-shaped from top to bottom', () => {
-    const yaml = `name: cirta
+    const yaml = `name: ciirta
 version: 0.1.0
 license: MIT
 

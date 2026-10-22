@@ -1,7 +1,7 @@
 /**
  * [F-P2 2.4] Re-encoding a picture from its decoded pixels.
  *
- * Stripping metadata removes the segments and chunks Cirta knows about.
+ * Stripping metadata removes the segments and chunks Ciirta knows about.
  * Re-encoding goes further: the picture is decoded and written again, so
  * whatever is not pixels is gone — data after the end of the image, private
  * segments and chunks, comments, thumbnails. The EXIF orientation is applied

@@ -1,5 +1,5 @@
 /**
- * Formats Cirta reads and never rewrites, for the interfaces that offer a
+ * Formats Ciirta reads and never rewrites, for the interfaces that offer a
  * clean: the page, the Thunderbird add-in. The library refuses them on its
  * own (UnsupportedFormatError); these let an interface not offer what it
  * would only refuse.

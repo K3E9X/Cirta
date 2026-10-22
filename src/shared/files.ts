@@ -1,6 +1,6 @@
 /**
  * [F-P2 2.7] Which files a folder contributes, the same in the terminal and
- * in the page: `cirta inspect ./contrats` and a folder dropped on the site
+ * in the page: `ciirta inspect ./contrats` and a folder dropped on the site
  * take the same files and skip the same directories.
  */
 
@@ -47,7 +47,7 @@ export const SUPPORTED_NAMES: ReadonlySet<string> = new Set(['.env', '.env.local
 /**
  * Directories that are never the user's own content.
  *
- * Without this, `cirta inspect .` on an ordinary project is mostly noise: on
+ * Without this, `ciirta inspect .` on an ordinary project is mostly noise: on
  * this repository the walk returned 125 files, 118 of them inside
  * node_modules. A report nobody can read through is a report nobody reads.
  */

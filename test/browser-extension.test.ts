@@ -23,7 +23,7 @@ describe('[F-P2 2.6] the browser extension', () => {
     expect(POLICY).not.toMatch(/'unsafe-inline'|'unsafe-eval'|https?:/);
     // Chrome runs the worker, Firefox the script: one file for both.
     expect(manifest.background).toEqual({ service_worker: 'background.js', scripts: ['background.js'] });
-    expect(manifest.browser_specific_settings.gecko.id).toBe('cirta@k3e9x.github.io');
+    expect(manifest.browser_specific_settings.gecko.id).toBe('ciirta@k3e9x.github.io');
   });
 
   it('carries the site’s page with its inline script moved to a file and the web-only parts left out', () => {

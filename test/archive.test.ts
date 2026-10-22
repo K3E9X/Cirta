@@ -435,9 +435,9 @@ describe('CLI banner', () => {
 
   it('keeps the text column aligned across both transcriptions', async () => {
     const { banner } = await import('../src/cli/logo.js');
-    const lines = ['cirta'];
+    const lines = ['ciirta'];
     const column = (unicode: boolean) =>
-      banner({ unicode, paint: plain, lines }).split('\n')[0]!.indexOf('cirta');
+      banner({ unicode, paint: plain, lines }).split('\n')[0]!.indexOf('ciirta');
     expect(column(true)).toBe(column(false));
   });
 

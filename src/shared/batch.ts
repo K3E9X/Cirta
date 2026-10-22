@@ -5,7 +5,7 @@
  * what is left, by label and never by value, and each file refused with the
  * reason.
  *
- * A file Cirta cannot clean is not put in the archive as it was: it is
+ * A file Ciirta cannot clean is not put in the archive as it was: it is
  * named in the manifest and left out. A cleaned folder that quietly carried
  * one untouched document would not be a cleaned folder.
  *
@@ -42,7 +42,7 @@ export interface BatchOutcome {
   refused: BatchRefusal[];
 }
 
-export const MANIFEST_NAME = 'cirta-manifest.json';
+export const MANIFEST_NAME = 'ciirta-manifest.json';
 
 /**
  * A path for inside the archive: forward slashes, no drive, no root, no

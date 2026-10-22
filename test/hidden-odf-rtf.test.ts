@@ -6,7 +6,7 @@ import { odt } from './helpers/odt.js';
 
 /*
  * [P0-2] Hidden text in OpenDocument and RTF, the two formats of a CV that
- * Cirta read without looking for it: white on white, type of a point, text
+ * Ciirta read without looking for it: white on white, type of a point, text
  * formatted as hidden, a frame placed off the page.
  */
 

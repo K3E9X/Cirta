@@ -14,7 +14,7 @@
  * --reencode-images are refused —, as an npm install without the optional
  * canvas does. Everything else is the same program.
  *
- * Output: build/sea/cirta-<platform>-<arch>[.exe], then a smoke test of it.
+ * Output: build/sea/ciirta-<platform>-<arch>[.exe], then a smoke test of it.
  * Platform code signing (Apple Developer ID, Windows Authenticode) is not
  * done here: it needs certificates the project does not hold. The release
  * workflow attests each binary instead (Sigstore, actions/attest-build-provenance).
@@ -33,7 +33,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const out = join(root, 'build', 'sea');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const windows = process.platform === 'win32';
-const name = `cirta-${process.platform}-${process.arch}${windows ? '.exe' : ''}`;
+const name = `ciirta-${process.platform}-${process.arch}${windows ? '.exe' : ''}`;
 const binary = join(out, name);
 
 rmSync(out, { recursive: true, force: true });
@@ -43,20 +43,20 @@ mkdirSync(out, { recursive: true });
 //    imports fail inside the binary, and the engines report themselves absent.
 await build({
   entryPoints: [join(root, 'src/cli/index.ts')],
-  outfile: join(out, 'cirta.cjs'),
+  outfile: join(out, 'ciirta.cjs'),
   bundle: true,
   platform: 'node',
   format: 'cjs',
   target: 'node22',
   external: ['@napi-rs/canvas', 'pdfjs-dist', 'pdfjs-dist/*'],
-  define: { CIRTA_VERSION: JSON.stringify(pkg.version) },
+  define: { CIIRTA_VERSION: JSON.stringify(pkg.version) },
   legalComments: 'none',
   logLevel: 'warning',
 });
 
 // 2. The blob.
 const config = join(out, 'sea-config.json');
-writeFileSync(config, JSON.stringify({ main: join(out, 'cirta.cjs'), output: join(out, 'sea.blob'), disableExperimentalSEAWarning: true, useCodeCache: false }));
+writeFileSync(config, JSON.stringify({ main: join(out, 'ciirta.cjs'), output: join(out, 'sea.blob'), disableExperimentalSEAWarning: true, useCodeCache: false }));
 execFileSync(process.execPath, ['--experimental-sea-config', config], { stdio: 'inherit' });
 
 // 3. A copy of this Node, the blob injected.
@@ -72,7 +72,7 @@ await inject(binary, 'NODE_SEA_BLOB', readFileSync(join(out, 'sea.blob')), {
 if (process.platform === 'darwin') execFileSync('codesign', ['--sign', '-', binary]);
 
 // The binary, tried as a user would.
-const work = mkdtempSync(join(tmpdir(), 'cirta-sea-'));
+const work = mkdtempSync(join(tmpdir(), 'ciirta-sea-'));
 writeFileSync(join(work, 'note.txt'), 'Bon​jour');
 const run = (args) => execFileSync(binary, args, { cwd: work, encoding: 'utf8' });
 let failures = 0;

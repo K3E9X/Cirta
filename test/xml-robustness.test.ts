@@ -5,7 +5,7 @@ import { collectTextContent, getElementText } from '../src/core/xml.js';
 import { jpegWith, xmpApp1 } from './helpers/tiff.js';
 
 /*
- * [F-2.8] Hostile XML. Cirta reads XML with its own scanner, not a DOM parser,
+ * [F-2.8] Hostile XML. Ciirta reads XML with its own scanner, not a DOM parser,
  * and resolves no entity beyond the five predefined ones and numeric
  * references. These tests hold it to that: a document type declaration is
  * text, never instructions — no expansion, no file read, no network.

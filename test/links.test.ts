@@ -26,7 +26,7 @@ describe('[F-P2 2.1] links that run, carry or bounce', () => {
         'https://www.google.com/url?q=https%3A%2F%2Fevil.example%2Flogin&sa=D',
         'https://l.facebook.com/l.php?u=https%3A%2F%2Fevil.example%2F',
         'https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fevil.example%2Fa&data=x',
-        'https://www.google.com/search?q=cirta',
+        'https://www.google.com/search?q=ciirta',
       ],
       'links',
     );

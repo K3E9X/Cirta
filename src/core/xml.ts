@@ -179,7 +179,7 @@ export function collectNamedProperties(
  * [R6] A DTD that declares entities, in any XML part of a package. Office and
  * OpenDocument never write one; it is how an XML bomb (`&lol9;`) or an
  * external entity (`<!ENTITY xxe SYSTEM "file:///etc/passwd">`) reaches a
- * parser. Cirta does not expand them: they are named, with the files an
+ * parser. Ciirta does not expand them: they are named, with the files an
  * external one points at.
  */
 export function dtdFindings(parts: Record<string, Uint8Array>): import('./types.js').Finding[] {

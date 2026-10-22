@@ -1037,7 +1037,7 @@ function translateHyphens(value: string): string | undefined {
 /**
  * [P0-1] The patterns below read a value in one anchored attempt, and some
  * backtrack in proportion to its length squared: 0.2 s at 8 000 characters.
- * A value longer than this — a document's own text, never Cirta's wording —
+ * A value longer than this — a document's own text, never Ciirta's wording —
  * is shown as it is.
  */
 const MAX_TRANSLATED = 4000;
@@ -1169,8 +1169,8 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
   'archive-not-rewritable': (detail) =>
     detail
       ? {
-          en: `This archive holds files Cirta cannot clean: ${detail}. It is not rewritten, rather than handed back with those files as they were. Extract it, deal with them separately, clean the rest, and repack.`,
-          fr: `Cette archive contient des fichiers que Cirta ne sait pas nettoyer : ${detail}. Elle n’est pas réécrite, plutôt que rendue avec ces fichiers tels quels. Extrayez-la, traitez-les à part, nettoyez le reste, puis recompressez.`,
+          en: `This archive holds files Ciirta cannot clean: ${detail}. It is not rewritten, rather than handed back with those files as they were. Extract it, deal with them separately, clean the rest, and repack.`,
+          fr: `Cette archive contient des fichiers que Ciirta ne sait pas nettoyer : ${detail}. Elle n’est pas réécrite, plutôt que rendue avec ces fichiers tels quels. Extrayez-la, traitez-les à part, nettoyez le reste, puis recompressez.`,
         }
       : {
           en: 'Plain archives are inspected but not rewritten. Extract it, clean the files individually, and repack.',
@@ -1209,17 +1209,17 @@ const ERROR_TEXT: Record<ErrorCode, (detail?: string) => { en: string; fr: strin
   'archive-inspect-only': (detail) => {
     const name = detail === 'gz' ? 'gzip' : detail === '7z' ? '7z' : 'TAR';
     return {
-      en: `A ${name} archive is inspected but not rewritten: rebuilding it means choosing owners, dates and modes for each file, which Cirta will not decide for you. Extract it, clean the files, and archive them again — or as a ZIP, which Cirta cleans.`,
-      fr: `Une archive ${name} est inspectée mais pas réécrite : la reconstruire voudrait dire choisir propriétaires, dates et droits de chaque fichier, ce que Cirta ne décidera pas à votre place. Extrayez-la, nettoyez les fichiers et archivez-les de nouveau — ou en ZIP, que Cirta nettoie.`,
+      en: `A ${name} archive is inspected but not rewritten: rebuilding it means choosing owners, dates and modes for each file, which Ciirta will not decide for you. Extract it, clean the files, and archive them again — or as a ZIP, which Ciirta cleans.`,
+      fr: `Une archive ${name} est inspectée mais pas réécrite : la reconstruire voudrait dire choisir propriétaires, dates et droits de chaque fichier, ce que Ciirta ne décidera pas à votre place. Extrayez-la, nettoyez les fichiers et archivez-les de nouveau — ou en ZIP, que Ciirta nettoie.`,
     };
   },
   'media-not-rewritable': () => ({
-    en: 'An RF64 sound (a WAV past 4 GB, its sizes in 64 bits) is inspected but not rewritten: Cirta would rather refuse than write sizes it has not checked. Export it as a WAV under 4 GB, or cut it, and clean that copy.',
-    fr: 'Un son RF64 (un WAV de plus de 4 Go, aux tailles sur 64 bits) est inspecté mais pas réécrit : Cirta préfère refuser plutôt qu’écrire des tailles qu’il n’a pas vérifiées. Exportez-le en WAV de moins de 4 Go, ou découpez-le, puis nettoyez cette copie.',
+    en: 'An RF64 sound (a WAV past 4 GB, its sizes in 64 bits) is inspected but not rewritten: Ciirta would rather refuse than write sizes it has not checked. Export it as a WAV under 4 GB, or cut it, and clean that copy.',
+    fr: 'Un son RF64 (un WAV de plus de 4 Go, aux tailles sur 64 bits) est inspecté mais pas réécrit : Ciirta préfère refuser plutôt qu’écrire des tailles qu’il n’a pas vérifiées. Exportez-le en WAV de moins de 4 Go, ou découpez-le, puis nettoyez cette copie.',
   }),
   'image-not-rewritable': (detail) => ({
-    en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Cirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
-    fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Cirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,
+    en: `${detail ? `A ${detail.toUpperCase()} picture` : 'This picture'} is inspected but not rewritten: its metadata cannot be taken out without rewriting its structure, and Ciirta would rather refuse than damage it. Export it as JPEG or PNG and clean that copy.`,
+    fr: `${detail ? `Une image ${detail.toUpperCase()}` : 'Cette image'} est inspectée mais pas réécrite : ses métadonnées ne peuvent pas être retirées sans réécrire sa structure, et Ciirta préfère refuser plutôt que l’abîmer. Exportez-la en JPEG ou PNG, puis nettoyez cette copie.`,
   }),
   'rules-invalid': (detail) => ({
     en: `The rules file could not be read: ${detail ?? 'unknown reason'}.`,

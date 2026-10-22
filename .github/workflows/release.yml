@@ -79,11 +79,11 @@ jobs:
       # `gh attestation verify <binary> -R K3E9X/Cirta` checks.
       - uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'build/sea/cirta-*'
+          subject-path: 'build/sea/ciirta-*'
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.os }}
-          path: build/sea/cirta-*
+          path: build/sea/ciirta-*
 
   # [F-P2 2.6] The VS Code extension (.vsix) and the browser extension (.zip),
   # attested like the binaries, attached to the release. Publishing them to the
@@ -107,7 +107,7 @@ jobs:
       - run: node scripts/build-thunderbird.mjs
       - run: |
           mkdir -p build/extensions
-          cp integrations/vscode/cirta-vscode-*.vsix build/cirta-browser-extension-*.zip build/cirta-thunderbird-*.xpi build/extensions/
+          cp integrations/vscode/ciirta-vscode-*.vsix build/ciirta-browser-extension-*.zip build/ciirta-thunderbird-*.xpi build/extensions/
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: 'build/extensions/*'
