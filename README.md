@@ -945,9 +945,17 @@ rules:
 ```
 
 Rules read the body and every field already reported (a project name in the title is found there). A
-file that does not read is refused with the line or the rule and why. A pattern runs as written: one
-that backtracks badly is slow on a long document. On the page, "Extended scan" offers both; the rules
-file and the choice are remembered in this browser only.
+file that does not read is refused with the line or the rule and why. A pattern whose time can grow
+exponentially — a repetition inside a repeated group, `(a+)+$`, or repeated alternatives that can match
+the same text, `(a|ab)+` — is refused when the file is read, naming the part to rewrite. The others run
+in a worker thread with a budget of one second per rule over a file's texts: a rule that overruns is
+stopped and reported as **Rule abandoned: too slow**, at the rule's own level, so `verify` fails rather
+than passing on a check it could not make; the other rules still run. On the page, "Extended scan"
+offers both; the rules file and the choice are remembered in this browser only, and a kept file a newer
+version refuses is forgotten when the page opens, with the reason shown.
+
+A program that calls the library runs the rules in its own thread unless it passes a `rulesRunner`
+(`budgetedRules` over its own workers): the refusal at reading applies either way.
 
 ```
 cirta inspect --pii --rules regles.yaml dossier/

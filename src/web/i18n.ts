@@ -211,6 +211,7 @@ const FR = {
   headersRemoved: (names: string) =>
     `En-têtes de courrier retirés : ${names}. Ils nomment le logiciel, pas le message.`,
   keptWarning: 'Toujours dans le texte nettoyé — à vous de trancher :',
+  rulesDropped: (why: string) => `Les règles gardées dans ce navigateur ont été oubliées : ${why}`,
   rulesLoaded: (name: string, n: number) => `${name} : ${n} règle${n > 1 ? 's' : ''} appliquée${n > 1 ? 's' : ''} à chaque fichier`,
   spacesKept: (n: number) =>
     `${n} espace${n > 1 ? 's' : ''} typographique${n > 1 ? 's' : ''} conservée${n > 1 ? 's' : ''} (insécable, fine…) : c’est la typographie française, pas une marque. Cochez « Remplacer aussi les espaces insécables et fines » pour les remplacer.`,
@@ -450,6 +451,7 @@ const EN: Strings = {
   headersRemoved: (names) =>
     `Mail headers removed: ${names}. They name the software, not the message.`,
   keptWarning: 'Still in the cleaned text — your call:',
+  rulesDropped: (why) => `The rules kept in this browser were forgotten: ${why}`,
   rulesLoaded: (name, n) => `${name}: ${n} rule${n > 1 ? 's' : ''} applied to every file`,
   spacesKept: (n) =>
     `${n} typographic space${n > 1 ? 's' : ''} kept (no-break, narrow…): that is typography, not a mark. Tick “Also replace no-break and narrow spaces” to replace them.`,

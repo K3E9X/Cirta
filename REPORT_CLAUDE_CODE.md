@@ -2011,7 +2011,7 @@ Vérification :
 
 Le plan demande trois tâches avant tout service. Mes questions sur le brief R2, le dépôt `cirta-cloud` et npm ont été refusées ; j'ai donc pris les choix par défaut : P0-2 en entier, P0-3 préparé sans publier, P0-1 et `cirta-cloud` en attente.
 
-### P0-1 — Corrections R1 à R8 : **ReDoS fait ; R2 à R8 bloqués**
+### P0-1 — Corrections R1 à R8 : **ReDoS fait ; R1 à R8 du brief traités plus bas (« Repasse du 19/10/2026 »)**
 
 Le brief `CIRTA_CLAUDE_CODE_R2.md` n'est ni dans le dépôt ni dans la conversation. Je n'invente pas R2 à R8 sans leur énoncé. Le plan nomme R1 (« ReDoS, bloquant avant toute API hébergée ») : j'ai donc fait un audit ReDoS indépendant du cœur. Ses repros ne sont pas celles du brief ; il faudra les rejouer quand il sera fourni.
 
@@ -2129,6 +2129,34 @@ Vérification : `npm run verify` passe (104 fichiers, 1089 tests), ainsi que `no
 Le dépôt privé `K3E9X/cirta-cloud` n'existe pas dans le périmètre de cette session. Il faut le créer et l'y ajouter avant P1.
 
 ---
+
+## Repasse du 19/10/2026 — brief n°2 (`CIRTA_CLAUDE_CODE_R2.md`)
+
+Branche `fix/retest-2026-10-19` depuis `main` (`e93b8fc`), puis une branche par groupe, empilée sur la précédente, et une PR par groupe. Un commit par élément, le test écrit avant la correction, `npm run verify` vert à chaque groupe.
+
+| Élément | Statut | Commit | Tests | Vérification |
+|---|---|---|---|---|
+| R1 [P1] ReDoS dans `--rules` | **fait** | `f618486` | `test/rules-redos.test.ts` (26), `scripts/web-rules.mjs` (8 contrôles dans Chromium) | `npx vitest run test/rules-redos.test.ts` ; `npm run build:web && node scripts/web-rules.mjs` |
+
+### R1 — ReDoS dans `--rules`
+
+**Repro du brief.** Une règle `pattern: '(a+)+$'` sur `'a'*40 + '!'` : avant, la commande ne rendait pas la main. Après, le fichier de règles est refusé à la lecture, code 2, en moins d'une seconde : « règle r : motif refusé, son temps peut croître de façon exponentielle (une répétition dans un groupe répété) : (a+)+ ».
+
+**Deux défenses.**
+- **À la lecture** (`src/core/regex-risk.ts`, dans le cœur, donc aussi pour la bibliothèque et la page). Le motif est lu en arbre, sans l'exécuter. Deux familles sont refusées :
+  - une répétition dans un groupe répété, quand une course peut s'arrêter et la suivante commencer sur le même caractère : `(a+)+`, `(\w+\s?)+`, `(.*a)+`, `(a*)*` ;
+  - des alternatives répétées qui peuvent commencer de la même façon, ou dont l'une ne reconnaît rien : `(a|ab)+`, `(\w|\d)+`, `(a|)+`.
+
+  Pour savoir si deux morceaux se chevauchent, les ensembles de caractères sont calculés par le moteur lui-même, sur un jeu de caractères témoins (tout le latin, puis un caractère sur 64 du plan de base). Un séparateur ou des premiers caractères distincts gardent le motif : `(\d{2,4}-)+`, `(?:foo|bar)+` et les motifs d'e-mail, de téléphone et de domaine courants passent.
+- **À l'exécution** (`src/core/rules-runner.ts`). Ce que la lecture ne voit pas, un motif seulement quadratique comme `\d*\d*\d*!`, tourne dans un worker avec **une seconde par règle**. Une règle qui dépasse est arrêtée (`terminate`), signalée par **« Règle abandonnée : trop lente »** au niveau de la règle, et les règles suivantes reprennent dans un nouveau worker.
+  - C'est un constat, pas une note : `verify` et `--fail-on` échouent sur un contrôle qui n'a pas pu se faire, au lieu de passer.
+  - Ligne de commande : `worker_threads`, avec le code envoyé en source (aucun fichier à part à livrer).
+  - Page : un Web Worker imbriqué dans le worker d'analyse (`src/web/rules-worker.ts`). Vite l'émet comme fichier du site, couvert par `worker-src 'self'` et par le service worker.
+  - Les règles en mots (`words`) sont des expressions du cœur, linéaires, et restent dans le fil courant.
+
+**Règles gardées dans le navigateur.** Un fichier mémorisé par une version antérieure et refusé maintenant aurait bloqué chaque analyse. Il est oublié à l'ouverture de la page, avec la raison affichée.
+
+**Ce qui n'est pas couvert.** La bibliothèque appelée sans `rulesRunner` exécute les règles dans son propre fil : seul le refus à la lecture la protège. Le README le dit et indique `budgetedRules`. Un motif polynomial de degré élevé sur un texte court peut rester sous le budget et passer ; c'est voulu.
 
 ## Bilan final
 

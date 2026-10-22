@@ -137,6 +137,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Speaker notes text': 'Texte des notes du présentateur',
   'Text of a hidden slide': 'Texte d’une diapositive masquée',
   'Comment authors': 'Auteurs des commentaires',
+  'Rule abandoned: too slow': 'Règle abandonnée : trop lente',
   'Defined name pointing outside the workbook': 'Nom défini pointant hors du classeur',
   'Links to other workbooks': 'Liens vers d’autres classeurs',
   'Exif with GPS coordinates': 'Exif avec coordonnées GPS',
@@ -511,6 +512,7 @@ const LOCATION_TEXT: Record<string, string> = {
   'tracked changes / comments': 'suivi de modifications / commentaires',
   'bidirectional controls': 'contrôles bidirectionnels',
   'document body': 'corps du document',
+  rules: 'règles',
   links: 'liens',
   'file revisions': 'révisions du fichier',
   'text formatting': 'mise en forme du texte',
@@ -1086,6 +1088,11 @@ const RULES_DETAIL: Array<[RegExp, (m: RegExpExecArray) => string]> = [
   [/^rule (.+?): unknown kind (.+)$/, (m) => `règle ${m[1]} : type (kind) inconnu ${m[2]}`],
   [/^rule (.+?): give words or a pattern$/, (m) => `règle ${m[1]} : indiquez des mots (words) ou un motif (pattern)`],
   [/^rule (.+?): flags may only be i, m, s, u$/, (m) => `règle ${m[1]} : flags ne peut contenir que i, m, s, u`],
+  [
+    /^rule (.+?): pattern refused, its time can grow exponentially \((a repetition inside a repeated group|alternatives that can match the same text)\): ([\s\S]*)$/,
+    (m) =>
+      `règle ${m[1]} : motif refusé, son temps peut croître de façon exponentielle (${m[2]!.startsWith('a ') ? 'une répétition dans un groupe répété' : 'des alternatives qui peuvent reconnaître le même texte'}) : ${m[3]}`,
+  ],
   [/^rule (.+?): ([\s\S]*)$/, (m) => `règle ${m[1]} : motif invalide (« ${m[2]} »)`],
 ];
 

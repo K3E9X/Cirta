@@ -118,6 +118,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build:web
       - run: node scripts/a11y.mjs
+      # [R1] The rules in the page: a refused pattern, a forgotten one, a slow one stopped.
+      - run: node scripts/web-rules.mjs
 
   # [F-P2 2.6] The editor and browser extensions, built and packaged; the
   # browser one also through Mozilla's linter, which fails on an error. And

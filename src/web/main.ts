@@ -1121,8 +1121,29 @@ function setupScanOptions(): void {
   const status = must<HTMLElement>('#rules-status');
   const forget = must<HTMLButtonElement>('#rules-forget');
 
+  /*
+   * [R1] Rules are kept from one visit to the next. A file read before this
+   * version could hold a pattern now refused; kept, it would stop every
+   * analysis. It is forgotten, and the page says why.
+   */
+  let dropped: unknown;
+  if (scanState.rules) {
+    try {
+      parseRules(scanState.rules);
+    } catch (error) {
+      dropped = error;
+      scanState.rules = undefined;
+      scanState.rulesName = undefined;
+      store(STORE.rules, null);
+      store(STORE.rulesName, null);
+    }
+  }
+
   const show = () => {
-    if (scanState.rules) {
+    if (dropped) {
+      status.textContent = t().rulesDropped(errorText(dropped, lang()));
+      status.classList.add('is-error');
+    } else if (scanState.rules) {
       try {
         status.textContent = t().rulesLoaded(scanState.rulesName ?? '', parseRules(scanState.rules).length);
         status.classList.remove('is-error');
@@ -1153,6 +1174,7 @@ function setupScanOptions(): void {
       status.classList.add('is-error');
       return;
     }
+    dropped = undefined;
     scanState.rules = text;
     scanState.rulesName = file.name;
     store(STORE.rules, text);
@@ -1160,6 +1182,7 @@ function setupScanOptions(): void {
     show();
   });
   forget.addEventListener('click', () => {
+    dropped = undefined;
     scanState.rules = undefined;
     scanState.rulesName = undefined;
     store(STORE.rules, null);

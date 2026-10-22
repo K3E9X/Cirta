@@ -51,7 +51,8 @@ export type { SarifInput } from './sarif.js';
 export { inspectPlainText, cleanPlainText, type PlainTextClean } from './plaintext.js';
 // [P0-3] The text a reader sees, for a model, with what was hidden from the reader listed apart.
 export { sanitizeForLlm, type SanitizedText } from './sanitize.js';
-export { parseRules, RulesError, type Rule } from './rules.js';
+export { parseRules, RulesError, ABANDONED, type Rule, type RuleInput, type RulesRunner } from './rules.js';
+export { budgetedRules, rulesWorkerMain, RULE_BUDGET_MS, type RulesChannel } from './rules-runner.js';
 export { findResidue, stripMarkdownResidue, removeScaffolding } from './residue.js';
 export { inspectClipboardHtml } from './clipboard.js';
 export type { ArchiveMember } from './archive.js';
@@ -74,7 +75,7 @@ import { stripRemoteResources } from './beacons.js';
 import { stripTracking } from './tracking.js';
 import { bodyText } from './body-text.js';
 import { piiFindings } from './pii.js';
-import { ruleFindings } from './rules.js';
+import { inThreadRules } from './rules.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -309,8 +310,8 @@ async function dlp(data: Uint8Array, result: InspectResult, options: InspectOpti
   const found: Finding[] = [];
   if (options.pii) found.push(...piiFindings(text, 'document body'));
   if (options.rules?.length) {
-    for (const finding of result.findings) found.push(...ruleFindings(finding.value, options.rules, finding.location));
-    found.push(...ruleFindings(text, options.rules, 'document body'));
+    const inputs = [...result.findings.map((finding) => ({ text: finding.value, location: finding.location })), { text, location: 'document body' }];
+    found.push(...(await (options.rulesRunner ?? inThreadRules)(inputs, options.rules)));
   }
   const seen = new Set<string>();
   return found.filter((f) => {
@@ -483,7 +484,7 @@ async function noteSurvivors(result: RedactResult, hint?: string, options: Inspe
   try {
     // Rendered again, not assumed: hidden text is page content, which cleaning
     // leaves alone, and the cleaned copy is checked for it like everything else.
-    survivors = (await inspectFile(result.data, hint, { xray: options.xray, pii: options.pii, rules: options.rules })).findings;
+    survivors = (await inspectFile(result.data, hint, { xray: options.xray, pii: options.pii, rules: options.rules, rulesRunner: options.rulesRunner })).findings;
   } catch (error) {
     // [C1] A copy this library cannot read back is not handed over. Returning
     // it unchecked is how an unreadable PDF went out with "9 fields removed".

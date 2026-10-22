@@ -10,13 +10,17 @@ publish a version this file does not describe (`scripts/check-release.mjs`).
 
 ## [Unreleased]
 
+### Added
+
+- **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.
+
 ### Fixed
 
 - **A cleaned phone photo keeps its orientation.** Cleaning a JPEG took the whole Exif block, so a portrait came out on its side; an Exif holding the orientation alone is written back, and not reported.
 
-### Added
+### Security
 
-- **A link can preset the page**: `#tab=text`, `#lang=en`, `#format=pdf` in the fragment, never sent to a server.
+- **A rules file can no longer hold Cirta.** `--rules` with `(a+)+$` against forty letters and a « ! » held the command line for minutes and, kept in the browser, froze every later analysis on the page. A pattern whose time can grow exponentially — a repetition inside a repeated group, or repeated alternatives that can match the same text — is now refused when the file is read, naming the part to rewrite; the page forgets such a file if an earlier version kept it. The other patterns run in a worker with one second per rule: one that overruns is stopped and reported as *Rule abandoned: too slow*, at the rule's level, and the other rules still run. Library: `rulesRunner` in the options, `budgetedRules` to build one.
 
 ## [0.3.0] — 2026-10-20
 

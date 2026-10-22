@@ -1005,10 +1005,20 @@ rules:
 ```
 
 Les règles lisent le corps et chaque champ déjà signalé (un nom de projet dans le titre y est trouvé).
-Un fichier illisible est refusé, avec la ligne ou la règle et la raison. Un motif s'exécute tel
-qu'écrit : un motif qui retourne mal en arrière est lent sur un long document. Dans la page,
-« Analyse étendue » propose les deux ; le fichier de règles et le choix sont mémorisés dans ce seul
-navigateur.
+Un fichier illisible est refusé, avec la ligne ou la règle et la raison. Un motif dont le temps peut
+croître de façon exponentielle — une répétition dans un groupe répété, `(a+)+$`, ou des alternatives
+répétées qui peuvent reconnaître le même texte, `(a|ab)+` — est refusé à la lecture du fichier, avec la
+partie à réécrire. Les autres s'exécutent dans un fil d'exécution à part, avec un budget d'une seconde
+par règle sur les textes d'un fichier : une règle qui le dépasse est arrêtée et signalée par **Règle
+abandonnée : trop lente**, au niveau de la règle, si bien que `verify` échoue plutôt que de passer sur
+un contrôle qu'il n'a pas pu faire ; les autres règles s'exécutent quand même. Dans la page, « Analyse
+étendue » propose les deux ; le fichier de règles et le choix sont mémorisés dans ce seul navigateur,
+et un fichier gardé qu'une version plus récente refuse est oublié à l'ouverture de la page, avec la
+raison affichée.
+
+Un programme qui appelle la bibliothèque exécute les règles dans son propre fil, sauf s'il passe un
+`rulesRunner` (`budgetedRules` sur ses propres workers) : le refus à la lecture s'applique dans tous les
+cas.
 
 ```
 cirta inspect --pii --rules regles.yaml dossier/

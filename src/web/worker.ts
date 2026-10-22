@@ -13,6 +13,7 @@
 
 import { inspectFile, redactFile, type InspectResult, type RedactResult } from '../core/index.js';
 import { parseRules, type Rule } from '../core/rules.js';
+import { budgetedRules, type RulesChannel } from '../core/rules-runner.js';
 import type { CleanChoices } from '../shared/clean-plan.js';
 import type { ImageCodec } from '../core/reencode.js';
 import type { XrayEngine, XrayRegion } from '../core/xray.js';
@@ -65,6 +66,17 @@ const rulesFrom = (text?: string): Rule[] | undefined => {
   return parsedRules.rules;
 };
 
+/** [R1] Each rule runs in a worker of its own, terminated if it overruns its budget. */
+const rulesRunner = budgetedRules((): RulesChannel => {
+  const worker = new Worker(new URL('./rules-worker.ts', import.meta.url), { type: 'module' });
+  return {
+    send: (message) => worker.postMessage(message),
+    onMessage: (listener) => worker.addEventListener('message', (event: MessageEvent) => listener(event.data)),
+    onError: (listener) => worker.addEventListener('error', (event) => listener(new Error(event.message))),
+    terminate: () => worker.terminate(),
+  };
+});
+
 /** What the reader chose to have changed in the document itself; every choice is off unless ticked. */
 export type { CleanChoices } from '../shared/clean-plan.js';
 
@@ -99,7 +111,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     const engine = mayRender(bytes) ? await xray : undefined;
     if (op === 'inspect') {
       const hidden: XrayRegion[] = [];
-      const result = await inspectFile(bytes, hint, { xray: engine, onHidden: (regions) => hidden.push(...regions), pii: scan.pii === true, rules: rulesFrom(scan.rules) });
+      const result = await inspectFile(bytes, hint, { xray: engine, onHidden: (regions) => hidden.push(...regions), pii: scan.pii === true, rules: rulesFrom(scan.rules), rulesRunner });
       (self as unknown as Worker).postMessage(
         { id, ok: true, op, result, hidden } satisfies WorkerResponse,
         hidden.map((region) => region.crop.rgba.buffer as ArrayBuffer),
@@ -126,6 +138,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
       imageCodec: clean.reencodeImages === true ? webImageCodec : undefined,
       pii: scan.pii === true,
       rules: rulesFrom(scan.rules),
+      rulesRunner,
     });
     // The buffer is transferred rather than copied: a redacted file can be tens
     // of megabytes and structured cloning it twice is pure waste.

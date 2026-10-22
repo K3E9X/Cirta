@@ -40,6 +40,10 @@ import { TRACKED_LABELS } from '../core/tracked-changes.js';
 import { AIMED_LABEL, removableFinding } from '../core/hidden-text.js';
 import { sanitizeForLlm, type SanitizedText } from '../core/sanitize.js';
 import { parseRules, type Rule } from '../core/rules.js';
+import { nodeRulesRunner } from './rules-worker.js';
+
+/** [R1] The rules run in a worker thread, each within its time budget. */
+const rulesRunner = nodeRulesRunner();
 import { runMcp } from './mcp.js';
 import { formatHint } from './hint.js';
 import { version } from './version.js';
@@ -733,7 +737,7 @@ async function runServe(args: Args): Promise<number> {
     blockOn: blockOn as Confidence | undefined,
     allowClean: args.allowClean,
     maxBytes: Math.round(megabytes * 1024 * 1024),
-    inspect: { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules },
+    inspect: { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules, rulesRunner },
     clean: { ...redactOptions(args), xray: await nodeXrayEngine(), imageCodec: args.reencodeImages ? await nodeImageCodec() : undefined },
     lang: lang(),
     version: version(),
@@ -770,7 +774,7 @@ async function runVerify(args: Args): Promise<number> {
   const report: Array<{ file: string; pass: boolean; level: string; findings: Finding[]; error?: string }> = [];
   for (const file of args.files) {
     try {
-      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules });
+      const result = await inspectFile(new Uint8Array(await readFile(file)), formatHint(file, args.forceText), { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules, rulesRunner });
       const left = result.findings.filter((f) => LEVELS.indexOf(f.confidence) >= floor);
       report.push({ file, pass: left.length === 0, level, findings: left });
     } catch (error) {
@@ -804,7 +808,7 @@ async function runInspect(args: Args): Promise<number> {
       const result = await inspectFile(
         new Uint8Array(await readFile(file)),
         formatHint(file, args.forceText),
-        { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules },
+        { xray: await nodeXrayEngine(), pii: args.pii, rules: args.rules, rulesRunner },
       );
       results.push({ file, result });
       if (!args.json && !args.sarif) {
@@ -870,7 +874,7 @@ function redactOptions(args: Args) {
     removeHidden: args.removeHidden, acceptChanges: args.acceptChanges, removeComments: args.removeComments, stripActive: args.stripActive, stripRemote: args.stripRemote,
     removeNotes: args.removeNotes, removeHiddenSlides: args.removeHiddenSlides, removeHiddenSheets: args.removeHiddenSheets,
     removeAttachments: args.removeAttachments, flattenAnnotations: args.flattenAnnotations, stripTracking: args.stripTracking,
-    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, reencodeImages: args.reencodeImages, pii: args.pii, rules: args.rules,
+    burnRedactions: args.burnRedactions, clearOutputs: args.clearOutputs, reencodeImages: args.reencodeImages, pii: args.pii, rules: args.rules, rulesRunner,
   };
 }
 
@@ -903,8 +907,8 @@ async function runRedact(args: Args): Promise<number> {
             format: result.format,
             before: input,
             after: result.data!,
-            findingsBefore: (await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules })).findings,
-            findingsAfter: (await inspectFile(result.data!, hint, { xray, pii: args.pii, rules: args.rules })).findings,
+            findingsBefore: (await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules, rulesRunner })).findings,
+            findingsAfter: (await inspectFile(result.data!, hint, { xray, pii: args.pii, rules: args.rules, rulesRunner })).findings,
             notes: result.notes.map((note) => note.code),
           }),
         );
@@ -996,7 +1000,7 @@ async function runWatch(args: Args): Promise<number> {
         const input = new Uint8Array(await readFile(path));
         const hint = formatHint(path, args.forceText);
         if (!out) {
-          const result = await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules });
+          const result = await inspectFile(input, hint, { xray, pii: args.pii, rules: args.rules, rulesRunner });
           if (args.json) console.log(terminalJson({ schema: REPORT_SCHEMA, file: name, result }, 0));
           else {
             console.log(`\n${bold(terminalSafe(name))} ${dim(`(${result.format})`)}`);
