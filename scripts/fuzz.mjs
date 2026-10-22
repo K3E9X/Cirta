@@ -43,10 +43,8 @@ import { PDFDocument } from 'pdf-lib';
 
 import {
   inspectFile,
-  inspectPdf,
   inspectImage,
   inspectPlainText,
-  unzipGuarded,
   decodeCbor,
   parseBoxes,
   decodePunycode,
@@ -208,8 +206,13 @@ const decode = (bytes) => new TextDecoder('utf-8', { fatal: false }).decode(byte
  */
 const TARGETS = {
   inspect: async (bytes) => void (await inspectFile(bytes)),
-  pdf: async (bytes) => void (await inspectPdf(bytes)),
-  zip: (bytes) => void unzipGuarded(bytes),
+  // [R8.2] Through the public entry point, told the format: a refusal there is
+  // the documented UnsupportedFormatError, while a TypeError or RangeError in
+  // the parser still comes through as the crash it is. Called directly, the
+  // parsers' own words — pdf-lib's « Failed to parse », fflate's « invalid zip
+  // data » — showed as escaped errors on every run.
+  pdf: async (bytes) => void (await inspectFile(bytes, 'fuzz.pdf')),
+  zip: async (bytes) => void (await inspectFile(bytes, 'fuzz.zip')),
   image: (bytes) => void inspectImage(bytes, 'fuzz'),
   cbor: (bytes) => void decodeCbor(bytes),
   jumbf: (bytes) => void parseBoxes(bytes),

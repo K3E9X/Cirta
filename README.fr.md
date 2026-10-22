@@ -289,7 +289,10 @@ Trois réponses possibles, et la troisième est la plus importante :
    général, avec le rappel que ce sont les métadonnées du fichier qui l'affirment.
 2. **Seule une bibliothèque est nommée** (`ReportLab`, `python-docx`) — le conteneur a été fabriqué
    par un programme, ce qui ne dit rien de qui a écrit les mots. L'outil le dit et ne va pas plus
-   loin.
+   loin. Ce que la bibliothèque écrit quand personne ne lui dit rien d'autre — l'auteur
+   « python-docx » et le titre « Word Document » de python-docx, ceux de python-pptx et d'openpyxl,
+   les « anonymous », « untitled » et « unspecified » de ReportLab — est signalé comme *valeur par
+   défaut* de cette bibliothèque, en provenance informative, pas comme une personne.
 3. **Rien ne nomme quoi que ce soit** — et le rapport le formule explicitement, au lieu de se taire :
    *ce n'est pas la même chose que « pas d'IA »*. Les champs ont pu être vidés, jamais écrits, ou le
    texte collé à la main dans Word. Et la formulation elle-même — là où vit un filigrane statistique
@@ -565,7 +568,7 @@ chaque format — celle où une chaîne de génération écrit ce qu'elle veut �
 |---|---|
 | PDF | Toutes les clés `/Info`, y compris non standard. Les neuf clés standard (ISO 32000-1 §14.3.3, `/Trapped` compris) ne sont pas signalées comme personnalisées |
 | DOCX / PPTX / XLSX | `docProps/custom.xml`, chaque propriété avec sa valeur |
-| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur. La comptabilité propre à Office reprise d'un `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistiques…) est de la provenance informative ; toute autre propriété reste confirmée |
+| ODT / ODS / ODP | `meta:user-defined`, chaque propriété avec sa valeur. La comptabilité propre à Office reprise d'un `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistiques…) est de la provenance informative ; toute autre propriété reste confirmée. La même liste s'applique aux propriétés personnalisées OOXML, RTF et aux jeux de propriétés des `.doc`, `.xls` et `.ppt` |
 | Markdown | Toutes les clés de front matter reconnues |
 | SVG / HTML | Bloc `<metadata>`, balises `generator`, commentaires |
 
@@ -942,10 +945,14 @@ nettoyage retire est surtout ce que personne ne voit.
 CV. Il écrit le texte du document **tel qu'une personne qui le lit le voit** — passages cachés, texte
 sous une forme, commentaires, `<noscript>` et `<template>`, notes du présentateur, diapositives,
 feuilles et lignes masquées, suppressions suivies et caractères invisibles laissés de côté — et liste,
-sur stderr, les consignes adressées à une IA qu'il a trouvées cachées. `--json` donne `{file, format,
-text, hiddenInstructions, hiddenRemoved, invisibleRemoved}` ; `--fail-on-instructions` sort en 1
-quand il en a trouvé une, pour qu'un pipeline s'arrête sur le fichier au lieu d'en donner le reste à
-un modèle. Un PDF demande le moteur de rendu (c'est lui qui dit ce qui est recouvert) ; sans lui, ou
+sur stderr, les consignes adressées à une IA qu'il a trouvées cachées. Un lien dont l'adresse affichée
+n'est pas celle où il mène — texte de lien qui nomme un autre site, en HTML, Markdown ou dans un mail,
+ou adresse écrite en lettres sosies — est suivi dans le texte de sa vraie cible,
+`https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, et signalé sur stderr. `--json` donne
+`{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved, deceptiveLinks}` ;
+`--fail-on-instructions` sort en 1 quand une consigne a été trouvée, `--fail-on-deceptive-links` quand
+un tel lien l'a été, pour qu'un pipeline s'arrête sur le fichier au lieu d'en donner le reste à un
+modèle. Un PDF demande le moteur de rendu (c'est lui qui dit ce qui est recouvert) ; sans lui, ou
 si toutes les pages n'ont pas pu être rendues à temps, aucun texte n'est produit, plutôt qu'un texte
 qui pourrait contenir ce qui est caché.
 

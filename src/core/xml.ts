@@ -174,3 +174,28 @@ export function collectNamedProperties(
   }
   return out;
 }
+
+/**
+ * [R6] A DTD that declares entities, in any XML part of a package. Office and
+ * OpenDocument never write one; it is how an XML bomb (`&lol9;`) or an
+ * external entity (`<!ENTITY xxe SYSTEM "file:///etc/passwd">`) reaches a
+ * parser. Cirta does not expand them: they are named, with the files an
+ * external one points at.
+ */
+export function dtdFindings(parts: Record<string, Uint8Array>): import('./types.js').Finding[] {
+  const out: import('./types.js').Finding[] = [];
+  const decoder = new TextDecoder();
+  for (const path of Object.keys(parts).sort()) {
+    if (!/\.(?:xml|rels|opf|ncx|xhtml|svg)$/i.test(path)) continue;
+    const head = decoder.decode(parts[path]!.subarray(0, 64 * 1024));
+    const doctype = head.indexOf('<!DOCTYPE');
+    if (doctype < 0) continue;
+    const names: string[] = [];
+    for (const m of head.slice(doctype).matchAll(/<!ENTITY\s+(?:%\s+)?([\w.-]{1,64})\s+(?:(SYSTEM|PUBLIC)\s+(?:"[^"]{0,500}"\s+)?"([^"]{0,500})")?/g)) {
+      names.push(m[3] ? `${m[1]} = ${m[3]}` : m[1]!);
+      if (names.length >= 20) break;
+    }
+    if (names.length) out.push({ kind: 'active-content', confidence: 'probable', location: path, label: 'DTD with entities in an XML part (unresolved)', value: names.join(', ') });
+  }
+  return out;
+}

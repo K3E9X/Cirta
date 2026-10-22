@@ -27,6 +27,7 @@
  */
 
 import type { Finding, InspectOptions, InspectResult, Note, RedactResult } from './types.js';
+import { customPropertyLevel } from './technical-properties.js';
 import { byConfidence, preview } from './types.js';
 import { fingerprint } from './fingerprint.js';
 import { inspectImage, stripImageMetadata, detectImageKind } from './image.js';
@@ -424,7 +425,7 @@ export async function inspectRtf(data: Uint8Array, options: InspectOptions = {})
           const prop = tree.groups[c]!;
           if (prop.word === 'propname') name = textOf(tree, prop, decoder);
           else if (prop.word === 'staticval' && name) {
-            findings.push({ kind: 'identity', confidence: 'confirmed', location: `\\userprops:${name}`, label: `Custom property: ${name}`, value: textOf(tree, prop, decoder) });
+            findings.push({ ...customPropertyLevel(name), location: `\\userprops:${name}`, label: `Custom property: ${name}`, value: textOf(tree, prop, decoder) });
             name = undefined;
           }
         }

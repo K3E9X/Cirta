@@ -20,6 +20,7 @@
  */
 
 import { strFromU8, strToU8, zipSync } from 'fflate';
+import { dtdFindings } from './xml.js';
 import type { Finding, InspectOptions, InspectResult, Note, RedactResult } from './types.js';
 import { byConfidence, preview } from './types.js';
 import { inspectMarkup, redactMarkupCounted } from './markup.js';
@@ -205,7 +206,7 @@ export async function inspectEpub(data: Uint8Array, _options: InspectOptions = {
     seen.add(key);
     return true;
   });
-  return { format: 'epub', findings: [...unique, ...fingerprint(unique)].sort(byConfidence), notes };
+  return { format: 'epub', findings: [...unique, ...fingerprint(unique), ...dtdFindings(parts)].sort(byConfidence), notes };
 }
 
 export interface RedactEpubOptions {

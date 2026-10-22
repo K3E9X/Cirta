@@ -102,7 +102,7 @@ try {
   // --- help ---------------------------------------------------------------
   const help = runCli(['--help']);
   check('--help exits 0', help.status === 0);
-  check('--help documents the scope limit', help.output.includes('statistical model watermark'));
+  check('--help documents the scope limit', help.output.includes('statistical watermark'));
 
   // --- recursive inspect --------------------------------------------------
   const inspect = runCli(['inspect', dir]);

@@ -138,6 +138,7 @@ const FIELD_LABEL: Record<string, string> = {
   'Text of a hidden slide': 'Texte d’une diapositive masquée',
   'Comment authors': 'Auteurs des commentaires',
   'Rule abandoned: too slow': 'Règle abandonnée : trop lente',
+  'DTD with entities in an XML part (unresolved)': 'DTD avec entités dans une partie XML (non résolues)',
   'Script in the page': 'Script dans la page',
   'Script loaded from a file': 'Script chargé depuis un fichier',
   'Event handler attribute': 'Attribut qui exécute du code sur un événement',
@@ -812,8 +813,20 @@ const CREDENTIAL_NAME: Record<string, string> = {
   'Stripe live key': 'clé Stripe de production',
 };
 
+/**
+ * [R8.3] A character's name is a label too, and the core writes it as Unicode
+ * does, in lower case: « espace sans chasse » sat lower-case among labels
+ * that all begin with a capital. Shown with one, in both languages; the core's
+ * own label, in JSON and the library, stays the name. Only a first word all in
+ * lower-case letters is touched — « tEXt », « dc:creator » stay as written.
+ */
+const capitalised = (label: string): string => (/^[a-zà-ÿ]+(?=[\s’'-]|$)/u.test(label) && !label.includes(':') ? label.charAt(0).toUpperCase() + label.slice(1) : label);
+
 export function translateLabel(label: string, lang: Lang): string {
-  if (lang === 'en') return label;
+  return capitalised(lang === 'en' ? label : frenchLabel(label));
+}
+
+function frenchLabel(label: string): string {
   const mapped = FIELD_LABEL[label];
   if (mapped) return mapped;
   const credential = /^Credential left in file: (.+)$/.exec(label);
@@ -1055,6 +1068,9 @@ export function translateValue(finding: Finding, lang: Lang): string {
       }
     }
   }
+  // [R6] A library's default value, named. Cut at the marker, not matched: the value is the file's.
+  const library = finding.value.lastIndexOf(' — the default value of ');
+  if (library >= 0) return `${finding.value.slice(0, library)} — valeur par défaut de ${finding.value.slice(library + ' — the default value of '.length)}`;
   if (isAt(finding, 'hyphen lookalikes')) {
     const hyphens = translateHyphens(finding.value);
     if (hyphens) return hyphens;

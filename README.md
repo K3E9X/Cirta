@@ -268,7 +268,10 @@ Three possible answers, and the third matters most:
 1. **An assistant, a model or an agent is named** — the line lists them, most specific first, with
    the reminder that it is the file's own metadata making the claim.
 2. **Only a library is named** (`ReportLab`, `python-docx`) — a program built the container, which
-   says nothing about who wrote the words. The tool says that and goes no further.
+   says nothing about who wrote the words. The tool says that and goes no further. What the library
+   writes when nobody tells it otherwise — python-docx's author "python-docx" and title "Word
+   Document", python-pptx's, openpyxl's, ReportLab's "anonymous", "untitled" and "unspecified" — is
+   reported as *the default value of* that library, informational provenance, not as a person.
 3. **Nothing names anything** — and the report says so explicitly instead of staying silent: *that is
    not the same as "not AI"*. The fields may have been cleared, never written, or the text pasted in
    by hand. And the wording itself — where a statistical watermark lives — cannot be read here.
@@ -524,7 +527,7 @@ the one where a generation pipeline writes whatever it likes — is read with it
 |---|---|
 | PDF | Every `/Info` key, non-standard included. The nine standard keys (ISO 32000-1 §14.3.3, `/Trapped` included) are not reported as custom |
 | DOCX / PPTX / XLSX | `docProps/custom.xml`, each property with its value |
-| ODT / ODS / ODP | `meta:user-defined`, each property with its value. Office's own bookkeeping carried over from a `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistics…) is informational provenance; any other property stays confirmed |
+| ODT / ODS / ODP | `meta:user-defined`, each property with its value. Office's own bookkeeping carried over from a `.docx` (`AppVersion`, `DocSecurity`, `ScaleCrop`, `LinksUpToDate`, statistics…) is informational provenance; any other property stays confirmed. The same list applies to custom properties in OOXML, RTF and the property sets of `.doc`, `.xls` and `.ppt` |
 | Markdown | Every recognised front-matter key |
 | SVG / HTML | The `<metadata>` block, `generator` tags, comments |
 
@@ -885,9 +888,12 @@ code point** (`Bonjour⟨U+200B⟩`), since what a clean removes is mostly what 
 It prints the text of the document **as a person reading it sees it** — hidden runs, text under a
 shape, comments, `<noscript>` and `<template>`, speaker notes, hidden slides, sheets and rows, tracked
 deletions and invisible characters left out — and lists, on stderr, the instructions to an AI it found
-hidden. `--json` gives `{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved}`;
-`--fail-on-instructions` exits 1 when one was found, so a pipeline can stop on the file instead of
-feeding the rest to a model. A PDF needs the renderer (it tells what is covered); without it, or when
+hidden. A link whose shown address is not where it goes — link text naming another site, in HTML,
+Markdown or a mail, or an address written in lookalike letters — is followed in the text by its real
+target, `https://paypal.com/login [→ https://xn--l-7sba6dbr.com/login]`, and said on stderr. `--json`
+gives `{file, format, text, hiddenInstructions, hiddenRemoved, invisibleRemoved, deceptiveLinks}`;
+`--fail-on-instructions` exits 1 when an instruction was found, `--fail-on-deceptive-links` when such a
+link was, so a pipeline can stop on the file instead of feeding the rest to a model. A PDF needs the renderer (it tells what is covered); without it, or when
 not every page could be rendered in time, no text is produced rather than text that may hold what is
 hidden.
 

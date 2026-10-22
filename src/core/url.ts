@@ -181,7 +181,7 @@ const INVISIBLE_IN_HOST = /[­​-‏⁠-⁤⁪-⁯﻿‪-‮⁦-⁩]/u;
  * word as often as it is an address, and reporting on every one of those would
  * bury the findings that matter under prose.
  */
-const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`)\]}]+/gi;
+export const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`)\]}]+/gi;
 
 /*
  * Hosts written without a scheme, which is how a link usually appears in an
@@ -389,12 +389,39 @@ export function findDeceptiveUrls(text: string, location = 'links'): Finding[] {
  * any size is read in one pass.
  */
 export function findHtmlLinks(html: string, location = 'links'): Finding[] {
+  const { hrefs, anchors } = readAnchors(html);
+  const findings = anchors.map(({ shown, target, decoded }): Finding => ({
+    kind: 'deceptive-link',
+    confidence: 'confirmed',
+    location,
+    label: 'Link text shows a different address',
+    value: `shows ${preview(shown, 60)} — goes to ${decoded === target ? target : `${decoded} (${target})`}`,
+  }));
+  return [...findDeceptiveUrls(hrefs.join('\n'), location), ...findings];
+}
+
+/** [R7] An anchor whose text shows one address while it goes to another: the address shown, and where it goes. */
+export interface MismatchedAnchor {
+  /** The address as the link text writes it. */
+  address: string;
+  /** The link's own address, as a browser opens it (punycode host). */
+  href: string;
+}
+
+export function mismatchedAnchors(html: string): MismatchedAnchor[] {
+  return readAnchors(html).anchors.map(({ address, href }) => ({ address, href }));
+}
+
+function readAnchors(html: string): {
+  hrefs: string[];
+  anchors: Array<{ shown: string; address: string; href: string; target: string; decoded: string }>;
+} {
   const hrefs: string[] = [];
-  const findings: Finding[] = [];
+  const anchors: Array<{ shown: string; address: string; href: string; target: string; decoded: string }> = [];
   const seen = new Set<string>();
   const lower = html.toLowerCase();
-  let anchors = 0;
-  for (let at = lower.indexOf('<a'); at >= 0 && anchors < 5000; at = lower.indexOf('<a', at + 2)) {
+  let count = 0;
+  for (let at = lower.indexOf('<a'); at >= 0 && count < 5000; at = lower.indexOf('<a', at + 2)) {
     // Every step is an indexOf: a regex that scans to the tag's end would scan
     // again from each "<a" in a run of them with no ">" anywhere.
     const next = lower.charCodeAt(at + 2);
@@ -402,7 +429,7 @@ export function findHtmlLinks(html: string, location = 'links'): Finding[] {
     const end = lower.indexOf('>', at);
     if (end < 0) break;
     if (end - at > 4000) continue;
-    anchors++;
+    count++;
     const m = { index: at, 0: html.slice(at, end + 1), 1: html.slice(at + 2, end) };
     const attr = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(m[1] ?? '');
     const href = (attr?.[1] ?? attr?.[2] ?? attr?.[3] ?? '').replace(/&amp;/gi, '&').trim();
@@ -433,13 +460,7 @@ export function findHtmlLinks(html: string, location = 'links'): Finding[] {
       .split('.')
       .map((label) => (label.startsWith('xn--') ? (decodePunycode(label) ?? label) : label))
       .join('.');
-    findings.push({
-      kind: 'deceptive-link',
-      confidence: 'confirmed',
-      location,
-      label: 'Link text shows a different address',
-      value: `shows ${preview(shown, 60)} — goes to ${decoded === target ? target : `${decoded} (${target})`}`,
-    });
+    anchors.push({ shown, address: visible[0], href: new URL(href).href, target, decoded });
   }
-  return [...findDeceptiveUrls(hrefs.join('\n'), location), ...findings];
+  return { hrefs, anchors };
 }

@@ -77,6 +77,7 @@ import { bodyText } from './body-text.js';
 import { piiFindings } from './pii.js';
 import { inThreadRules } from './rules.js';
 import { stripActiveMarkup } from './markup-active.js';
+import { libraryDefaults } from './library-defaults.js';
 import { decodeTextInput, cleanText, BinaryInputError } from './text.js';
 import { stripToolHeaders } from './email.js';
 import { inspectPlainText } from './plaintext.js';
@@ -296,7 +297,9 @@ function imageFindings(data: Uint8Array, image: Format): Finding[] {
  * find.
  */
 export async function inspectFile(data: Uint8Array, hint?: string, options: InspectOptions = {}): Promise<InspectResult> {
-  const result = await asRefusal(() => dispatch(data, hint, options));
+  const read = await asRefusal(() => dispatch(data, hint, options));
+  // [R6] A library's defaults and unresolved entities are not someone's name.
+  const result = { ...read, findings: libraryDefaults(read.findings) };
   if (!options.pii && !options.rules?.length) return result;
   return { ...result, findings: [...result.findings, ...(await dlp(data, result, options))].sort(byConfidence) };
 }

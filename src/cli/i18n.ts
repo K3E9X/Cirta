@@ -64,6 +64,7 @@ const FR = {
   serveTooLarge: (mb: number) => `Trop volumineux : au-delà de ${mb} Mo, rien n’est inspecté (--max-size).`,
   sanitizeHidden: (n: number) => `cirta : ${n} passage${n > 1 ? 's' : ''} caché${n > 1 ? 's' : ''} laissé${n > 1 ? 's' : ''} hors du texte`,
   sanitizeInstruction: (where: string, text: string) => `cirta : consigne cachée destinée à une IA (${where}) — ${text}`,
+  sanitizeDeceptive: (shown: string, target: string) => `cirta : lien trompeur — affiche ${shown}, mène à ${target}`,
   verifyPass: 'CONFORME',
   verifyFail: 'ÉCHEC',
   verifyNothing: (level: string) => `aucun constat ${level} ou au-dessus`,
@@ -123,10 +124,10 @@ const FR = {
   confInformational: 'Nomme le logiciel plutôt que l’auteur',
   scopeTitle: 'Portée',
   scopeBody:
-    'Traite les métadonnées de documents (PDF /Info et XMP, docProps Office) et l’Unicode\n' +
-    '  invisible dans le texte. Ne détecte ni ne retire les filigranes statistiques : ceux-là\n' +
-    '  vivent dans le choix des mots, pas dans un champ, et les lire exige la clé secrète de\n' +
-    '  l’éditeur. Aucun outil local n’en est capable, celui-ci compris.',
+    'Lit ce qu’un fichier porte au-delà de ce qu’il montre — métadonnées, texte caché, contenu\n' +
+    '  actif, caractères invisibles — localement, et nomme ce qui survit au nettoyage. Ne voit\n' +
+    '  pas un filigrane statistique : il est dans le choix des mots et sa lecture exige la clé\n' +
+    '  de l’éditeur du modèle. Aucun outil local n’en est capable, celui-ci compris.',
   tagline: 'inspecte et retire les métadonnées de provenance des documents',
   taglineLocal: 'tout s’exécute localement ; aucun appel réseau n’est fait',
 
@@ -331,6 +332,7 @@ const EN: Strings = {
   serveTooLarge: (mb: number) => `Too large: past ${mb} MB nothing is inspected (--max-size).`,
   sanitizeHidden: (n) => `cirta: ${n} hidden passage${n > 1 ? 's' : ''} left out of the text`,
   sanitizeInstruction: (where, text) => `cirta: hidden instruction aimed at an AI (${where}) — ${text}`,
+  sanitizeDeceptive: (shown, target) => `cirta: deceptive link — shows ${shown}, goes to ${target}`,
   verifyPass: 'PASS',
   verifyFail: 'FAIL',
   verifyNothing: (level) => `no ${level} finding or above`,
@@ -390,10 +392,10 @@ const EN: Strings = {
   confInformational: 'Names the software rather than the author',
   scopeTitle: 'Scope',
   scopeBody:
-    'Handles document metadata (PDF /Info and XMP, Office docProps) and invisible\n' +
-    '  Unicode in text. It does not detect or remove statistical model watermarks:\n' +
-    '  those live in word choice, not in a field, and reading one requires the\n' +
-    "  vendor's secret key. No local tool can do it, including this one.",
+    'Reads what a file carries beyond what it shows — metadata, hidden text, active\n' +
+    '  content, invisible characters — locally, and names what survives cleaning. It cannot\n' +
+    '  see a statistical watermark: that lives in the choice of words, and reading one needs\n' +
+    "  the model vendor's key. No local tool can, this one included.",
   tagline: 'inspect and strip provenance metadata from documents',
   taglineLocal: 'everything runs locally; no network calls are made',
 
